@@ -1,6 +1,8 @@
-import type { CSSProperties } from "react";
+"use client";
+
+import { useState, type CSSProperties } from "react";
 import { PENDING_COLOR, PROGRESS_STAGE_NAMES, toneRgba, type ProgressBarSpec } from "@/lib/progress";
-import type { PipelineRow } from "@/lib/pipeline";
+import { filterPipelineRows, type PipelineRow } from "@/lib/pipeline";
 import { PipelineRowLink } from "./PipelineRowLink";
 import { PipelineTitle } from "./PipelineTitle";
 
@@ -13,6 +15,10 @@ function barStyle(bar: ProgressBarSpec): CSSProperties {
 
 /** パイプライン（リポジトリのページ）：Issueを行、パイプラインの段階を列にした表。スマホでは1件＝1ブロック */
 export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoName: string }) {
+  const [showDeployed, setShowDeployed] = useState(false);
+  const visibleRows = filterPipelineRows(rows, showDeployed);
+  const hiddenCount = rows.length - filterPipelineRows(rows, false).length;
+
   return (
     <section className="section" aria-labelledby="pipeline-title">
       <div className="section-head">
@@ -20,10 +26,22 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
           パイプライン
         </h2>
         <span className="section-note">直近14日・新しいIssueが上</span>
+        {rows.length > 0 && (
+          <button
+            type="button"
+            className="refresh-button"
+            aria-pressed={showDeployed}
+            onClick={() => setShowDeployed((shown) => !shown)}
+          >
+            {showDeployed ? "公開済みを隠す" : `公開済みを表示（${hiddenCount}）`}
+          </button>
+        )}
       </div>
 
       {rows.length === 0 ? (
         <p className="empty pipeline-empty">直近14日のIssueはありません</p>
+      ) : visibleRows.length === 0 ? (
+        <p className="empty pipeline-empty">動いている作業はありません</p>
       ) : (
         <div className="pipeline" role="table" aria-label="パイプライン">
           <div className="pipeline-grid pipeline-head" role="row">
@@ -36,7 +54,7 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
               </div>
             ))}
           </div>
-          {rows.map((row) => (
+          {visibleRows.map((row) => (
             <PipelineRowLink
               href={row.issue.url}
               stage={row.status.stage}
