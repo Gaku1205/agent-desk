@@ -2,7 +2,7 @@
 
 import { useState, type CSSProperties } from "react";
 import { PENDING_COLOR, PROGRESS_STAGE_NAMES, toneRgba, type ProgressBarSpec } from "@/lib/progress";
-import { filterPipelineRows, type PipelineRow } from "@/lib/pipeline";
+import { countPipelineWork, filterPipelineRows, type PipelineRow } from "@/lib/pipeline";
 import { rowFrame, rowFrameAttr } from "@/lib/rowFrame";
 import { PipelineRowLink } from "./PipelineRowLink";
 import { PipelineTitle } from "./PipelineTitle";
@@ -18,6 +18,7 @@ function barStyle(bar: ProgressBarSpec): CSSProperties {
 export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoName: string }) {
   const [showDeployed, setShowDeployed] = useState(false);
   const visibleRows = filterPipelineRows(rows, showDeployed);
+  const { queued, working } = countPipelineWork(rows);
   const hiddenCount = rows.length - filterPipelineRows(rows, false).length;
 
   return (
@@ -27,6 +28,8 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
           パイプライン
         </h2>
         <span className="section-note">直近14日・新しいIssueが上</span>
+        {queued > 0 && <span className="section-note">順番待ち {queued}件</span>}
+        {working > 0 && <span className="section-note">並列で動いている {working}件</span>}
         {rows.length > 0 && (
           <button
             type="button"
@@ -70,6 +73,11 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
                 <span className="pipeline-ref mono">
                   {repoName}#{row.issue.number}
                 </span>
+                {row.queueReason && (
+                  <span className="pipeline-reason" title={row.queueReason}>
+                    {row.queueReason}
+                  </span>
+                )}
                 <span className={`pipeline-desc pipeline-desc-mobile pipeline-tone-${row.progress.tone}`}>
                   {row.description}
                 </span>
