@@ -3,6 +3,7 @@
 import { useState, type CSSProperties } from "react";
 import { PENDING_COLOR, PROGRESS_STAGE_NAMES, toneRgba, type ProgressBarSpec } from "@/lib/progress";
 import { filterPipelineRows, type PipelineRow } from "@/lib/pipeline";
+import { rowFrame, rowFrameAttr } from "@/lib/rowFrame";
 import { PipelineRowLink } from "./PipelineRowLink";
 
 function barStyle(bar: ProgressBarSpec): CSSProperties {
@@ -60,6 +61,7 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
               tone={row.progress.tone}
               done={row.status.stage === "deployed"}
               ariaLabel={`${repoName}#${row.issue.number} ${row.issue.title}：${row.description}・${row.progress.ariaLabel}`}
+              frame={rowFrameAttr(rowFrame(row.status))}
               key={row.issue.number}
             >
               <div className="pipeline-issue" role="cell">

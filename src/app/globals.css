@@ -678,6 +678,64 @@ button {
   opacity: 0.62;
 }
 
+/* 行の外枠：疑似要素を重ねるだけなので、行の高さや中身の位置は変わらない */
+@property --frame-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.pipeline-row[data-frame] {
+  position: relative;
+}
+
+.pipeline-row[data-frame]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--frame-color);
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+
+.pipeline-row[data-frame="human"] {
+  --frame-color: var(--human);
+}
+
+.pipeline-row[data-frame="fail"] {
+  --frame-color: var(--fail);
+}
+
+.pipeline-row[data-frame="spinning"] {
+  --frame-color: var(--ai);
+}
+
+.pipeline-row[data-frame="spinning"]::before {
+  background: conic-gradient(from var(--frame-angle), transparent 0 55%, var(--ai));
+  animation: row-frame-spin 2.4s linear infinite;
+}
+
+@keyframes row-frame-spin {
+  to {
+    --frame-angle: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pipeline-row[data-frame="spinning"]::before {
+    background: var(--ai);
+    animation: none;
+  }
+}
+
 .pipeline-issue {
   display: flex;
   flex-direction: column;
