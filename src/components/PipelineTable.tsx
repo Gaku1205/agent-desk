@@ -5,6 +5,7 @@ import { PENDING_COLOR, PROGRESS_STAGE_NAMES, toneRgba, type ProgressBarSpec } f
 import { filterPipelineRows, type PipelineRow } from "@/lib/pipeline";
 import { rowFrame, rowFrameAttr } from "@/lib/rowFrame";
 import { PipelineRowLink } from "./PipelineRowLink";
+import { PipelineTitle } from "./PipelineTitle";
 
 function barStyle(bar: ProgressBarSpec): CSSProperties {
   if (bar.tone === null) return { background: PENDING_COLOR };
@@ -65,7 +66,7 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
               key={row.issue.number}
             >
               <div className="pipeline-issue" role="cell">
-                <span className="pipeline-title">{row.issue.title}</span>
+                <PipelineTitle title={row.issue.title} />
                 <span className="pipeline-ref mono">
                   {repoName}#{row.issue.number}
                 </span>
