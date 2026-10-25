@@ -44,6 +44,35 @@ export class GitHubClient {
     return { json, next: parseNextLink(response.headers.get("link")) };
   }
 
+  /** 書き込み（POST / PUT / DELETE）。失敗したら GitHubError（ステータスつき、トークンは含めない） */
+  async send(method: "POST" | "PUT" | "DELETE", path: string, body?: unknown): Promise<unknown> {
+    let response: Response;
+    try {
+      response = await this.fetcher(`${API_BASE}${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        cache: "no-store",
+      });
+    } catch {
+      throw new GitHubError("other");
+    }
+    if (!response.ok) {
+      throw new GitHubError(classifyError(response.status, response.headers), response.status);
+    }
+    if (response.status === 204) return null;
+    try {
+      return await response.json();
+    } catch {
+      return null;
+    }
+  }
+
   async get<T>(path: string): Promise<T> {
     return (await this.request(path)).json as T;
   }

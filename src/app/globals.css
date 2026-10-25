@@ -355,3 +355,283 @@ button {
     visibility: hidden;
   }
 }
+
+/* セクションの見出し */
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.section-note {
+  color: var(--text-mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+/* サイドバーの件数 */
+
+.sidebar-count {
+  flex-shrink: 0;
+  color: var(--human);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+/* あなたの番 */
+
+.turn-count {
+  margin-left: 6px;
+  color: var(--human);
+  font-weight: 500;
+}
+
+.turn-empty,
+.turn-error {
+  padding-top: 14px;
+}
+
+.turn-error {
+  margin: 0;
+  color: var(--text-sub);
+  font-size: 13.5px;
+}
+
+.turn-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.turn-row {
+  display: grid;
+  grid-template-columns: 14px 150px minmax(0, 1fr) auto auto;
+  grid-template-areas: "icon ref body wait buttons";
+  align-items: start;
+  gap: 0 14px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.turn-icon {
+  grid-area: icon;
+  margin-top: 4px;
+}
+
+.turn-ref {
+  grid-area: ref;
+  overflow: hidden;
+  padding-top: 2px;
+  color: var(--text-mute);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.turn-ref:hover,
+.turn-title:hover {
+  text-decoration: underline;
+}
+
+.turn-body {
+  grid-area: body;
+  min-width: 0;
+}
+
+.turn-title {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.turn-desc {
+  margin: 4px 0 0;
+  color: var(--text-sub);
+  font-size: 13.5px;
+}
+
+.turn-progress {
+  margin-top: 6px;
+}
+
+.turn-op-error {
+  margin: 8px 0 0;
+  color: var(--fail);
+  font-size: 13.5px;
+}
+
+.turn-wait {
+  grid-area: wait;
+  padding-top: 2px;
+  color: var(--text-mute);
+  font-size: 12.5px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.turn-buttons {
+  grid-area: buttons;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.turn-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 112px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--human-border);
+  border-radius: 6px;
+  background: var(--human-bg);
+  color: var(--human-text);
+  font-size: 13.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.turn-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+@media (max-width: 899px) {
+  .turn-row {
+    grid-template-columns: 14px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "icon ref wait"
+      "body body body"
+      "buttons buttons buttons";
+    gap: 8px 10px;
+  }
+
+  .turn-title {
+    font-size: 15px;
+  }
+
+  .turn-buttons {
+    justify-content: flex-start;
+    margin-top: 4px;
+  }
+
+  .turn-button {
+    height: 44px;
+    border-radius: 8px;
+  }
+}
+
+/* マージの確認ダイアログ */
+
+.merge-dialog {
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  animation: merge-dialog-open 0.12s ease-out;
+}
+
+.merge-dialog::backdrop {
+  background: rgba(4, 4, 5, 0.86);
+}
+
+@keyframes merge-dialog-open {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .merge-dialog {
+    animation: none;
+  }
+}
+
+.merge-dialog-head {
+  padding: 18px 20px 16px;
+}
+
+.merge-dialog-target {
+  margin: 0;
+  color: var(--text-mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.merge-dialog-title {
+  margin: 6px 0 0;
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.merge-dialog-result {
+  margin: 0;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: var(--text-sub);
+  font-size: 12px;
+  line-height: 1.8;
+  white-space: pre;
+}
+
+.merge-dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px;
+}
+
+.merge-dialog-cancel,
+.merge-dialog-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 6px;
+  font-size: 13.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.merge-dialog-cancel {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+}
+
+.merge-dialog-confirm {
+  border: 1px solid var(--human);
+  background: var(--human);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.merge-dialog-cancel:disabled,
+.merge-dialog-confirm:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.merge-dialog-cancel kbd,
+.merge-dialog-confirm kbd {
+  font-size: 12px;
+  opacity: 0.7;
+}
