@@ -4,9 +4,11 @@ import type { IssueStatus, Stage } from "./status";
 export type RowFrame =
   | { kind: "spinning" }
   | { kind: "stopped"; color: "human" | "fail" }
+  | { kind: "queue" }
   | { kind: "none" };
 
 const NONE: RowFrame = { kind: "none" };
+const QUEUE: RowFrame = { kind: "queue" };
 const SPINNING: RowFrame = { kind: "spinning" };
 
 /** 段階ごとの外枠。失敗は誰の番かより優先して `--fail` にする */
@@ -23,7 +25,7 @@ const FRAME_BY_STAGE: Record<Stage, RowFrame> = {
   ciFailed: { kind: "stopped", color: "fail" },
   deployFailed: { kind: "stopped", color: "fail" },
   deployed: NONE,
-  queued: NONE,
+  queued: QUEUE,
   notStarted: NONE,
 };
 
@@ -36,7 +38,8 @@ export function rowFrame(status: Pick<IssueStatus, "stage" | "turn">): RowFrame 
 }
 
 /** 行の `data-frame` に入れる値（外枠を出さないときは undefined） */
-export function rowFrameAttr(frame: RowFrame): "spinning" | "human" | "fail" | undefined {
+export function rowFrameAttr(frame: RowFrame): "spinning" | "human" | "fail" | "queue" | undefined {
   if (frame.kind === "none") return undefined;
+  if (frame.kind === "queue") return "queue";
   return frame.kind === "spinning" ? "spinning" : frame.color;
 }
