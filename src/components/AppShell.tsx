@@ -11,7 +11,7 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
-import { isFastRefresh, isRefreshKey, startAutoRefresh } from "@/lib/refresh";
+import { isFastRefresh, startAutoRefresh } from "@/lib/refresh";
 
 type ShellState = {
   /** 最後に同期した時刻 */
@@ -35,7 +35,7 @@ export function useShell(): ShellState {
   return value;
 }
 
-/** 自動更新・更新ボタン・`R` キー・スマホのメニューの開閉を、画面全体で共有する */
+/** 自動更新・更新ボタン・スマホのメニューの開閉を、画面全体で共有する */
 export function AppShell({
   initialSyncedAt,
   refreshIntervalMs,
@@ -75,27 +75,6 @@ export function AppShell({
     () => startAutoRefresh({ refresh, source: document, intervalMs: refreshIntervalMs }),
     [refresh, refreshIntervalMs],
   );
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      const target = event.target instanceof HTMLElement ? event.target : null;
-      const handled = isRefreshKey({
-        key: event.key,
-        ctrlKey: event.ctrlKey,
-        metaKey: event.metaKey,
-        altKey: event.altKey,
-        repeat: event.repeat,
-        isComposing: event.isComposing,
-        targetTag: target?.tagName ?? "",
-        targetEditable: target?.isContentEditable ?? false,
-      });
-      if (!handled) return;
-      event.preventDefault();
-      refresh();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [refresh]);
 
   // メニューは開いたページでだけ開いている扱い（リンクで移ったら閉じる）
   const menuOpen = menuPathname === pathname;
