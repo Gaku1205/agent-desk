@@ -25,7 +25,7 @@ export function SyncControl() {
         aria-busy={refreshing}
         onClick={refresh}
       >
-        更新 <kbd className="mono">R</kbd>
+        更新
       </button>
     </div>
   );

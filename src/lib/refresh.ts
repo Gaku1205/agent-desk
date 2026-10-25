@@ -36,30 +36,6 @@ export function formatSyncTime(at: Date): string {
   return new Date(at.getTime() + JST_OFFSET_MS).toISOString().slice(11, 19);
 }
 
-/** `R` キーの判定に必要な、キー入力の情報 */
-export type RefreshKeyEvent = {
-  key: string;
-  ctrlKey: boolean;
-  metaKey: boolean;
-  altKey: boolean;
-  repeat: boolean;
-  isComposing: boolean;
-  /** キーを受けた要素のタグ名（大文字）。無ければ空文字 */
-  targetTag: string;
-  targetEditable: boolean;
-};
-
-const TEXT_ENTRY_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
-
-/** `R` キーで更新してよいか（入力欄にフォーカスがあるときや、他のキーとの組み合わせでは反応しない） */
-export function isRefreshKey(event: RefreshKeyEvent): boolean {
-  if (event.key !== "r" && event.key !== "R") return false;
-  if (event.ctrlKey || event.metaKey || event.altKey) return false;
-  if (event.repeat || event.isComposing) return false;
-  if (TEXT_ENTRY_TAGS.has(event.targetTag) || event.targetEditable) return false;
-  return true;
-}
-
 /** 自動更新が見るタブの情報（`document` の一部） */
 export type VisibilitySource = {
   readonly hidden: boolean;

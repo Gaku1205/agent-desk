@@ -191,11 +191,6 @@ button {
   cursor: default;
 }
 
-.refresh-button kbd {
-  color: var(--text-mute);
-  font-size: 12px;
-}
-
 .sidebar-user {
   overflow: hidden;
   color: var(--text-sub);

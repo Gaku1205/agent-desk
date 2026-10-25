@@ -1,66 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   formatSyncTime,
-  isRefreshKey,
   BUSY_REFRESH_INTERVAL_MS,
   getRefreshIntervalMs,
   hasAiTurnWork,
   IDLE_REFRESH_INTERVAL_MS,
   isFastRefresh,
   startAutoRefresh,
-  type RefreshKeyEvent,
   type VisibilitySource,
 } from "./refresh";
 import type { RepoResult } from "./github/types";
-
-function keyEvent(overrides: Partial<RefreshKeyEvent> = {}): RefreshKeyEvent {
-  return {
-    key: "r",
-    ctrlKey: false,
-    metaKey: false,
-    altKey: false,
-    repeat: false,
-    isComposing: false,
-    targetTag: "BODY",
-    targetEditable: false,
-    ...overrides,
-  };
-}
-
-describe("isRefreshKey", () => {
-  it("r と R で反応する", () => {
-    expect(isRefreshKey(keyEvent({ key: "r" }))).toBe(true);
-    expect(isRefreshKey(keyEvent({ key: "R" }))).toBe(true);
-  });
-
-  it("他のキーには反応しない", () => {
-    expect(isRefreshKey(keyEvent({ key: "e" }))).toBe(false);
-    expect(isRefreshKey(keyEvent({ key: "Enter" }))).toBe(false);
-  });
-
-  it("入力欄・選択欄・編集できる要素では反応しない", () => {
-    expect(isRefreshKey(keyEvent({ targetTag: "INPUT" }))).toBe(false);
-    expect(isRefreshKey(keyEvent({ targetTag: "TEXTAREA" }))).toBe(false);
-    expect(isRefreshKey(keyEvent({ targetTag: "SELECT" }))).toBe(false);
-    expect(isRefreshKey(keyEvent({ targetTag: "DIV", targetEditable: true }))).toBe(false);
-  });
-
-  it("ボタンやリンクにフォーカスがあっても反応する", () => {
-    expect(isRefreshKey(keyEvent({ targetTag: "BUTTON" }))).toBe(true);
-    expect(isRefreshKey(keyEvent({ targetTag: "A" }))).toBe(true);
-  });
-
-  it("Ctrl・Cmd・Alt との組み合わせ（再読み込みなど）には反応しない", () => {
-    expect(isRefreshKey(keyEvent({ ctrlKey: true }))).toBe(false);
-    expect(isRefreshKey(keyEvent({ metaKey: true }))).toBe(false);
-    expect(isRefreshKey(keyEvent({ altKey: true }))).toBe(false);
-  });
-
-  it("押しっぱなしの繰り返しと、変換中には反応しない", () => {
-    expect(isRefreshKey(keyEvent({ repeat: true }))).toBe(false);
-    expect(isRefreshKey(keyEvent({ isComposing: true }))).toBe(false);
-  });
-});
 
 describe("formatSyncTime", () => {
   it("日本時間の時:分:秒で出す", () => {
