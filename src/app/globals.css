@@ -772,6 +772,26 @@ button {
   white-space: nowrap;
 }
 
+.pipeline-reason.pipeline-reason-open {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pipeline-reason-toggle {
+  align-self: flex-start;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-sub);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
 .pipeline-ref {
   color: var(--text-mute);
   font-size: 12.5px;
@@ -854,6 +874,13 @@ button {
 
   .pipeline-reason {
     white-space: normal;
+  }
+
+  .pipeline-reason-toggle {
+    min-height: 44px;
+    padding-right: 12px;
+    padding-left: 12px;
+    border-radius: 8px;
   }
 
   .pipeline-cell {
