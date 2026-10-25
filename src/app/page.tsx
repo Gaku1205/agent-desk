@@ -1,5 +1,7 @@
+import { EventSection } from "@/components/EventSection";
 import { Header } from "@/components/Header";
 import { TurnSection } from "@/components/TurnSection";
+import { buildRecentEvents } from "@/lib/events";
 import { loadTurns } from "@/lib/loadTurns";
 
 export default async function Home() {
@@ -15,9 +17,7 @@ export default async function Home() {
           now={now}
           scope="all"
         />
-        <section className="section">
-          <h2 className="section-title">最近の出来事</h2>
-        </section>
+        <EventSection events={buildRecentEvents(results, now)} now={now} />
       </main>
     </>
   );
