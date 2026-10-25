@@ -1,13 +1,17 @@
 import { signOut } from "@/lib/auth";
 import { getWatchedRepos } from "@/lib/config";
+import { loadTurns } from "@/lib/loadTurns";
+import { countTurnItems } from "@/lib/turn";
 import { SidebarNav } from "./SidebarNav";
 
 type Props = {
   login: string;
 };
 
-export function Sidebar({ login }: Props) {
+export async function Sidebar({ login }: Props) {
   const repos = getWatchedRepos();
+  const { items } = await loadTurns();
+  const counts = countTurnItems(items);
 
   async function logout() {
     "use server";
@@ -17,7 +21,7 @@ export function Sidebar({ login }: Props) {
   return (
     <aside className="sidebar">
       <p className="sidebar-title mono">agent-desk</p>
-      <SidebarNav repos={repos} />
+      <SidebarNav repos={repos} counts={counts} />
 
       <div className="sidebar-footer">
         <div className="sidebar-footer-row">

@@ -218,8 +218,11 @@ export function ciState(checkRuns: CheckRunData[]): CiState {
   return { state: "passed", passed, total };
 }
 
-/** レビューが「指摘なし」で終わったか：`claude[bot]` の「## Code review」で始まる最新のコメントに `No issues found` */
-export function reviewedWithoutIssues(comments: CommentData[], pullNumber: number): boolean {
+/**
+ * レビューの結果：`claude[bot]` の「## Code review」で始まる最新のコメントに
+ * `No issues found` があれば指摘なし、無ければ指摘あり。コメントが無ければ null（まだレビューしていない）
+ */
+export function reviewOutcome(comments: CommentData[], pullNumber: number): "clean" | "issues" | null {
   const last = comments
     .filter(
       (comment) =>
@@ -229,7 +232,13 @@ export function reviewedWithoutIssues(comments: CommentData[], pullNumber: numbe
     )
     .sort(byCreatedAt)
     .at(-1);
-  return last !== undefined && last.body.includes("No issues found");
+  if (!last) return null;
+  return last.body.includes("No issues found") ? "clean" : "issues";
+}
+
+/** レビューが「指摘なし」で終わったか */
+export function reviewedWithoutIssues(comments: CommentData[], pullNumber: number): boolean {
+  return reviewOutcome(comments, pullNumber) === "clean";
 }
 
 /** パイプラインがPRに書いた最新の「⏸ 自動で進めるのを止めました：{理由}」の理由 */
