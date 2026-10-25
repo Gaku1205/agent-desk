@@ -4,6 +4,7 @@ import { useState, type CSSProperties } from "react";
 import { PENDING_COLOR, PROGRESS_STAGE_NAMES, toneRgba, type ProgressBarSpec } from "@/lib/progress";
 import { countPipelineWork, filterPipelineRows, type PipelineRow } from "@/lib/pipeline";
 import { rowFrame, rowFrameAttr } from "@/lib/rowFrame";
+import { toggleQueueReasonOpen } from "@/lib/queueReasonOpen";
 import { PipelineRowLink } from "./PipelineRowLink";
 import { PipelineTitle } from "./PipelineTitle";
 
@@ -17,6 +18,8 @@ function barStyle(bar: ProgressBarSpec): CSSProperties {
 /** パイプライン（リポジトリのページ）：Issueを行、パイプラインの段階を列にした表。スマホでは1件＝1ブロック */
 export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoName: string }) {
   const [showDeployed, setShowDeployed] = useState(false);
+  /** 理由を開いている行の Issue 番号。取り直しで表が描き直されても残る */
+  const [openReasons, setOpenReasons] = useState<ReadonlySet<number>>(() => new Set());
   const visibleRows = filterPipelineRows(rows, showDeployed);
   const { queued, working } = countPipelineWork(rows);
   const hiddenCount = rows.length - filterPipelineRows(rows, false).length;
@@ -74,9 +77,24 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
                   {repoName}#{row.issue.number}
                 </span>
                 {row.queueReason && (
-                  <span className="pipeline-reason" title={row.queueReason}>
-                    {row.queueReason}
-                  </span>
+                  <>
+                    {/* 行全体がリンクなので、押してもIssueへ移動しないようにする */}
+                    <button
+                      type="button"
+                      className="pipeline-reason-toggle"
+                      aria-expanded={openReasons.has(row.issue.number)}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setOpenReasons((open) => toggleQueueReasonOpen(open, row.issue.number));
+                      }}
+                    >
+                      {openReasons.has(row.issue.number) ? "理由を閉じる" : "理由を見る"}
+                    </button>
+                    {openReasons.has(row.issue.number) && (
+                      <span className="pipeline-reason pipeline-reason-open">{row.queueReason}</span>
+                    )}
+                  </>
                 )}
                 <span className={`pipeline-desc pipeline-desc-mobile pipeline-tone-${row.progress.tone}`}>
                   {row.description}
