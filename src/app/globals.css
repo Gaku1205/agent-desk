@@ -692,6 +692,19 @@ button {
   white-space: nowrap;
 }
 
+/* 切れているタイトルだけ、行に乗せた間（キーボードならフォーカス中）に流す。収まっているものは動かさない */
+@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
+  .pipeline-row:is(:hover, :focus-visible) .pipeline-title[data-overflow="true"] {
+    text-overflow: clip;
+  }
+
+  .pipeline-row:is(:hover, :focus-visible) .pipeline-title[data-overflow="true"] .pipeline-title-text {
+    display: inline-block;
+    transform: translateX(calc(-1 * var(--marquee-distance)));
+    transition: transform var(--marquee-duration) linear 0.3s;
+  }
+}
+
 .pipeline-ref {
   color: var(--text-mute);
   font-size: 12.5px;
