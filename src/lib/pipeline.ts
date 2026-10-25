@@ -27,3 +27,9 @@ export function buildPipelineRows(data: RepoData, now: Date): PipelineRow[] {
       };
     });
 }
+
+/** 表に出す行を選ぶ：showDeployed が false なら公開済みの行を除く（並び順は変えない） */
+export function filterPipelineRows(rows: PipelineRow[], showDeployed: boolean): PipelineRow[] {
+  if (showDeployed) return rows;
+  return rows.filter((row) => row.status.stage !== "deployed");
+}
