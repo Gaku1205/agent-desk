@@ -6,6 +6,7 @@ import {
   getRefreshIntervalMs,
   hasAiTurnWork,
   IDLE_REFRESH_INTERVAL_MS,
+  isFastRefresh,
   startAutoRefresh,
   type RefreshKeyEvent,
   type VisibilitySource,
@@ -167,6 +168,13 @@ describe("getRefreshIntervalMs", () => {
     expect(getRefreshIntervalMs(true)).toBe(BUSY_REFRESH_INTERVAL_MS);
     expect(getRefreshIntervalMs(true)).toBe(10_000);
     expect(getRefreshIntervalMs(false)).toBe(60_000);
+  });
+});
+
+describe("isFastRefresh", () => {
+  it("10秒ごとの間だけ速い更新", () => {
+    expect(isFastRefresh(getRefreshIntervalMs(true))).toBe(true);
+    expect(isFastRefresh(getRefreshIntervalMs(false))).toBe(false);
   });
 });
 
