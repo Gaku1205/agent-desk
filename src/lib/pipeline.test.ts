@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IssueData, PullData, RepoData } from "./github/types";
-import { buildPipelineRows } from "./pipeline";
+import { buildPipelineRows, filterPipelineRows, type PipelineRow } from "./pipeline";
 
 const NOW = new Date("2026-10-25T12:00:00Z");
 
@@ -79,5 +79,30 @@ describe("buildPipelineRows", () => {
 
   it("0件なら空", () => {
     expect(buildPipelineRows(data(), NOW)).toEqual([]);
+  });
+});
+
+describe("filterPipelineRows", () => {
+  function row(number: number, stage: string): PipelineRow {
+    const title = "Issue " + number;
+    return { issue: { number, title, url: "" }, status: { stage } } as unknown as PipelineRow;
+  }
+  const mixed = [row(4, "deployed"), row(3, "ci"), row(2, "deployed"), row(1, "notStarted")];
+
+  it("隠すときは公開済み以外だけを、並び順を保って返す", () => {
+    expect(filterPipelineRows(mixed, false).map((r) => r.issue.number)).toEqual([3, 1]);
+  });
+
+  it("出すときはすべてを同じ順で返す", () => {
+    expect(filterPipelineRows(mixed, true).map((r) => r.issue.number)).toEqual([4, 3, 2, 1]);
+  });
+
+  it("公開済みしかなければ、隠すと空になる", () => {
+    expect(filterPipelineRows([row(2, "deployed"), row(1, "deployed")], false)).toEqual([]);
+  });
+
+  it("空配列は空配列のまま", () => {
+    expect(filterPipelineRows([], false)).toEqual([]);
+    expect(filterPipelineRows([], true)).toEqual([]);
   });
 });
