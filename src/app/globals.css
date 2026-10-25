@@ -892,6 +892,18 @@ button {
   transition: background 0.3s;
 }
 
+/* 速い更新（10秒ごと）の間はゆっくり明滅する。取り直し中の脈打ち（下）が優先される */
+.sync-dot[data-fast="true"] {
+  background: var(--ai);
+  animation: sync-blink 2s ease-in-out infinite;
+}
+
+@keyframes sync-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
 .sync-dot[data-busy="true"] {
   background: var(--ai);
   animation: sync-pulse 0.9s ease-in-out infinite;
@@ -948,6 +960,7 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .sync-dot[data-fast="true"],
   .sync-dot[data-busy="true"] {
     animation: none;
   }

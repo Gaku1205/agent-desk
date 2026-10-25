@@ -24,6 +24,11 @@ export function getRefreshIntervalMs(hasAiWork: boolean): number {
   return hasAiWork ? BUSY_REFRESH_INTERVAL_MS : IDLE_REFRESH_INTERVAL_MS;
 }
 
+/** 速い更新（10秒ごと）の間か。同期の横の点を光らせるかどうかに使う */
+export function isFastRefresh(intervalMs: number): boolean {
+  return intervalMs === BUSY_REFRESH_INTERVAL_MS;
+}
+
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 /** 同期の時刻：日本時間の `15:42:10` */

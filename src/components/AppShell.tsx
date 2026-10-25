@@ -11,12 +11,14 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
-import { isRefreshKey, startAutoRefresh } from "@/lib/refresh";
+import { isFastRefresh, isRefreshKey, startAutoRefresh } from "@/lib/refresh";
 
 type ShellState = {
   /** 最後に同期した時刻 */
   syncedAt: Date;
   refreshing: boolean;
+  /** 今は10秒ごとに自動で取り直している（AIの番の作業がある）か */
+  fastRefresh: boolean;
   refresh: () => void;
   /** 今のページで、取り直しが終わった回数（ページを移ると0に戻る） */
   refreshCountOnPage: number;
@@ -113,13 +115,24 @@ export function AppShell({
     () => ({
       syncedAt,
       refreshing,
+      fastRefresh: isFastRefresh(refreshIntervalMs),
       refresh,
       refreshCountOnPage: refreshCount.pathname === pathname ? refreshCount.count : 0,
       menuOpen,
       openMenu,
       closeMenu,
     }),
-    [syncedAt, refreshing, refresh, refreshCount, pathname, menuOpen, openMenu, closeMenu],
+    [
+      syncedAt,
+      refreshing,
+      refreshIntervalMs,
+      refresh,
+      refreshCount,
+      pathname,
+      menuOpen,
+      openMenu,
+      closeMenu,
+    ],
   );
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
