@@ -470,7 +470,7 @@ describe("getIssueStatus：修正中・修正の確認中・清書した・修�
     );
     expect(status.stage).toBe("fixing");
     expect(status.turn).toBe("ai");
-    expect(status.fixCount).toBe(0);
+    expect(status.fixCount).toBe(1);
     expect(status.verifyingFix).toBe(false);
   });
 
@@ -479,12 +479,12 @@ describe("getIssueStatus：修正中・修正の確認中・清書した・修�
     expect(status.stage).not.toBe("fixing");
   });
 
-  it("修正した：先頭コミットが進んだ依頼の数（1回）", () => {
+  it("修正した：依頼の数（1回）", () => {
     const status = getIssueStatus(issue(), input([pull()], checks, [fixRequest("old", "2026-10-25T10:20:00Z")]), NOW);
     expect(status.fixCount).toBe(1);
   });
 
-  it("修正した：2回。修正中の依頼は数えない", () => {
+  it("修正した：2回。修正中の依頼も数える", () => {
     const twice = getIssueStatus(
       issue(),
       input([pull()], checks, [fixRequest("a", "2026-10-25T10:20:00Z"), fixRequest("b", "2026-10-25T10:40:00Z")]),
@@ -497,7 +497,17 @@ describe("getIssueStatus：修正中・修正の確認中・清書した・修�
       NOW,
     );
     expect(secondInProgress.stage).toBe("fixing");
-    expect(secondInProgress.fixCount).toBe(1);
+    expect(secondInProgress.fixCount).toBe(2);
+  });
+
+  it("修正の確認中：直したあと、CIが失敗", () => {
+    const status = getIssueStatus(
+      issue(),
+      input([pull()], { 11: { checkRuns: [check(), ciFailed] } }, [fixRequest("old", "2026-10-25T10:20:00Z")]),
+      NOW,
+    );
+    expect(status.stage).toBe("ciFailed");
+    expect(status.verifyingFix).toBe(true);
   });
 
   it("修正の確認中：直したあと、CIが実行中", () => {

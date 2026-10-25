@@ -48,7 +48,7 @@ export type IssueStatus = {
   stuckReason: string | null;
   /** 企画AIが清書した（Issue本文に `> 元のメモ：` がある） */
   planned: boolean;
-  /** AIが直した回数（自動の修正依頼のうち、先頭コミットが進んだもの。0〜2） */
+  /** 自動の修正依頼の数（0〜2） */
   fixCount: number;
   /** 直したあとの、CIかレビューの確認中 */
   verifyingFix: boolean;
@@ -264,12 +264,15 @@ export function isFixing(comments: CommentData[], pull: PullData): boolean {
   return last !== undefined && last !== null && last === pull.headSha;
 }
 
-/** 直した回数：先頭コミットが依頼時のSHAから進んだ修正依頼の数（上限まで） */
+/** 修正した回数：修正依頼コメントの数（上限まで） */
 export function fixCount(comments: CommentData[], pull: PullData): number {
-  const done = autoFixRequestShas(comments, pull.number).filter(
-    (sha) => sha !== null && sha !== pull.headSha,
-  );
-  return Math.min(done.length, MAX_AUTO_FIX);
+  return Math.min(autoFixRequestShas(comments, pull.number).length, MAX_AUTO_FIX);
+}
+
+/** 直したコミットがpush済みか：最新の修正依頼のSHAと、PRの先頭コミットが違う */
+export function hasPushedFix(comments: CommentData[], pull: PullData): boolean {
+  const last = autoFixRequestShas(comments, pull.number).at(-1);
+  return last !== undefined && last !== null && last !== pull.headSha;
 }
 
 export type DeployState ={ state: "deployed" | "deploying" | "failed"; unknown: boolean };
@@ -309,6 +312,7 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   const checks = pull ? (input.pullChecks[pull.number] ?? { checkRuns: [], statuses: [] }) : null;
   const ci = checks ? ciState(checks.checkRuns) : { state: "running" as const, passed: 0, total: 0 };
   const fixes = pull ? fixCount(input.comments, pull) : 0;
+  const pushedFix = pull ? hasPushedFix(input.comments, pull) : false;
   const result = (
     stage: Exclude<Stage, "stuck">,
     extra: Partial<BaseStatus> = {},
@@ -322,7 +326,8 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
     deployUnknown: false,
     planned: isPlanned(issue),
     fixCount: fixes,
-    verifyingFix: fixes > 0 && (stage === "reviewing" || stage === "ciRunning"),
+    verifyingFix:
+      pushedFix && (stage === "reviewing" || stage === "ciRunning" || stage === "ciFailed"),
     ...extra,
   });
 
