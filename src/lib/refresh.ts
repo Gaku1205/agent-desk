@@ -1,5 +1,28 @@
-/** 自動で取り直す間隔（docs/spec.md の「更新」） */
-export const REFRESH_INTERVAL_MS = 30_000;
+import type { RepoResult } from "./github/types";
+import { getIssueStatus, shouldShowIssue } from "./status";
+
+/** AIの番の作業があるときに自動で取り直す間隔（docs/spec.md の「更新」） */
+export const BUSY_REFRESH_INTERVAL_MS = 10_000;
+/** AIの番の作業が無いときに自動で取り直す間隔 */
+export const IDLE_REFRESH_INTERVAL_MS = 60_000;
+
+/** 全監視リポジトリの判定結果に、AIの番の作業（`turn === "ai"`）が1つでもあるか */
+export function hasAiTurnWork(results: RepoResult[], now: Date): boolean {
+  return results.some(
+    (result) =>
+      result.ok &&
+      result.data.issues.some(
+        (issue) =>
+          shouldShowIssue(issue, result.data.pulls) &&
+          getIssueStatus(issue, result.data, now).turn === "ai",
+      ),
+  );
+}
+
+/** 自動で取り直す間隔：AIの番の作業があれば10秒、無ければ60秒 */
+export function getRefreshIntervalMs(hasAiWork: boolean): number {
+  return hasAiWork ? BUSY_REFRESH_INTERVAL_MS : IDLE_REFRESH_INTERVAL_MS;
+}
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
@@ -48,7 +71,7 @@ export function startAutoRefresh(options: {
   source: VisibilitySource;
   intervalMs?: number;
 }): () => void {
-  const { refresh, source, intervalMs = REFRESH_INTERVAL_MS } = options;
+  const { refresh, source, intervalMs = IDLE_REFRESH_INTERVAL_MS } = options;
   let timer: ReturnType<typeof setInterval> | null = null;
 
   const stop = () => {

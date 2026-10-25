@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { GitHubClient, parseNextLink } from "./client";
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  ETAG_CACHE_MAX_ENTRIES,
+  etagCacheForTest,
+  GitHubClient,
+  parseNextLink,
+} from "./client";
 import { classifyError, GitHubError } from "./errors";
 import { fetchAllRepos } from "./fetch";
 
@@ -82,6 +87,68 @@ describe("GitHubClient", () => {
     });
     expect(await client.getAll<number>("/p1")).toEqual([1, 2]);
     expect(urls).toEqual(["https://api.github.com/p1", "https://api.github.com/p2"]);
+  });
+});
+
+describe("GitHubClient のETag", () => {
+  beforeEach(() => etagCacheForTest.clear());
+
+  it("2回目から If-None-Match を付け、304 のときは前回の中身と次ページを使う", async () => {
+    const seen: (string | null)[] = [];
+    const client = new GitHubClient(TOKEN, async (_url, init) => {
+      const inm = new Headers(init?.headers).get("if-none-match");
+      seen.push(inm);
+      if (inm === '"v1"') return new Response(null, { status: 304 });
+      return json([1], {
+        headers: { etag: '"v1"', link: '<https://api.github.com/p2>; rel="next"' },
+      });
+    });
+    const first = await client.request("/p1");
+    const second = await client.request("/p1");
+    expect(seen).toEqual([null, '"v1"']);
+    expect(second).toEqual(first);
+    expect(second).toEqual({ json: [1], next: "https://api.github.com/p2" });
+  });
+
+  it("内容が変わっていれば新しい中身と新しいETagに替わる", async () => {
+    let n = 0;
+    const seen: (string | null)[] = [];
+    const client = new GitHubClient(TOKEN, async (_url, init) => {
+      seen.push(new Headers(init?.headers).get("if-none-match"));
+      n++;
+      return json({ n }, { headers: { etag: `"v${n}"` } });
+    });
+    await client.get("/x");
+    expect(await client.get("/x")).toEqual({ n: 2 });
+    await client.get("/x");
+    expect(seen).toEqual([null, '"v1"', '"v2"']);
+  });
+
+  it("キーにトークンそのものは入らず、トークンが違えば別に覚える", async () => {
+    const fetcher: typeof fetch = async () => json([], { headers: { etag: '"a"' } });
+    await new GitHubClient(TOKEN, fetcher).get("/x");
+    await new GitHubClient("other_token", fetcher).get("/x");
+    const keys = etagCacheForTest.keys();
+    expect(keys).toHaveLength(2);
+    for (const key of keys) {
+      expect(key).not.toContain(TOKEN);
+      expect(key).not.toContain("other_token");
+    }
+  });
+
+  it("覚える件数には上限がある", async () => {
+    const client = new GitHubClient(TOKEN, async () => json([], { headers: { etag: '"a"' } }));
+    for (let i = 0; i < ETAG_CACHE_MAX_ENTRIES + 10; i++) await client.get(`/x/${i}`);
+    expect(etagCacheForTest.keys()).toHaveLength(ETAG_CACHE_MAX_ENTRIES);
+  });
+
+  it("書き込み（send）には If-None-Match を付けない", async () => {
+    let inm: string | null = "unset";
+    await new GitHubClient(TOKEN, async (_url, init) => {
+      if (init?.method === "POST") inm = new Headers(init.headers).get("if-none-match");
+      return json({}, { headers: { etag: '"a"' } });
+    }).send("POST", "/x", {});
+    expect(inm).toBeNull();
   });
 });
 

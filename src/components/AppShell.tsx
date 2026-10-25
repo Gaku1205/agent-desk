@@ -36,10 +36,13 @@ export function useShell(): ShellState {
 /** 自動更新・更新ボタン・`R` キー・スマホのメニューの開閉を、画面全体で共有する */
 export function AppShell({
   initialSyncedAt,
+  refreshIntervalMs,
   children,
 }: {
   /** サーバーが最初に取った時刻（ISO文字列） */
   initialSyncedAt: string;
+  /** 自動で取り直す間隔。取り直しのたびにサーバーが決め直す */
+  refreshIntervalMs: number;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -66,7 +69,10 @@ export function AppShell({
     });
   }
 
-  useEffect(() => startAutoRefresh({ refresh, source: document }), [refresh]);
+  useEffect(
+    () => startAutoRefresh({ refresh, source: document, intervalMs: refreshIntervalMs }),
+    [refresh, refreshIntervalMs],
+  );
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {

@@ -1,9 +1,38 @@
+import { createHash } from "node:crypto";
 import { classifyError, GitHubError } from "./errors";
 
 const API_BASE = "https://api.github.com";
 const MAX_PAGES = 5;
 
 export type Fetcher = typeof fetch;
+
+/** ETagつきで覚えておく前回の返事の件数の上限（超えたら古い物から捨てる） */
+export const ETAG_CACHE_MAX_ENTRIES = 500;
+
+type EtagEntry = { etag: string; json: unknown; next: string | null };
+
+/** サーバーのメモリ。キーは「トークンのハッシュ＋URL」（トークンそのものは入れない） */
+const etagCache = new Map<string, EtagEntry>();
+
+export function etagCacheKey(token: string, url: string): string {
+  return `${createHash("sha256").update(token).digest("hex")}:${url}`;
+}
+
+function rememberEtag(key: string, entry: EtagEntry): void {
+  etagCache.delete(key);
+  etagCache.set(key, entry);
+  while (etagCache.size > ETAG_CACHE_MAX_ENTRIES) {
+    const oldest = etagCache.keys().next();
+    if (oldest.done) break;
+    etagCache.delete(oldest.value);
+  }
+}
+
+/** テスト用：覚えている物と、そのキー */
+export const etagCacheForTest = {
+  keys: (): string[] => [...etagCache.keys()],
+  clear: (): void => etagCache.clear(),
+};
 
 /** GitHubのREST APIを `fetch` で呼ぶ。トークンはサーバー側だけで使う */
 export class GitHubClient {
@@ -18,6 +47,8 @@ export class GitHubClient {
   /** 1回のGET。失敗したら GitHubError（トークンは含めない）。次のページのURLも返す */
   async request(pathOrUrl: string): Promise<{ json: unknown; next: string | null }> {
     const url = pathOrUrl.startsWith("https://") ? pathOrUrl : `${API_BASE}${pathOrUrl}`;
+    const key = etagCacheKey(this.token, url);
+    const cached = etagCache.get(key);
     let response: Response;
     try {
       response = await this.fetcher(url, {
@@ -25,12 +56,16 @@ export class GitHubClient {
           Authorization: `Bearer ${this.token}`,
           Accept: "application/vnd.github+json",
           "X-GitHub-Api-Version": "2022-11-28",
+          ...(cached ? { "If-None-Match": cached.etag } : {}),
         },
         cache: "no-store",
       });
     } catch {
       // ネットワークエラーの原因にはヘッダー（トークン）が入りうるので捨てる
       throw new GitHubError("other");
+    }
+    if (response.status === 304 && cached) {
+      return { json: cached.json, next: cached.next };
     }
     if (!response.ok) {
       throw new GitHubError(classifyError(response.status, response.headers), response.status);
@@ -41,7 +76,11 @@ export class GitHubClient {
     } catch {
       throw new GitHubError("other", response.status);
     }
-    return { json, next: parseNextLink(response.headers.get("link")) };
+    const next = parseNextLink(response.headers.get("link"));
+    const etag = response.headers.get("etag");
+    if (etag) rememberEtag(key, { etag, json, next });
+    else etagCache.delete(key);
+    return { json, next };
   }
 
   /** 書き込み（POST / PUT / DELETE）。失敗したら GitHubError（ステータスつき、トークンは含めない） */

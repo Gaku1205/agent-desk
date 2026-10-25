@@ -2,11 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   formatSyncTime,
   isRefreshKey,
-  REFRESH_INTERVAL_MS,
+  BUSY_REFRESH_INTERVAL_MS,
+  getRefreshIntervalMs,
+  hasAiTurnWork,
+  IDLE_REFRESH_INTERVAL_MS,
   startAutoRefresh,
   type RefreshKeyEvent,
   type VisibilitySource,
 } from "./refresh";
+import type { RepoResult } from "./github/types";
 
 function keyEvent(overrides: Partial<RefreshKeyEvent> = {}): RefreshKeyEvent {
   return {
@@ -90,13 +94,13 @@ describe("startAutoRefresh", () => {
     vi.useRealTimers();
   });
 
-  it("間隔は30秒", () => {
-    expect(REFRESH_INTERVAL_MS).toBe(30_000);
+  it("既定の間隔は60秒", () => {
+    expect(IDLE_REFRESH_INTERVAL_MS).toBe(60_000);
   });
 
-  it("30秒ごとに取り直す", () => {
+  it("指定した間隔ごとに取り直す", () => {
     const refresh = vi.fn();
-    startAutoRefresh({ refresh, source: new FakeDocument() });
+    startAutoRefresh({ refresh, source: new FakeDocument(), intervalMs: 30_000 });
 
     vi.advanceTimersByTime(29_999);
     expect(refresh).not.toHaveBeenCalled();
@@ -127,7 +131,7 @@ describe("startAutoRefresh", () => {
 
     source.setHidden(false);
     expect(refresh).toHaveBeenCalledTimes(1);
-    vi.advanceTimersByTime(30_000);
+    vi.advanceTimersByTime(60_000);
     expect(refresh).toHaveBeenCalledTimes(2);
   });
 
@@ -140,5 +144,74 @@ describe("startAutoRefresh", () => {
     vi.advanceTimersByTime(120_000);
     expect(refresh).not.toHaveBeenCalled();
     expect(source.listenerCount).toBe(0);
+  });
+
+  it("間隔を変えて起動し直すと、新しい間隔で取り直す", () => {
+    const refresh = vi.fn();
+    const source = new FakeDocument();
+    const stopBusy = startAutoRefresh({ refresh, source, intervalMs: BUSY_REFRESH_INTERVAL_MS });
+    vi.advanceTimersByTime(10_000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    stopBusy();
+    startAutoRefresh({ refresh, source, intervalMs: IDLE_REFRESH_INTERVAL_MS });
+    vi.advanceTimersByTime(59_999);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(1);
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("getRefreshIntervalMs", () => {
+  it("AIの番の作業があれば10秒、無ければ60秒", () => {
+    expect(getRefreshIntervalMs(true)).toBe(BUSY_REFRESH_INTERVAL_MS);
+    expect(getRefreshIntervalMs(true)).toBe(10_000);
+    expect(getRefreshIntervalMs(false)).toBe(60_000);
+  });
+});
+
+describe("hasAiTurnWork", () => {
+  const now = new Date("2026-10-25T12:00:00Z");
+  const repo = (...labelSets: string[][]): RepoResult => ({
+    owner: "o",
+    repo: "r",
+    ok: true,
+    data: {
+      issues: labelSets.map((labels, i) => ({
+        number: i + 1,
+        title: `Issue ${i + 1}`,
+        body: "",
+        state: "open" as const,
+        labels,
+        url: "",
+        createdAt: "2026-10-25T10:00:00Z",
+        updatedAt: "2026-10-25T10:00:00Z",
+        closedAt: null,
+      })),
+      pulls: [],
+      comments: [],
+      pullChecks: {},
+      events: [],
+    },
+  });
+
+  it("企画中・AI作業中があれば true", () => {
+    expect(hasAiTurnWork([repo(["ai:plan"])], now)).toBe(true);
+    expect(hasAiTurnWork([repo([]), repo(["ai:implement"])], now)).toBe(true);
+  });
+
+  it("人間の番・順番待ちだけなら false", () => {
+    expect(hasAiTurnWork([repo([], ["ai:queue"])], now)).toBe(false);
+  });
+
+  it("取れなかったリポジトリや空は false", () => {
+    const failed: RepoResult = {
+      owner: "o",
+      repo: "x",
+      ok: false,
+      error: { kind: "other", message: "" },
+    };
+    expect(hasAiTurnWork([failed], now)).toBe(false);
+    expect(hasAiTurnWork([], now)).toBe(false);
   });
 });
