@@ -20,6 +20,7 @@ describe("rowFrame", () => {
     ["stuck", "human"],
     ["prWaiting", "human"],
     ["mergeWaiting", "human"],
+    ["notStarted", "human"],
   ])("%s（人間の番）は human の外枠", (stage, turn) => {
     expect(frameOf(stage, turn)).toEqual({ kind: "stopped", color: "human" });
   });
@@ -33,7 +34,6 @@ describe("rowFrame", () => {
 
   it.each<[Stage, Turn]>([
     ["deployed", "none"],
-    ["notStarted", "human"],
     ["mergeWaiting", "ai"],
   ])("%s は外枠を出さない", (stage, turn) => {
     expect(frameOf(stage, turn)).toEqual({ kind: "none" });

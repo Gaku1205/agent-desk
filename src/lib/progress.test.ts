@@ -23,7 +23,7 @@ function status(overrides: Partial<IssueStatus>): IssueStatus {
 describe("getProgress の位置と色", () => {
   const cases: [Stage, Partial<IssueStatus>, number, string][] = [
     ["notStarted", {}, 0, "human"],
-    ["queued", { turn: "none" }, 0, "idle"],
+    ["queued", { turn: "none" }, 0, "queue"],
     ["planning", { turn: "ai" }, 0, "ai"],
     ["implementing", { turn: "ai" }, 1, "ai"],
     ["prWaiting", {}, 2, "human"],
@@ -134,6 +134,6 @@ describe("aria-label", () => {
 describe("toneRgba", () => {
   it("RGBに不透明度を付ける", () => {
     expect(toneRgba("human", 0.5)).toBe("rgba(232,163,61,0.5)");
-    expect(toneRgba("idle", 1)).toBe("rgba(95,98,106,1)");
+    expect(toneRgba("queue", 1)).toBe("rgba(139,92,246,1)");
   });
 });

@@ -706,6 +706,20 @@ button {
   --frame-color: var(--human);
 }
 
+.pipeline-row[data-frame="human"]::before {
+  animation: row-frame-human-blink 1.6s ease-in-out infinite;
+}
+
+@keyframes row-frame-human-blink {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .pipeline-row[data-frame="fail"] {
   --frame-color: var(--fail);
 }
@@ -745,6 +759,11 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .pipeline-row[data-frame="human"]::before {
+    opacity: 1;
+    animation: none;
+  }
+
   .pipeline-row[data-frame="spinning"]::before {
     background: var(--ai);
     animation: none;
@@ -857,7 +876,7 @@ button {
   color: var(--fail);
 }
 
-.pipeline-tone-idle {
+.pipeline-tone-queue {
   color: var(--text-mute);
 }
 
