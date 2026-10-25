@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans_JP, JetBrains_Mono } from "next/font/google";
+import { AppShell } from "@/components/AppShell";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Sidebar } from "@/components/Sidebar";
 import { getSignedInLogin } from "@/lib/auth";
+import { loadTurns } from "@/lib/loadTurns";
 import "./globals.css";
 
 const plexSansJp = IBM_Plex_Sans_JP({
@@ -28,15 +30,18 @@ export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const login = await getSignedInLogin();
+  const syncedAt = login ? (await loadTurns()).now : null;
 
   return (
     <html lang="ja" className={`${plexSansJp.variable} ${jetbrainsMono.variable}`}>
       <body>
-        {login ? (
-          <div className="app">
-            <Sidebar login={login} />
-            <div className="main">{children}</div>
-          </div>
+        {login && syncedAt ? (
+          <AppShell initialSyncedAt={syncedAt.toISOString()}>
+            <div className="app">
+              <Sidebar login={login} />
+              <div className="main">{children}</div>
+            </div>
+          </AppShell>
         ) : (
           <LoginScreen />
         )}

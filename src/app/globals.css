@@ -795,6 +795,199 @@ button {
   }
 }
 
+/* 同期の点・行の動き（docs/design.md の「動き」） */
+
+.sync-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--text-mute);
+  vertical-align: 1px;
+  transition: background 0.3s;
+}
+
+.sync-dot[data-busy="true"] {
+  background: var(--ai);
+  animation: sync-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes sync-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.turn-row[data-fade-in="true"] {
+  animation: row-fade-in 0.2s ease-out;
+}
+
+@keyframes row-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.turn-row[data-flash="a"],
+.pipeline-row[data-flash="a"] {
+  animation: row-flash-a 1.2s ease-out;
+}
+
+.turn-row[data-flash="b"],
+.pipeline-row[data-flash="b"] {
+  animation: row-flash-b 1.2s ease-out;
+}
+
+/* 同じ動きを2つ用意して、続けて段階が変わっても最初からやり直せるようにする */
+@keyframes row-flash-a {
+  from {
+    background: var(--flash-color);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@keyframes row-flash-b {
+  from {
+    background: var(--flash-color);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-dot[data-busy="true"] {
+    animation: none;
+  }
+
+  .turn-row[data-fade-in="true"] {
+    animation: none;
+  }
+}
+
+/* スマホ（幅900px未満）のメニュー */
+
+.menu-button,
+.sidebar-backdrop {
+  display: none;
+}
+
+.header-lead {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+@media (max-width: 899px) {
+  .header {
+    padding: 0 12px 0 4px;
+  }
+
+  .header-link {
+    display: none;
+  }
+
+  .menu-button {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--text-sub);
+    cursor: pointer;
+  }
+
+  .menu-button:hover {
+    color: var(--text-strong);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(4, 4, 5, 0.86);
+    visibility: hidden;
+  }
+
+  .sidebar-backdrop[data-open="true"] {
+    visibility: visible;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    width: 280px;
+    max-width: calc(100vw - 48px);
+    height: auto;
+    background: var(--bg);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform 0.15s ease-out,
+      visibility 0s linear 0.15s;
+  }
+
+  .sidebar[data-open="true"] {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.15s ease-out;
+  }
+
+  .sidebar-item,
+  .refresh-button,
+  .logout-button {
+    min-height: 44px;
+  }
+
+  .sidebar-item {
+    height: 44px;
+    border-radius: 8px;
+  }
+
+  .refresh-button,
+  .logout-button {
+    padding-right: 12px;
+    padding-left: 12px;
+    border-radius: 8px;
+  }
+
+  .logout-button {
+    padding-right: 0;
+  }
+
+  .merge-dialog-cancel,
+  .merge-dialog-confirm,
+  .login-button {
+    height: 44px;
+    border-radius: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar[data-open="true"] {
+    transition: none;
+  }
+}
+
 /* 最近の出来事 */
 
 .event-empty {

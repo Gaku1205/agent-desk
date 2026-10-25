@@ -2,7 +2,9 @@ import { signOut } from "@/lib/auth";
 import { getWatchedRepos } from "@/lib/config";
 import { loadTurns } from "@/lib/loadTurns";
 import { countTurnItems } from "@/lib/turn";
+import { SidebarFrame } from "./SidebarFrame";
 import { SidebarNav } from "./SidebarNav";
+import { SyncControl } from "./SyncControl";
 
 type Props = {
   login: string;
@@ -19,17 +21,12 @@ export async function Sidebar({ login }: Props) {
   }
 
   return (
-    <aside className="sidebar">
+    <SidebarFrame>
       <p className="sidebar-title mono">agent-desk</p>
       <SidebarNav repos={repos} counts={counts} />
 
       <div className="sidebar-footer">
-        <div className="sidebar-footer-row">
-          <span className="sidebar-sync mono">同期 --:--:--</span>
-          <button type="button" className="refresh-button" disabled>
-            更新 <kbd className="mono">R</kbd>
-          </button>
-        </div>
+        <SyncControl />
         <div className="sidebar-footer-row">
           <span className="sidebar-user mono">{login}</span>
           <form action={logout}>
@@ -39,6 +36,6 @@ export async function Sidebar({ login }: Props) {
           </form>
         </div>
       </div>
-    </aside>
+    </SidebarFrame>
   );
 }
