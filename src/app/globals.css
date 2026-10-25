@@ -692,7 +692,7 @@ button {
 .pipeline-row[data-frame]::before {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: -4px -12px;
   padding: 2px;
   border-radius: 6px;
   background: var(--frame-color);
