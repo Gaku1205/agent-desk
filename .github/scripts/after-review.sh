@@ -29,20 +29,24 @@ if [ "$CONCLUSION" != "success" ]; then
 fi
 
 # いまの先頭コミットのあとに書かれた、最新のレビュー結果（「## Code review」で始まる）を探す。
-# 同じコミットをもう一度レビューすると、レビューAIは新しいコメントを書かないことがあるので、
+# まとめのコメントは、レビューAIが gh で書くので github-actions[bot] の名前で付く（行への指摘は claude[bot]）。
 # 「この実行で書かれた物」ではなく「先頭コミットより新しい物」を見る
 head_date=$(gh api "repos/$REPO/commits/$HEAD_SHA" -q .commit.committer.date)
 review=$(all_comments "$pr" | jq -r --arg since "$head_date" \
-  'map(select(.user.login == "claude[bot]" and (.body | startswith("## Code review")) and .created_at >= $since)) | last | .body // ""')
+  'map(select((.user.login == "claude[bot]" or .user.login == "github-actions[bot]") and (.body | startswith("## Code review")) and .created_at >= $since)) | last | .body // ""')
 
-if [ -z "$review" ]; then
-  stop_for_human "$pr" "レビューAIの結果のコメントが見つかりませんでした"
+# 指摘があるとき、レビューAIはまとめのコメントを書かず、コードの行への指摘（インラインコメント）だけを残すことがある
+inline=$(gh api "repos/$REPO/pulls/$pr/comments?per_page=100" --paginate --slurp \
+  | jq --arg sha "$HEAD_SHA" 'add // [] | map(select(.user.login == "claude[bot]" and .original_commit_id == $sha)) | length')
+
+if [ "$inline" -gt 0 ] || { [ -n "$review" ] && ! printf '%s' "$review" | grep -q "No issues found"; }; then
+  request_fix_or_stop "$pr" "$HEAD_SHA" "レビューで指摘がありました。このPRの「Code review」のコメントと、コードの行に付いた指摘を読んで直してください。指摘が間違っていると判断した場合は、直さずにその理由をこのPRにコメントしてください。"
+  echo "PR #$pr：指摘があったので直すよう依頼しました（行への指摘 ${inline} 件）"
   exit 0
 fi
 
-if ! printf '%s' "$review" | grep -q "No issues found"; then
-  request_fix_or_stop "$pr" "$HEAD_SHA" "レビューで指摘がありました。上の「Code review」のコメントを読んで直してください。指摘が間違っていると判断した場合は、直さずにその理由をこのPRにコメントしてください。"
-  echo "PR #$pr：指摘があったので直すよう依頼しました"
+if [ -z "$review" ]; then
+  stop_for_human "$pr" "レビューAIの結果のコメントが見つかりませんでした"
   exit 0
 fi
 
