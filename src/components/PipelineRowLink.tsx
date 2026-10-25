@@ -10,11 +10,13 @@ type Props = {
   tone: ProgressTone;
   done: boolean;
   ariaLabel: string;
+  /** 外枠の種類（出さないときは undefined） */
+  frame: "spinning" | "human" | "fail" | undefined;
   children: ReactNode;
 };
 
 /** パイプラインの1行。取り直しで段階が変わったら、誰の番かの色で光らせる */
-export function PipelineRowLink({ href, stage, tone, done, ariaLabel, children }: Props) {
+export function PipelineRowLink({ href, stage, tone, done, ariaLabel, frame, children }: Props) {
   const { flash } = useRowEffects(stage);
 
   return (
@@ -22,6 +24,7 @@ export function PipelineRowLink({ href, stage, tone, done, ariaLabel, children }
       className="pipeline-grid pipeline-row"
       data-done={done ? "true" : undefined}
       data-flash={flash ?? undefined}
+      data-frame={frame}
       style={{ "--flash-color": toneRgba(tone, 0.12) } as CSSProperties}
       href={href}
       role="row"
