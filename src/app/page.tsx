@@ -1,8 +1,17 @@
+import { Header } from "@/components/Header";
+
 export default function Home() {
   return (
-    <main className="container">
-      <h1>agent-desk</h1>
-      <p>作り直し中です。</p>
-    </main>
+    <>
+      <Header kind="home" />
+      <main className="content">
+        <section className="section">
+          <h2 className="section-title">あなたの番</h2>
+        </section>
+        <section className="section">
+          <h2 className="section-title">最近の出来事</h2>
+        </section>
+      </main>
+    </>
   );
 }
