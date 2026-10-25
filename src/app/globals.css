@@ -763,6 +763,15 @@ button {
   }
 }
 
+.pipeline-reason {
+  display: block;
+  overflow: hidden;
+  color: var(--text-mute);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pipeline-ref {
   color: var(--text-mute);
   font-size: 12.5px;
@@ -841,6 +850,10 @@ button {
 
   .pipeline-ref {
     margin-right: 10px;
+  }
+
+  .pipeline-reason {
+    white-space: normal;
   }
 
   .pipeline-cell {
