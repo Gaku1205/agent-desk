@@ -26,7 +26,7 @@ const FRAME_BY_STAGE: Record<Stage, RowFrame> = {
   deployFailed: { kind: "stopped", color: "fail" },
   deployed: NONE,
   queued: QUEUE,
-  notStarted: NONE,
+  notStarted: { kind: "stopped", color: "human" },
 };
 
 /** 行にどの外枠を出すか */

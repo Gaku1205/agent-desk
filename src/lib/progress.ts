@@ -12,7 +12,7 @@ export const PROGRESS_STAGE_NAMES = [
   "公開",
 ] as const;
 
-export type ProgressTone = "human" | "ai" | "done" | "fail" | "idle";
+export type ProgressTone = "human" | "ai" | "done" | "fail" | "queue";
 
 export type ProgressBarSpec = {
   /** 棒の番号（0〜7） */
@@ -47,7 +47,7 @@ const TONE_RGB: Record<ProgressTone, string> = {
   ai: "94,155,247",
   done: "76,195,138",
   fail: "242,85,90",
-  idle: "95,98,106",
+  queue: "139,92,246",
 };
 
 /** 色の種類と不透明度から `rgba(...)` を作る */
@@ -73,7 +73,7 @@ const AT_BY_STAGE: Record<Exclude<Stage, "stuck">, number> = {
 
 const TONE_BY_STAGE: Record<Exclude<Stage, "stuck" | "mergeWaiting">, ProgressTone> = {
   notStarted: "human",
-  queued: "idle",
+  queued: "queue",
   planning: "ai",
   implementing: "ai",
   prWaiting: "human",
