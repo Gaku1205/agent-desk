@@ -47,6 +47,7 @@ export function TurnSection({ items, errors, now, scope }: Props) {
               repo={item.repo}
               issueNumber={item.issue.number}
               title={item.issue.title}
+              stage={item.status.stage}
               url={item.issue.url}
               description={item.description}
               wait={formatWait(item.waitingSince, now)}

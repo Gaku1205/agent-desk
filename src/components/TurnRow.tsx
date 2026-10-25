@@ -1,15 +1,19 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition, type CSSProperties, type ReactNode } from "react";
 import { runOperation } from "@/app/actions";
+import { toneRgba } from "@/lib/progress";
 import type { MergeSummary, OperationKind, TurnButton } from "@/lib/turn";
 import { MergeDialog } from "./MergeDialog";
+import { useRowEffects } from "./useRowEffects";
 
 type Props = {
   owner: string;
   repo: string;
   issueNumber: number;
   title: string;
+  /** 段階（取り直しで変わったら行を光らせる） */
+  stage: string;
   url: string;
   description: string;
   wait: string;
@@ -22,6 +26,7 @@ type Props = {
 /** あなたの番の1行（ボタンを押すとサーバー側で操作して、画面を取り直す） */
 export function TurnRow(props: Props) {
   const { owner, repo, issueNumber, buttons, merge } = props;
+  const { fadeIn, flash } = useRowEffects(props.stage);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
@@ -36,7 +41,12 @@ export function TurnRow(props: Props) {
   }
 
   return (
-    <li className="turn-row">
+    <li
+      className="turn-row"
+      data-fade-in={fadeIn ? "true" : undefined}
+      data-flash={flash ?? undefined}
+      style={{ "--flash-color": toneRgba("human", 0.12) } as CSSProperties}
+    >
       <svg
         className="turn-icon"
         width="14"

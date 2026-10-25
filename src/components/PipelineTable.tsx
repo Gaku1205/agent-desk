@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { PENDING_COLOR, PROGRESS_STAGE_NAMES, toneRgba, type ProgressBarSpec } from "@/lib/progress";
 import type { PipelineRow } from "@/lib/pipeline";
+import { PipelineRowLink } from "./PipelineRowLink";
 
 function barStyle(bar: ProgressBarSpec): CSSProperties {
   if (bar.tone === null) return { background: PENDING_COLOR };
@@ -35,12 +36,12 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
             ))}
           </div>
           {rows.map((row) => (
-            <a
-              className="pipeline-grid pipeline-row"
-              data-done={row.status.stage === "deployed" ? "true" : undefined}
+            <PipelineRowLink
               href={row.issue.url}
-              role="row"
-              aria-label={`${repoName}#${row.issue.number} ${row.issue.title}：${row.description}・${row.progress.ariaLabel}`}
+              stage={row.status.stage}
+              tone={row.progress.tone}
+              done={row.status.stage === "deployed"}
+              ariaLabel={`${repoName}#${row.issue.number} ${row.issue.title}：${row.description}・${row.progress.ariaLabel}`}
               key={row.issue.number}
             >
               <div className="pipeline-issue" role="cell">
@@ -65,7 +66,7 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
                   </span>
                 </div>
               ))}
-            </a>
+            </PipelineRowLink>
           ))}
         </div>
       )}
