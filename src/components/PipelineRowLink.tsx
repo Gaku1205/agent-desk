@@ -11,7 +11,7 @@ type Props = {
   done: boolean;
   ariaLabel: string;
   /** 外枠の種類（出さないときは undefined） */
-  frame: "spinning" | "human" | "fail" | undefined;
+  frame: "spinning" | "human" | "fail" | "queue" | undefined;
   children: ReactNode;
 };
 

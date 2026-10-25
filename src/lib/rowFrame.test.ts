@@ -33,14 +33,18 @@ describe("rowFrame", () => {
 
   it.each<[Stage, Turn]>([
     ["deployed", "none"],
-    ["queued", "none"],
     ["notStarted", "human"],
     ["mergeWaiting", "ai"],
   ])("%s は外枠を出さない", (stage, turn) => {
     expect(frameOf(stage, turn)).toEqual({ kind: "none" });
   });
 
+  it("queued は順番待ちの外枠", () => {
+    expect(frameOf("queued", "none")).toEqual({ kind: "queue" });
+  });
+
   it("data-frame の値", () => {
+    expect(rowFrameAttr({ kind: "queue" })).toBe("queue");
     expect(rowFrameAttr({ kind: "spinning" })).toBe("spinning");
     expect(rowFrameAttr({ kind: "stopped", color: "human" })).toBe("human");
     expect(rowFrameAttr({ kind: "stopped", color: "fail" })).toBe("fail");

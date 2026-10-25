@@ -15,6 +15,7 @@
   --ai: #5e9bf7;
   --done: #4cc38a;
   --fail: #f2555a;
+  --queue: #8b5cf6;
   --idle: #5f626a;
 
   color-scheme: dark;
@@ -724,9 +725,33 @@ button {
   }
 }
 
+.pipeline-row[data-frame="queue"] {
+  --frame-color: var(--queue);
+}
+
+.pipeline-row[data-frame="queue"]::before {
+  opacity: 0.8;
+  animation: row-frame-queue-blink 2.4s ease-in-out infinite;
+}
+
+@keyframes row-frame-queue-blink {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pipeline-row[data-frame="spinning"]::before {
     background: var(--ai);
+    animation: none;
+  }
+
+  .pipeline-row[data-frame="queue"]::before {
+    opacity: 0.8;
     animation: none;
   }
 }
