@@ -43,7 +43,7 @@ function pull(overrides: Partial<PullData> = {}): PullData {
     labels: [],
     url: "https://github.com/o/r/pull/11",
     headRef: "claude/issue-3-20261025-1509",
-    headSha: "head",
+    headSha: "c0ffee",
     mergeCommitSha: null,
     createdAt: "2026-10-25T10:00:00Z",
     updatedAt: "2026-10-25T10:00:00Z",
@@ -443,5 +443,101 @@ describe("deployState", () => {
       { context: "Vercel", state: "pending", updatedAt: "2026-10-25T11:51:00Z" },
     ];
     expect(deployState(statuses, "2026-10-25T11:50:00Z", NOW).state).toBe("deployed");
+  });
+});
+
+/** テスト中の名前（head＝今の先頭コミット、old／a／b＝以前の先頭コミット）を16進のSHAにして依頼コメントを作る */
+const SHA: Record<string, string> = { head: "c0ffee", old: "a1b2c3", a: "a1", b: "b2" };
+
+function fixRequest(name: string, createdAt: string): CommentData {
+  const sha = SHA[name];
+  return comment({
+    issueNumber: 11,
+    author: "Gaku1205",
+    createdAt,
+    body: `@claude 直して\n\n<!-- auto-fix -->\n<!-- auto-fix-sha: ${sha} -->`,
+  });
+}
+
+describe("getIssueStatus：修正中・修正の確認中・清書した・修正した", () => {
+  const checks = { 11: { checkRuns: [check()] } };
+
+  it("修正中：最新の修正依頼のSHAが先頭コミットのまま（レビュー中より優先）", () => {
+    const status = getIssueStatus(
+      issue(),
+      input([pull({ labels: ["ai:review"] })], checks, [fixRequest("head", "2026-10-25T10:20:00Z")]),
+      NOW,
+    );
+    expect(status.stage).toBe("fixing");
+    expect(status.turn).toBe("ai");
+    expect(status.fixCount).toBe(0);
+    expect(status.verifyingFix).toBe(false);
+  });
+
+  it("修正中ではない：先頭コミットが進んでいる", () => {
+    const status = getIssueStatus(issue(), input([pull()], checks, [fixRequest("old", "2026-10-25T10:20:00Z")]), NOW);
+    expect(status.stage).not.toBe("fixing");
+  });
+
+  it("修正した：先頭コミットが進んだ依頼の数（1回）", () => {
+    const status = getIssueStatus(issue(), input([pull()], checks, [fixRequest("old", "2026-10-25T10:20:00Z")]), NOW);
+    expect(status.fixCount).toBe(1);
+  });
+
+  it("修正した：2回。修正中の依頼は数えない", () => {
+    const twice = getIssueStatus(
+      issue(),
+      input([pull()], checks, [fixRequest("a", "2026-10-25T10:20:00Z"), fixRequest("b", "2026-10-25T10:40:00Z")]),
+      NOW,
+    );
+    expect(twice.fixCount).toBe(2);
+    const secondInProgress = getIssueStatus(
+      issue(),
+      input([pull()], checks, [fixRequest("a", "2026-10-25T10:20:00Z"), fixRequest("head", "2026-10-25T10:40:00Z")]),
+      NOW,
+    );
+    expect(secondInProgress.stage).toBe("fixing");
+    expect(secondInProgress.fixCount).toBe(1);
+  });
+
+  it("修正の確認中：直したあと、CIが実行中", () => {
+    const status = getIssueStatus(
+      issue(),
+      input([pull()], { 11: { checkRuns: [check(), ciRunning] } }, [fixRequest("old", "2026-10-25T10:20:00Z")]),
+      NOW,
+    );
+    expect(status.stage).toBe("ciRunning");
+    expect(status.verifyingFix).toBe(true);
+  });
+
+  it("修正の確認中：直したあと、レビュー中", () => {
+    const status = getIssueStatus(
+      issue(),
+      input([pull({ labels: ["ai:review"] })], checks, [fixRequest("old", "2026-10-25T10:20:00Z")]),
+      NOW,
+    );
+    expect(status.stage).toBe("reviewing");
+    expect(status.verifyingFix).toBe(true);
+  });
+
+  it("修正の確認中ではない：直していない", () => {
+    const status = getIssueStatus(issue(), input([pull()], { 11: { checkRuns: [check(), ciRunning] } }), NOW);
+    expect(status.verifyingFix).toBe(false);
+    expect(status.fixCount).toBe(0);
+  });
+
+  it("清書した：Issue本文に「> 元のメモ：」がある", () => {
+    expect(getIssueStatus(issue({ body: "### 背景\n\n> 元のメモ：ほげ" }), input(), NOW).planned).toBe(true);
+    expect(getIssueStatus(issue({ body: "ほげ" }), input(), NOW).planned).toBe(false);
+  });
+
+  it("止まった：止まる前の段階が修正中でも返る", () => {
+    const status = getIssueStatus(
+      issue({ labels: ["ai:stuck"] }),
+      input([pull()], checks, [fixRequest("head", "2026-10-25T10:20:00Z")]),
+      NOW,
+    );
+    expect(status.stage).toBe("stuck");
+    expect(status.stageBeforeStuck).toBe("fixing");
   });
 });

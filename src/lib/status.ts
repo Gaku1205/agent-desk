@@ -6,6 +6,7 @@ export type Stage =
   | "deployed"
   | "deploying"
   | "deployFailed"
+  | "fixing"
   | "reviewing"
   | "mergeWaiting"
   | "ciRunning"
@@ -45,6 +46,12 @@ export type IssueStatus = {
   deployUnknown: boolean;
   /** 止まった理由（止まったときだけ） */
   stuckReason: string | null;
+  /** 企画AIが清書した（Issue本文に `> 元のメモ：` がある） */
+  planned: boolean;
+  /** AIが直した回数（自動の修正依頼のうち、先頭コミットが進んだもの。0〜2） */
+  fixCount: number;
+  /** 直したあとの、CIかレビューの確認中 */
+  verifyingFix: boolean;
 };
 
 export type StatusInput = {
@@ -66,7 +73,14 @@ const CLAUDE_BOT = "claude[bot]";
 const GITHUB_ACTIONS_APP = "github-actions";
 /** 公開ステータスが無いまま、これだけたったら「公開済み（状況は不明）」にする */
 export const DEPLOY_UNKNOWN_AFTER_MS = 30 * 60 * 1000;
-const STUCK_PREFIX = "⏸ 自動で進めるのを止めました：";
+/** パイプラインの修正依頼コメントの印と、依頼時の先頭コミット（scripts/pipeline-lib.sh） */
+const AUTO_FIX_MARK = "<!-- auto-fix -->";
+const AUTO_FIX_SHA_PATTERN = /<!--\s*auto-fix-sha:\s*([0-9a-f]+)\s*-->/;
+/** 自動で直す回数の上限 */
+export const MAX_AUTO_FIX = 2;
+/** 清書したIssueの本文にある印 */
+const PLAN_MEMO_MARK = "> 元のメモ：";
+const STUCK_PREFIX ="⏸ 自動で進めるのを止めました：";
 export const DEFAULT_STUCK_REASON = "自動で進められず止まりました";
 /** 「通過」とみなすチェックの結果 */
 const PASSED_CONCLUSIONS = new Set(["success", "skipped", "neutral"]);
@@ -77,6 +91,7 @@ const TURN_BY_STAGE: Record<Stage, Turn> = {
   deployed: "none",
   deploying: "none",
   deployFailed: "human",
+  fixing: "ai",
   reviewing: "ai",
   mergeWaiting: "ai",
   ciRunning: "ai",
@@ -230,7 +245,34 @@ export function stuckReason(comments: CommentData[], pullNumber: number | null):
   return reason === "" ? null : reason;
 }
 
-export type DeployState = { state: "deployed" | "deploying" | "failed"; unknown: boolean };
+/** 清書したか：Issue本文に `> 元のメモ：` がある */
+export function isPlanned(issue: IssueData): boolean {
+  return issue.body.includes(PLAN_MEMO_MARK);
+}
+
+/** PRにある修正依頼コメント（`<!-- auto-fix -->` を含む）の、依頼時の先頭コミット（古い順） */
+export function autoFixRequestShas(comments: CommentData[], pullNumber: number): (string | null)[] {
+  return comments
+    .filter((comment) => comment.issueNumber === pullNumber && comment.body.includes(AUTO_FIX_MARK))
+    .sort(byCreatedAt)
+    .map((comment) => AUTO_FIX_SHA_PATTERN.exec(comment.body)?.[1] ?? null);
+}
+
+/** 修正中か：最新の修正依頼のSHAが、PRの先頭コミットのまま（まだ直したコミットが来ていない） */
+export function isFixing(comments: CommentData[], pull: PullData): boolean {
+  const last = autoFixRequestShas(comments, pull.number).at(-1);
+  return last !== undefined && last !== null && last === pull.headSha;
+}
+
+/** 直した回数：先頭コミットが依頼時のSHAから進んだ修正依頼の数（上限まで） */
+export function fixCount(comments: CommentData[], pull: PullData): number {
+  const done = autoFixRequestShas(comments, pull.number).filter(
+    (sha) => sha !== null && sha !== pull.headSha,
+  );
+  return Math.min(done.length, MAX_AUTO_FIX);
+}
+
+export type DeployState ={ state: "deployed" | "deploying" | "failed"; unknown: boolean };
 
 /**
  * 公開ステータス（context が `Vercel` で始まるコミットステータス）の解決。
@@ -266,6 +308,7 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   const pull = findLinkedPull(input.pulls, issue.number);
   const checks = pull ? (input.pullChecks[pull.number] ?? { checkRuns: [], statuses: [] }) : null;
   const ci = checks ? ciState(checks.checkRuns) : { state: "running" as const, passed: 0, total: 0 };
+  const fixes = pull ? fixCount(input.comments, pull) : 0;
   const result = (
     stage: Exclude<Stage, "stuck">,
     extra: Partial<BaseStatus> = {},
@@ -277,6 +320,9 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
     mergeWait: null,
     implementError: false,
     deployUnknown: false,
+    planned: isPlanned(issue),
+    fixCount: fixes,
+    verifyingFix: fixes > 0 && (stage === "reviewing" || stage === "ciRunning"),
     ...extra,
   });
 
@@ -288,6 +334,7 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   }
 
   if (pull && checks) {
+    if (isFixing(input.comments, pull)) return result("fixing");
     if (pull.labels.includes(LABEL.review) && !hasFinishedReviewCheck(checks.checkRuns)) {
       return result("reviewing");
     }
