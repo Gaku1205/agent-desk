@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
+import { PipelineTable } from "@/components/PipelineTable";
 import { TurnSection } from "@/components/TurnSection";
 import { findWatchedRepo, getWatchedRepos } from "@/lib/config";
 import { loadTurns } from "@/lib/loadTurns";
+import { buildPipelineRows } from "@/lib/pipeline";
 import { filterTurnItems } from "@/lib/turn";
 
 export default async function RepoPage({
@@ -20,6 +22,14 @@ export default async function RepoPage({
       !result.ok && result.owner === watched.owner && result.repo === watched.repo,
   );
 
+  const repoResult = results.find(
+    (result) =>
+      result.ok &&
+      result.owner.toLowerCase() === watched.owner.toLowerCase() &&
+      result.repo.toLowerCase() === watched.repo.toLowerCase(),
+  );
+  const rows = repoResult?.ok ? buildPipelineRows(repoResult.data, now) : [];
+
   return (
     <>
       <Header kind="repo" owner={watched.owner} repo={watched.repo} />
@@ -30,9 +40,7 @@ export default async function RepoPage({
           now={now}
           scope="repo"
         />
-        <section className="section">
-          <h2 className="section-title">パイプライン</h2>
-        </section>
+        <PipelineTable rows={rows} repoName={watched.repo} />
       </main>
     </>
   );
