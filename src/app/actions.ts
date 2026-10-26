@@ -2,7 +2,7 @@
 
 import { refresh } from "next/cache";
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
-import { getAllowedLogins, getWatchedRepos } from "@/lib/config";
+import { getAllowedLogins } from "@/lib/config";
 import { GitHubClient } from "@/lib/github/client";
 import { fetchRepoData } from "@/lib/github/fetch";
 import {
@@ -13,6 +13,7 @@ import {
   parseOperationInput,
   type OperationResult,
 } from "@/lib/operations";
+import { loadWatchedRepos } from "@/lib/watchedRepos";
 
 /** 「あなたの番」のボタンの操作。トークンはサーバー側だけで使い、結果には含めない */
 export async function runOperation(value: unknown): Promise<OperationResult> {
@@ -23,7 +24,7 @@ export async function runOperation(value: unknown): Promise<OperationResult> {
     login: await getSignedInLogin(),
     token: await getGitHubToken(),
     allowedLogins: getAllowedLogins(),
-    watched: getWatchedRepos(),
+    watched: (await loadWatchedRepos()).repos,
     owner: input.owner,
     repo: input.repo,
   });

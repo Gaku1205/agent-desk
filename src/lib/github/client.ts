@@ -83,8 +83,12 @@ export class GitHubClient {
     return { json, next };
   }
 
-  /** 書き込み（POST / PUT / DELETE）。失敗したら GitHubError（ステータスつき、トークンは含めない） */
-  async send(method: "POST" | "PUT" | "DELETE", path: string, body?: unknown): Promise<unknown> {
+  /** 書き込み（POST / PUT / PATCH / DELETE）。失敗したら GitHubError（ステータスつき、トークンは含めない） */
+  async send(
+    method: "POST" | "PUT" | "PATCH" | "DELETE",
+    path: string,
+    body?: unknown,
+  ): Promise<unknown> {
     let response: Response;
     try {
       response = await this.fetcher(`${API_BASE}${path}`, {

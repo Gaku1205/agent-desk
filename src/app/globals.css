@@ -207,6 +207,119 @@ button {
   color: var(--text-strong);
 }
 
+.repo-setting-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.repo-setting-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 40px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.repo-setting-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-setting-pipeline {
+  color: var(--text-mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.repo-setting-pipeline[data-pipeline="yes"] {
+  color: var(--done);
+}
+
+.repo-setting-remove {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.repo-setting-remove:hover {
+  color: var(--text-sub);
+}
+
+.repo-setting-add,
+.repo-setting-save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.repo-setting-select {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.setting-button {
+  width: 112px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.setting-button:disabled {
+  cursor: default;
+}
+
+.setting-saved {
+  color: var(--done);
+  font-size: 13.5px;
+}
+
+.setting-error {
+  color: var(--fail);
+  font-size: 13.5px;
+  word-break: auto-phrase;
+}
+
+@media (max-width: 899px) {
+  .repo-setting-row {
+    min-height: 44px;
+  }
+
+  .repo-setting-remove {
+    min-height: 44px;
+  }
+
+  .repo-setting-select,
+  .setting-button {
+    height: 44px;
+    border-radius: 8px;
+  }
+}
+
 .sidebar-footer {
   display: flex;
   flex-direction: column;

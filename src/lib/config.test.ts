@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { findWatchedRepo, getAllowedLogins, getWatchedRepos } from "./config";
+import {
+  chooseWatchedRepos,
+  findWatchedRepo,
+  getAllowedLogins,
+  getSettingsRepo,
+  getWatchedRepos,
+} from "./config";
 
 describe("getWatchedRepos", () => {
   it("カンマ区切りの owner/repo を読む", () => {
@@ -27,6 +33,43 @@ describe("getWatchedRepos", () => {
     expect(
       getWatchedRepos({ WATCHED_REPOS: "Gaku1205/agent-desk,gaku1205/Agent-Desk" }),
     ).toEqual([{ owner: "Gaku1205", repo: "agent-desk" }]);
+  });
+});
+
+describe("chooseWatchedRepos", () => {
+  const env = { WATCHED_REPOS: "Gaku1205/agent-desk" };
+
+  it("Variable があればそれを使う", () => {
+    expect(chooseWatchedRepos("Gaku1205/ai-dev-template,Gaku1205/other", env)).toEqual({
+      repos: [
+        { owner: "Gaku1205", repo: "ai-dev-template" },
+        { owner: "Gaku1205", repo: "other" },
+      ],
+      source: "variable",
+    });
+  });
+
+  it("Variable が無い・形の合う物が無ければ WATCHED_REPOS を使う", () => {
+    const fromEnv = { repos: [{ owner: "Gaku1205", repo: "agent-desk" }], source: "env" };
+    expect(chooseWatchedRepos(null, env)).toEqual(fromEnv);
+    expect(chooseWatchedRepos("", env)).toEqual(fromEnv);
+    expect(chooseWatchedRepos("bad,a/b/c", env)).toEqual(fromEnv);
+  });
+});
+
+describe("getSettingsRepo", () => {
+  it("owner/repo を読む", () => {
+    expect(getSettingsRepo({ SETTINGS_REPO: " Gaku1205/agent-desk " })).toEqual({
+      owner: "Gaku1205",
+      repo: "agent-desk",
+    });
+  });
+
+  it("無い・形が合わなければ null", () => {
+    expect(getSettingsRepo({})).toBeNull();
+    expect(getSettingsRepo({ SETTINGS_REPO: "" })).toBeNull();
+    expect(getSettingsRepo({ SETTINGS_REPO: "agent-desk" })).toBeNull();
+    expect(getSettingsRepo({ SETTINGS_REPO: "a/b,c/d" })).toBeNull();
   });
 });
 
