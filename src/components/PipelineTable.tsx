@@ -7,6 +7,7 @@ import { rowFrame, rowFrameAttr } from "@/lib/rowFrame";
 import { toggleQueueReasonOpen } from "@/lib/queueReasonOpen";
 import { PipelineRowLink } from "./PipelineRowLink";
 import { PipelineTitle } from "./PipelineTitle";
+import { TriangleDownIcon } from "./icons";
 
 function barStyle(bar: ProgressBarSpec): CSSProperties {
   if (bar.tone === null) return { background: PENDING_COLOR };
@@ -90,6 +91,9 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
                       }}
                     >
                       {openReasons.has(row.issue.number) ? "理由を閉じる" : "理由を見る"}
+                      <span className="pipeline-reason-caret">
+                        <TriangleDownIcon />
+                      </span>
                     </button>
                     {openReasons.has(row.issue.number) && (
                       <span className="pipeline-reason pipeline-reason-open">{row.queueReason}</span>

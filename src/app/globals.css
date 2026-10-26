@@ -911,15 +911,36 @@ button {
 
 .pipeline-reason-toggle {
   align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
+  padding: 0;
+  border: none;
+  background: none;
   color: var(--text-sub);
   font-size: 12.5px;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.pipeline-reason-toggle:hover {
+  color: var(--text);
+}
+
+.pipeline-reason-caret {
+  display: inline-flex;
+  transition: transform 0.15s;
+}
+
+.pipeline-reason-toggle[aria-expanded="true"] .pipeline-reason-caret {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pipeline-reason-caret {
+    transition: none;
+  }
 }
 
 .pipeline-ref {
@@ -1006,11 +1027,10 @@ button {
     white-space: normal;
   }
 
+  /* 押せる範囲だけ44pxに広げ、上下の余白は負のマージンで打ち消して見た目と行の高さは変えない */
   .pipeline-reason-toggle {
     min-height: 44px;
-    padding-right: 12px;
-    padding-left: 12px;
-    border-radius: 8px;
+    margin: -8px 0;
   }
 
   .pipeline-cell {
