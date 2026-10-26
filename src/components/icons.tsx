@@ -16,6 +16,20 @@ export function HomeIcon() {
   );
 }
 
+export function TriangleDownIcon() {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M2 3.5h6L5 7z" />
+    </svg>
+  );
+}
+
 export function FileIcon() {
   return (
     <svg
