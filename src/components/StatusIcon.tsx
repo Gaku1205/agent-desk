@@ -27,6 +27,12 @@ export function StatusIcon({ status }: { status: IssueStatus }) {
       {shape === "dashed" && (
         <circle cx="7" cy="7" r="5.5" stroke={color} strokeDasharray="2.2 2" />
       )}
+      {shape === "paused" && (
+        <>
+          <circle cx="7" cy="7" r="5.5" stroke={color} strokeDasharray="2.2 2" />
+          <path d="M5.5 4.8v4.4M8.5 4.8v4.4" stroke={color} strokeLinecap="round" />
+        </>
+      )}
       {shape === "half" && (
         <>
           <circle cx="7" cy="7" r="5.5" stroke={color} />

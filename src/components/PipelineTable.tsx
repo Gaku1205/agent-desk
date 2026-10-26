@@ -114,7 +114,9 @@ export function PipelineGrid({ rows, label }: { rows: PipelineGridRow[]; label: 
           </div>
         ))}
       </div>
-      {rows.map(({ row, repoName }) => (
+      {rows.map(({ row, repoName }) => {
+        const reason = row.queueReason ?? row.deployFailReason;
+        return (
         <PipelineRowLink
           href={row.issue.url}
           stage={row.status.stage}
@@ -129,7 +131,7 @@ export function PipelineGrid({ rows, label }: { rows: PipelineGridRow[]; label: 
             <span className={`${styles.ref} mono`}>
               {repoName}#{row.issue.number}
             </span>
-            {row.queueReason && (
+            {reason && (
               <>
                 {/* 行全体がリンクなので、押してもIssueへ移動しないようにする */}
                 <button
@@ -148,7 +150,7 @@ export function PipelineGrid({ rows, label }: { rows: PipelineGridRow[]; label: 
                   </span>
                 </button>
                 {openReasons.has(row.issue.number) && (
-                  <span className={`${styles.reason} ${styles.reasonOpen}`}>{row.queueReason}</span>
+                  <span className={`${styles.reason} ${styles.reasonOpen}`}>{reason}</span>
                 )}
               </>
             )}
@@ -170,7 +172,8 @@ export function PipelineGrid({ rows, label }: { rows: PipelineGridRow[]; label: 
             </div>
           ))}
         </PipelineRowLink>
-      ))}
+        );
+      })}
     </div>
   );
 }

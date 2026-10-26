@@ -27,6 +27,7 @@ const ALL_STAGES: Record<Stage, true> = {
   implementing: true,
   planning: true,
   queued: true,
+  skipped: true,
   notStarted: true,
 };
 

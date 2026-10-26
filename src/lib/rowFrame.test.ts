@@ -21,6 +21,7 @@ describe("rowFrame", () => {
     ["prWaiting", "human"],
     ["mergeWaiting", "human"],
     ["notStarted", "human"],
+    ["skipped", "human"],
   ])("%s（人間の番）は human の外枠", (stage, turn) => {
     expect(frameOf(stage, turn)).toEqual({ kind: "stopped", color: "human" });
   });

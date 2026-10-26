@@ -155,8 +155,12 @@ function ciRuns(passed: number, completedAt: string): CheckRunData[] {
   return CI_CHECKS.map((name, index) => run(name, index < passed ? completedAt : null));
 }
 
-function vercel(state: "pending" | "success" | "failure", updatedAt: string): CommitStatusData {
-  return { context: "Vercel", state, updatedAt };
+function vercel(
+  state: "pending" | "success" | "failure",
+  updatedAt: string,
+  description = "",
+): CommitStatusData {
+  return { context: "Vercel", state, description, updatedAt };
 }
 
 const DONE_COMMENT = "**Claude finished** 実装してブランチにpushしました";
@@ -434,6 +438,10 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
   });
   addComment(ctx, 14, "#17 の並べ替えができてから、その順番を保存する作業なので順番待ちにします", ago(ctx, 32));
 
+  // 保留（ai:skip）
+  addIssue(ctx, 25, "タスクをカレンダーに表示する", { createdAt: ago(ctx, 3 * 60), labels: ["ai:skip"] });
+  addLabeled(ctx, 25, "ai:skip", ago(ctx, 3 * 60));
+
   // 未着手
   addIssue(ctx, 13, "タスクに色のラベルを付けられるようにする", { createdAt: ago(ctx, 2 * 60 + 15) });
 
@@ -464,7 +472,7 @@ function landingPage(base: Date): RepoData {
     headSha: "a9b8c7d",
     mergedAt: ago(ctx, 38),
     checkRuns: [...ciRuns(4, ago(ctx, 70)), run("review", ago(ctx, 60))],
-    statuses: [vercel("failure", ago(ctx, 34))],
+    statuses: [vercel("failure", ago(ctx, 34), "Deployment rate limited — retry in 24 hours.")],
   });
   addComment(ctx, 15, REVIEW_CLEAN, ago(ctx, 60));
 
