@@ -54,7 +54,6 @@ export function TurnSection({ items, errors, now, scope }: Props) {
               wait={formatWait(item.waitingSince, now)}
               buttons={item.buttons}
               merge={item.merge}
-              home={scope === "all"}
             >
               <ProgressBar status={item.status} />
             </TurnRow>

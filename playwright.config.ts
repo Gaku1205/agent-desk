@@ -20,6 +20,9 @@ export default defineConfig({
   },
   projects: [
     { name: "pc", use: { viewport: { width: 1440, height: 900 } } },
+    // PCの中間の幅と広い幅（幅を変えても「あなたの番」の行が崩れないか）
+    { name: "pc-1024", use: { viewport: { width: 1024, height: 768 } } },
+    { name: "pc-1920", use: { viewport: { width: 1920, height: 1080 } } },
     {
       name: "mobile",
       use: { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true },
