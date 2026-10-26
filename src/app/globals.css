@@ -1103,6 +1103,17 @@ button {
   cursor: pointer;
 }
 
+.pipeline-deployed-more {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding-top: 8px;
+}
+
+.pipeline-deployed-more .pipeline-reason-toggle {
+  align-self: auto;
+}
+
 .pipeline-reason-toggle:hover {
   color: var(--text);
 }

@@ -72,3 +72,42 @@ export function filterPipelineRows(rows: PipelineRow[], showDeployed: boolean): 
   if (showDeployed) return rows;
   return rows.filter((row) => row.status.stage !== "deployed");
 }
+
+/** 公開済みを1回押すごとに足して出す件数 */
+export const DEPLOYED_PAGE_SIZE = 5;
+
+export type PipelineView = {
+  /** 表に出す行：まだ終わっていない行（番号の大きい順）の下に、出すと決めた公開済みの行 */
+  rows: PipelineRow[];
+  /** 公開済みの行の総数 */
+  deployedTotal: number;
+  /** 出している公開済みの行の数 */
+  deployedShown: number;
+  /** まだ出していない公開済みの行の数 */
+  deployedRemaining: number;
+};
+
+/** 表に出す行を選ぶ：公開済みは新しい順に deployedShown 件まで（範囲外の値は丸める） */
+export function getPipelineView(rows: PipelineRow[], deployedShown: number): PipelineView {
+  const active = filterPipelineRows(rows, false);
+  const deployed = rows.filter((row) => row.status.stage === "deployed");
+  const shown = Math.min(Math.max(0, Math.floor(deployedShown)), deployed.length);
+  return {
+    rows: [...active, ...deployed.slice(0, shown)],
+    deployedTotal: deployed.length,
+    deployedShown: shown,
+    deployedRemaining: deployed.length - shown,
+  };
+}
+
+/** 公開済みを出す件数を1回分増やす（総数を超えない） */
+export function showMoreDeployed(deployedShown: number, deployedTotal: number): number {
+  return Math.min(deployedShown + DEPLOYED_PAGE_SIZE, deployedTotal);
+}
+
+/** 公開済みの開閉ボタンの文言：1件も出していないとき／残りがあるとき。残りが無ければ null */
+export function deployedMoreLabel(view: PipelineView): string | null {
+  if (view.deployedRemaining === 0) return null;
+  if (view.deployedShown === 0) return `公開済みを表示（${view.deployedTotal}件）`;
+  return `さらに${DEPLOYED_PAGE_SIZE}件表示（残り${view.deployedRemaining}件）`;
+}
