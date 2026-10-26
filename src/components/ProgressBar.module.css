@@ -1,14 +1,15 @@
 /* 進み具合のバー。`.bar` はパイプラインの表（PipelineTable）でも使う */
 
+/* バーの幅を測るためのコンテナ（段階名を全部出すか、今の段階だけにするかを決める） */
+.frame {
+  container: progress / inline-size;
+}
+
+/* 置かれた場所の幅いっぱいに伸ばす */
 .progress {
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 3px;
-}
-
-/* 段階名を出すバー（スマホでは今の段階の名前だけ見せる） */
-.labeled {
-  max-width: 520px;
 }
 
 .bar {
@@ -30,11 +31,15 @@
   color: #c9cbd1;
 }
 
-@media (max-width: 899px) {
-  .labeled {
-    max-width: none;
+/* 段階名を8つ並べると重なる幅（420px未満）では、今の段階の名前だけ見せる */
+@container progress (max-width: 419px) {
+  .labeled .name:not([data-current="true"]) {
+    visibility: hidden;
   }
+}
 
+/* スマホは幅にかかわらず、今の段階の名前だけ見せる */
+@media (max-width: 899px) {
   .labeled .name:not([data-current="true"]) {
     visibility: hidden;
   }

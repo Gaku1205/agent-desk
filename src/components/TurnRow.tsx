@@ -23,13 +23,14 @@ type Props = {
   wait: string;
   buttons: TurnButton[];
   merge: MergeSummary | null;
-  /** ホームの2列（幅1100px以上）の形にする。切れているタイトルは行に乗せた間に流す */
-  home?: boolean;
   /** 進み具合のバー */
   children: ReactNode;
 };
 
-/** あなたの番の1行（ボタンを押すとサーバー側で操作して、画面を取り直す） */
+/**
+ * あなたの番の1行（ボタンを押すとサーバー側で操作して、画面を取り直す）。
+ * 並べ方は行の幅で変わる（TurnRow.module.css）。切れているタイトルは行に乗せた間に流す
+ */
 export function TurnRow(props: Props) {
   const { owner, repo, issueNumber, buttons, merge } = props;
   const { fadeIn, flash } = useRowEffects(props.stage);
@@ -55,63 +56,65 @@ export function TurnRow(props: Props) {
 
   return (
     <li
-      className={props.home ? `${styles.row} ${styles.home} ${pipelineStyles.marqueeHost}` : styles.row}
+      className={`${styles.row} ${pipelineStyles.marqueeHost}`}
       data-fade-in={fadeIn ? "true" : undefined}
       data-flash={flash ?? undefined}
       style={{ "--flash-color": toneRgba("human", 0.12) } as CSSProperties}
     >
-      <svg
-        className={styles.icon}
-        width="14"
-        height="14"
-        viewBox="0 0 14 14"
-        fill="none"
-        strokeWidth="1.5"
-        aria-hidden="true"
-      >
-        <circle cx="7" cy="7" r="5.5" stroke="var(--human)" />
-        <circle cx="7" cy="7" r="2" fill="var(--human)" />
-      </svg>
-      <a className={`${styles.ref} mono`} href={props.url} target="_blank" rel="noreferrer">
-        {repo}#{issueNumber}
-      </a>
-      <div className={styles.body}>
-        <a className={styles.title} href={props.url} target="_blank" rel="noreferrer">
-          {props.home ? <PipelineTitle title={props.title} className={styles.marqueeTitle} /> : props.title}
+      <div className={styles.grid}>
+        <svg
+          className={styles.icon}
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          strokeWidth="1.5"
+          aria-hidden="true"
+        >
+          <circle cx="7" cy="7" r="5.5" stroke="var(--human)" />
+          <circle cx="7" cy="7" r="2" fill="var(--human)" />
+        </svg>
+        <a className={`${styles.ref} mono`} href={props.url} target="_blank" rel="noreferrer">
+          {repo}#{issueNumber}
         </a>
-        <p className={styles.desc}>{props.description}</p>
-        <div className={styles.progress}>{props.children}</div>
-        {error && (
-          <p className={styles.opError} role="alert">
-            {error}
-          </p>
-        )}
-      </div>
-      <span className={`${styles.wait} mono`}>{props.wait}</span>
-      <div className={styles.buttons}>
-        {buttons.map((button) =>
-          button.type === "link" ? (
-            <a
-              key={button.label}
-              className={styles.button}
-              href={button.href}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {button.label}
-            </a>
-          ) : (
-            <button
-              key={button.kind}
-              type="button"
-              className={styles.button}
-              disabled={pending}
-              onClick={() => (button.kind === "merge" ? setMergeOpen(true) : run(button.kind))}
-            >
-              {button.label}
-            </button>
-          ),
-        )}
+        <div className={styles.body}>
+          <a className={styles.title} href={props.url} target="_blank" rel="noreferrer">
+            <PipelineTitle title={props.title} className={styles.marqueeTitle} />
+          </a>
+          <p className={styles.desc}>{props.description}</p>
+          <div className={styles.progress}>{props.children}</div>
+          {error && (
+            <p className={styles.opError} role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+        <span className={`${styles.wait} mono`}>{props.wait}</span>
+        <div className={styles.buttons}>
+          {buttons.map((button) =>
+            button.type === "link" ? (
+              <a
+                key={button.label}
+                className={styles.button}
+                href={button.href}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {button.label}
+              </a>
+            ) : (
+              <button
+                key={button.kind}
+                type="button"
+                className={styles.button}
+                disabled={pending}
+                onClick={() => (button.kind === "merge" ? setMergeOpen(true) : run(button.kind))}
+              >
+                {button.label}
+              </button>
+            ),
+          )}
+        </div>
       </div>
       {mergeOpen && merge && (
         <MergeDialog

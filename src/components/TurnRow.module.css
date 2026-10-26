@@ -1,13 +1,21 @@
-/* あなたの番の1行 */
+/*
+ * あなたの番の1行（ホーム・リポジトリのページ共通）。
+ * 並べ方は行の幅で変える（docs/design.md の「あなたの番」）。行の幅は行そのもの（`.row`）をコンテナにして測る
+ */
 
 .row {
+  container-type: inline-size;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+/* 広い（行の幅1000px以上）：左から アイコン → 番号（150px）→ 文字の列 → 待ち時間 → ボタン（横に並べる） */
+.grid {
   display: grid;
   grid-template-columns: 14px 150px minmax(0, 1fr) auto auto;
   grid-template-areas: "icon ref body wait buttons";
   align-items: start;
   gap: 0 14px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--line-soft);
 }
 
 .icon {
@@ -35,16 +43,33 @@
   min-width: 0;
 }
 
+/* タイトルは1行。入らなければ「…」で切り、行に乗せた間に流す（PipelineTitle） */
 .title {
+  display: block;
   color: var(--text);
   font-size: 16px;
   font-weight: 500;
+}
+
+.title .marqueeTitle {
+  display: block;
+  font-size: inherit;
 }
 
 .desc {
   margin: 4px 0 0;
   color: var(--text-sub);
   font-size: 13.5px;
+}
+
+/* 説明文は2行まで。超えたら「…」 */
+@media (min-width: 900px) {
+  .desc {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
 }
 
 .progress {
@@ -96,8 +121,52 @@
   opacity: 0.6;
 }
 
+/* 中くらい（行の幅560〜999px）：1段目に番号と待ち時間、2段目に文字の列。ボタンは右端に縦に並べて縦の中央 */
+@container (max-width: 999px) {
+  .grid {
+    grid-template-columns: 14px minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "icon ref wait buttons"
+      "icon body body buttons";
+    gap: 6px 14px;
+  }
+
+  .icon {
+    margin-top: 2px;
+  }
+
+  .ref,
+  .wait {
+    padding-top: 0;
+  }
+
+  .buttons {
+    align-self: center;
+    flex-direction: column;
+  }
+}
+
+/* 狭い（行の幅560px未満）：ボタンを文字の列の下に回し、左寄せで横に並べる */
+@container (max-width: 559px) {
+  .grid {
+    grid-template-columns: 14px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "icon ref wait"
+      "icon body body"
+      ". buttons buttons";
+  }
+
+  .buttons {
+    align-self: start;
+    flex-direction: row;
+    justify-content: flex-start;
+    margin-top: 4px;
+  }
+}
+
+/* スマホ（幅900px未満）：文字の列とボタンを行の幅いっぱいに。タイトルは折り返す */
 @media (max-width: 899px) {
-  .row {
+  .grid {
     grid-template-columns: 14px minmax(0, 1fr) auto;
     grid-template-areas:
       "icon ref wait"
@@ -106,11 +175,27 @@
     gap: 8px 10px;
   }
 
+  .icon {
+    margin-top: 4px;
+  }
+
+  .ref,
+  .wait {
+    padding-top: 2px;
+  }
+
   .title {
     font-size: 15px;
   }
 
+  .title .marqueeTitle {
+    overflow: visible;
+    white-space: normal;
+  }
+
   .buttons {
+    align-self: start;
+    flex-direction: row;
     justify-content: flex-start;
     margin-top: 4px;
   }
@@ -126,57 +211,6 @@
     position: absolute;
     inset: -4px 0;
     content: "";
-  }
-}
-
-/* ホームの「あなたの番」：タイトルは PipelineTitle（切れていたら行に乗せた間に流す） */
-
-.home .title {
-  display: block;
-}
-
-.home .marqueeTitle {
-  display: block;
-  font-size: inherit;
-}
-
-/* 1列のとき（幅1100px未満）は、今までどおりタイトルを折り返す */
-@media (max-width: 1099px) {
-  .home .marqueeTitle {
-    overflow: visible;
-    white-space: normal;
-  }
-}
-
-/* ホームの2列（幅1100px以上）：1段目に番号と待ち時間、2段目にタイトルと説明文とバー、ボタンは右端の縦中央 */
-@media (min-width: 1100px) {
-  .home {
-    grid-template-columns: 14px minmax(0, 1fr) auto auto;
-    grid-template-areas:
-      "icon ref wait buttons"
-      "icon body body buttons";
-    gap: 6px 14px;
-  }
-
-  .home .icon {
-    margin-top: 2px;
-  }
-
-  .home .ref,
-  .home .wait {
-    padding-top: 0;
-  }
-
-  .home .buttons {
-    align-self: center;
-    flex-direction: column;
-  }
-
-  .home .desc {
-    display: -webkit-box;
-    overflow: hidden;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
   }
 }
 
