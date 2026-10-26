@@ -2,12 +2,18 @@
 
 import { useState, type CSSProperties } from "react";
 import { PENDING_COLOR, PROGRESS_STAGE_NAMES, toneRgba, type ProgressBarSpec } from "@/lib/progress";
-import { countPipelineWork, filterPipelineRows, type PipelineRow } from "@/lib/pipeline";
+import {
+  countPipelineWork,
+  deployedMoreLabel,
+  getPipelineView,
+  showMoreDeployed,
+  type PipelineRow,
+} from "@/lib/pipeline";
 import { rowFrame, rowFrameAttr } from "@/lib/rowFrame";
 import { toggleQueueReasonOpen } from "@/lib/queueReasonOpen";
 import { PipelineRowLink } from "./PipelineRowLink";
 import { PipelineTitle } from "./PipelineTitle";
-import { TriangleDownIcon } from "./icons";
+import { TriangleDownIcon, TriangleUpIcon } from "./icons";
 
 function barStyle(bar: ProgressBarSpec): CSSProperties {
   if (bar.tone === null) return { background: PENDING_COLOR };
@@ -18,12 +24,14 @@ function barStyle(bar: ProgressBarSpec): CSSProperties {
 
 /** パイプライン（リポジトリのページ）：Issueを行、パイプラインの段階を列にした表。スマホでは1件＝1ブロック */
 export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoName: string }) {
-  const [showDeployed, setShowDeployed] = useState(false);
+  /** 出している公開済みの行の数（押すたびに5件ずつ増える） */
+  const [deployedShown, setDeployedShown] = useState(0);
   /** 理由を開いている行の Issue 番号。取り直しで表が描き直されても残る */
   const [openReasons, setOpenReasons] = useState<ReadonlySet<number>>(() => new Set());
-  const visibleRows = filterPipelineRows(rows, showDeployed);
+  const view = getPipelineView(rows, deployedShown);
+  const visibleRows = view.rows;
+  const moreLabel = deployedMoreLabel(view);
   const { queued, working } = countPipelineWork(rows);
-  const hiddenCount = rows.length - filterPipelineRows(rows, false).length;
 
   return (
     <section className="section" aria-labelledby="pipeline-title">
@@ -31,19 +39,9 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
         <h2 className="section-title" id="pipeline-title">
           パイプライン
         </h2>
-        <span className="section-note">直近14日・新しいIssueが上</span>
+        <span className="section-note">直近14日・新しい順</span>
         {queued > 0 && <span className="section-note">順番待ち {queued}件</span>}
-        {working > 0 && <span className="section-note">並列で動いている {working}件</span>}
-        {rows.length > 0 && (
-          <button
-            type="button"
-            className="refresh-button"
-            aria-pressed={showDeployed}
-            onClick={() => setShowDeployed((shown) => !shown)}
-          >
-            {showDeployed ? "公開済みを隠す" : `公開済みを表示（${hiddenCount}）`}
-          </button>
-        )}
+        {working > 0 && <span className="section-note">並列動作：{working}件</span>}
       </div>
 
       {rows.length === 0 ? (
@@ -119,6 +117,31 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
               ))}
             </PipelineRowLink>
           ))}
+        </div>
+      )}
+
+      {view.deployedTotal > 0 && (
+        <div className="pipeline-deployed-more">
+          {moreLabel !== null && (
+            <button
+              type="button"
+              className="pipeline-reason-toggle"
+              onClick={() => setDeployedShown(showMoreDeployed(view.deployedShown, view.deployedTotal))}
+            >
+              {moreLabel}
+              <span className="pipeline-reason-caret">
+                <TriangleDownIcon />
+              </span>
+            </button>
+          )}
+          {view.deployedShown > 0 && (
+            <button type="button" className="pipeline-reason-toggle" onClick={() => setDeployedShown(0)}>
+              公開済みを隠す
+              <span className="pipeline-reason-caret">
+                <TriangleUpIcon />
+              </span>
+            </button>
+          )}
         </div>
       )}
     </section>

@@ -30,6 +30,20 @@ export function TriangleDownIcon() {
   );
 }
 
+export function TriangleUpIcon() {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M2 6.5h6L5 3z" />
+    </svg>
+  );
+}
+
 export function FileIcon() {
   return (
     <svg

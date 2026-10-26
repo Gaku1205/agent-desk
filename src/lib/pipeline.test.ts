@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { IssueData, PullData, RepoData } from "./github/types";
-import { buildPipelineRows, filterPipelineRows, type PipelineRow } from "./pipeline";
+import {
+  buildPipelineRows,
+  deployedMoreLabel,
+  filterPipelineRows,
+  getPipelineView,
+  showMoreDeployed,
+  type PipelineRow,
+} from "./pipeline";
 
 const NOW = new Date("2026-10-25T12:00:00Z");
 
@@ -104,5 +111,49 @@ describe("filterPipelineRows", () => {
   it("空配列は空配列のまま", () => {
     expect(filterPipelineRows([], false)).toEqual([]);
     expect(filterPipelineRows([], true)).toEqual([]);
+  });
+});
+
+describe("公開済みの段階表示", () => {
+  function row(number: number, stage: string): PipelineRow {
+    return { issue: { number, title: "", url: "" }, status: { stage } } as unknown as PipelineRow;
+  }
+  const deployed = (from: number, count: number) =>
+    Array.from({ length: count }, (_, i) => row(from - i, "deployed"));
+  const numbers = (rows: PipelineRow[]) => rows.map((r) => r.issue.number);
+
+  it("最初は公開済みを出さない", () => {
+    const view = getPipelineView([row(30, "implementing"), ...deployed(20, 19)], 0);
+    expect(numbers(view.rows)).toEqual([30]);
+    expect(view.deployedTotal).toBe(19);
+    expect(view.deployedRemaining).toBe(19);
+    expect(deployedMoreLabel(view)).toBe("公開済みを表示（19件）");
+  });
+
+  it("公開済みは新しい順に件数分だけ、未完了の下に並ぶ", () => {
+    const rows = [row(30, "implementing"), row(25, "deployed"), row(22, "queued"), ...deployed(20, 6)];
+    const view = getPipelineView(rows, 5);
+    expect(numbers(view.rows)).toEqual([30, 22, 25, 20, 19, 18, 17]);
+    expect(view.deployedRemaining).toBe(2);
+    expect(deployedMoreLabel(view)).toBe("さらに5件表示（残り2件）");
+  });
+
+  it("押すたびに5件ずつ増え、総数で止まる", () => {
+    expect(showMoreDeployed(0, 19)).toBe(5);
+    expect(showMoreDeployed(15, 19)).toBe(19);
+    expect(showMoreDeployed(19, 19)).toBe(19);
+  });
+
+  it("全部出したら「さらに」は出ない", () => {
+    const view = getPipelineView(deployed(10, 3), 5);
+    expect(view.deployedShown).toBe(3);
+    expect(view.deployedRemaining).toBe(0);
+    expect(deployedMoreLabel(view)).toBeNull();
+  });
+
+  it("公開済みが0件なら総数も0", () => {
+    const view = getPipelineView([row(1, "implementing")], 0);
+    expect(view.deployedTotal).toBe(0);
+    expect(deployedMoreLabel(view)).toBeNull();
   });
 });
