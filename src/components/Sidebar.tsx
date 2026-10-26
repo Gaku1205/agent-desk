@@ -1,7 +1,7 @@
 import { signOut } from "@/lib/auth";
-import { getWatchedRepos } from "@/lib/config";
 import { loadTurns } from "@/lib/loadTurns";
 import { countTurnItems } from "@/lib/turn";
+import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { SidebarFrame } from "./SidebarFrame";
 import { SettingsLink, SidebarNav } from "./SidebarNav";
 import { SyncControl } from "./SyncControl";
@@ -11,7 +11,7 @@ type Props = {
 };
 
 export async function Sidebar({ login }: Props) {
-  const repos = getWatchedRepos();
+  const { repos } = await loadWatchedRepos();
   const { items } = await loadTurns();
   const counts = countTurnItems(items);
 

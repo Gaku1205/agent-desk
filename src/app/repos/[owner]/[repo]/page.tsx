@@ -2,10 +2,11 @@ import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
 import { PipelineTable } from "@/components/PipelineTable";
 import { TurnSection } from "@/components/TurnSection";
-import { findWatchedRepo, getWatchedRepos } from "@/lib/config";
+import { findWatchedRepo } from "@/lib/config";
 import { loadTurns } from "@/lib/loadTurns";
 import { buildPipelineRows } from "@/lib/pipeline";
 import { filterTurnItems } from "@/lib/turn";
+import { loadWatchedRepos } from "@/lib/watchedRepos";
 
 export default async function RepoPage({
   params,
@@ -13,7 +14,7 @@ export default async function RepoPage({
   params: Promise<{ owner: string; repo: string }>;
 }) {
   const { owner, repo } = await params;
-  const watched = findWatchedRepo(owner, repo, getWatchedRepos());
+  const watched = findWatchedRepo(owner, repo, (await loadWatchedRepos()).repos);
   if (!watched) notFound();
 
   const { results, items, now } = await loadTurns();
