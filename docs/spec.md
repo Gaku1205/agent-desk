@@ -68,6 +68,7 @@ PR作成待ちは、パイプラインが入っていれば数秒でPRになる�
 
 - 「紐づくPR」：本文に `Closes #<番号>`（大文字小文字は問わない、Fixes/Resolvesも可）を含むか、ブランチ名が `claude/issue-<番号>-` で始まるPR
 - 「公開ステータス」：マージコミットのコミットステータス（`GET /repos/{owner}/{repo}/commits/{sha}/status`）のうち、context が `Vercel` で始まるもの。VercelはGitHubのDeploymentではなく、ここに結果を書く（2026年10月25日に実データで確認）
+- 公開失敗の理由：公開失敗の行では、公開ステータスのうち failure・error のものの `description`（Vercelが失敗の理由を書く）を理由として出す。複数あるときは `updated_at` が最新のもの。`description` が空なら理由は出さない（「理由を見る」も出さない）。「rate limited — retry in N hours」の形（N の単位は分・時間・日）は「利用上限に達しました。あとN時間で再開します」のように日本語にし、それ以外は `description` をそのまま出す。Nは `description` の数字をそのまま使う。出す場所はパイプライン表の公開失敗の行だけ（理由の取り出しは `src/lib/deployFailure.ts`）
 - 公開ステータスが無いまま30分以上たったもの（Vercelをつなぐ前にマージしたものなど）は「公開済み」に入れ、カードに「公開状況は不明」と出す
 - 「GitHub ActionsのCIチェック」：チェックランのうち、作ったアプリが `github-actions` のもの（APIの `app.slug`）で、Claude Reviewのチェック（名前が `review`）を除いたもの。Vercelのチェック（`Vercel Preview Comments` など）は数に入れるが、これだけでは「CIが通った」とみなさない
 - 「実装AIの完了コメント」：`claude[bot]` のコメントで `Claude finished` を含むもの

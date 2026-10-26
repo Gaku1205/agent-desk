@@ -114,7 +114,7 @@ describe("getIssueStatus：表の各段階", () => {
     const status = getIssueStatus(
       issue({ state: "closed" }),
       input([mergedPull()], {
-        11: { statuses: [{ context: "Vercel", state: "success", updatedAt: "2026-10-25T11:55:00Z" }] },
+        11: { statuses: [{ context: "Vercel", state: "success", description: "", updatedAt: "2026-10-25T11:55:00Z" }] },
       }),
       NOW,
     );
@@ -133,7 +133,7 @@ describe("getIssueStatus：表の各段階", () => {
     const status = getIssueStatus(
       issue(),
       input([mergedPull()], {
-        11: { statuses: [{ context: "Vercel – agent-desk", state: "pending", updatedAt: "2026-10-25T11:51:00Z" }] },
+        11: { statuses: [{ context: "Vercel – agent-desk", state: "pending", description: "", updatedAt: "2026-10-25T11:51:00Z" }] },
       }),
       NOW,
     );
@@ -150,7 +150,7 @@ describe("getIssueStatus：表の各段階", () => {
   it.each(["failure", "error"])("公開失敗：公開ステータスが %s", (state) => {
     const status = getIssueStatus(
       issue(),
-      input([mergedPull()], { 11: { statuses: [{ context: "Vercel", state, updatedAt: "2026-10-25T11:55:00Z" }] } }),
+      input([mergedPull()], { 11: { statuses: [{ context: "Vercel", state, description: "", updatedAt: "2026-10-25T11:55:00Z" }] } }),
       NOW,
     );
     expect(status.stage).toBe("deployFailed");
@@ -429,7 +429,7 @@ describe("stuckReason", () => {
 
 describe("deployState", () => {
   it("Vercel で始まらないステータスは見ない", () => {
-    const statuses = [{ context: "ci/other", state: "success", updatedAt: "2026-10-25T11:55:00Z" }];
+    const statuses = [{ context: "ci/other", state: "success", description: "", updatedAt: "2026-10-25T11:55:00Z" }];
     expect(deployState(statuses, "2026-10-25T11:50:00Z", NOW)).toEqual({ state: "deploying", unknown: false });
   });
 
@@ -439,8 +439,8 @@ describe("deployState", () => {
 
   it("いちばん新しいVercelのステータスを使う", () => {
     const statuses = [
-      { context: "Vercel", state: "success", updatedAt: "2026-10-25T11:58:00Z" },
-      { context: "Vercel", state: "pending", updatedAt: "2026-10-25T11:51:00Z" },
+      { context: "Vercel", state: "success", description: "", updatedAt: "2026-10-25T11:58:00Z" },
+      { context: "Vercel", state: "pending", description: "", updatedAt: "2026-10-25T11:51:00Z" },
     ];
     expect(deployState(statuses, "2026-10-25T11:50:00Z", NOW).state).toBe("deployed");
   });

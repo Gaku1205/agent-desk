@@ -52,6 +52,8 @@ export type CheckRunData = {
 export type CommitStatusData = {
   context: string;
   state: string;
+  /** ステータスの説明（無ければ空文字）。Vercelは失敗の理由をここに書く */
+  description: string;
   updatedAt: string;
 };
 

@@ -155,8 +155,12 @@ function ciRuns(passed: number, completedAt: string): CheckRunData[] {
   return CI_CHECKS.map((name, index) => run(name, index < passed ? completedAt : null));
 }
 
-function vercel(state: "pending" | "success" | "failure", updatedAt: string): CommitStatusData {
-  return { context: "Vercel", state, updatedAt };
+function vercel(
+  state: "pending" | "success" | "failure",
+  updatedAt: string,
+  description = "",
+): CommitStatusData {
+  return { context: "Vercel", state, description, updatedAt };
 }
 
 const DONE_COMMENT = "**Claude finished** 実装してブランチにpushしました";
@@ -450,7 +454,7 @@ function landingPage(base: Date): RepoData {
     headSha: "a9b8c7d",
     mergedAt: ago(ctx, 38),
     checkRuns: [...ciRuns(4, ago(ctx, 70)), run("review", ago(ctx, 60))],
-    statuses: [vercel("failure", ago(ctx, 34))],
+    statuses: [vercel("failure", ago(ctx, 34), "Deployment rate limited — retry in 24 hours.")],
   });
   addComment(ctx, 15, REVIEW_CLEAN, ago(ctx, 60));
 
