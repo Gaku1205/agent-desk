@@ -20,6 +20,7 @@ const FRAME_BY_STAGE: Record<Stage, RowFrame> = {
   fixing: SPINNING,
   deploying: SPINNING,
   stuck: { kind: "stopped", color: "human" },
+  retrying: QUEUE, // 人間は何もしなくてよいので、順番待ちと同じ控えめな枠
   prWaiting: { kind: "stopped", color: "human" },
   mergeWaiting: NONE, // 人間の番（ai:hold）のときだけ下で human にする
   ciFailed: { kind: "stopped", color: "fail" },

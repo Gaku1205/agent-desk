@@ -328,6 +328,95 @@ describe("getIssueStatus：止まった", () => {
   });
 });
 
+describe("getIssueStatus：やり直し待ち", () => {
+  const retryComment = (overrides: Partial<CommentData> = {}) =>
+    comment({
+      author: "Gaku1205",
+      body: "🔁 AIが止まったので、時間をおいて自動でやり直します（やり直し 3/10回）。\n理由：使用量の上限に達しました\n\n<!-- auto-retry -->\n<!-- count=3 kind=implement -->",
+      ...overrides,
+    });
+
+  it("Issueの ai:retry は進行中の段階より優先され、元の段階も返る。人間の番ではない", () => {
+    const status = getIssueStatus(
+      issue({ labels: ["ai:implement", "ai:retry"] }),
+      input(),
+      NOW,
+    );
+    expect(status.stage).toBe("retrying");
+    expect(status.turn).toBe("none");
+    expect(status.stageBeforeRetry).toBe("implementing");
+    expect(status.stageBeforeStuck).toBeNull();
+  });
+
+  it("PRの ai:retry でも、CI中・レビュー中より優先される", () => {
+    const status = getIssueStatus(
+      issue(),
+      input([pull({ labels: ["ai:review", "ai:retry"] })], { 11: { checkRuns: [check()] } }),
+      NOW,
+    );
+    expect(status.stage).toBe("retrying");
+    expect(status.stageBeforeRetry).toBe("reviewing");
+  });
+
+  it("ai:stuck と両方付いたら止まったが優先される", () => {
+    const status = getIssueStatus(issue({ labels: ["ai:retry", "ai:stuck"] }), input(), NOW);
+    expect(status.stage).toBe("stuck");
+    expect(status.retry).toBeNull();
+    expect(status.stageBeforeRetry).toBeNull();
+  });
+
+  it("マージ済みのPRでは出ない", () => {
+    const status = getIssueStatus(
+      issue({ state: "closed", labels: ["ai:retry"] }),
+      input([mergedPull("2026-10-25T11:00:00Z", { labels: ["ai:retry"] })]),
+      NOW,
+    );
+    expect(status.stage).toBe("deployed");
+    expect(status.stageBeforeRetry).toBeNull();
+  });
+
+  it("閉じたIssueでは出ない", () => {
+    const status = getIssueStatus(issue({ state: "closed", labels: ["ai:retry"] }), input(), NOW);
+    expect(status.stage).not.toBe("retrying");
+  });
+
+  it("ai:retry が無ければ出ない", () => {
+    const status = getIssueStatus(issue({ labels: ["ai:implement"] }), input(), NOW);
+    expect(status.stage).toBe("implementing");
+    expect(status.retry).toBeNull();
+  });
+
+  it("記録のコメントから回数と理由を読む（Issueでも、PRでも）", () => {
+    const onIssue = getIssueStatus(
+      issue({ labels: ["ai:retry"] }),
+      input([], {}, [retryComment()]),
+      NOW,
+    );
+    expect(onIssue.retry).toEqual({ count: 3, max: 10, reason: "使用量の上限に達しました" });
+    const onPull = getIssueStatus(
+      issue(),
+      input([pull({ labels: ["ai:retry"] })], { 11: { checkRuns: [ciRunning] } }, [
+        retryComment({ issueNumber: 11 }),
+      ]),
+      NOW,
+    );
+    expect(onPull.retry).toEqual({ count: 3, max: 10, reason: "使用量の上限に達しました" });
+  });
+
+  it("記録のコメントが無い・読めないときは回数を出さない", () => {
+    expect(
+      getIssueStatus(issue({ labels: ["ai:retry"] }), input(), NOW).retry,
+    ).toBeNull();
+    expect(
+      getIssueStatus(
+        issue({ labels: ["ai:retry"] }),
+        input([], {}, [retryComment({ body: "<!-- auto-retry -->\nよく分からない文" })]),
+        NOW,
+      ).retry,
+    ).toBeNull();
+  });
+});
+
 describe("紐づくPR", () => {
   it.each(["Closes #3", "closes #3", "Fixes #3", "RESOLVED #3", "fix #3", "close: #3"])("本文の「%s」で紐づく", (body) => {
     expect(bodyClosesIssue(body, 3)).toBe(true);

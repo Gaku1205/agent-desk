@@ -43,6 +43,10 @@ describe("rowFrame", () => {
     expect(frameOf("queued", "none")).toEqual({ kind: "queue" });
   });
 
+  it("retrying は順番待ちと同じ控えめな外枠", () => {
+    expect(frameOf("retrying", "none")).toEqual({ kind: "queue" });
+  });
+
   it("data-frame の値", () => {
     expect(rowFrameAttr({ kind: "queue" })).toBe("queue");
     expect(rowFrameAttr({ kind: "spinning" })).toBe("spinning");

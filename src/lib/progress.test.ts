@@ -7,6 +7,8 @@ function status(overrides: Partial<IssueStatus>): IssueStatus {
     stage: "notStarted",
     turn: "human",
     stageBeforeStuck: null,
+    stageBeforeRetry: null,
+    retry: null,
     pull: null,
     ci: { passed: 0, total: 0 },
     mergeWait: null,
@@ -47,6 +49,14 @@ describe("getProgress の位置と色", () => {
     progress.bars.forEach((bar) => {
       expect(bar.tone).toBe(bar.index <= at ? tone : null);
     });
+  });
+
+  it("やり直し待ちは、元の段階の位置で控えめな色（queue）", () => {
+    const progress = getProgress(
+      status({ stage: "retrying", turn: "none", stageBeforeRetry: "reviewing" }),
+    );
+    expect(progress.at).toBe(4);
+    expect(progress.tone).toBe("queue");
   });
 
   it("メモから・指摘なしのマージ待ち", () => {
