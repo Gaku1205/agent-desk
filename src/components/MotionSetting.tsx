@@ -38,12 +38,12 @@ function choose(setting: Motion) {
   listeners.forEach((listener) => listener());
 }
 
-/** 「動き」の切り替え。選んだらすぐ反映する（保存ボタンなし） */
+/** 「アニメーション」の切り替え。選んだらすぐ反映する（保存ボタンなし） */
 export function MotionSetting() {
   const current = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   return (
-    <div className="segmented" role="radiogroup" aria-label="動き">
+    <div className="segmented" role="radiogroup" aria-label="アニメーション">
       {MOTION_OPTIONS.map(({ value, label }) => (
         <button
           key={value}

@@ -1,4 +1,4 @@
-/** 「動き」の設定。端末の設定に従う／オン／オフ */
+/** 「アニメーション」の設定。端末の設定に従う／オン／オフ */
 export type MotionSetting = "system" | "on" | "off";
 
 export const MOTION_STORAGE_KEY = "agent-desk:motion";
