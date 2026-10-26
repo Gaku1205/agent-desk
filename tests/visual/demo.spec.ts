@@ -8,17 +8,29 @@ const REPO_PAGE = "/demo/repos/demo/todo-app";
  * スクロール位置や最初の画面の高さの所に写って、ずれて見えるため
  */
 async function settle(page: Page) {
+  // フォントは使う文字ごとに分けて読み込まれる。読み込みが終わる前に高さを測ると、
+  // 代わりのフォントの高さで決まってしまい、環境によって画像の大きさがずれる
+  await page.waitForLoadState("networkidle");
   await page.evaluate(() => document.fonts.ready);
-  await page.evaluate(() => window.scrollTo(0, 0));
   const width = page.viewportSize()?.width ?? 1440;
   let height = 0;
-  for (let i = 0; i < 3; i++) {
-    const next = await page.evaluate(() => document.documentElement.scrollHeight);
-    if (next === height) break;
-    height = next;
-    await page.setViewportSize({ width, height });
+  let stable = 0;
+  for (let i = 0; i < 20 && stable < 3; i++) {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const next = await page.evaluate(async () => {
+      await document.fonts.ready;
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return document.documentElement.scrollHeight;
+    });
+    if (next === height) {
+      stable += 1;
+    } else {
+      stable = 0;
+      height = next;
+      await page.setViewportSize({ width, height });
+    }
+    await page.waitForTimeout(100);
   }
-  await page.evaluate(() => window.scrollTo(0, 0));
 }
 
 test.describe("デモの画面", () => {
