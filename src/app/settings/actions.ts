@@ -2,7 +2,14 @@
 
 import { refresh } from "next/cache";
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
-import { getAllowedLogins, getSettingsRepo } from "@/lib/config";
+import { findWatchedRepo, getAllowedLogins, getSettingsRepo } from "@/lib/config";
+import {
+  checkNotifyEvents,
+  formatNotifyEvents,
+  NOTIFY_EVENTS_VARIABLE,
+  NOTIFY_MESSAGES,
+} from "@/lib/notifyEvents";
+import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { GitHubClient } from "@/lib/github/client";
 import {
   canReadRepo,
@@ -67,4 +74,32 @@ export async function checkPipeline(value: unknown): Promise<boolean | null> {
   const token = await getGitHubToken();
   if (!target || !token || !isAllowedLogin(login, getAllowedLogins())) return null;
   return hasPipeline(new GitHubClient(token), target);
+}
+
+/** あるリポジトリの「鳴らす通知の種類」を、そのリポジトリの Variable `NOTIFY_EVENTS` に保存する */
+export async function saveNotifyEvents(repo: unknown, events: unknown): Promise<SaveReposResult> {
+  const login = await getSignedInLogin();
+  const token = await getGitHubToken();
+  if (!token || !isAllowedLogin(login, getAllowedLogins())) {
+    return { ok: false, message: REPO_SETTING_MESSAGES.unauthorized };
+  }
+  const parsed = typeof repo === "string" ? parseRepoName(repo) : null;
+  if (!parsed) return { ok: false, message: REPO_SETTING_MESSAGES.invalid };
+  const checked = checkNotifyEvents(events);
+  if (!checked.ok) return checked;
+
+  // 監視しているリポジトリ以外には書かない
+  const target = findWatchedRepo(parsed.owner, parsed.repo, (await loadWatchedRepos()).repos);
+  if (!target) return { ok: false, message: REPO_SETTING_MESSAGES.invalid };
+
+  const client = new GitHubClient(token);
+  try {
+    if (!(await hasPipeline(client, target))) {
+      return { ok: false, message: NOTIFY_MESSAGES.noPipeline };
+    }
+    await writeVariable(client, target, NOTIFY_EVENTS_VARIABLE, formatNotifyEvents(checked.events));
+  } catch (error) {
+    return { ok: false, message: repoSettingErrorMessage(error) };
+  }
+  return { ok: true };
 }

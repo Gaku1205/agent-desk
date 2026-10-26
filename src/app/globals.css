@@ -320,6 +320,70 @@ button {
   }
 }
 
+.notify-repo + .notify-repo {
+  margin-top: 28px;
+}
+
+.notify-repo-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin: 0 0 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.notify-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notify-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.notify-item[data-disabled="true"] {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.notify-item input {
+  flex: none;
+  margin: 3px 0 0;
+  accent-color: var(--human);
+}
+
+.notify-name {
+  display: block;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.notify-desc {
+  display: block;
+  color: var(--text-sub);
+  font-size: 12.5px;
+}
+
+@media (max-width: 899px) {
+  .notify-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .notify-item {
+    min-height: 44px;
+  }
+}
+
 .sidebar-footer {
   display: flex;
   flex-direction: column;
