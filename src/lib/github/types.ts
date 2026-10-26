@@ -1,3 +1,5 @@
+import type { PipelineState } from "../pipelineState";
+
 /** 画面とロジックが使う、GitHubのデータの形（GitHubのAPIの形から convert.ts で変換する） */
 
 export type IssueData = {
@@ -80,6 +82,8 @@ export type RepoData = {
   /** PR番号 → チェックとステータス */
   pullChecks: Record<number, PullChecks>;
   events: IssueEventData[];
+  /** パイプラインが動いているか。調べていなければ（テストなど）無し＝分からない */
+  pipeline?: PipelineState;
 };
 
 export type GitHubErrorKind =

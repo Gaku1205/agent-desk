@@ -1,4 +1,4 @@
-import { describeStatus } from "./describe";
+import { describeStatus, PIPELINE_MISSING_TEXT } from "./describe";
 import type { IssueData, RepoData, RepoResult } from "./github/types";
 import {
   getIssueStatus,
@@ -79,14 +79,18 @@ function needsReviewRequest(status: IssueStatus, data: Pick<RepoData, "comments"
 }
 
 /** 段階から、出すボタンを決める */
-export function turnButtons(status: IssueStatus, data: Pick<RepoData, "comments">): TurnButton[] {
+export function turnButtons(
+  status: IssueStatus,
+  data: Pick<RepoData, "comments" | "pipeline">,
+): TurnButton[] {
   switch (status.stage) {
     case "stuck":
       return [operation("resume")];
     case "skipped":
       return [operation("start")];
     case "notStarted":
-      return [operation("plan"), operation("implement")];
+      // パイプラインが動いていないと、頼んでも誰も動かないのでボタンを出さない
+      return data.pipeline === "notConfigured" ? [] : [operation("plan"), operation("implement")];
     case "prWaiting":
       return [operation("createPull")];
     case "mergeWaiting":
@@ -105,7 +109,7 @@ export function turnButtons(status: IssueStatus, data: Pick<RepoData, "comments"
 export function isOperationAvailable(
   kind: OperationKind,
   status: IssueStatus,
-  data: Pick<RepoData, "comments">,
+  data: Pick<RepoData, "comments" | "pipeline">,
 ): boolean {
   return turnButtons(status, data).some(
     (button) => button.type === "operation" && button.kind === kind,
@@ -210,7 +214,10 @@ export function repoTurnItems(owner: string, repo: string, data: RepoData, now: 
       repo,
       issue: { number: issue.number, title: issue.title, url: issue.url },
       status,
-      description: describeStatus(status).long,
+      description:
+        status.stage === "notStarted" && data.pipeline === "notConfigured"
+          ? PIPELINE_MISSING_TEXT
+          : describeStatus(status).long,
       waitingSince: waitingSince(issue, status, data),
       buttons,
       merge:

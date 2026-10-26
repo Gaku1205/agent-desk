@@ -15,7 +15,9 @@ import {
   type GhPull,
   type GhStatus,
 } from "./convert";
-import { toErrorInfo } from "./errors";
+import { GitHubError, toErrorInfo } from "./errors";
+import { judgePipelineState, type PipelineProbe, type PipelineState } from "../pipelineState";
+import { PIPELINE_WORKFLOW_PATH } from "./settings";
 import type { PullChecks, PullData, RepoData, RepoResult } from "./types";
 
 const WINDOW_DAYS = 14;
@@ -34,13 +36,14 @@ export async function fetchRepoData(
   const base = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
   const since = new Date(now.getTime() - WINDOW_DAYS * DAY_MS).toISOString();
 
-  const [rawIssues, rawPulls, rawComments, rawEvents] = await Promise.all([
+  const [rawIssues, rawPulls, rawComments, rawEvents, pipeline] = await Promise.all([
     client.getAll<GhIssue>(
       `${base}/issues?state=all&since=${since}&sort=updated&direction=desc&per_page=100`,
     ),
     client.getAll<GhPull>(`${base}/pulls?state=all&sort=updated&direction=desc&per_page=100`),
     client.getAll<GhComment>(`${base}/issues/comments?since=${since}&per_page=100`),
     client.get<GhIssueEvent[]>(`${base}/issues/events?per_page=100`),
+    fetchPipelineState(client, base),
   ]);
 
   const sinceMs = Date.parse(since);
@@ -58,7 +61,26 @@ export async function fetchRepoData(
     }),
   );
 
-  return { issues, pulls, comments, pullChecks, events };
+  return { issues, pulls, comments, pullChecks, events, pipeline };
+}
+
+/** `pipeline.yml` の実行を1件だけ取り、動いているか判定する。調べられなければ「分からない」 */
+async function fetchPipelineState(client: GitHubClient, base: string): Promise<PipelineState> {
+  const workflowFile = PIPELINE_WORKFLOW_PATH.split("/").at(-1) ?? "";
+  let probe: PipelineProbe = null;
+  try {
+    const runs = await client.get<{ total_count?: unknown }>(
+      `${base}/actions/workflows/${encodeURIComponent(workflowFile)}/runs?per_page=1`,
+    );
+    if (typeof runs?.total_count === "number") {
+      probe = { workflowExists: true, runCount: runs.total_count };
+    }
+  } catch (error) {
+    if (error instanceof GitHubError && error.status === 404) {
+      probe = { workflowExists: false, runCount: 0 };
+    }
+  }
+  return judgePipelineState(probe);
 }
 
 async function fetchPullChecks(
