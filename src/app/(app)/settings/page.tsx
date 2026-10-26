@@ -1,7 +1,7 @@
 import { Header } from "@/components/Header";
-import { MotionSetting } from "@/components/MotionSetting";
-import { NotifySetting, type NotifyRepoRow } from "@/components/NotifySetting";
-import { WatchedReposSetting, type WatchedRepoRow } from "@/components/WatchedReposSetting";
+import type { NotifyRepoRow } from "@/components/NotifySetting";
+import { SettingsSections } from "@/components/SettingsSections";
+import type { WatchedRepoRow } from "@/components/WatchedReposSetting";
 import { getGitHubToken } from "@/lib/auth";
 import { getSettingsRepo } from "@/lib/config";
 import { GitHubClient } from "@/lib/github/client";
@@ -42,26 +42,12 @@ export default async function SettingsPage() {
   return (
     <>
       <Header kind="settings" />
-      <main className="content settings">
-        <section className="settings-section" aria-labelledby="settings-repos">
-          <h2 id="settings-repos" className="settings-title">
-            監視するリポジトリ
-          </h2>
-          <WatchedReposSetting initialRows={rows} options={options} editable={editable} />
-        </section>
-        <section className="settings-section" aria-labelledby="settings-notify">
-          <h2 id="settings-notify" className="settings-title">
-            通知
-          </h2>
-          <NotifySetting rows={notifyRows} />
-        </section>
-        <section className="settings-section" aria-labelledby="settings-motion">
-          <h2 id="settings-motion" className="settings-title">
-            アニメーション
-          </h2>
-          <MotionSetting />
-        </section>
-      </main>
+      <SettingsSections
+        repoRows={rows}
+        repoOptions={options}
+        editable={editable}
+        notifyRows={notifyRows}
+      />
     </>
   );
 }

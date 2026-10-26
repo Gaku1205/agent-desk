@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { saveNotifyEvents } from "@/app/settings/actions";
+import { saveNotifyEvents } from "@/app/(app)/settings/actions";
+import { useDemo } from "./DemoContext";
 import { changedRepos, formatSaveFailures, type NotifyDraft } from "@/lib/notifyChanges";
 import {
   NOTIFY_EVENT_KINDS,
@@ -36,6 +37,7 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
   );
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [saving, startSaving] = useTransition();
+  const demo = useDemo();
 
   useEffect(() => {
     if (status.kind !== "saved") return;
@@ -55,6 +57,11 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
   }
 
   function save() {
+    if (demo) {
+      // デモでは何も書き込まず、動かないことを知らせる
+      demo.notify();
+      return;
+    }
     const drafts: NotifyDraft[] = rows.map((row) => ({
       name: row.name,
       pipeline: row.pipeline,

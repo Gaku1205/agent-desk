@@ -3,7 +3,8 @@ import { MenuButton } from "./MenuButton";
 type Props =
   | { kind: "home" }
   | { kind: "settings" }
-  | { kind: "repo"; owner: string; repo: string };
+  /** githubLink：右の「GitHubで開く ↗」を出すか（デモの架空のリポジトリでは出さない） */
+  | { kind: "repo"; owner: string; repo: string; githubLink?: boolean };
 
 export function Header(props: Props) {
   return (
@@ -22,7 +23,7 @@ export function Header(props: Props) {
           </h1>
         )}
       </div>
-      {props.kind === "repo" && (
+      {props.kind === "repo" && props.githubLink !== false && (
         <a
           className="header-link"
           href={`https://github.com/${props.owner}/${props.repo}`}
