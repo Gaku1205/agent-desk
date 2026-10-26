@@ -1,0 +1,29 @@
+/* 「アニメーション」の切り替え */
+
+.segmented {
+  display: inline-flex;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.option {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--text-sub);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.option + .option {
+  border-left: 1px solid var(--border);
+}
+
+.option[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--text-strong);
+}

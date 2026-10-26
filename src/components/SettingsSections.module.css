@@ -1,0 +1,61 @@
+/* 設定画面。保存の行とボタンは WatchedReposSetting・NotifySetting でも使う */
+
+/* globals.css の `.content`（1320px）に勝つよう、2つ重ねて指定する */
+:global(.content).settings {
+  max-width: 720px;
+}
+
+.section + .section {
+  margin-top: 40px;
+}
+
+.title {
+  margin: 0 0 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-strong);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.button {
+  width: 112px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.button:disabled {
+  cursor: default;
+}
+
+.saved {
+  color: var(--done);
+  font-size: 13.5px;
+}
+
+.error {
+  color: var(--fail);
+  font-size: 13.5px;
+  word-break: auto-phrase;
+}
+
+@media (max-width: 899px) {
+  .button {
+    height: 44px;
+    border-radius: 8px;
+  }
+}

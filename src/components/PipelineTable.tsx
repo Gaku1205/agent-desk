@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, type CSSProperties } from "react";
-import { PENDING_COLOR, PROGRESS_STAGE_NAMES, toneRgba, type ProgressBarSpec } from "@/lib/progress";
+import {
+  PENDING_COLOR,
+  PROGRESS_STAGE_NAMES,
+  toneRgba,
+  type ProgressBarSpec,
+  type ProgressTone,
+} from "@/lib/progress";
 import {
   countPipelineWork,
   deployedMoreLabel,
@@ -14,6 +20,16 @@ import { toggleQueueReasonOpen } from "@/lib/queueReasonOpen";
 import { PipelineRowLink } from "./PipelineRowLink";
 import { PipelineTitle } from "./PipelineTitle";
 import { TriangleDownIcon, TriangleUpIcon } from "./icons";
+import styles from "./PipelineTable.module.css";
+import progressStyles from "./ProgressBar.module.css";
+
+const TONE_CLASS: Record<ProgressTone, string> = {
+  human: styles.toneHuman,
+  ai: styles.toneAi,
+  done: styles.toneDone,
+  fail: styles.toneFail,
+  queue: styles.toneQueue,
+};
 
 function barStyle(bar: ProgressBarSpec): CSSProperties {
   if (bar.tone === null) return { background: PENDING_COLOR };
@@ -45,17 +61,17 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
       </div>
 
       {rows.length === 0 ? (
-        <p className="empty pipeline-empty">直近14日のIssueはありません</p>
+        <p className={`empty ${styles.empty}`}>直近14日のIssueはありません</p>
       ) : visibleRows.length === 0 ? (
-        <p className="empty pipeline-empty">動いている作業はありません</p>
+        <p className={`empty ${styles.empty}`}>動いている作業はありません</p>
       ) : (
-        <div className="pipeline" role="table" aria-label="パイプライン">
-          <div className="pipeline-grid pipeline-head" role="row">
-            <div className="pipeline-colhead pipeline-colhead-issue" role="columnheader">
+        <div role="table" aria-label="パイプライン">
+          <div className={`${styles.grid} ${styles.head}`} role="row">
+            <div className={`${styles.colhead} ${styles.colheadIssue}`} role="columnheader">
               Issue
             </div>
             {PROGRESS_STAGE_NAMES.map((name) => (
-              <div className="pipeline-colhead" role="columnheader" key={name}>
+              <div className={styles.colhead} role="columnheader" key={name}>
                 {name}
               </div>
             ))}
@@ -70,9 +86,9 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
               frame={rowFrameAttr(rowFrame(row.status))}
               key={row.issue.number}
             >
-              <div className="pipeline-issue" role="cell">
+              <div className={styles.issue} role="cell">
                 <PipelineTitle title={row.issue.title} />
-                <span className="pipeline-ref mono">
+                <span className={`${styles.ref} mono`}>
                   {repoName}#{row.issue.number}
                 </span>
                 {row.queueReason && (
@@ -80,7 +96,7 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
                     {/* 行全体がリンクなので、押してもIssueへ移動しないようにする */}
                     <button
                       type="button"
-                      className="pipeline-reason-toggle"
+                      className={styles.toggle}
                       aria-expanded={openReasons.has(row.issue.number)}
                       onClick={(event) => {
                         event.preventDefault();
@@ -89,28 +105,28 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
                       }}
                     >
                       {openReasons.has(row.issue.number) ? "理由を閉じる" : "理由を見る"}
-                      <span className="pipeline-reason-caret">
+                      <span className={styles.caret}>
                         <TriangleDownIcon />
                       </span>
                     </button>
                     {openReasons.has(row.issue.number) && (
-                      <span className="pipeline-reason pipeline-reason-open">{row.queueReason}</span>
+                      <span className={`${styles.reason} ${styles.reasonOpen}`}>{row.queueReason}</span>
                     )}
                   </>
                 )}
-                <span className={`pipeline-desc pipeline-desc-mobile pipeline-tone-${row.progress.tone}`}>
+                <span className={`${styles.desc} ${styles.descMobile} ${TONE_CLASS[row.progress.tone]}`}>
                   {row.description}
                 </span>
               </div>
               {row.progress.bars.map((bar) => (
-                <div className="pipeline-cell" role="cell" key={bar.index}>
-                  <span className="progress-bar" style={barStyle(bar)} />
+                <div className={styles.cell} role="cell" key={bar.index}>
+                  <span className={progressStyles.bar} style={barStyle(bar)} />
                   {bar.current && (
-                    <span className={`pipeline-desc pipeline-desc-cell pipeline-tone-${row.progress.tone}`}>
+                    <span className={`${styles.desc} ${styles.descCell} ${TONE_CLASS[row.progress.tone]}`}>
                       {row.description}
                     </span>
                   )}
-                  <span className="pipeline-cell-name" data-current={bar.current ? "true" : undefined}>
+                  <span className={styles.cellName} data-current={bar.current ? "true" : undefined}>
                     {bar.name}
                   </span>
                 </div>
@@ -121,23 +137,23 @@ export function PipelineTable({ rows, repoName }: { rows: PipelineRow[]; repoNam
       )}
 
       {view.deployedTotal > 0 && (
-        <div className="pipeline-deployed-more">
+        <div className={styles.deployedMore}>
           {moreLabel !== null && (
             <button
               type="button"
-              className="pipeline-reason-toggle"
+              className={styles.toggle}
               onClick={() => setDeployedShown(showMoreDeployed(view.deployedShown, view.deployedTotal))}
             >
               {moreLabel}
-              <span className="pipeline-reason-caret">
+              <span className={styles.caret}>
                 <TriangleDownIcon />
               </span>
             </button>
           )}
           {view.deployedShown > 0 && (
-            <button type="button" className="pipeline-reason-toggle" onClick={() => setDeployedShown(0)}>
+            <button type="button" className={styles.toggle} onClick={() => setDeployedShown(0)}>
               公開済みを隠す
-              <span className="pipeline-reason-caret">
+              <span className={styles.caret}>
                 <TriangleUpIcon />
               </span>
             </button>

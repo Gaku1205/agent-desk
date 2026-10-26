@@ -9,6 +9,7 @@ import {
   writeMotion,
   type MotionSetting as Motion,
 } from "@/lib/motion";
+import styles from "./MotionSetting.module.css";
 
 const listeners = new Set<() => void>();
 // localStorage が使えないときも、このタブの間は選んだ内容を覚えておく
@@ -43,14 +44,14 @@ export function MotionSetting() {
   const current = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   return (
-    <div className="segmented" role="radiogroup" aria-label="アニメーション">
+    <div className={styles.segmented} role="radiogroup" aria-label="アニメーション">
       {MOTION_OPTIONS.map(({ value, label }) => (
         <button
           key={value}
           type="button"
           role="radio"
           aria-checked={current === value}
-          className="segmented-option"
+          className={styles.option}
           onClick={() => choose(value)}
         >
           {label}

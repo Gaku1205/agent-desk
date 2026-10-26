@@ -1,0 +1,83 @@
+/* サイドバーの下の同期の時刻と更新ボタン */
+
+.sync {
+  color: var(--text-mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.refreshButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-sub);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.refreshButton:disabled {
+  cursor: default;
+}
+
+/* 同期の点（docs/design.md の「動き」） */
+
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--text-mute);
+  vertical-align: 1px;
+  transition: background 0.3s;
+}
+
+/* 速い更新（10秒ごと）の間はゆっくり明滅する。取り直し中の脈打ち（下）が優先される */
+.dot[data-fast="true"] {
+  background: var(--ai);
+  animation: sync-blink 2s ease-in-out infinite;
+}
+
+@keyframes sync-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.dot[data-busy="true"] {
+  background: var(--ai);
+  animation: sync-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes sync-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .dot[data-fast="true"],
+  :root:not([data-motion="full"]) .dot[data-busy="true"] {
+    animation: none;
+  }
+}
+
+:root[data-motion="reduce"] .dot[data-fast="true"],
+:root[data-motion="reduce"] .dot[data-busy="true"] {
+  animation: none;
+}
+
+@media (max-width: 899px) {
+  .refreshButton {
+    min-height: 44px;
+    padding-right: 12px;
+    padding-left: 12px;
+    border-radius: 8px;
+  }
+}

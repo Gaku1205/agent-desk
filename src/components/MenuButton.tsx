@@ -1,6 +1,7 @@
 "use client";
 
 import { useShell } from "./AppShell";
+import styles from "./MenuButton.module.css";
 
 /** スマホのヘッダーの左端のメニューボタン（幅900px以上では出さない） */
 export function MenuButton() {
@@ -9,7 +10,7 @@ export function MenuButton() {
   return (
     <button
       type="button"
-      className="menu-button"
+      className={styles.button}
       aria-label="メニュー"
       aria-expanded={menuOpen}
       aria-controls="sidebar"

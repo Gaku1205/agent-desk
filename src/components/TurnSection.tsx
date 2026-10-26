@@ -2,6 +2,7 @@ import type { RepoResult } from "@/lib/github/types";
 import { formatWait, type TurnItem } from "@/lib/turn";
 import { ProgressBar } from "./ProgressBar";
 import { TurnRow } from "./TurnRow";
+import styles from "./TurnSection.module.css";
 
 type Props = {
   items: TurnItem[];
@@ -18,7 +19,7 @@ export function TurnSection({ items, errors, now, scope }: Props) {
     <section className="section" aria-labelledby="turn-title">
       <div className="section-head">
         <h2 className="section-title" id="turn-title">
-          あなたの番 <span className="turn-count mono">{items.length}</span>
+          あなたの番 <span className={`${styles.count} mono`}>{items.length}</span>
         </h2>
         <span className="section-note">
           {scope === "all" ? "全リポジトリ・待ちが長い順" : "待ちが長い順"}
@@ -27,7 +28,7 @@ export function TurnSection({ items, errors, now, scope }: Props) {
 
       {errors.map((result) =>
         result.ok ? null : (
-          <p className="turn-error" key={`${result.owner}/${result.repo}`}>
+          <p className={styles.error} key={`${result.owner}/${result.repo}`}>
             <span className="mono">
               {result.owner}/{result.repo}
             </span>
@@ -37,9 +38,9 @@ export function TurnSection({ items, errors, now, scope }: Props) {
       )}
 
       {items.length === 0 ? (
-        <p className="empty turn-empty">今はAIの番です</p>
+        <p className={`empty ${styles.empty}`}>今はAIの番です</p>
       ) : (
-        <ul className="turn-list">
+        <ul className={styles.list}>
           {items.map((item) => (
             <TurnRow
               key={`${item.owner}/${item.repo}#${item.issue.number}`}

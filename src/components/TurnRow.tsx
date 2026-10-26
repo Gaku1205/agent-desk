@@ -6,6 +6,7 @@ import { toneRgba } from "@/lib/progress";
 import type { MergeSummary, OperationKind, TurnButton } from "@/lib/turn";
 import { useDemo } from "./DemoContext";
 import { MergeDialog } from "./MergeDialog";
+import styles from "./TurnRow.module.css";
 import { useRowEffects } from "./useRowEffects";
 
 type Props = {
@@ -50,13 +51,13 @@ export function TurnRow(props: Props) {
 
   return (
     <li
-      className="turn-row"
+      className={styles.row}
       data-fade-in={fadeIn ? "true" : undefined}
       data-flash={flash ?? undefined}
       style={{ "--flash-color": toneRgba("human", 0.12) } as CSSProperties}
     >
       <svg
-        className="turn-icon"
+        className={styles.icon}
         width="14"
         height="14"
         viewBox="0 0 14 14"
@@ -67,28 +68,28 @@ export function TurnRow(props: Props) {
         <circle cx="7" cy="7" r="5.5" stroke="var(--human)" />
         <circle cx="7" cy="7" r="2" fill="var(--human)" />
       </svg>
-      <a className="turn-ref mono" href={props.url} target="_blank" rel="noreferrer">
+      <a className={`${styles.ref} mono`} href={props.url} target="_blank" rel="noreferrer">
         {repo}#{issueNumber}
       </a>
-      <div className="turn-body">
-        <a className="turn-title" href={props.url} target="_blank" rel="noreferrer">
+      <div className={styles.body}>
+        <a className={styles.title} href={props.url} target="_blank" rel="noreferrer">
           {props.title}
         </a>
-        <p className="turn-desc">{props.description}</p>
-        <div className="turn-progress">{props.children}</div>
+        <p className={styles.desc}>{props.description}</p>
+        <div className={styles.progress}>{props.children}</div>
         {error && (
-          <p className="turn-op-error" role="alert">
+          <p className={styles.opError} role="alert">
             {error}
           </p>
         )}
       </div>
-      <span className="turn-wait mono">{props.wait}</span>
-      <div className="turn-buttons">
+      <span className={`${styles.wait} mono`}>{props.wait}</span>
+      <div className={styles.buttons}>
         {buttons.map((button) =>
           button.type === "link" ? (
             <a
               key={button.label}
-              className="turn-button"
+              className={styles.button}
               href={button.href}
               target="_blank"
               rel="noreferrer"
@@ -99,7 +100,7 @@ export function TurnRow(props: Props) {
             <button
               key={button.kind}
               type="button"
-              className="turn-button"
+              className={styles.button}
               disabled={pending}
               onClick={() => (button.kind === "merge" ? setMergeOpen(true) : run(button.kind))}
             >

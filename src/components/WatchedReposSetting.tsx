@@ -3,6 +3,8 @@
 import { useEffect, useState, useTransition } from "react";
 import { checkPipeline, saveWatchedRepos } from "@/app/(app)/settings/actions";
 import { useDemo } from "./DemoContext";
+import settingsStyles from "./SettingsSections.module.css";
+import styles from "./WatchedReposSetting.module.css";
 
 export type WatchedRepoRow = {
   /** `owner/repo` */
@@ -70,20 +72,20 @@ export function WatchedReposSetting({ initialRows, options, editable }: Props) {
   }
 
   return (
-    <div className="repo-setting">
-      <ul className="repo-setting-list">
+    <div>
+      <ul className={styles.list}>
         {rows.map((row) => (
-          <li key={row.name} className="repo-setting-row">
-            <span className="repo-setting-name mono">{row.name}</span>
+          <li key={row.name} className={styles.row}>
+            <span className={`${styles.name} mono`}>{row.name}</span>
             {row.pipeline !== null && (
-              <span className="repo-setting-pipeline" data-pipeline={row.pipeline ? "yes" : "no"}>
+              <span className={styles.pipeline} data-pipeline={row.pipeline ? "yes" : "no"}>
                 {row.pipeline ? "パイプラインあり" : "パイプラインなし"}
               </span>
             )}
             {editable && (
               <button
                 type="button"
-                className="repo-setting-remove"
+                className={styles.remove}
                 onClick={() => remove(row.name)}
                 disabled={saving}
               >
@@ -96,9 +98,9 @@ export function WatchedReposSetting({ initialRows, options, editable }: Props) {
 
       {editable && (
         <>
-          <div className="repo-setting-add">
+          <div className={styles.add}>
             <select
-              className="repo-setting-select mono"
+              className={`${styles.select} mono`}
               aria-label="追加するリポジトリ"
               value={current}
               onChange={(event) => setSelected(event.target.value)}
@@ -112,7 +114,7 @@ export function WatchedReposSetting({ initialRows, options, editable }: Props) {
             </select>
             <button
               type="button"
-              className="setting-button"
+              className={settingsStyles.button}
               onClick={add}
               disabled={saving || !current}
             >
@@ -120,10 +122,10 @@ export function WatchedReposSetting({ initialRows, options, editable }: Props) {
             </button>
           </div>
 
-          <div className="repo-setting-save">
+          <div className={settingsStyles.save}>
             <button
               type="button"
-              className="setting-button"
+              className={settingsStyles.button}
               onClick={save}
               disabled={saving}
               aria-busy={saving}
@@ -131,12 +133,12 @@ export function WatchedReposSetting({ initialRows, options, editable }: Props) {
               {saving ? "保存中…" : "保存"}
             </button>
             {status.kind === "saved" && (
-              <span className="setting-saved" role="status">
+              <span className={settingsStyles.saved} role="status">
                 保存しました
               </span>
             )}
             {status.kind === "error" && (
-              <span className="setting-error" role="alert">
+              <span className={settingsStyles.error} role="alert">
                 {status.message}
               </span>
             )}

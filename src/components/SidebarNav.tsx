@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { TurnCounts } from "@/lib/turn";
 import { FileIcon, GearIcon, HomeIcon } from "./icons";
+import styles from "./Sidebar.module.css";
 
 type Props = {
   repos: { owner: string; repo: string }[];
@@ -19,14 +20,14 @@ export function SettingsLink({ basePath = "" }: { basePath?: string }) {
   const href = `${basePath}/settings`;
 
   return (
-    <nav aria-label="設定" className="sidebar-settings">
+    <nav aria-label="設定" className={styles.settings}>
       <Link
         href={href}
-        className="sidebar-item"
+        className={styles.item}
         aria-current={pathname.toLowerCase() === href ? "page" : undefined}
       >
         <GearIcon />
-        <span className="sidebar-item-label">設定</span>
+        <span className={styles.itemLabel}>設定</span>
       </Link>
     </nav>
   );
@@ -38,18 +39,18 @@ export function SidebarNav({ repos, counts, basePath = "" }: Props) {
     pathname.toLowerCase() === href.toLowerCase();
 
   return (
-    <nav aria-label="リポジトリ" className="sidebar-nav">
+    <nav aria-label="リポジトリ" className={styles.nav}>
       <Link
         href={basePath || "/"}
-        className="sidebar-item"
+        className={styles.item}
         aria-current={isCurrent(basePath || "/") ? "page" : undefined}
       >
         <HomeIcon />
-        <span className="sidebar-item-label">ホーム</span>
-        <span className="sidebar-count mono">{counts.total}</span>
+        <span className={styles.itemLabel}>ホーム</span>
+        <span className={`${styles.count} mono`}>{counts.total}</span>
       </Link>
 
-      <p className="sidebar-heading">リポジトリ</p>
+      <p className={styles.heading}>リポジトリ</p>
       {repos.map(({ owner, repo }) => {
         const href = `${basePath}/repos/${owner}/${repo}`;
         const count = counts.byRepo[`${owner}/${repo}`.toLowerCase()] ?? 0;
@@ -57,13 +58,13 @@ export function SidebarNav({ repos, counts, basePath = "" }: Props) {
           <Link
             key={href}
             href={href}
-            className="sidebar-item sidebar-repo"
+            className={`${styles.item} ${styles.repo}`}
             aria-current={isCurrent(href) ? "page" : undefined}
             title={`${owner}/${repo}`}
           >
             <FileIcon />
-            <span className="sidebar-item-label mono">{repo}</span>
-            {count > 0 && <span className="sidebar-count mono">{count}</span>}
+            <span className={`${styles.itemLabel} mono`}>{repo}</span>
+            {count > 0 && <span className={`${styles.count} mono`}>{count}</span>}
           </Link>
         );
       })}

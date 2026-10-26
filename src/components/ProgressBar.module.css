@@ -1,0 +1,41 @@
+/* 進み具合のバー。`.bar` はパイプラインの表（PipelineTable）でも使う */
+
+.progress {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 3px;
+}
+
+/* 段階名を出すバー（スマホでは今の段階の名前だけ見せる） */
+.labeled {
+  max-width: 520px;
+}
+
+.bar {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  transition: background 0.3s;
+}
+
+.name {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-mute);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.name[data-current="true"] {
+  color: #c9cbd1;
+}
+
+@media (max-width: 899px) {
+  .labeled {
+    max-width: none;
+  }
+
+  .labeled .name:not([data-current="true"]) {
+    visibility: hidden;
+  }
+}
