@@ -140,7 +140,15 @@ describe("convertStatus", () => {
   it("updated_at を取る", () => {
     expect(
       convertStatus({ context: "Vercel", state: "success", updated_at: "2026-10-03T00:05:00Z" }),
-    ).toEqual({ context: "Vercel", state: "success", updatedAt: "2026-10-03T00:05:00Z" });
+    ).toEqual({ context: "Vercel", state: "success", description: "", updatedAt: "2026-10-03T00:05:00Z" });
+  });
+
+  it("description を取る（null は空文字）", () => {
+    const base = { context: "Vercel", state: "failure", updated_at: "2026-10-03T00:05:00Z" };
+    expect(convertStatus({ ...base, description: "Deployment rate limited — retry in 24 hours." }).description).toBe(
+      "Deployment rate limited — retry in 24 hours.",
+    );
+    expect(convertStatus({ ...base, description: null }).description).toBe("");
   });
 });
 

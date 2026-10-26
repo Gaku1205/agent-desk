@@ -1,7 +1,8 @@
+import { deployFailureReason } from "./deployFailure";
 import { describeStatus } from "./describe";
 import type { CommentData, RepoData } from "./github/types";
 import { getProgress, type Progress } from "./progress";
-import { getIssueStatus, shouldShowIssue, type IssueStatus } from "./status";
+import { findLinkedPull, getIssueStatus, shouldShowIssue,type IssueStatus } from "./status";
 
 /** パイプライン表の1行 */
 export type PipelineRow = {
@@ -14,6 +15,8 @@ export type PipelineRow = {
   queuePosition: number | null;
   /** 順番待ちの理由（企画AIのコメント）。順番待ちの行で、コメントがあるときだけ */
   queueReason: string | null;
+  /** 公開失敗の理由（公開ステータスの description）。公開失敗の行で、description があるときだけ */
+  deployFailReason: string | null;
 };
 
 const CLAUDE_BOT = "claude[bot]";
@@ -44,6 +47,11 @@ export function countPipelineWork(rows: PipelineRow[]): { queued: number; workin
   };
 }
 
+function failReason(issueNumber: number, data: RepoData): string | null {
+  const pull = findLinkedPull(data.pulls, issueNumber);
+  return pull ? deployFailureReason(data.pullChecks[pull.number]?.statuses ?? []) : null;
+}
+
 /** パイプライン表の行：Issue番号が大きい順（段階が変わっても行の位置は変えない） */
 export function buildPipelineRows(data: RepoData, now: Date): PipelineRow[] {
   const visible = data.issues
@@ -63,6 +71,7 @@ export function buildPipelineRows(data: RepoData, now: Date): PipelineRow[] {
       progress: getProgress(status),
       queuePosition,
       queueReason: queuePosition === null ? null : getQueueReason(issue.number, data.comments),
+      deployFailReason: status.stage === "deployFailed" ? failReason(issue.number, data) : null,
     };
   });
 }

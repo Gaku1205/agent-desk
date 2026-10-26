@@ -56,6 +56,7 @@ export type GhCheckRun = {
 export type GhStatus = {
   context: string;
   state: string;
+  description?: string | null;
   updated_at: string;
 };
 
@@ -141,6 +142,7 @@ export function convertStatus(raw: GhStatus): CommitStatusData {
   return {
     context: raw.context,
     state: raw.state,
+    description: raw.description ?? "",
     updatedAt: raw.updated_at,
   };
 }

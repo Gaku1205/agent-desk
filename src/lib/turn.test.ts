@@ -263,7 +263,7 @@ describe("turnButtons", () => {
       pullChecks: {
         10: {
           checkRuns: [],
-          statuses: [{ context: "Vercel", state: "failure", updatedAt: "2026-10-25T11:05:00Z" }],
+          statuses: [{ context: "Vercel", state: "failure", description: "", updatedAt: "2026-10-25T11:05:00Z" }],
         },
       },
     });

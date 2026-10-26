@@ -312,8 +312,8 @@ describe("buildRecentEvents の種類", () => {
         8: {
           checkRuns: [],
           statuses: [
-            { context: "Vercel", state: "success", updatedAt: "2026-10-25T05:03:00Z" },
-            { context: "other", state: "failure", updatedAt: "2026-10-25T05:04:00Z" },
+            { context: "Vercel", state: "success", description: "", updatedAt: "2026-10-25T05:03:00Z" },
+            { context: "other", state: "failure", description: "", updatedAt: "2026-10-25T05:04:00Z" },
           ],
         },
       },
@@ -335,7 +335,7 @@ describe("buildRecentEvents の種類", () => {
       pullChecks: {
         8: {
           checkRuns: [],
-          statuses: [{ context: "Vercel", state: "error", updatedAt: "2026-10-25T05:03:00Z" }],
+          statuses: [{ context: "Vercel", state: "error", description: "", updatedAt: "2026-10-25T05:03:00Z" }],
         },
       },
     });
@@ -353,7 +353,7 @@ describe("buildRecentEvents の種類", () => {
       pullChecks: {
         8: {
           checkRuns: [],
-          statuses: [{ context: "Vercel", state: "pending", updatedAt: "2026-10-25T05:03:00Z" }],
+          statuses: [{ context: "Vercel", state: "pending", description: "", updatedAt: "2026-10-25T05:03:00Z" }],
         },
       },
     });
