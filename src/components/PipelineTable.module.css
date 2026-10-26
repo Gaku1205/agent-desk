@@ -15,10 +15,15 @@
   column-gap: 12px;
 }
 
+/* 列の見出しは、上のヘッダーの下に張り付く（スマホでは出さないので固定しない） */
 .head {
+  position: sticky;
+  top: calc(var(--header-top) + var(--header-h));
+  z-index: 10;
   align-items: center;
   height: 40px;
   border-bottom: 1px solid var(--line);
+  background: var(--bg);
 }
 
 .colhead {
