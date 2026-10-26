@@ -15,6 +15,7 @@ export type Stage =
   | "implementing"
   | "planning"
   | "queued"
+  | "skipped"
   | "notStarted";
 
 /** 誰の番か */
@@ -65,6 +66,7 @@ export const LABEL = {
   implement: "ai:implement",
   review: "ai:review",
   queue: "ai:queue",
+  skip: "ai:skip",
   hold: "ai:hold",
   stuck: "ai:stuck",
 } as const;
@@ -100,6 +102,7 @@ const TURN_BY_STAGE: Record<Stage, Turn> = {
   implementing: "ai",
   planning: "ai",
   queued: "none",
+  skipped: "human",
   notStarted: "human",
 };
 
@@ -368,6 +371,7 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   if (issue.labels.includes(LABEL.implement)) return result("implementing");
   if (issue.labels.includes(LABEL.plan)) return result("planning");
   if (issue.labels.includes(LABEL.queue)) return result("queued");
+  if (issue.state === "open" && issue.labels.includes(LABEL.skip)) return result("skipped");
   return result("notStarted");
 }
 

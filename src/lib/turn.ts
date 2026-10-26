@@ -12,12 +12,13 @@ import {
 } from "./status";
 
 /** 「あなたの番」で押せる操作（サーバー側で実行する物） */
-export type OperationKind = "plan" | "implement" | "resume" | "createPull" | "requestReview" | "merge";
+export type OperationKind = "plan" | "implement" | "resume" | "start" | "createPull" | "requestReview" | "merge";
 
 export const OPERATION_KINDS: readonly OperationKind[] = [
   "plan",
   "implement",
   "resume",
+  "start",
   "createPull",
   "requestReview",
   "merge",
@@ -28,6 +29,7 @@ export const OPERATION_LABEL: Record<OperationKind, string> = {
   plan: "おまかせ",
   implement: "実装を依頼",
   resume: "再開",
+  start: "始める",
   createPull: "PRを作る",
   requestReview: "レビューを依頼",
   merge: "マージ…",
@@ -81,6 +83,8 @@ export function turnButtons(status: IssueStatus, data: Pick<RepoData, "comments"
   switch (status.stage) {
     case "stuck":
       return [operation("resume")];
+    case "skipped":
+      return [operation("start")];
     case "notStarted":
       return [operation("plan"), operation("implement")];
     case "prWaiting":
@@ -132,6 +136,19 @@ export function waitingSince(issue: IssueData, status: IssueStatus, data: RepoDa
           )
           .map((event) => event.createdAt),
       );
+      break;
+    case "skipped":
+      since = latest(
+        data.events
+          .filter(
+            (event) =>
+              event.event === "labeled" &&
+              event.labelName === LABEL.skip &&
+              event.issueNumber === issue.number,
+          )
+          .map((event) => event.createdAt),
+      );
+      since ??= issue.createdAt;
       break;
     case "notStarted":
       since = issue.createdAt;

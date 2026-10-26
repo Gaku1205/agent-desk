@@ -240,6 +240,23 @@ describe("getIssueStatus：表の各段階", () => {
     expect(status.turn).toBe("none");
   });
 
+  it("保留：ai:skip がある（人間の番）", () => {
+    const status = getIssueStatus(issue({ labels: ["ai:skip"] }), input(), NOW);
+    expect(status.stage).toBe("skipped");
+    expect(status.turn).toBe("human");
+  });
+
+  it("保留：ai:plan・ai:implement が付いていれば、そちらが先", () => {
+    expect(getIssueStatus(issue({ labels: ["ai:skip", "ai:plan"] }), input(), NOW).stage).toBe("planning");
+    expect(getIssueStatus(issue({ labels: ["ai:skip", "ai:implement"] }), input(), NOW).stage).toBe(
+      "implementing",
+    );
+  });
+
+  it("保留：ai:queue より下", () => {
+    expect(getIssueStatus(issue({ labels: ["ai:skip", "ai:queue"] }), input(), NOW).stage).toBe("queued");
+  });
+
   it("未着手：どれでもない", () => {
     const status = getIssueStatus(issue(), input(), NOW);
     expect(status.stage).toBe("notStarted");

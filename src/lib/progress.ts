@@ -58,6 +58,7 @@ export function toneRgba(tone: ProgressTone, opacity: number): string {
 const AT_BY_STAGE: Record<Exclude<Stage, "stuck">, number> = {
   notStarted: 0,
   queued: 0,
+  skipped: 0,
   planning: 0,
   implementing: 1,
   prWaiting: 2,
@@ -74,6 +75,7 @@ const AT_BY_STAGE: Record<Exclude<Stage, "stuck">, number> = {
 const TONE_BY_STAGE: Record<Exclude<Stage, "stuck" | "mergeWaiting">, ProgressTone> = {
   notStarted: "human",
   queued: "queue",
+  skipped: "human",
   planning: "ai",
   implementing: "ai",
   prWaiting: "human",

@@ -189,6 +189,25 @@ describe("executeOperation", () => {
     ]);
   });
 
+  it("始める：Issueから ai:skip を外す（ai:plan は付けない）", async () => {
+    const { client, calls } = fakeClient();
+    const repoData = data({ issues: [issue({ labels: ["ai:skip"] })] });
+    expect(await executeOperation(client, TARGET, input("start"), repoData, NOW)).toEqual({ ok: true });
+    expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual([
+      "DELETE https://api.github.com/repos/o/r/issues/1/labels/ai%3Askip",
+    ]);
+  });
+
+  it("始める：保留でなくなっていたら何もせず取り直す", async () => {
+    const { client, calls } = fakeClient();
+    const repoData = data({ issues: [issue({ labels: ["ai:plan"] })] });
+    expect(await executeOperation(client, TARGET, input("start"), repoData, NOW)).toEqual({
+      ok: false,
+      changed: true,
+    });
+    expect(calls).toEqual([]);
+  });
+
   it("PRを作る：claude/issue-<番号>- のブランチから main へ", async () => {
     const { client, calls } = fakeClient((call) =>
       call.method === "GET"

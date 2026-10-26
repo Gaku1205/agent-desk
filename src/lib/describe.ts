@@ -13,7 +13,7 @@ export type DescribeOptions = {
 };
 
 /** 状態アイコンの形 */
-export type IconShape = "dashed" | "half" | "check" | "cross";
+export type IconShape = "dashed" | "paused" | "half" | "check" | "cross";
 /** 状態アイコンの色（誰の番か） */
 export type IconTone = "human" | "ai" | "done" | "fail" | "idle";
 
@@ -41,6 +41,8 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
       return { long: "まだ誰にも頼んでいません", short: "まだ頼んでいません" };
     case "queued":
       return { long: "前の作業が終わったら自動で始まります", short: "順番待ち" };
+    case "skipped":
+      return { long: "保留中です。準備ができたら「始める」を押してください", short: "保留中" };
     case "planning":
       return { long: "企画AIがIssueを清書中", short: "清書中" };
     case "implementing":
@@ -105,6 +107,8 @@ export function statusIconSpec(status: IssueStatus): IconSpec {
       return spec("dashed", "human");
     case "queued":
       return spec("dashed", "idle");
+    case "skipped":
+      return spec("paused", "human");
     case "planning":
     case "ciRunning":
     case "reviewing":

@@ -424,6 +424,10 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
   });
   addComment(ctx, 14, "#17 の並べ替えができてから、その順番を保存する作業なので順番待ちにします", ago(ctx, 32));
 
+  // 保留（ai:skip）
+  addIssue(ctx, 25, "タスクをカレンダーに表示する", { createdAt: ago(ctx, 3 * 60), labels: ["ai:skip"] });
+  addLabeled(ctx, 25, "ai:skip", ago(ctx, 3 * 60));
+
   // 未着手
   addIssue(ctx, 13, "タスクに色のラベルを付けられるようにする", { createdAt: ago(ctx, 2 * 60 + 15) });
 
