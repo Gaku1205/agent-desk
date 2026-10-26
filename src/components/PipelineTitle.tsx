@@ -6,8 +6,11 @@ import styles from "./PipelineTable.module.css";
 /** 流す速さ（px/秒） */
 const SPEED = 60;
 
-/** パイプラインのタイトル。列に収まらず切れているときだけ、行に乗せた間に右から左へ流す（動きは PipelineTable.module.css） */
-export function PipelineTitle({ title }: { title: string }) {
+/**
+ * パイプラインのタイトル。列に収まらず切れているときだけ、行に乗せた間に右から左へ流す（動きは PipelineTable.module.css）。
+ * パイプライン表の行の外で使うときは、行に `marqueeHost` のクラスを付ける
+ */
+export function PipelineTitle({ title, className }: { title: string; className?: string }) {
   const boxRef = useRef<HTMLSpanElement>(null);
   const [overflow, setOverflow] = useState(0);
 
@@ -28,7 +31,7 @@ export function PipelineTitle({ title }: { title: string }) {
 
   return (
     <span
-      className={styles.title}
+      className={className ? `${styles.title} ${className}` : styles.title}
       data-overflow={overflow > 0 ? "true" : undefined}
       title={overflow > 0 ? title : undefined}
       style={style}
