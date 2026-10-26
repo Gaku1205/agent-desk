@@ -1,0 +1,45 @@
+# READMEの画像とGIFを、CIと同じ環境で撮ってPRのブランチにコミットする（npm run readme:shots）。
+# 手で動かす：Actions → README Shots → Run workflow（ブランチ名を入れる）。
+# ブランチ名を省くと main で撮って、assets/readme/ を main にコミットする。
+name: README Shots
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "撮った画像をコミットするブランチ（省略すると main）"
+        required: false
+        default: ""
+
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.branch || 'main' }}
+          token: ${{ secrets.PIPELINE_TOKEN }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: 画像とGIFを撮る
+        run: npm run readme:shots
+      - name: コミットする
+        env:
+          BRANCH: ${{ inputs.branch || 'main' }}
+        run: |
+          git config user.name "agent-desk pipeline"
+          git config user.email "noreply@github.com"
+          git add -A assets/readme
+          if git diff --cached --quiet; then
+            echo "変わった画像はありません"
+          else
+            git commit -m "READMEの画像とGIFを撮る（CIの環境）"
+            git push origin "HEAD:$BRANCH"
+          fi
