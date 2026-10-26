@@ -37,6 +37,14 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
         long: `${status.stuckReason ?? ""}。確認して、対応したら「再開」を押してください`,
         short: "止まっています",
       };
+    case "retrying": {
+      const count = status.retry ? `${status.retry.count}/${status.retry.max}回` : null;
+      const reason = status.retry?.reason ?? "AIが止まりました";
+      return {
+        long: `${reason}${count ? `（${count}）` : ""}。時間をおいて自動でやり直します`,
+        short: count ? `やり直し待ち ${count}` : "やり直し待ち",
+      };
+    }
     case "notStarted":
       return { long: "まだ誰にも頼んでいません", short: "まだ頼んでいません" };
     case "queued":
@@ -106,6 +114,7 @@ export function statusIconSpec(status: IssueStatus): IconSpec {
     case "notStarted":
       return spec("dashed", "human");
     case "queued":
+    case "retrying":
       return spec("dashed", "idle");
     case "skipped":
       return spec("paused", "human");

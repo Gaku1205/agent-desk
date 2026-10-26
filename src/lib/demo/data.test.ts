@@ -14,6 +14,7 @@ const NOW = new Date("2026-10-26T03:00:00Z");
 /** 全部の段階（型で、抜けがあればエラーになる） */
 const ALL_STAGES: Record<Stage, true> = {
   stuck: true,
+  retrying: true,
   deployed: true,
   deploying: true,
   deployFailed: true,

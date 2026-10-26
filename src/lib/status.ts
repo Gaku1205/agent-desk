@@ -3,6 +3,7 @@ import type { CheckRunData, CommentData, CommitStatusData, IssueData, PullChecks
 /** 各Issueの段階（docs/spec.md の「状態の判定」） */
 export type Stage =
   | "stuck"
+  | "retrying"
   | "deployed"
   | "deploying"
   | "deployFailed"
@@ -18,6 +19,9 @@ export type Stage =
   | "skipped"
   | "notStarted";
 
+/** `stuck`・`retrying` を除いた、ラベルを見ないで決まる段階 */
+export type BaseStage = Exclude<Stage, "stuck" | "retrying">;
+
 /** 誰の番か */
 export type Turn = "human" | "ai" | "none";
 
@@ -30,11 +34,22 @@ export type MergeWait =
   /** CIもレビューもOK：パイプラインが自動でマージする直前 */
   | "autoMerge";
 
+/** パイプラインが書くやり直しの記録（`🔁 …（やり直し n/10回）。理由：…`） */
+export type RetryRecord = {
+  count: number;
+  max: number;
+  reason: string | null;
+};
+
 export type IssueStatus = {
   stage: Stage;
   turn: Turn;
   /** 止まったときの「止まる前の段階」（止まっていなければ null） */
-  stageBeforeStuck: Exclude<Stage, "stuck"> | null;
+  stageBeforeStuck: BaseStage | null;
+  /** やり直し待ちのときの「やり直し待ちになる前の段階」（そうでなければ null） */
+  stageBeforeRetry: BaseStage | null;
+  /** やり直しの回数と理由（やり直し待ちで、記録のコメントが読めたときだけ） */
+  retry: RetryRecord | null;
   /** 紐づくPR（無ければ null） */
   pull: PullData | null;
   /** CIのチェック（Claude Reviewを除く）の通過数と全数 */
@@ -69,6 +84,7 @@ export const LABEL = {
   skip: "ai:skip",
   hold: "ai:hold",
   stuck: "ai:stuck",
+  retry: "ai:retry",
 } as const;
 
 const CLAUDE_BOT = "claude[bot]";
@@ -82,7 +98,11 @@ const AUTO_FIX_SHA_PATTERN = /<!--\s*auto-fix-sha:\s*([0-9a-f]+)\s*-->/;
 export const MAX_AUTO_FIX = 2;
 /** 清書したIssueの本文にある印 */
 const PLAN_MEMO_MARK = "> 元のメモ：";
-const STUCK_PREFIX ="⏸ 自動で進めるのを止めました：";
+/** パイプラインのやり直しの記録コメントの印（`.github/scripts/pipeline-lib.sh` の `RETRY_MARK`） */
+const RETRY_MARK = "<!-- auto-retry -->";
+const RETRY_COUNT_PATTERN = /やり直し\s*(\d+)\s*\/\s*(\d+)\s*回/;
+const RETRY_REASON_PATTERN = /^理由：(.*)$/m;
+const STUCK_PREFIX = "⏸ 自動で進めるのを止めました：";
 export const DEFAULT_STUCK_REASON = "自動で進められず止まりました";
 /** 「通過」とみなすチェックの結果 */
 const PASSED_CONCLUSIONS = new Set(["success", "skipped", "neutral"]);
@@ -90,6 +110,7 @@ const PASSED_CONCLUSIONS = new Set(["success", "skipped", "neutral"]);
 /** 段階ごとの誰の番（マージ待ちは mergeWait で変わる） */
 const TURN_BY_STAGE: Record<Stage, Turn> = {
   stuck: "human",
+  retrying: "none",
   deployed: "none",
   deploying: "none",
   deployFailed: "human",
@@ -257,6 +278,22 @@ export function stuckReason(comments: CommentData[], pullNumber: number | null):
   return reason === "" ? null : reason;
 }
 
+/**
+ * パイプラインがIssueかPRに書いた最新のやり直しの記録（`<!-- auto-retry -->` を含むコメント）から、
+ * 回数と理由を読む。回数が読めなければ null
+ */
+export function retryRecord(comments: CommentData[], numbers: number[]): RetryRecord | null {
+  const last = comments
+    .filter((comment) => numbers.includes(comment.issueNumber) && comment.body.includes(RETRY_MARK))
+    .sort(byCreatedAt)
+    .at(-1);
+  if (!last) return null;
+  const match = RETRY_COUNT_PATTERN.exec(last.body);
+  if (!match) return null;
+  const reason = RETRY_REASON_PATTERN.exec(last.body)?.[1].trim() ?? "";
+  return { count: Number(match[1]), max: Number(match[2]), reason: reason === "" ? null : reason };
+}
+
 /** 清書したか：Issue本文に `> 元のメモ：` がある */
 export function isPlanned(issue: IssueData): boolean {
   return issue.body.includes(PLAN_MEMO_MARK);
@@ -314,8 +351,11 @@ export function deployState(
   return { state: "deploying", unknown: false };
 }
 
-type BaseStatus = Omit<IssueStatus, "stage" | "stageBeforeStuck" | "stuckReason"> & {
-  stage: Exclude<Stage, "stuck">;
+type BaseStatus = Omit<
+  IssueStatus,
+  "stage" | "stageBeforeStuck" | "stageBeforeRetry" | "retry" | "stuckReason"
+> & {
+  stage: BaseStage;
 };
 
 /** `ai:stuck` を見ないで、表の残りで段階を決める */
@@ -326,7 +366,7 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   const fixes = pull ? fixCount(input.comments, pull) : 0;
   const pushedFix = pull ? hasPushedFix(input.comments, pull) : false;
   const result = (
-    stage: Exclude<Stage, "stuck">,
+    stage: BaseStage,
     extra: Partial<BaseStatus> = {},
   ): BaseStatus => ({
     stage,
@@ -378,15 +418,34 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
 /** Issueの段階と誰の番を決める（docs/spec.md の表を上から順に評価） */
 export function getIssueStatus(issue: IssueData, input: StatusInput, now: Date): IssueStatus {
   const base = baseStatus(issue, input, now);
-  const stuck =
-    issue.state === "open" &&
-    (issue.labels.includes(LABEL.stuck) || (base.pull?.labels.includes(LABEL.stuck) ?? false));
-  if (!stuck) return { ...base, stageBeforeStuck: null, stuckReason: null };
-  return {
+  const open = issue.state === "open";
+  const hasLabel = (label: string) =>
+    issue.labels.includes(label) || (base.pull?.labels.includes(label) ?? false);
+  const normal = {
     ...base,
-    stage: "stuck",
-    turn: "human",
-    stageBeforeStuck: base.stage,
-    stuckReason: stuckReason(input.comments, base.pull?.number ?? null) ?? DEFAULT_STUCK_REASON,
+    stageBeforeStuck: null,
+    stageBeforeRetry: null,
+    retry: null,
+    stuckReason: null,
   };
+  if (open && hasLabel(LABEL.stuck)) {
+    return {
+      ...normal,
+      stage: "stuck",
+      turn: "human",
+      stageBeforeStuck: base.stage,
+      stuckReason: stuckReason(input.comments, base.pull?.number ?? null) ?? DEFAULT_STUCK_REASON,
+    };
+  }
+  if (open && hasLabel(LABEL.retry) && !(base.pull?.merged ?? false)) {
+    const numbers = base.pull ? [issue.number, base.pull.number] : [issue.number];
+    return {
+      ...normal,
+      stage: "retrying",
+      turn: TURN_BY_STAGE.retrying,
+      stageBeforeRetry: base.stage,
+      retry: retryRecord(input.comments, numbers),
+    };
+  }
+  return normal;
 }

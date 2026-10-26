@@ -1,4 +1,4 @@
-import type { IssueStatus, Stage } from "./status";
+import type { BaseStage, IssueStatus } from "./status";
 
 /** 棒の名前（i = 0〜7） */
 export const PROGRESS_STAGE_NAMES = [
@@ -55,7 +55,7 @@ export function toneRgba(tone: ProgressTone, opacity: number): string {
   return `rgba(${TONE_RGB[tone]},${opacity})`;
 }
 
-const AT_BY_STAGE: Record<Exclude<Stage, "stuck">, number> = {
+const AT_BY_STAGE: Record<BaseStage, number> = {
   notStarted: 0,
   queued: 0,
   skipped: 0,
@@ -72,7 +72,7 @@ const AT_BY_STAGE: Record<Exclude<Stage, "stuck">, number> = {
   deployed: 7,
 };
 
-const TONE_BY_STAGE: Record<Exclude<Stage, "stuck" | "mergeWaiting">, ProgressTone> = {
+const TONE_BY_STAGE: Record<Exclude<BaseStage, "mergeWaiting">, ProgressTone> = {
   notStarted: "human",
   queued: "queue",
   skipped: "human",
@@ -99,8 +99,12 @@ export function barOpacity(index: number, at: number): number {
 
 /** 段階から、8本の棒の色・不透明度・枠線だけかを決める（docs/design.md の「進み具合のバー」） */
 export function getProgress(status: IssueStatus): Progress {
-  const stage: Exclude<Stage, "stuck"> =
-    status.stage === "stuck" ? (status.stageBeforeStuck ?? "notStarted") : status.stage;
+  const stage: BaseStage =
+    status.stage === "stuck"
+      ? (status.stageBeforeStuck ?? "notStarted")
+      : status.stage === "retrying"
+        ? (status.stageBeforeRetry ?? "notStarted")
+        : status.stage;
 
   // 修正したあとのCI・レビューのやり直しは、「修正」の位置のまま
   const confirmingFix =
@@ -109,6 +113,7 @@ export function getProgress(status: IssueStatus): Progress {
 
   let tone: ProgressTone;
   if (status.stage === "stuck") tone = "human";
+  else if (status.stage === "retrying") tone = "queue";
   else if (stage === "mergeWaiting") tone = status.turn === "human" ? "human" : "ai";
   else if (confirmingFix) tone = stage === "ciFailed" ? "fail" : "ai";
   else tone = TONE_BY_STAGE[stage];

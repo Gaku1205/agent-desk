@@ -176,6 +176,10 @@ function stuckComment(reason: string): string {
   return `⏸ 自動で進めるのを止めました：${reason}`;
 }
 
+function retryComment(count: number, reason: string): string {
+  return `🔁 AIが止まったので、時間をおいて自動でやり直します（やり直し ${count}/10回）。\n理由：${reason}\n\n<!-- auto-retry -->\n<!-- count=${count} kind=implement -->`;
+}
+
 /** 公開済みのIssue（PRはマージ済み、公開ステータスは success。statusAt が null なら公開状況は不明） */
 function addDeployed(
   ctx: Ctx,
@@ -310,6 +314,16 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
   addComment(ctx, 38, autoFixComment("2b3c4d5", "CIの失敗"), ago(ctx, 2 * 60));
   addComment(ctx, 38, stuckComment("AIが2回直してもCIが通りませんでした（test）"), ago(ctx, 46));
   addLabeled(ctx, 38, "ai:stuck", ago(ctx, 46));
+
+  // やり直し待ち（使用量の上限でAIが止まり、時間をおいて自動でやり直す）
+  addIssue(ctx, 25, "タスクの色分けをカテゴリごとに変えられるようにする", {
+    createdAt: ago(ctx, 90),
+    labels: ["ai:implement", "ai:retry"],
+    planned: true,
+  });
+  addLabeled(ctx, 25, "ai:implement", ago(ctx, 85));
+  addComment(ctx, 25, retryComment(2, "使用量の上限に達しました"), ago(ctx, 12));
+  addLabeled(ctx, 25, "ai:retry", ago(ctx, 12));
 
   // マージ待ち（ai:hold・レビュー済み）
   const hold = addIssue(ctx, 22, "完了したタスクをまとめて消せるようにする", {

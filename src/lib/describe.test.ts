@@ -7,6 +7,8 @@ function status(overrides: Partial<IssueStatus>): IssueStatus {
     stage: "notStarted",
     turn: "human",
     stageBeforeStuck: null,
+    stageBeforeRetry: null,
+    retry: null,
     pull: null,
     ci: { passed: 0, total: 0 },
     mergeWait: null,
@@ -28,6 +30,22 @@ describe("describeStatus", () => {
       { stage: "stuck", stuckReason: "レビューの指摘が直りませんでした" },
       "レビューの指摘が直りませんでした。確認して、対応したら「再開」を押してください",
       "止まっています",
+    ],
+    [
+      "やり直し待ち（回数あり）",
+      {
+        stage: "retrying",
+        turn: "none",
+        retry: { count: 3, max: 10, reason: "使用量の上限に達しました" },
+      },
+      "使用量の上限に達しました（3/10回）。時間をおいて自動でやり直します",
+      "やり直し待ち 3/10回",
+    ],
+    [
+      "やり直し待ち（回数なし）",
+      { stage: "retrying", turn: "none" },
+      "AIが止まりました。時間をおいて自動でやり直します",
+      "やり直し待ち",
     ],
     [
       "保留",
@@ -131,6 +149,10 @@ describe("statusIconSpec", () => {
       tone: "human",
     });
     expect(statusIconSpec(status({ stage: "queued", turn: "none" }))).toMatchObject({
+      shape: "dashed",
+      tone: "idle",
+    });
+    expect(statusIconSpec(status({ stage: "retrying", turn: "none" }))).toMatchObject({
       shape: "dashed",
       tone: "idle",
     });
