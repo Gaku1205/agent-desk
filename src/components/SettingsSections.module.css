@@ -27,8 +27,8 @@
 }
 
 .button {
-  width: 112px;
-  height: 34px;
+  width: 92px;
+  height: 28px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface);
