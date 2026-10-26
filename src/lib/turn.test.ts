@@ -116,6 +116,22 @@ function mixedRepo(): RepoData {
   });
 }
 
+describe("保留", () => {
+  it("あなたの番に出て、ボタンは「始める」。待ち時間は ai:skip が付いた時刻から", () => {
+    const repoData = data({
+      issues: [issue(1, { labels: ["ai:skip"] })],
+      events: [
+        { event: "labeled", labelName: "ai:skip", issueNumber: 1, createdAt: "2026-10-25T09:00:00Z" },
+      ],
+    });
+    const items = buildTurnItems([ok("o", "r", repoData)], NOW);
+    expect(items).toHaveLength(1);
+    expect(items[0].status.stage).toBe("skipped");
+    expect(items[0].buttons).toEqual([{ type: "operation", kind: "start", label: "始める" }]);
+    expect(items[0].waitingSince).toBe("2026-10-25T09:00:00Z");
+  });
+});
+
 describe("buildTurnItems", () => {
   it("人間の番だけを、止まった物を上に、あとは待ちが長い順に並べる", () => {
     const items = buildTurnItems([ok("o", "r", mixedRepo())], NOW);
