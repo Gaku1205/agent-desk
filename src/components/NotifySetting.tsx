@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { saveNotifyEvents } from "@/app/settings/actions";
+import { changedRepos, formatSaveFailures, type NotifyDraft } from "@/lib/notifyChanges";
 import {
   NOTIFY_EVENT_KINDS,
   NOTIFY_EVENT_LABELS,
@@ -19,8 +20,20 @@ export type NotifyRepoRow = {
 
 type Status = { kind: "idle" } | { kind: "saved" } | { kind: "error"; message: string };
 
-function RepoNotify({ row }: { row: NotifyRepoRow }) {
-  const [checked, setChecked] = useState<Set<NotifyEvent>>(new Set(row.events));
+/** 列の見出し。`owner/` を省く */
+function shortName(name: string): string {
+  const slash = name.indexOf("/");
+  return slash < 0 ? name : name.slice(slash + 1);
+}
+
+/** 設定画面の「通知」。縦が通知の種類、横がリポジトリの表。保存はサーバー側（Server Action）で行う */
+export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
+  const [current, setCurrent] = useState<Record<string, NotifyEvent[]>>(() =>
+    Object.fromEntries(rows.map((row) => [row.name, row.events])),
+  );
+  const [saved, setSaved] = useState<Record<string, NotifyEvent[]>>(() =>
+    Object.fromEntries(rows.map((row) => [row.name, row.events])),
+  );
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [saving, startSaving] = useTransition();
 
@@ -30,86 +43,109 @@ function RepoNotify({ row }: { row: NotifyRepoRow }) {
     return () => window.clearTimeout(timer);
   }, [status]);
 
-  function toggle(kind: NotifyEvent) {
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (next.has(kind)) next.delete(kind);
-      else next.add(kind);
-      return next;
+  function toggle(name: string, kind: NotifyEvent) {
+    setCurrent((prev) => {
+      const events = prev[name] ?? [];
+      return {
+        ...prev,
+        [name]: events.includes(kind) ? events.filter((e) => e !== kind) : [...events, kind],
+      };
     });
     setStatus({ kind: "idle" });
   }
 
   function save() {
+    const drafts: NotifyDraft[] = rows.map((row) => ({
+      name: row.name,
+      pipeline: row.pipeline,
+      saved: saved[row.name] ?? [],
+      current: current[row.name] ?? [],
+    }));
+    const targets = changedRepos(drafts);
+    // 変更が無ければ何も書き込まない
+    if (targets.length === 0) return;
     setStatus({ kind: "idle" });
     startSaving(async () => {
-      const result = await saveNotifyEvents(
-        row.name,
-        NOTIFY_EVENT_KINDS.filter((kind) => checked.has(kind)),
+      const failures: { name: string; message: string }[] = [];
+      const done: Record<string, NotifyEvent[]> = {};
+      for (const target of targets) {
+        const events = NOTIFY_EVENT_KINDS.filter((kind) => target.current.includes(kind));
+        const result = await saveNotifyEvents(target.name, events);
+        if (result.ok) done[target.name] = events;
+        else failures.push({ name: target.name, message: result.message });
+      }
+      setSaved((prev) => ({ ...prev, ...done }));
+      setStatus(
+        failures.length === 0
+          ? { kind: "saved" }
+          : { kind: "error", message: formatSaveFailures(failures, targets.length) },
       );
-      setStatus(result.ok ? { kind: "saved" } : { kind: "error", message: result.message });
     });
   }
 
-  const disabled = !row.pipeline;
-  return (
-    <div className="notify-repo">
-      <h3 className="notify-repo-title mono">
-        {row.name}
-        {disabled && <span className="repo-setting-pipeline">パイプラインなし</span>}
-      </h3>
-      <ul className="notify-list">
-        {NOTIFY_EVENT_KINDS.map((kind) => (
-          <li key={kind}>
-            <label className="notify-item" data-disabled={disabled || undefined}>
-              <input
-                type="checkbox"
-                checked={checked.has(kind)}
-                onChange={() => toggle(kind)}
-                disabled={disabled || saving}
-              />
-              <span>
-                <span className="notify-name">{NOTIFY_EVENT_LABELS[kind].name}</span>
-                <span className="notify-desc">{NOTIFY_EVENT_LABELS[kind].description}</span>
-              </span>
-            </label>
-          </li>
-        ))}
-      </ul>
-      {!disabled && (
-        <div className="repo-setting-save">
-          <button
-            type="button"
-            className="setting-button"
-            onClick={save}
-            disabled={saving}
-            aria-busy={saving}
-          >
-            {saving ? "保存中…" : "保存"}
-          </button>
-          {status.kind === "saved" && (
-            <span className="setting-saved" role="status">
-              保存しました
-            </span>
-          )}
-          {status.kind === "error" && (
-            <span className="setting-error" role="alert">
-              {status.message}
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+  if (rows.length === 0) return null;
 
-/** 設定画面の「通知」。リポジトリごとに鳴らす種類を選ぶ。保存はサーバー側（Server Action）で行う */
-export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
   return (
     <div>
-      {rows.map((row) => (
-        <RepoNotify key={row.name} row={row} />
-      ))}
+      <div className="notify-table-wrap">
+        <table className="notify-table">
+          <thead>
+            <tr>
+              <th scope="col" className="notify-kind-head" aria-label="通知の種類" />
+              {rows.map((row) => (
+                <th key={row.name} scope="col" className="notify-repo-head">
+                  <span className="notify-repo-name mono" title={row.name}>
+                    {shortName(row.name)}
+                  </span>
+                  {!row.pipeline && <span className="notify-no-pipeline">パイプラインなし</span>}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {NOTIFY_EVENT_KINDS.map((kind) => (
+              <tr key={kind}>
+                <th scope="row" className="notify-kind">
+                  <span className="notify-name">{NOTIFY_EVENT_LABELS[kind].name}</span>
+                  <span className="notify-desc">{NOTIFY_EVENT_LABELS[kind].description}</span>
+                </th>
+                {rows.map((row) => (
+                  <td key={row.name} className="notify-cell">
+                    <input
+                      type="checkbox"
+                      checked={(current[row.name] ?? []).includes(kind)}
+                      onChange={() => toggle(row.name, kind)}
+                      disabled={!row.pipeline || saving}
+                      aria-label={`${NOTIFY_EVENT_LABELS[kind].name}（${row.name}）`}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="repo-setting-save">
+        <button
+          type="button"
+          className="setting-button"
+          onClick={save}
+          disabled={saving}
+          aria-busy={saving}
+        >
+          {saving ? "保存中…" : "保存"}
+        </button>
+        {status.kind === "saved" && (
+          <span className="setting-saved" role="status">
+            保存しました
+          </span>
+        )}
+        {status.kind === "error" && (
+          <span className="setting-error" role="alert">
+            {status.message}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

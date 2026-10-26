@@ -162,7 +162,8 @@ button {
 
 /* 設定画面 */
 
-.settings {
+/* `.content`（1320px）より後ろに書かれていても負けないよう、2つ重ねて指定する */
+.content.settings {
   max-width: 720px;
 }
 
@@ -320,46 +321,69 @@ button {
   }
 }
 
-.notify-repo + .notify-repo {
-  margin-top: 28px;
+/* 通知の表：縦が種類、横がリポジトリ。幅が足りないときは表だけ横に流れ、左の列は固定 */
+
+.notify-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
 }
 
-.notify-repo-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
-  margin: 0 0 12px;
-  color: var(--text);
-  font-size: 13px;
+.notify-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.notify-table th,
+.notify-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
   font-weight: 400;
+  vertical-align: middle;
 }
 
-.notify-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 24px;
+.notify-kind-head,
+.notify-kind {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 200px;
+  padding-left: 0 !important;
+  background: var(--bg);
+  text-align: left;
+}
+
+.notify-repo-head {
+  min-width: 96px;
+  text-align: center;
+  vertical-align: bottom !important;
+}
+
+.notify-repo-name {
+  display: block;
+  color: var(--text);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.notify-no-pipeline {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-mute);
+  font-size: 12.5px;
+}
+
+.notify-cell {
+  text-align: center;
+}
+
+.notify-cell input {
   margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.notify-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  accent-color: var(--human);
   cursor: pointer;
 }
 
-.notify-item[data-disabled="true"] {
+.notify-cell input:disabled {
   cursor: default;
-  opacity: 0.5;
-}
-
-.notify-item input {
-  flex: none;
-  margin: 3px 0 0;
-  accent-color: var(--human);
 }
 
 .notify-name {
@@ -375,12 +399,15 @@ button {
 }
 
 @media (max-width: 899px) {
-  .notify-list {
-    grid-template-columns: minmax(0, 1fr);
+  .notify-table th,
+  .notify-table td {
+    padding-top: 12px;
+    padding-bottom: 12px;
   }
 
-  .notify-item {
-    min-height: 44px;
+  .notify-cell input {
+    width: 20px;
+    height: 20px;
   }
 }
 

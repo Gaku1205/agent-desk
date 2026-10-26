@@ -57,7 +57,7 @@ export default async function SettingsPage() {
         </section>
         <section className="settings-section" aria-labelledby="settings-motion">
           <h2 id="settings-motion" className="settings-title">
-            動き
+            アニメーション
           </h2>
           <MotionSetting />
         </section>
