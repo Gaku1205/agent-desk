@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import styles from "./PipelineTable.module.css";
 
 /** 流す速さ（px/秒） */
 const SPEED = 60;
 
-/** パイプラインのタイトル。列に収まらず切れているときだけ、行に乗せた間に右から左へ流す（動きは globals.css） */
+/** パイプラインのタイトル。列に収まらず切れているときだけ、行に乗せた間に右から左へ流す（動きは PipelineTable.module.css） */
 export function PipelineTitle({ title }: { title: string }) {
   const boxRef = useRef<HTMLSpanElement>(null);
   const [overflow, setOverflow] = useState(0);
@@ -27,13 +28,13 @@ export function PipelineTitle({ title }: { title: string }) {
 
   return (
     <span
-      className="pipeline-title"
+      className={styles.title}
       data-overflow={overflow > 0 ? "true" : undefined}
       title={overflow > 0 ? title : undefined}
       style={style}
       ref={boxRef}
     >
-      <span className="pipeline-title-text">{title}</span>
+      <span className={styles.titleText}>{title}</span>
     </span>
   );
 }

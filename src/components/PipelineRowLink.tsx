@@ -2,6 +2,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { toneRgba, type ProgressTone } from "@/lib/progress";
+import styles from "./PipelineTable.module.css";
 import { useRowEffects } from "./useRowEffects";
 
 type Props = {
@@ -21,7 +22,7 @@ export function PipelineRowLink({ href, stage, tone, done, ariaLabel, frame, chi
 
   return (
     <a
-      className="pipeline-grid pipeline-row"
+      className={`${styles.grid} ${styles.row}`}
       data-done={done ? "true" : undefined}
       data-flash={flash ?? undefined}
       data-frame={frame}

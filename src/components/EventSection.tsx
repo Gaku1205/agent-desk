@@ -5,6 +5,7 @@ import {
   type EventTone,
   type RecentEvent,
 } from "@/lib/events";
+import styles from "./EventSection.module.css";
 
 type Props = {
   events: RecentEvent[];
@@ -40,7 +41,7 @@ const ICON_PATH: Record<EventIcon, string> = {
 
 function EventGlyph({ icon, tone }: { icon: EventIcon; tone: EventTone }) {
   return (
-    <span className="event-icon" style={{ background: TONE_BG[tone], color: TONE_COLOR[tone] }}>
+    <span className={styles.icon} style={{ background: TONE_BG[tone], color: TONE_COLOR[tone] }}>
       <svg
         width="12"
         height="12"
@@ -71,21 +72,21 @@ export function EventSection({ events, now }: Props) {
       </div>
 
       {days.length === 0 ? (
-        <p className="empty event-empty">直近3日の出来事はありません</p>
+        <p className={`empty ${styles.empty}`}>直近3日の出来事はありません</p>
       ) : (
         days.map((day) => (
           <div key={day.heading}>
-            <h3 className="event-day">{day.heading}</h3>
-            <ul className="event-list">
+            <h3 className={styles.day}>{day.heading}</h3>
+            <ul className={styles.list}>
               {day.events.map((event) => (
-                <li className="event-row" key={event.id}>
-                  <time className="event-time mono" dateTime={event.at}>
+                <li className={styles.row} key={event.id}>
+                  <time className={`${styles.time} mono`} dateTime={event.at}>
                     {formatEventTime(event.at)}
                   </time>
                   <EventGlyph icon={event.icon} tone={event.tone} />
-                  <div className="event-body">
-                    <div className="event-text">{event.text}</div>
-                    <div className="event-ref mono">{event.ref}</div>
+                  <div className={styles.body}>
+                    <div className={styles.text}>{event.text}</div>
+                    <div className={`${styles.ref} mono`}>{event.ref}</div>
                   </div>
                 </li>
               ))}

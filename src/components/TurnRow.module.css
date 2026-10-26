@@ -1,0 +1,175 @@
+/* あなたの番の1行 */
+
+.row {
+  display: grid;
+  grid-template-columns: 14px 150px minmax(0, 1fr) auto auto;
+  grid-template-areas: "icon ref body wait buttons";
+  align-items: start;
+  gap: 0 14px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.icon {
+  grid-area: icon;
+  margin-top: 4px;
+}
+
+.ref {
+  grid-area: ref;
+  overflow: hidden;
+  padding-top: 2px;
+  color: var(--text-mute);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ref:hover,
+.title:hover {
+  text-decoration: underline;
+}
+
+.body {
+  grid-area: body;
+  min-width: 0;
+}
+
+.title {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.desc {
+  margin: 4px 0 0;
+  color: var(--text-sub);
+  font-size: 13.5px;
+}
+
+.progress {
+  margin-top: 6px;
+}
+
+.opError {
+  margin: 8px 0 0;
+  color: var(--fail);
+  font-size: 13.5px;
+}
+
+.wait {
+  grid-area: wait;
+  padding-top: 2px;
+  color: var(--text-mute);
+  font-size: 12.5px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.buttons {
+  grid-area: buttons;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 112px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--human-border);
+  border-radius: 6px;
+  background: var(--human-bg);
+  color: var(--human-text);
+  font-size: 13.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+@media (max-width: 899px) {
+  .row {
+    grid-template-columns: 14px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "icon ref wait"
+      "body body body"
+      "buttons buttons buttons";
+    gap: 8px 10px;
+  }
+
+  .title {
+    font-size: 15px;
+  }
+
+  .buttons {
+    justify-content: flex-start;
+    margin-top: 4px;
+  }
+
+  .button {
+    height: 44px;
+    border-radius: 8px;
+  }
+}
+
+/* 行の動き（docs/design.md の「動き」） */
+
+.row[data-fade-in="true"] {
+  animation: row-fade-in 0.2s ease-out;
+}
+
+@keyframes row-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.row[data-flash="a"] {
+  animation: row-flash-a 1.2s ease-out;
+}
+
+.row[data-flash="b"] {
+  animation: row-flash-b 1.2s ease-out;
+}
+
+/* 同じ動きを2つ用意して、続けて段階が変わっても最初からやり直せるようにする（PipelineTable.module.css にも同じ物） */
+@keyframes row-flash-a {
+  from {
+    background: var(--flash-color);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@keyframes row-flash-b {
+  from {
+    background: var(--flash-color);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .row[data-fade-in="true"] {
+    animation: none;
+  }
+}
+
+:root[data-motion="reduce"] .row[data-fade-in="true"] {
+  animation: none;
+}

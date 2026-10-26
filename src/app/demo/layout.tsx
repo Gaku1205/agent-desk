@@ -3,6 +3,7 @@ import { DemoBanner } from "@/components/DemoBanner";
 import { DemoShell } from "@/components/DemoShell";
 import { DemoSidebar } from "@/components/DemoSidebar";
 import { getDemoNow } from "@/lib/demo/now";
+import styles from "./layout.module.css";
 
 /** デモ（ログイン不要）。サンプルのデータだけを使い、GitHub には一切問い合わせない */
 export default async function DemoLayout({
@@ -15,7 +16,7 @@ export default async function DemoLayout({
   return (
     <DemoShell initialNow={now.toISOString()}>
       <DemoBanner />
-      <div className="app demo-app">
+      <div className={styles.app}>
         <DemoSidebar />
         <div className="main">{children}</div>
       </div>

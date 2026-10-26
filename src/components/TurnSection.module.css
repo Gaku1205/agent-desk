@@ -1,0 +1,24 @@
+/* あなたの番 */
+
+.count {
+  margin-left: 6px;
+  color: var(--human);
+  font-weight: 500;
+}
+
+.empty,
+.error {
+  padding-top: 14px;
+}
+
+.error {
+  margin: 0;
+  color: var(--text-sub);
+  font-size: 13.5px;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

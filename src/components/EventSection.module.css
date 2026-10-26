@@ -1,0 +1,61 @@
+/* 最近の出来事 */
+
+.empty {
+  padding-top: 14px;
+}
+
+.day {
+  margin: 0;
+  padding: 16px 0 6px;
+  color: #74777f;
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.time {
+  flex-shrink: 0;
+  width: 44px;
+  padding-top: 2px;
+  color: var(--text-mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+
+.body {
+  min-width: 0;
+}
+
+.text {
+  color: var(--text);
+  word-break: auto-phrase;
+}
+
+.ref {
+  color: var(--text-mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}

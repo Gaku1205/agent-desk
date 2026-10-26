@@ -14,6 +14,7 @@ import {
 import { buildTurnItems } from "@/lib/turn";
 import { ShellProvider, useMenuState, type ShellState } from "./AppShell";
 import { DemoProvider, type DemoState } from "./DemoContext";
+import styles from "./DemoShell.module.css";
 
 /** 「デモでは実際には動きません」を出しておく長さ */
 const NOTICE_MS = 2000;
@@ -99,7 +100,7 @@ export function DemoShell({
       <DemoProvider value={demo}>
         {children}
         {notice > 0 && (
-          <p className="demo-notice" role="status" key={notice}>
+          <p className={styles.notice} role="status" key={notice}>
             デモでは実際には動きません
           </p>
         )}

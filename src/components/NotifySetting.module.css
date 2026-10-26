@@ -1,0 +1,89 @@
+/* 通知の表：縦が種類、横がリポジトリ。幅が足りないときは表だけ横に流れ、左の列は固定。保存の行とボタンは SettingsSections.module.css */
+
+.tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  font-weight: 400;
+  vertical-align: middle;
+}
+
+.kindHead,
+.kind {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 200px;
+  padding-left: 0 !important;
+  background: var(--bg);
+  text-align: left;
+}
+
+.repoHead {
+  min-width: 96px;
+  text-align: center;
+  vertical-align: bottom !important;
+}
+
+.repoName {
+  display: block;
+  color: var(--text);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.noPipeline {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-mute);
+  font-size: 12.5px;
+}
+
+.cell {
+  text-align: center;
+}
+
+.cell input {
+  margin: 0;
+  accent-color: var(--human);
+  cursor: pointer;
+}
+
+.cell input:disabled {
+  cursor: default;
+}
+
+.name {
+  display: block;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.desc {
+  display: block;
+  color: var(--text-sub);
+  font-size: 12.5px;
+}
+
+@media (max-width: 899px) {
+  .table th,
+  .table td {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .cell input {
+    width: 20px;
+    height: 20px;
+  }
+}

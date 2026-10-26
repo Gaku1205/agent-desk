@@ -2,6 +2,7 @@ import { signOut } from "@/lib/auth";
 import { loadTurns } from "@/lib/loadTurns";
 import { countTurnItems } from "@/lib/turn";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
+import styles from "./Sidebar.module.css";
 import { SidebarFrame } from "./SidebarFrame";
 import { SettingsLink, SidebarNav } from "./SidebarNav";
 import { SyncControl } from "./SyncControl";
@@ -22,16 +23,16 @@ export async function Sidebar({ login }: Props) {
 
   return (
     <SidebarFrame>
-      <p className="sidebar-title mono">agent-desk</p>
+      <p className={`${styles.title} mono`}>agent-desk</p>
       <SidebarNav repos={repos} counts={counts} />
       <SettingsLink />
 
-      <div className="sidebar-footer">
+      <div className={styles.footer}>
         <SyncControl />
-        <div className="sidebar-footer-row">
-          <span className="sidebar-user mono">{login}</span>
+        <div className={styles.footerRow}>
+          <span className={`${styles.user} mono`}>{login}</span>
           <form action={logout}>
-            <button type="submit" className="logout-button">
+            <button type="submit" className={styles.logoutButton}>
               ログアウト
             </button>
           </form>

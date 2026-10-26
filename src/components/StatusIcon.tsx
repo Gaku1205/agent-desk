@@ -1,5 +1,6 @@
 import { statusIconSpec, type IconTone } from "@/lib/describe";
 import type { IssueStatus } from "@/lib/status";
+import styles from "./StatusIcon.module.css";
 
 const TONE_COLOR: Record<IconTone, string> = {
   human: "var(--human)",
@@ -15,7 +16,7 @@ export function StatusIcon({ status }: { status: IssueStatus }) {
   const color = TONE_COLOR[tone];
   return (
     <svg
-      className="status-icon"
+      className={styles.icon}
       width="14"
       height="14"
       viewBox="0 0 14 14"
@@ -30,7 +31,7 @@ export function StatusIcon({ status }: { status: IssueStatus }) {
         <>
           <circle cx="7" cy="7" r="5.5" stroke={color} />
           <path
-            className={spinning ? "status-icon-spin" : undefined}
+            className={spinning ? styles.spin : undefined}
             d="M7 3.5a3.5 3.5 0 0 1 0 7z"
             fill={color}
           />

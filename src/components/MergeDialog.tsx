@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type KeyboardEvent, type SyntheticEvent } from "react";
 import type { MergeSummary } from "@/lib/turn";
+import styles from "./MergeDialog.module.css";
 
 type Props = {
   repo: string;
@@ -46,29 +47,29 @@ export function MergeDialog({ repo, title, merge, pending, onCancel, onConfirm }
   return (
     <dialog
       ref={dialogRef}
-      className="merge-dialog"
+      className={styles.dialog}
       aria-labelledby="merge-dialog-title"
       onCancel={handleCancel}
       onKeyDown={handleKeyDown}
     >
-      <div className="merge-dialog-head">
-        <p className="merge-dialog-target mono">
+      <div className={styles.head}>
+        <p className={`${styles.target} mono`}>
           {repo}・PR #{merge.pullNumber} → {merge.base}
         </p>
-        <p className="merge-dialog-title" id="merge-dialog-title">
+        <p className={styles.title} id="merge-dialog-title">
           『{title}』をマージしますか
         </p>
       </div>
-      <pre className="merge-dialog-result mono">
+      <pre className={`${styles.result} mono`}>
         {`✓ check   ${merge.ci.passed}/${merge.ci.total} 通過\n`}
         {`${REVIEW_LINE[merge.review ?? "none"]}\n`}
         {"→ deploy  マージ後にVercelが公開"}
       </pre>
-      <div className="merge-dialog-buttons">
+      <div className={styles.buttons}>
         <button
           ref={cancelRef}
           type="button"
-          className="merge-dialog-cancel"
+          className={styles.cancel}
           onClick={onCancel}
           disabled={pending}
         >
@@ -76,7 +77,7 @@ export function MergeDialog({ repo, title, merge, pending, onCancel, onConfirm }
         </button>
         <button
           type="button"
-          className="merge-dialog-confirm"
+          className={styles.confirm}
           onClick={onConfirm}
           disabled={pending}
         >

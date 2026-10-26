@@ -1,0 +1,85 @@
+/* 設定画面の「監視するリポジトリ」。保存の行とボタンは SettingsSections.module.css */
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 40px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline {
+  color: var(--text-mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.pipeline[data-pipeline="yes"] {
+  color: var(--done);
+}
+
+.remove {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.remove:hover {
+  color: var(--text-sub);
+}
+
+.add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.select {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+
+@media (max-width: 899px) {
+  .row {
+    min-height: 44px;
+  }
+
+  .remove {
+    min-height: 44px;
+  }
+
+  .select {
+    height: 44px;
+    border-radius: 8px;
+  }
+}

@@ -3,6 +3,8 @@
 import { useEffect, useState, useTransition } from "react";
 import { saveNotifyEvents } from "@/app/(app)/settings/actions";
 import { useDemo } from "./DemoContext";
+import styles from "./NotifySetting.module.css";
+import settingsStyles from "./SettingsSections.module.css";
 import { changedRepos, formatSaveFailures, type NotifyDraft } from "@/lib/notifyChanges";
 import {
   NOTIFY_EVENT_KINDS,
@@ -94,17 +96,17 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
 
   return (
     <div>
-      <div className="notify-table-wrap">
-        <table className="notify-table">
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
           <thead>
             <tr>
-              <th scope="col" className="notify-kind-head" aria-label="通知の種類" />
+              <th scope="col" className={styles.kindHead} aria-label="通知の種類" />
               {rows.map((row) => (
-                <th key={row.name} scope="col" className="notify-repo-head">
-                  <span className="notify-repo-name mono" title={row.name}>
+                <th key={row.name} scope="col" className={styles.repoHead}>
+                  <span className={`${styles.repoName} mono`} title={row.name}>
                     {shortName(row.name)}
                   </span>
-                  {!row.pipeline && <span className="notify-no-pipeline">パイプラインなし</span>}
+                  {!row.pipeline && <span className={styles.noPipeline}>パイプラインなし</span>}
                 </th>
               ))}
             </tr>
@@ -112,12 +114,12 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
           <tbody>
             {NOTIFY_EVENT_KINDS.map((kind) => (
               <tr key={kind}>
-                <th scope="row" className="notify-kind">
-                  <span className="notify-name">{NOTIFY_EVENT_LABELS[kind].name}</span>
-                  <span className="notify-desc">{NOTIFY_EVENT_LABELS[kind].description}</span>
+                <th scope="row" className={styles.kind}>
+                  <span className={styles.name}>{NOTIFY_EVENT_LABELS[kind].name}</span>
+                  <span className={styles.desc}>{NOTIFY_EVENT_LABELS[kind].description}</span>
                 </th>
                 {rows.map((row) => (
-                  <td key={row.name} className="notify-cell">
+                  <td key={row.name} className={styles.cell}>
                     <input
                       type="checkbox"
                       checked={(current[row.name] ?? []).includes(kind)}
@@ -132,10 +134,10 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
           </tbody>
         </table>
       </div>
-      <div className="repo-setting-save">
+      <div className={settingsStyles.save}>
         <button
           type="button"
-          className="setting-button"
+          className={settingsStyles.button}
           onClick={save}
           disabled={saving}
           aria-busy={saving}
@@ -143,12 +145,12 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
           {saving ? "保存中…" : "保存"}
         </button>
         {status.kind === "saved" && (
-          <span className="setting-saved" role="status">
+          <span className={settingsStyles.saved} role="status">
             保存しました
           </span>
         )}
         {status.kind === "error" && (
-          <span className="setting-error" role="alert">
+          <span className={settingsStyles.error} role="alert">
             {status.message}
           </span>
         )}

@@ -1,0 +1,402 @@
+/* パイプライン（リポジトリのページ）。PipelineTable・PipelineRowLink・PipelineTitle で使う。棒は ProgressBar.module.css の `.bar` */
+
+.empty {
+  padding-top: 14px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) repeat(8, minmax(0, 1fr));
+  column-gap: 12px;
+}
+
+.head {
+  align-items: center;
+  height: 40px;
+  border-bottom: 1px solid var(--line);
+}
+
+.colhead {
+  color: #74777f;
+  font-size: 12.5px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.colheadIssue {
+  text-align: left;
+}
+
+/* 行と行の間は枠の外側どうしで6pxになるように、枠のはみ出し（上下4px）を引いた14px */
+.row {
+  align-items: start;
+  min-height: 64px;
+  margin-bottom: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line-soft);
+  color: inherit;
+  text-decoration: none;
+}
+
+.row[data-done="true"] {
+  opacity: 0.62;
+}
+
+/* 行の外枠：疑似要素を重ねるだけなので、行の高さや中身の位置は変わらない */
+@property --frame-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.row[data-frame] {
+  position: relative;
+}
+
+.row[data-frame]::before {
+  content: "";
+  position: absolute;
+  inset: -4px -12px;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--frame-color);
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+
+.row[data-frame="human"] {
+  --frame-color: var(--human);
+}
+
+.row[data-frame="human"]::before {
+  animation: row-frame-human-blink 1.6s ease-in-out infinite;
+}
+
+@keyframes row-frame-human-blink {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.row[data-frame="fail"] {
+  --frame-color: var(--fail);
+}
+
+.row[data-frame="spinning"] {
+  --frame-color: var(--ai);
+}
+
+.row[data-frame="spinning"]::before {
+  background: conic-gradient(from var(--frame-angle), transparent 0 55%, var(--ai));
+  animation: row-frame-spin 2.4s linear infinite;
+}
+
+@keyframes row-frame-spin {
+  to {
+    --frame-angle: 360deg;
+  }
+}
+
+.row[data-frame="queue"] {
+  --frame-color: var(--queue);
+}
+
+.row[data-frame="queue"]::before {
+  opacity: 0.8;
+  animation: row-frame-queue-blink 2.4s ease-in-out infinite;
+}
+
+@keyframes row-frame-queue-blink {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .row[data-frame="human"]::before {
+    opacity: 1;
+    animation: none;
+  }
+
+  :root:not([data-motion="full"]) .row[data-frame="spinning"]::before {
+    background: var(--ai);
+    animation: none;
+  }
+
+  :root:not([data-motion="full"]) .row[data-frame="queue"]::before {
+    opacity: 0.8;
+    animation: none;
+  }
+}
+
+:root[data-motion="reduce"] .row[data-frame="human"]::before {
+  opacity: 1;
+  animation: none;
+}
+
+:root[data-motion="reduce"] .row[data-frame="spinning"]::before {
+  background: var(--ai);
+  animation: none;
+}
+
+:root[data-motion="reduce"] .row[data-frame="queue"]::before {
+  opacity: 0.8;
+  animation: none;
+}
+
+.issue {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.title {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 切れているタイトルだけ、行に乗せた間（キーボードならフォーカス中）に流す。収まっているものは動かさない */
+@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) .row:is(:hover, :focus-visible) .title[data-overflow="true"] {
+    text-overflow: clip;
+  }
+
+  :root:not([data-motion="reduce"]) .row:is(:hover, :focus-visible) .title[data-overflow="true"] .titleText {
+    display: inline-block;
+    transform: translateX(calc(-1 * var(--marquee-distance)));
+    transition: transform var(--marquee-duration) linear 0.3s;
+  }
+}
+
+@media (min-width: 900px) {
+  :root[data-motion="full"] .row:is(:hover, :focus-visible) .title[data-overflow="true"] {
+    text-overflow: clip;
+  }
+
+  :root[data-motion="full"] .row:is(:hover, :focus-visible) .title[data-overflow="true"] .titleText {
+    display: inline-block;
+    transform: translateX(calc(-1 * var(--marquee-distance)));
+    transition: transform var(--marquee-duration) linear 0.3s;
+  }
+}
+
+.reason {
+  display: block;
+  overflow: hidden;
+  color: var(--text-mute);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reason.reasonOpen {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-sub);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.deployedMore {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding-top: 8px;
+}
+
+.deployedMore .toggle {
+  align-self: auto;
+}
+
+.toggle:hover {
+  color: var(--text);
+}
+
+.caret {
+  display: inline-flex;
+  transition: transform 0.15s;
+}
+
+.toggle[aria-expanded="true"] .caret {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caret {
+    transition: none;
+  }
+}
+
+.ref {
+  color: var(--text-mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding-top: 6px;
+}
+
+.cellName {
+  display: none;
+}
+
+.desc {
+  overflow: hidden;
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.descMobile {
+  display: none;
+}
+
+.toneHuman {
+  color: #d39a43;
+}
+
+.toneAi {
+  color: #7fa9ec;
+}
+
+.toneDone {
+  color: var(--done);
+}
+
+.toneFail {
+  color: var(--fail);
+}
+
+.toneQueue {
+  color: var(--text-mute);
+}
+
+@media (max-width: 899px) {
+  .head {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    column-gap: 3px;
+    row-gap: 8px;
+    margin-bottom: 14px;
+    padding: 16px 0;
+  }
+
+  .issue {
+    display: block;
+    grid-column: 1 / -1;
+  }
+
+  .title {
+    display: block;
+    font-size: 15px;
+    white-space: normal;
+  }
+
+  .descMobile {
+    display: inline;
+  }
+
+  .ref {
+    margin-right: 10px;
+  }
+
+  .reason {
+    white-space: normal;
+  }
+
+  /* 押せる範囲だけ44pxに広げ、上下の余白は負のマージンで打ち消して見た目と行の高さは変えない */
+  .toggle {
+    min-height: 44px;
+    margin: -8px 0;
+  }
+
+  .cell {
+    gap: 4px;
+    padding-top: 0;
+  }
+
+  .descCell {
+    display: none;
+  }
+
+  .cellName {
+    display: block;
+    color: var(--text-mute);
+    font-size: 11.5px;
+    visibility: hidden;
+    white-space: nowrap;
+  }
+
+  .cellName[data-current="true"] {
+    color: #c9cbd1;
+    visibility: visible;
+  }
+}
+
+/* 段階が変わった行を光らせる（docs/design.md の「動き」） */
+
+.row[data-flash="a"] {
+  animation: row-flash-a 1.2s ease-out;
+}
+
+.row[data-flash="b"] {
+  animation: row-flash-b 1.2s ease-out;
+}
+
+/* 同じ動きを2つ用意して、続けて段階が変わっても最初からやり直せるようにする（TurnRow.module.css にも同じ物） */
+@keyframes row-flash-a {
+  from {
+    background: var(--flash-color);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@keyframes row-flash-b {
+  from {
+    background: var(--flash-color);
+  }
+  to {
+    background: transparent;
+  }
+}

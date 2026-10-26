@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { signIn } from "@/lib/auth";
 import { DEMO_BASE_PATH } from "@/lib/demo/data";
+import styles from "./LoginScreen.module.css";
 
 export function LoginScreen() {
   async function login() {
@@ -9,13 +10,13 @@ export function LoginScreen() {
   }
 
   return (
-    <main className="login">
+    <main className={styles.login}>
       <form action={login}>
-        <button type="submit" className="login-button">
+        <button type="submit" className={styles.button}>
           GitHubでログイン
         </button>
       </form>
-      <Link className="login-demo-link" href={DEMO_BASE_PATH}>
+      <Link className={styles.demoLink} href={DEMO_BASE_PATH}>
         ログインせずにデモを見る
       </Link>
     </main>
