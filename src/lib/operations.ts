@@ -113,6 +113,9 @@ export async function executeOperation(
           await removeLabel(client, target, pull.number, LABEL.stuck);
         }
         break;
+      case "start":
+        await removeLabel(client, target, issue.number, LABEL.skip);
+        break;
       case "createPull": {
         const head = await findIssueBranch(client, target, issue.number);
         if (!head) return fail(OPERATION_MESSAGES.noBranch);

@@ -23,6 +23,7 @@ function status(overrides: Partial<IssueStatus>): IssueStatus {
 describe("getProgress の位置と色", () => {
   const cases: [Stage, Partial<IssueStatus>, number, string][] = [
     ["notStarted", {}, 0, "human"],
+    ["skipped", {}, 0, "human"],
     ["queued", { turn: "none" }, 0, "queue"],
     ["planning", { turn: "ai" }, 0, "ai"],
     ["implementing", { turn: "ai" }, 1, "ai"],
