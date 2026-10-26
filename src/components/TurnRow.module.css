@@ -78,14 +78,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 112px;
-  height: 34px;
+  position: relative;
+  width: 92px;
+  height: 28px;
   padding: 0;
   border: 1px solid var(--human-border);
   border-radius: 6px;
   background: var(--human-bg);
   color: var(--human-text);
-  font-size: 13.5px;
+  font-size: 12.5px;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -115,8 +116,16 @@
   }
 
   .button {
-    height: 44px;
+    height: 36px;
     border-radius: 8px;
+    font-size: 13px;
+  }
+
+  /* 押せる範囲だけ上下に広げて44pxにする（見た目の高さは変えない） */
+  .button::before {
+    position: absolute;
+    inset: -4px 0;
+    content: "";
   }
 }
 
