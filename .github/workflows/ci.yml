@@ -28,11 +28,16 @@ jobs:
         run: npm run typecheck
       - name: リント
         run: npm run lint
+      # テスト・見た目のテストは、package.json にスクリプトがあるときだけ回す
+      - name: テストがあるか
+        id: unit
+        run: echo "enabled=$(jq -r '.scripts["test"] != null' package.json)" >> "$GITHUB_OUTPUT"
       - name: テスト
+        if: steps.unit.outputs.enabled == 'true'
         run: npm run test
       - name: ビルド
         run: npm run build
-      # 見た目のテスト（package.json に test:visual があるときだけ）。デモの画面のスクショを、前の画像と比べる
+      # 見た目のテスト：画面のスクショを、前の画像と比べる
       - name: 見た目のテストがあるか
         id: visual
         run: echo "enabled=$(jq -r '.scripts["test:visual"] != null' package.json)" >> "$GITHUB_OUTPUT"
