@@ -42,13 +42,16 @@
 
 .target {
   margin: 0;
+  overflow: hidden;
   color: var(--text-mute);
   font-size: 12.5px;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .title {
   margin: 6px 0 0;
+  overflow-wrap: anywhere;
   color: var(--text-strong);
   font-size: 15px;
   font-weight: 600;
@@ -57,6 +60,7 @@
 .result {
   margin: 0;
   padding: 14px 20px;
+  overflow-x: auto;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   color: var(--text-sub);
@@ -67,6 +71,7 @@
 
 .buttons {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   padding: 14px 20px;
