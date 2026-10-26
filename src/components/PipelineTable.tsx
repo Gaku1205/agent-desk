@@ -103,7 +103,7 @@ export function PipelineGrid({ rows, label }: { rows: PipelineGridRow[]; label: 
   const [openReasons, setOpenReasons] = useState<ReadonlySet<number>>(() => new Set());
 
   return (
-    <div role="table" aria-label={label}>
+    <div className={styles.table} role="table" aria-label={label}>
       <div className={`${styles.grid} ${styles.head}`} role="row">
         <div className={`${styles.colhead} ${styles.colheadIssue}`} role="columnheader">
           Issue

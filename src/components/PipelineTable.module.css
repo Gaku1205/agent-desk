@@ -4,9 +4,14 @@
   padding-top: 14px;
 }
 
+/* 表の幅を測るためのコンテナ（Issueの列の幅と、ブロックに切り替える幅を決める） */
+.table {
+  container: pipeline / inline-size;
+}
+
 .grid {
   display: grid;
-  grid-template-columns: minmax(240px, 320px) repeat(8, minmax(0, 1fr));
+  grid-template-columns: clamp(200px, 28cqw, 320px) repeat(8, minmax(0, 1fr));
   column-gap: 12px;
 }
 
@@ -360,6 +365,69 @@
   .toggle {
     min-height: 44px;
     margin: -8px 0;
+  }
+
+  .cell {
+    gap: 4px;
+    padding-top: 0;
+  }
+
+  .descCell {
+    display: none;
+  }
+
+  .cellName {
+    display: block;
+    color: var(--text-mute);
+    font-size: 11.5px;
+    visibility: hidden;
+    white-space: nowrap;
+  }
+
+  .cellName[data-current="true"] {
+    color: #c9cbd1;
+    visibility: visible;
+  }
+}
+
+/*
+ * 表の幅が720px未満（段階の列が約52pxを切る）のときも、スマホと同じブロックにする。
+ * 上の `@media (max-width: 899px)` と同じ中身。media と container は1つの条件にまとめられないため2つ書く
+ */
+@container pipeline (max-width: 719px) {
+  .head {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    column-gap: 3px;
+    row-gap: 8px;
+    margin-bottom: 14px;
+    padding: 16px 0;
+  }
+
+  .issue {
+    display: block;
+    grid-column: 1 / -1;
+  }
+
+  .title {
+    display: block;
+    font-size: 15px;
+    white-space: normal;
+  }
+
+  .descMobile {
+    display: inline;
+  }
+
+  .ref {
+    margin-right: 10px;
+  }
+
+  .reason {
+    white-space: normal;
   }
 
   .cell {
