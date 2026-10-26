@@ -56,6 +56,15 @@ test.describe("デモの画面", () => {
   test("設定", async ({ page }) => {
     await page.goto("/demo/settings");
     await settle(page);
+    const dump = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("body *"))
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          return `DUMP ${el.tagName.toLowerCase()}.${String((el as HTMLElement).className).slice(0, 40)} t=${Math.round(r.top)} h=${Math.round(r.height)} w=${Math.round(r.width)} f=${getComputedStyle(el).fontFamily.slice(0, 20)}`;
+        })
+        .join("\n"),
+    );
+    console.log(dump);
     await expect(page).toHaveScreenshot("settings.png");
   });
 
