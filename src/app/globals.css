@@ -62,6 +62,20 @@ button {
   min-width: 0;
 }
 
+/*
+ * 上に固定する物の高さ。--header-top は、その上に別の帯がある分（デモは 40px。demo/layout.module.css）。
+ * ヘッダーは Header.module.css、パイプラインの列見出しは PipelineTable.module.css で使う
+ */
+:root {
+  --header-top: 0px;
+  --header-h: 52px;
+}
+
+/* 見出しへジャンプしたとき、固定したヘッダーの下に隠れないように */
+[id] {
+  scroll-margin-top: calc(var(--header-top) + var(--header-h));
+}
+
 /* 中身 */
 
 .content {

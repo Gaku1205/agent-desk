@@ -1,13 +1,18 @@
 /* ヘッダー */
 
+/* スクロールしても上に見え続ける。後ろの中身が透けないよう背景は --bg。重なりの順は、列見出し（10）より手前、スマホのメニュー（40以上）より後ろ */
 .header {
+  position: sticky;
+  top: var(--header-top);
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  height: 52px;
+  height: var(--header-h);
   padding: 0 24px;
   border-bottom: 1px solid var(--line);
+  background: var(--bg);
 }
 
 .title {
