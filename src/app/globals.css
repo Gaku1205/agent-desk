@@ -151,6 +151,62 @@ button {
   font-size: 13px;
 }
 
+.sidebar-settings {
+  margin-top: auto;
+  padding-bottom: 8px;
+}
+
+.sidebar-settings + .sidebar-footer {
+  margin-top: 0;
+}
+
+/* 設定画面 */
+
+.settings {
+  max-width: 720px;
+}
+
+.settings-section + .settings-section {
+  margin-top: 40px;
+}
+
+.settings-title {
+  margin: 0 0 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-strong);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.segmented {
+  display: inline-flex;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.segmented-option {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--text-sub);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segmented-option + .segmented-option {
+  border-left: 1px solid var(--border);
+}
+
+.segmented-option[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--text-strong);
+}
+
 .sidebar-footer {
   display: flex;
   flex-direction: column;
@@ -304,9 +360,13 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .status-icon-spin {
+  :root:not([data-motion="full"]) .status-icon-spin {
     animation: none;
   }
+}
+
+:root[data-motion="reduce"] .status-icon-spin {
+  animation: none;
 }
 
 /* 進み具合のバー */
@@ -553,9 +613,13 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .merge-dialog {
+  :root:not([data-motion="full"]) .merge-dialog {
     animation: none;
   }
+}
+
+:root[data-motion="reduce"] .merge-dialog {
+  animation: none;
 }
 
 .merge-dialog-head {
@@ -759,20 +823,35 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pipeline-row[data-frame="human"]::before {
+  :root:not([data-motion="full"]) .pipeline-row[data-frame="human"]::before {
     opacity: 1;
     animation: none;
   }
 
-  .pipeline-row[data-frame="spinning"]::before {
+  :root:not([data-motion="full"]) .pipeline-row[data-frame="spinning"]::before {
     background: var(--ai);
     animation: none;
   }
 
-  .pipeline-row[data-frame="queue"]::before {
+  :root:not([data-motion="full"]) .pipeline-row[data-frame="queue"]::before {
     opacity: 0.8;
     animation: none;
   }
+}
+
+:root[data-motion="reduce"] .pipeline-row[data-frame="human"]::before {
+  opacity: 1;
+  animation: none;
+}
+
+:root[data-motion="reduce"] .pipeline-row[data-frame="spinning"]::before {
+  background: var(--ai);
+  animation: none;
+}
+
+:root[data-motion="reduce"] .pipeline-row[data-frame="queue"]::before {
+  opacity: 0.8;
+  animation: none;
 }
 
 .pipeline-issue {
@@ -791,11 +870,23 @@ button {
 
 /* 切れているタイトルだけ、行に乗せた間（キーボードならフォーカス中）に流す。収まっているものは動かさない */
 @media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
-  .pipeline-row:is(:hover, :focus-visible) .pipeline-title[data-overflow="true"] {
+  :root:not([data-motion="reduce"]) .pipeline-row:is(:hover, :focus-visible) .pipeline-title[data-overflow="true"] {
     text-overflow: clip;
   }
 
-  .pipeline-row:is(:hover, :focus-visible) .pipeline-title[data-overflow="true"] .pipeline-title-text {
+  :root:not([data-motion="reduce"]) .pipeline-row:is(:hover, :focus-visible) .pipeline-title[data-overflow="true"] .pipeline-title-text {
+    display: inline-block;
+    transform: translateX(calc(-1 * var(--marquee-distance)));
+    transition: transform var(--marquee-duration) linear 0.3s;
+  }
+}
+
+@media (min-width: 900px) {
+  :root[data-motion="full"] .pipeline-row:is(:hover, :focus-visible) .pipeline-title[data-overflow="true"] {
+    text-overflow: clip;
+  }
+
+  :root[data-motion="full"] .pipeline-row:is(:hover, :focus-visible) .pipeline-title[data-overflow="true"] .pipeline-title-text {
     display: inline-block;
     transform: translateX(calc(-1 * var(--marquee-distance)));
     transition: transform var(--marquee-duration) linear 0.3s;
@@ -1026,14 +1117,23 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sync-dot[data-fast="true"],
-  .sync-dot[data-busy="true"] {
+  :root:not([data-motion="full"]) .sync-dot[data-fast="true"],
+  :root:not([data-motion="full"]) .sync-dot[data-busy="true"] {
     animation: none;
   }
 
-  .turn-row[data-fade-in="true"] {
+  :root:not([data-motion="full"]) .turn-row[data-fade-in="true"] {
     animation: none;
   }
+}
+
+:root[data-motion="reduce"] .sync-dot[data-fast="true"],
+:root[data-motion="reduce"] .sync-dot[data-busy="true"] {
+  animation: none;
+}
+
+:root[data-motion="reduce"] .turn-row[data-fade-in="true"] {
+  animation: none;
 }
 
 /* スマホ（幅900px未満）のメニュー */
@@ -1145,10 +1245,15 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sidebar,
-  .sidebar[data-open="true"] {
+  :root:not([data-motion="full"]) .sidebar,
+  :root:not([data-motion="full"]) .sidebar[data-open="true"] {
     transition: none;
   }
+}
+
+:root[data-motion="reduce"] .sidebar,
+:root[data-motion="reduce"] .sidebar[data-open="true"] {
+  transition: none;
 }
 
 /* 最近の出来事 */

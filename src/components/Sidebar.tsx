@@ -3,7 +3,7 @@ import { getWatchedRepos } from "@/lib/config";
 import { loadTurns } from "@/lib/loadTurns";
 import { countTurnItems } from "@/lib/turn";
 import { SidebarFrame } from "./SidebarFrame";
-import { SidebarNav } from "./SidebarNav";
+import { SettingsLink, SidebarNav } from "./SidebarNav";
 import { SyncControl } from "./SyncControl";
 
 type Props = {
@@ -24,6 +24,7 @@ export async function Sidebar({ login }: Props) {
     <SidebarFrame>
       <p className="sidebar-title mono">agent-desk</p>
       <SidebarNav repos={repos} counts={counts} />
+      <SettingsLink />
 
       <div className="sidebar-footer">
         <SyncControl />
