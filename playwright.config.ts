@@ -17,8 +17,6 @@ export default defineConfig({
     locale: "ja-JP",
     timezoneId: "Asia/Tokyo",
     reducedMotion: "reduce",
-    // 文字の幅が環境のヒンティング設定で変わらないようにする（変わると折り返しが変わり、画像の高さがずれる）
-    launchOptions: { args: ["--font-render-hinting=none"] },
   },
   projects: [
     { name: "pc", use: { viewport: { width: 1440, height: 900 } } },
