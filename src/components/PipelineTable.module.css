@@ -172,13 +172,21 @@
   white-space: nowrap;
 }
 
-/* 切れているタイトルだけ、行に乗せた間（キーボードならフォーカス中）に流す。収まっているものは動かさない */
+/*
+ * 切れているタイトルだけ、行に乗せた間（キーボードならフォーカス中）に流す。収まっているものは動かさない。
+ * `.marqueeHost` は表の外の行（ホームの「あなたの番」）。行そのものはフォーカスされないので、中の物のフォーカスを見る
+ */
 @media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
-  :root:not([data-motion="reduce"]) .row:is(:hover, :focus-visible) .title[data-overflow="true"] {
+  :root:not([data-motion="reduce"])
+    :is(.row:is(:hover, :focus-visible), .marqueeHost:is(:hover, :has(:focus-visible)))
+    .title[data-overflow="true"] {
     text-overflow: clip;
   }
 
-  :root:not([data-motion="reduce"]) .row:is(:hover, :focus-visible) .title[data-overflow="true"] .titleText {
+  :root:not([data-motion="reduce"])
+    :is(.row:is(:hover, :focus-visible), .marqueeHost:is(:hover, :has(:focus-visible)))
+    .title[data-overflow="true"]
+    .titleText {
     display: inline-block;
     transform: translateX(calc(-1 * var(--marquee-distance)));
     transition: transform var(--marquee-duration) linear 0.3s;
@@ -186,11 +194,16 @@
 }
 
 @media (min-width: 900px) {
-  :root[data-motion="full"] .row:is(:hover, :focus-visible) .title[data-overflow="true"] {
+  :root[data-motion="full"]
+    :is(.row:is(:hover, :focus-visible), .marqueeHost:is(:hover, :has(:focus-visible)))
+    .title[data-overflow="true"] {
     text-overflow: clip;
   }
 
-  :root[data-motion="full"] .row:is(:hover, :focus-visible) .title[data-overflow="true"] .titleText {
+  :root[data-motion="full"]
+    :is(.row:is(:hover, :focus-visible), .marqueeHost:is(:hover, :has(:focus-visible)))
+    .title[data-overflow="true"]
+    .titleText {
     display: inline-block;
     transform: translateX(calc(-1 * var(--marquee-distance)));
     transition: transform var(--marquee-duration) linear 0.3s;

@@ -6,6 +6,8 @@ import { toneRgba } from "@/lib/progress";
 import type { MergeSummary, OperationKind, TurnButton } from "@/lib/turn";
 import { useDemo } from "./DemoContext";
 import { MergeDialog } from "./MergeDialog";
+import pipelineStyles from "./PipelineTable.module.css";
+import { PipelineTitle } from "./PipelineTitle";
 import styles from "./TurnRow.module.css";
 import { useRowEffects } from "./useRowEffects";
 
@@ -21,6 +23,8 @@ type Props = {
   wait: string;
   buttons: TurnButton[];
   merge: MergeSummary | null;
+  /** ホームの2列（幅1100px以上）の形にする。切れているタイトルは行に乗せた間に流す */
+  home?: boolean;
   /** 進み具合のバー */
   children: ReactNode;
 };
@@ -51,7 +55,7 @@ export function TurnRow(props: Props) {
 
   return (
     <li
-      className={styles.row}
+      className={props.home ? `${styles.row} ${styles.home} ${pipelineStyles.marqueeHost}` : styles.row}
       data-fade-in={fadeIn ? "true" : undefined}
       data-flash={flash ?? undefined}
       style={{ "--flash-color": toneRgba("human", 0.12) } as CSSProperties}
@@ -73,7 +77,7 @@ export function TurnRow(props: Props) {
       </a>
       <div className={styles.body}>
         <a className={styles.title} href={props.url} target="_blank" rel="noreferrer">
-          {props.title}
+          {props.home ? <PipelineTitle title={props.title} className={styles.marqueeTitle} /> : props.title}
         </a>
         <p className={styles.desc}>{props.description}</p>
         <div className={styles.progress}>{props.children}</div>

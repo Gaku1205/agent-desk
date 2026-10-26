@@ -40,7 +40,7 @@ export function TurnSection({ items, errors, now, scope }: Props) {
       {items.length === 0 ? (
         <p className={`empty ${styles.empty}`}>今はAIの番です</p>
       ) : (
-        <ul className={styles.list}>
+        <ul className={scope === "all" ? `${styles.list} ${styles.home}` : styles.list}>
           {items.map((item) => (
             <TurnRow
               key={`${item.owner}/${item.repo}#${item.issue.number}`}
@@ -54,6 +54,7 @@ export function TurnSection({ items, errors, now, scope }: Props) {
               wait={formatWait(item.waitingSince, now)}
               buttons={item.buttons}
               merge={item.merge}
+              home={scope === "all"}
             >
               <ProgressBar status={item.status} />
             </TurnRow>
