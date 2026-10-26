@@ -430,6 +430,12 @@
     white-space: normal;
   }
 
+  /* 押せる範囲だけ44pxに広げ、上下の余白は負のマージンで打ち消して見た目と行の高さは変えない */
+  .toggle {
+    min-height: 44px;
+    margin: -8px 0;
+  }
+
   .cell {
     gap: 4px;
     padding-top: 0;
