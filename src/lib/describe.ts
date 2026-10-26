@@ -24,6 +24,9 @@ export type IconSpec = {
   spinning: boolean;
 };
 
+/** パイプラインが動いていないリポジトリの未着手の説明文（docs/design.md の「段階ごとの説明文」） */
+export const PIPELINE_MISSING_TEXT = "パイプライン未設定です。Secretsを登録してください";
+
 function ciText(status: IssueStatus): string {
   return `${status.ci.passed}/${status.ci.total}`;
 }

@@ -132,6 +132,44 @@ describe("保留", () => {
   });
 });
 
+describe("パイプライン未設定", () => {
+  const MISSING = "パイプライン未設定です。Secretsを登録してください";
+  const ASK = "まだ誰にも頼んでいません";
+
+  function itemsFor(pipeline: RepoData["pipeline"], overrides: Partial<RepoData> = {}) {
+    const repoData = data({ issues: [issue(1)], pipeline, ...overrides });
+    return buildTurnItems([ok("o", "r", repoData)], NOW);
+  }
+
+  it("動いていないリポジトリの未着手は、説明文が「パイプライン未設定」でボタンが出ない", () => {
+    const items = itemsFor("notConfigured");
+    expect(items).toHaveLength(1);
+    expect(items[0].description).toBe(MISSING);
+    expect(items[0].buttons).toEqual([]);
+  });
+
+  it("サーバー側でも、おまかせ・実装を依頼は受け付けない", () => {
+    const repoData = data({ issues: [issue(1)], pipeline: "notConfigured" });
+    const status = getIssueStatus(repoData.issues[0], repoData, NOW);
+    expect(isOperationAvailable("plan", status, repoData)).toBe(false);
+    expect(isOperationAvailable("implement", status, repoData)).toBe(false);
+  });
+
+  it("動いている・分からない・調べていないときは今までどおり", () => {
+    for (const pipeline of ["running", "unknown", undefined] as const) {
+      const items = itemsFor(pipeline);
+      expect(items[0].description).toBe(ASK);
+      expect(items[0].buttons.map((b) => b.label)).toEqual(["おまかせ", "実装を依頼"]);
+    }
+  });
+
+  it("未着手以外（保留など）の表示は変えない", () => {
+    const items = itemsFor("notConfigured", { issues: [issue(1, { labels: ["ai:skip"] })] });
+    expect(items[0].description).toBe("保留中です。準備ができたら「始める」を押してください");
+    expect(items[0].buttons.map((b) => b.label)).toEqual(["始める"]);
+  });
+});
+
 describe("buildTurnItems", () => {
   it("人間の番だけを、止まった物を上に、あとは待ちが長い順に並べる", () => {
     const items = buildTurnItems([ok("o", "r", mixedRepo())], NOW);
