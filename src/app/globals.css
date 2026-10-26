@@ -902,9 +902,11 @@ button {
   text-align: left;
 }
 
+/* 行と行の間は枠の外側どうしで6pxになるように、枠のはみ出し（上下4px）を引いた14px */
 .pipeline-row {
   align-items: start;
   min-height: 64px;
+  margin-bottom: 14px;
   padding: 14px 0;
   border-bottom: 1px solid var(--line-soft);
   color: inherit;
@@ -1178,6 +1180,7 @@ button {
     grid-template-columns: repeat(8, minmax(0, 1fr));
     column-gap: 3px;
     row-gap: 8px;
+    margin-bottom: 14px;
     padding: 16px 0;
   }
 
