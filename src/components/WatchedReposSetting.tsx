@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { checkPipeline, saveWatchedRepos } from "@/app/settings/actions";
+import { checkPipeline, saveWatchedRepos } from "@/app/(app)/settings/actions";
+import { useDemo } from "./DemoContext";
 
 export type WatchedRepoRow = {
   /** `owner/repo` */
@@ -26,6 +27,7 @@ export function WatchedReposSetting({ initialRows, options, editable }: Props) {
   const [selected, setSelected] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [saving, startSaving] = useTransition();
+  const demo = useDemo();
 
   useEffect(() => {
     if (status.kind !== "saved") return;
@@ -48,6 +50,8 @@ export function WatchedReposSetting({ initialRows, options, editable }: Props) {
     setRows((prev) => [...prev, { name, pipeline: null }]);
     setSelected("");
     setStatus({ kind: "idle" });
+    // デモでは GitHub に問い合わせない
+    if (demo) return;
     void checkPipeline(name).then((pipeline) => {
       setRows((prev) => prev.map((row) => (row.name === name ? { ...row, pipeline } : row)));
     });
@@ -55,6 +59,10 @@ export function WatchedReposSetting({ initialRows, options, editable }: Props) {
 
   function save() {
     setStatus({ kind: "idle" });
+    if (demo) {
+      demo.notify();
+      return;
+    }
     startSaving(async () => {
       const result = await saveWatchedRepos(rows.map((row) => row.name));
       setStatus(result.ok ? { kind: "saved" } : { kind: "error", message: result.message });

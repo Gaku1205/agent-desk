@@ -52,8 +52,10 @@ button {
 
 .login {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 16px;
   min-height: 100vh;
 }
 
@@ -66,6 +68,16 @@ button {
   color: var(--text-strong);
   cursor: pointer;
   white-space: nowrap;
+}
+
+.login-demo-link {
+  color: var(--text-sub);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.login-demo-link:hover {
+  color: var(--text);
 }
 
 /* 骨組み */
@@ -1554,4 +1566,132 @@ button {
   color: var(--text-mute);
   font-size: 12.5px;
   white-space: nowrap;
+}
+
+/* デモ（/demo）の帯と、押しても動かない操作の知らせ */
+
+.demo-banner {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 40px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: #141019;
+}
+
+.demo-banner-text {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.demo-banner-long {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demo-banner-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--queue);
+}
+
+.demo-banner-short {
+  display: none;
+  white-space: nowrap;
+}
+
+.demo-banner-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 18px;
+}
+
+.demo-banner-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-sub);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.demo-banner-action:hover {
+  color: var(--text);
+}
+
+.demo-banner-action:disabled {
+  color: var(--text-sub);
+  cursor: default;
+}
+
+.demo-app {
+  min-height: calc(100vh - 40px);
+}
+
+.demo-app .sidebar {
+  top: 40px;
+  height: calc(100vh - 40px);
+}
+
+.demo-menu-links {
+  display: none;
+}
+
+.demo-notice {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: 60;
+  margin: 0;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+@media (max-width: 899px) {
+  .demo-banner {
+    padding: 0 16px;
+  }
+
+  .demo-banner-long,
+  .demo-banner-extra {
+    display: none;
+  }
+
+  .demo-banner-short {
+    display: inline;
+  }
+
+  .demo-banner-action {
+    min-height: 40px;
+  }
+
+  .demo-app .sidebar {
+    top: 0;
+    height: auto;
+  }
+
+  .demo-menu-links {
+    display: flex;
+  }
 }

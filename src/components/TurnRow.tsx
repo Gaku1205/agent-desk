@@ -4,6 +4,7 @@ import { useState, useTransition, type CSSProperties, type ReactNode } from "rea
 import { runOperation } from "@/app/actions";
 import { toneRgba } from "@/lib/progress";
 import type { MergeSummary, OperationKind, TurnButton } from "@/lib/turn";
+import { useDemo } from "./DemoContext";
 import { MergeDialog } from "./MergeDialog";
 import { useRowEffects } from "./useRowEffects";
 
@@ -30,9 +31,16 @@ export function TurnRow(props: Props) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
+  const demo = useDemo();
 
   function run(kind: OperationKind, onDone?: () => void) {
     setError(null);
+    if (demo) {
+      // デモでは何も書き込まず、動かないことを知らせる
+      onDone?.();
+      demo.notify();
+      return;
+    }
     startTransition(async () => {
       const result = await runOperation({ kind, owner, repo, issueNumber });
       onDone?.();

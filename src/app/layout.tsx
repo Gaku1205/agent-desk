@@ -1,12 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans_JP, JetBrains_Mono } from "next/font/google";
-import { AppShell } from "@/components/AppShell";
-import { LoginScreen } from "@/components/LoginScreen";
-import { Sidebar } from "@/components/Sidebar";
-import { getSignedInLogin } from "@/lib/auth";
-import { loadTurns } from "@/lib/loadTurns";
 import { MOTION_INIT_SCRIPT } from "@/lib/motion";
-import { getRefreshIntervalMs } from "@/lib/refresh";
 import "./globals.css";
 
 const plexSansJp = IBM_Plex_Sans_JP({
@@ -28,13 +22,10 @@ export const metadata: Metadata = {
   description: "AIに開発を任せるときの進行状況と、人間の判断待ちを1画面で",
 };
 
-export default async function RootLayout({
+/** 全ページ共通の骨組み。ログインの確認は (app)/layout.tsx、デモは demo/layout.tsx */
+export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const login = await getSignedInLogin();
-  const loaded = login ? await loadTurns() : null;
-  const syncedAt = loaded?.now ?? null;
-
   return (
     <html
       lang="ja"
@@ -44,21 +35,7 @@ export default async function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: MOTION_INIT_SCRIPT }} />
       </head>
-      <body>
-        {login && syncedAt ? (
-          <AppShell
-            initialSyncedAt={syncedAt.toISOString()}
-            refreshIntervalMs={getRefreshIntervalMs(loaded?.hasAiWork ?? false)}
-          >
-            <div className="app">
-              <Sidebar login={login} />
-              <div className="main">{children}</div>
-            </div>
-          </AppShell>
-        ) : (
-          <LoginScreen />
-        )}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
