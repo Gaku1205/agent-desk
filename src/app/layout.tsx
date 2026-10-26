@@ -5,6 +5,7 @@ import { LoginScreen } from "@/components/LoginScreen";
 import { Sidebar } from "@/components/Sidebar";
 import { getSignedInLogin } from "@/lib/auth";
 import { loadTurns } from "@/lib/loadTurns";
+import { MOTION_INIT_SCRIPT } from "@/lib/motion";
 import { getRefreshIntervalMs } from "@/lib/refresh";
 import "./globals.css";
 
@@ -35,7 +36,14 @@ export default async function RootLayout({
   const syncedAt = loaded?.now ?? null;
 
   return (
-    <html lang="ja" className={`${plexSansJp.variable} ${jetbrainsMono.variable}`}>
+    <html
+      lang="ja"
+      className={`${plexSansJp.variable} ${jetbrainsMono.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: MOTION_INIT_SCRIPT }} />
+      </head>
       <body>
         {login && syncedAt ? (
           <AppShell

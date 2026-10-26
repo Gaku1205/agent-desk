@@ -3,13 +3,31 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { TurnCounts } from "@/lib/turn";
-import { FileIcon, HomeIcon } from "./icons";
+import { FileIcon, GearIcon, HomeIcon } from "./icons";
 
 type Props = {
   repos: { owner: string; repo: string }[];
   /** 各ページの「あなたの番」の件数 */
   counts: TurnCounts;
 };
+
+/** サイドバーの下のまとまり（同期・更新）の上に置く「設定」へのリンク */
+export function SettingsLink() {
+  const pathname = usePathname();
+
+  return (
+    <nav aria-label="設定" className="sidebar-settings">
+      <Link
+        href="/settings"
+        className="sidebar-item"
+        aria-current={pathname.toLowerCase() === "/settings" ? "page" : undefined}
+      >
+        <GearIcon />
+        <span className="sidebar-item-label">設定</span>
+      </Link>
+    </nav>
+  );
+}
 
 export function SidebarNav({ repos, counts }: Props) {
   const pathname = usePathname();
