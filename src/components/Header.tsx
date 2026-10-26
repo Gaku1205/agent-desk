@@ -2,6 +2,7 @@ import { MenuButton } from "./MenuButton";
 
 type Props =
   | { kind: "home" }
+  | { kind: "settings" }
   | { kind: "repo"; owner: string; repo: string };
 
 export function Header(props: Props) {
@@ -11,6 +12,8 @@ export function Header(props: Props) {
         <MenuButton />
         {props.kind === "home" ? (
           <h1 className="header-title">ホーム</h1>
+        ) : props.kind === "settings" ? (
+          <h1 className="header-title">設定</h1>
         ) : (
           <h1 className="header-repo mono">
             <span className="header-repo-owner">{props.owner}</span>
