@@ -6,7 +6,12 @@ import {
   hasAiTurnWork,
   IDLE_REFRESH_INTERVAL_MS,
   isFastRefresh,
+  LIVE_BUSY_REFRESH_INTERVAL_MS,
+  LIVE_IDLE_REFRESH_INTERVAL_MS,
+  LIVE_REFRESH_DEBOUNCE_MS,
   startAutoRefresh,
+  startLiveRefresh,
+  type LiveEventSource,
   type VisibilitySource,
 } from "./refresh";
 import type { RepoResult } from "./github/types";
@@ -117,6 +122,129 @@ describe("getRefreshIntervalMs", () => {
     expect(getRefreshIntervalMs(true)).toBe(BUSY_REFRESH_INTERVAL_MS);
     expect(getRefreshIntervalMs(true)).toBe(10_000);
     expect(getRefreshIntervalMs(false)).toBe(60_000);
+  });
+});
+
+describe("getRefreshIntervalMs（即時反映がつながっているとき）", () => {
+  it("つながっている間は、AIの番の作業があれば60秒、無ければ5分", () => {
+    expect(getRefreshIntervalMs(true, true)).toBe(LIVE_BUSY_REFRESH_INTERVAL_MS);
+    expect(getRefreshIntervalMs(true, true)).toBe(60_000);
+    expect(getRefreshIntervalMs(false, true)).toBe(LIVE_IDLE_REFRESH_INTERVAL_MS);
+    expect(getRefreshIntervalMs(false, true)).toBe(300_000);
+  });
+
+  it("切れたら元の10秒・60秒に戻る", () => {
+    expect(getRefreshIntervalMs(true, false)).toBe(10_000);
+    expect(getRefreshIntervalMs(false, false)).toBe(60_000);
+  });
+
+  it("つながっている間は速い更新ではない", () => {
+    expect(isFastRefresh(getRefreshIntervalMs(true, true))).toBe(false);
+  });
+});
+
+class FakeLive implements LiveEventSource {
+  closed = false;
+  private listeners = new Map<string, Set<() => void>>();
+  addEventListener(type: "ready" | "refresh" | "error", listener: () => void) {
+    const set = this.listeners.get(type) ?? new Set();
+    set.add(listener);
+    this.listeners.set(type, set);
+  }
+  close() {
+    this.closed = true;
+  }
+  emit(type: "ready" | "refresh" | "error") {
+    for (const listener of this.listeners.get(type) ?? []) listener();
+  }
+}
+
+describe("startLiveRefresh", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const setup = (hidden = false) => {
+    const live = new FakeLive();
+    const refresh = vi.fn();
+    const onConnectedChange = vi.fn();
+    const source = { hidden };
+    const stop = startLiveRefresh({ open: () => live, refresh, onConnectedChange, source });
+    return { live, refresh, onConnectedChange, source, stop };
+  };
+
+  it("ready でつながった、error で切れたと知らせる", () => {
+    const { live, onConnectedChange, refresh } = setup();
+    live.emit("ready");
+    expect(onConnectedChange).toHaveBeenLastCalledWith(true);
+    live.emit("error");
+    expect(onConnectedChange).toHaveBeenLastCalledWith(false);
+    vi.advanceTimersByTime(5_000);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("refresh を受けたら1秒後に取り直す", () => {
+    const { live, refresh } = setup();
+    live.emit("ready");
+    live.emit("refresh");
+    vi.advanceTimersByTime(LIVE_REFRESH_DEBOUNCE_MS - 1);
+    expect(refresh).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("短い間に何通も来ても、取り直しは1回にまとめる", () => {
+    const { live, refresh } = setup();
+    live.emit("ready");
+    for (let i = 0; i < 5; i++) {
+      live.emit("refresh");
+      vi.advanceTimersByTime(100);
+    }
+    vi.advanceTimersByTime(LIVE_REFRESH_DEBOUNCE_MS);
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    live.emit("refresh");
+    vi.advanceTimersByTime(LIVE_REFRESH_DEBOUNCE_MS);
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("つなぎ直したら1回取り直す（最初につながったときは取り直さない）", () => {
+    const { live, refresh } = setup();
+    live.emit("ready");
+    vi.advanceTimersByTime(LIVE_REFRESH_DEBOUNCE_MS);
+    expect(refresh).not.toHaveBeenCalled();
+
+    live.emit("error");
+    live.emit("ready");
+    vi.advanceTimersByTime(LIVE_REFRESH_DEBOUNCE_MS);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("タブが非表示の間は取り直さない", () => {
+    const { live, refresh, source } = setup(true);
+    live.emit("ready");
+    live.emit("refresh");
+    vi.advanceTimersByTime(LIVE_REFRESH_DEBOUNCE_MS);
+    expect(refresh).not.toHaveBeenCalled();
+
+    source.hidden = false;
+    live.emit("refresh");
+    source.hidden = true;
+    vi.advanceTimersByTime(LIVE_REFRESH_DEBOUNCE_MS);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("止めると接続を閉じ、待っている取り直しもやめる", () => {
+    const { live, refresh, stop } = setup();
+    live.emit("ready");
+    live.emit("refresh");
+    stop();
+    vi.advanceTimersByTime(LIVE_REFRESH_DEBOUNCE_MS);
+    expect(refresh).not.toHaveBeenCalled();
+    expect(live.closed).toBe(true);
   });
 });
 
