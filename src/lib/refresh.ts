@@ -45,6 +45,14 @@ export function formatSyncTime(at: Date): string {
   return new Date(at.getTime() + JST_OFFSET_MS).toISOString().slice(11, 19);
 }
 
+/**
+ * 同期の表示に出す時刻：即時反映がつながっている間（`live`）は今の時刻、切れていれば最後に取り直した時刻
+ * （docs/spec.md の「更新」）
+ */
+export function getDisplayedSyncTime(live: boolean, syncedAt: Date, now: Date): Date {
+  return live ? now : syncedAt;
+}
+
 /** 自動更新が見るタブの情報（`document` の一部） */
 export type VisibilitySource = {
   readonly hidden: boolean;
