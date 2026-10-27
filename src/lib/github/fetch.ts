@@ -66,10 +66,17 @@ export async function fetchRepoData(
   return { issues, pulls, comments, pullChecks, events, pipeline, mainDeployedAt };
 }
 
-/** main の最新コミットの公開ステータスから、いちばん新しい成功した公開の時刻を取る（リポジトリごとに1回） */
+/**
+ * main の最新コミットの公開ステータスから、いちばん新しい成功した公開の時刻を取る（リポジトリごとに1回）。
+ * 補助の情報なので、取れなければ null（今までどおり「公開に失敗」のまま）にして、ほかのデータは落とさない
+ */
 async function fetchMainDeployedAt(client: GitHubClient, base: string): Promise<string | null> {
-  const status = await client.get<{ statuses?: GhStatus[] }>(`${base}/commits/main/status`);
-  return latestSuccessDeployAt((status.statuses ?? []).map(convertStatus));
+  try {
+    const status = await client.get<{ statuses?: GhStatus[] }>(`${base}/commits/main/status`);
+    return latestSuccessDeployAt((status.statuses ?? []).map(convertStatus));
+  } catch {
+    return null;
+  }
 }
 
 /** `pipeline.yml` の実行を1件だけ取り、動いているか判定する。調べられなければ「分からない」 */

@@ -160,9 +160,12 @@ describe("parseNextLink", () => {
 });
 
 /** リポジトリ `ok/repo` はデータを返し、`ng/repo` は指定のステータスで失敗する偽のGitHub */
-function fakeGitHub(failStatus: number): typeof fetch {
+function fakeGitHub(failStatus: number, mainStatusFails = false): typeof fetch {
   return async (input) => {
     const path = new URL(String(input)).pathname;
+    if (mainStatusFails && path.endsWith("/commits/main/status")) {
+      return json({ message: "x" }, { status: 404 });
+    }
     if (path.startsWith("/repos/ng/")) return json({ message: "x" }, { status: failStatus });
     if (path.endsWith("/issues")) {
       return json([
@@ -256,6 +259,18 @@ describe("fetchAllRepos", () => {
     expect(result.data.pullChecks[2].checkRuns[0].appSlug).toBe("github-actions");
     expect(result.data.pullChecks[2].statuses[0].updatedAt).toBe("2026-10-21T00:05:00Z");
     expect(result.data.events).toHaveLength(1);
+  });
+
+  it("main の公開ステータスが取れなくても、ほかのデータは取れる（公開の時刻は null）", async () => {
+    const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], {
+      fetcher: fakeGitHub(404, true),
+      now: NOW,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.mainDeployedAt).toBeNull();
+    expect(result.data.issues.map((i) => i.number)).toEqual([1]);
+    expect(result.data.pulls.map((p) => p.number)).toEqual([2]);
   });
 
   it("1つのリポジトリが失敗しても、ほかは取れる", async () => {
