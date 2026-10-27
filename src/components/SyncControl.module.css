@@ -50,6 +50,20 @@
   }
 }
 
+/* 即時反映がつながっている間は点灯（動かない）。取り直し中の脈打ち（下）が優先される */
+.dot[data-live="true"] {
+  background: var(--done);
+  animation: none;
+}
+
+/* 即時反映がつながっている間に時刻の右に出す文字（色だけで伝えないため） */
+.live {
+  margin-left: 6px;
+  color: var(--text-sub);
+  font-family: var(--font-sans), sans-serif;
+  font-size: 12.5px;
+}
+
 .dot[data-busy="true"] {
   background: var(--ai);
   animation: sync-pulse 0.9s ease-in-out infinite;

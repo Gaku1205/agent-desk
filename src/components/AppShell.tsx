@@ -11,7 +11,12 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
-import { isFastRefresh, startAutoRefresh } from "@/lib/refresh";
+import {
+  getRefreshIntervalMs,
+  isFastRefresh,
+  startAutoRefresh,
+  startLiveRefresh,
+} from "@/lib/refresh";
 
 export type ShellState = {
   /** 最後に同期した時刻 */
@@ -19,6 +24,8 @@ export type ShellState = {
   refreshing: boolean;
   /** 今は10秒ごとに自動で取り直している（AIの番の作業がある）か */
   fastRefresh: boolean;
+  /** 即時反映（GitHubのWebhook）につながっているか */
+  live: boolean;
   refresh: () => void;
   /** 今のページで、取り直しが終わった回数（ページを移ると0に戻る） */
   refreshCountOnPage: number;
@@ -61,13 +68,13 @@ export function useMenuState(): Pick<ShellState, "menuOpen" | "openMenu" | "clos
 /** 自動更新・更新ボタン・スマホのメニューの開閉を、画面全体で共有する */
 export function AppShell({
   initialSyncedAt,
-  refreshIntervalMs,
+  hasAiWork,
   children,
 }: {
   /** サーバーが最初に取った時刻（ISO文字列） */
   initialSyncedAt: string;
-  /** 自動で取り直す間隔。取り直しのたびにサーバーが決め直す */
-  refreshIntervalMs: number;
+  /** AIの番の作業があるか。取り直しのたびにサーバーが決め直す（自動で取り直す間隔に使う） */
+  hasAiWork: boolean;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -93,6 +100,20 @@ export function AppShell({
     });
   }
 
+  // 即時反映：Webhookを受けたサーバーから「取り直して」を受け取る（docs/spec.md の「即時反映」）
+  const [live, setLive] = useState(false);
+  useEffect(
+    () =>
+      startLiveRefresh({
+        open: () => new EventSource("/api/events"),
+        refresh,
+        onConnectedChange: setLive,
+        source: document,
+      }),
+    [refresh],
+  );
+
+  const refreshIntervalMs = getRefreshIntervalMs(hasAiWork, live);
   useEffect(
     () => startAutoRefresh({ refresh, source: document, intervalMs: refreshIntervalMs }),
     [refresh, refreshIntervalMs],
@@ -105,6 +126,7 @@ export function AppShell({
       syncedAt,
       refreshing,
       fastRefresh: isFastRefresh(refreshIntervalMs),
+      live,
       refresh,
       refreshCountOnPage: refreshCount.pathname === pathname ? refreshCount.count : 0,
       menuOpen,
@@ -115,6 +137,7 @@ export function AppShell({
       syncedAt,
       refreshing,
       refreshIntervalMs,
+      live,
       refresh,
       refreshCount,
       pathname,
