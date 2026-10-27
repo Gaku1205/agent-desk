@@ -10,6 +10,7 @@ import {
   hasFinishedReviewCheck,
   implementResult,
   isClaudeReviewCheck,
+  latestSuccessDeployAt,
   reviewedWithoutIssues,
   shouldShowIssue,
   stuckReason,
@@ -549,6 +550,51 @@ describe("deployState", () => {
       { context: "Vercel", state: "pending", description: "", updatedAt: "2026-10-25T11:51:00Z" },
     ];
     expect(deployState(statuses, "2026-10-25T11:50:00Z", NOW).state).toBe("deployed");
+  });
+
+  const MERGED = "2026-10-25T11:50:00Z";
+  const failed = [{ context: "Vercel", state: "failure", description: "limit", updatedAt: "2026-10-25T11:55:00Z" }];
+
+  it("マージ後に公開が失敗 → あとの公開が成功 → 公開済み", () => {
+    expect(deployState(failed, MERGED, NOW, "2026-10-25T11:58:00Z")).toEqual({ state: "deployed", unknown: false });
+  });
+
+  it("あとの公開も失敗（成功が無い）なら「公開に失敗」のまま", () => {
+    expect(deployState(failed, MERGED, NOW, null)).toEqual({ state: "failed", unknown: false });
+  });
+
+  it("成功の時刻がマージより前なら「公開に失敗」のまま", () => {
+    expect(deployState(failed, MERGED, NOW, "2026-10-25T11:40:00Z")).toEqual({ state: "failed", unknown: false });
+  });
+
+  it("error でも、あとの公開が成功していれば公開済み", () => {
+    const errored = [{ context: "Vercel", state: "error", description: "", updatedAt: "2026-10-25T11:55:00Z" }];
+    expect(deployState(errored, MERGED, NOW, "2026-10-25T11:58:00Z").state).toBe("deployed");
+  });
+
+  it("公開中（pending）は、あとの公開が成功していても変えない", () => {
+    const pending = [{ context: "Vercel", state: "pending", description: "", updatedAt: "2026-10-25T11:55:00Z" }];
+    expect(deployState(pending, MERGED, NOW, "2026-10-25T11:58:00Z").state).toBe("deploying");
+  });
+
+  it("公開ステータスが無いときは、あとの公開があっても今までどおり", () => {
+    expect(deployState([], MERGED, NOW, "2026-10-25T11:58:00Z").state).toBe("deploying");
+  });
+});
+
+describe("latestSuccessDeployAt", () => {
+  it("Vercel の success のうち、いちばん新しい時刻を返す", () => {
+    const statuses = [
+      { context: "Vercel", state: "success", description: "", updatedAt: "2026-10-25T11:58:00Z" },
+      { context: "Vercel", state: "failure", description: "", updatedAt: "2026-10-25T12:00:00Z" },
+      { context: "Vercel", state: "success", description: "", updatedAt: "2026-10-25T11:30:00Z" },
+      { context: "ci/other", state: "success", description: "", updatedAt: "2026-10-25T11:59:00Z" },
+    ];
+    expect(latestSuccessDeployAt(statuses)).toBe("2026-10-25T11:58:00Z");
+  });
+
+  it("成功が無ければ null", () => {
+    expect(latestSuccessDeployAt([])).toBeNull();
   });
 });
 
