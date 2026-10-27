@@ -17,6 +17,7 @@ import {
 } from "./convert";
 import { GitHubError, toErrorInfo } from "./errors";
 import { judgePipelineState, type PipelineProbe, type PipelineState } from "../pipelineState";
+import { latestSuccessDeployAt } from "../status";
 import { PIPELINE_WORKFLOW_PATH } from "./settings";
 import type { PullChecks, PullData, RepoData, RepoResult } from "./types";
 
@@ -36,7 +37,7 @@ export async function fetchRepoData(
   const base = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
   const since = new Date(now.getTime() - WINDOW_DAYS * DAY_MS).toISOString();
 
-  const [rawIssues, rawPulls, rawComments, rawEvents, pipeline] = await Promise.all([
+  const [rawIssues, rawPulls, rawComments, rawEvents, pipeline, mainDeployedAt] = await Promise.all([
     client.getAll<GhIssue>(
       `${base}/issues?state=all&since=${since}&sort=updated&direction=desc&per_page=100`,
     ),
@@ -44,6 +45,7 @@ export async function fetchRepoData(
     client.getAll<GhComment>(`${base}/issues/comments?since=${since}&per_page=100`),
     client.get<GhIssueEvent[]>(`${base}/issues/events?per_page=100`),
     fetchPipelineState(client, base),
+    fetchMainDeployedAt(client, base),
   ]);
 
   const sinceMs = Date.parse(since);
@@ -61,7 +63,13 @@ export async function fetchRepoData(
     }),
   );
 
-  return { issues, pulls, comments, pullChecks, events, pipeline };
+  return { issues, pulls, comments, pullChecks, events, pipeline, mainDeployedAt };
+}
+
+/** main の最新コミットの公開ステータスから、いちばん新しい成功した公開の時刻を取る（リポジトリごとに1回） */
+async function fetchMainDeployedAt(client: GitHubClient, base: string): Promise<string | null> {
+  const status = await client.get<{ statuses?: GhStatus[] }>(`${base}/commits/main/status`);
+  return latestSuccessDeployAt((status.statuses ?? []).map(convertStatus));
 }
 
 /** `pipeline.yml` の実行を1件だけ取り、動いているか判定する。調べられなければ「分からない」 */

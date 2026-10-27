@@ -234,6 +234,11 @@ function fakeGitHub(failStatus: number): typeof fetch {
         statuses: [{ context: "Vercel", state: "success", updated_at: "2026-10-21T00:05:00Z" }],
       });
     }
+    if (path.endsWith("/commits/main/status")) {
+      return json({
+        statuses: [{ context: "Vercel", state: "success", updated_at: "2026-10-21T01:00:00Z" }],
+      });
+    }
     return json({ message: "unexpected" }, { status: 500 });
   };
 }

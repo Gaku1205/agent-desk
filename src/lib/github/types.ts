@@ -82,6 +82,8 @@ export type RepoData = {
   /** PR番号 → チェックとステータス */
   pullChecks: Record<number, PullChecks>;
   events: IssueEventData[];
+  /** main の最新コミットの、いちばん新しい成功した公開の時刻（無ければ null。調べていなければ無し） */
+  mainDeployedAt?: string | null;
   /** パイプラインが動いているか。調べていなければ（テストなど）無し＝分からない */
   pipeline?: PipelineState;
 };

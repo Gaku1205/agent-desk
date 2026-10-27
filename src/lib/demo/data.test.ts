@@ -67,6 +67,13 @@ describe("デモのサンプル", () => {
     expect(all.some((s) => s.stage === "stuck" && s.stuckReason !== null)).toBe(true);
   });
 
+  it("マージ後の公開は失敗したが、あとの公開が成功した物は公開済みに出る（失敗のままの物は失敗）", () => {
+    const all = statuses();
+    const later = all.find((s) => s.pull?.title === "ボタンを押したときの色を変える");
+    expect(later?.stage).toBe("deployed");
+    expect(all.find((s) => s.stage === "deployFailed")).toBeDefined();
+  });
+
   it("あなたの番・順番待ちの理由・並列動作・最近の出来事がある", () => {
     const results = buildDemoResults(NOW, startPlayback(NOW));
     expect(buildTurnItems(results, NOW).length).toBeGreaterThan(0);

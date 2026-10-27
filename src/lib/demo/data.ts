@@ -476,6 +476,24 @@ function landingPage(base: Date): RepoData {
   });
   addComment(ctx, 15, REVIEW_CLEAN, ago(ctx, 60));
 
+  // 公開済み（マージコミットの公開は失敗したが、そのあとの main の公開が成功したので公開済み）
+  const laterDeployed = addIssue(ctx, 26, "ボタンを押したときの色を変える", {
+    createdAt: ago(ctx, 2 * 60 + 20),
+    labels: ["ai:implement"],
+    planned: true,
+    closedAt: ago(ctx, 50),
+  });
+  addPull(ctx, 39, laterDeployed, {
+    createdAt: ago(ctx, 80),
+    headSha: "e26f39a",
+    mergedAt: ago(ctx, 50),
+    checkRuns: [...ciRuns(4, ago(ctx, 65)), run("review", ago(ctx, 55))],
+    statuses: [vercel("failure", ago(ctx, 48), "Deployment rate limited — retry in 24 hours.")],
+  });
+  addComment(ctx, 39, REVIEW_CLEAN, ago(ctx, 55));
+  // main の最新コミットの、いちばん新しい成功した公開（上のPRより後、下の公開失敗（38分前）より前）
+  ctx.data.mainDeployedAt = ago(ctx, 40);
+
   // 公開中
   const deploying = addIssue(ctx, 8, "お問い合わせフォームに確認の画面を足す", {
     createdAt: ago(ctx, 90),

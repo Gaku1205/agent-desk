@@ -74,6 +74,8 @@ export type StatusInput = {
   pulls: PullData[];
   comments: CommentData[];
   pullChecks: Record<number, PullChecks>;
+  /** main の最新コミットの、いちばん新しい成功した公開の時刻（無ければ null／未取得なら無し） */
+  mainDeployedAt?: string | null;
 };
 
 export const LABEL = {
@@ -326,14 +328,35 @@ export function hasPushedFix(comments: CommentData[], pull: PullData): boolean {
 
 export type DeployState ={ state: "deployed" | "deploying" | "failed"; unknown: boolean };
 
+/** `time` が `base` より後か（どちらか無い・読めないときは false） */
+function isAfter(time: string | null, base: string | null): boolean {
+  if (!time || !base) return false;
+  const t = Date.parse(time);
+  const b = Date.parse(base);
+  return !Number.isNaN(t) && !Number.isNaN(b) && t > b;
+}
+
+/** main の最新コミットの公開ステータスから、いちばん新しい成功した公開の時刻を取る（無ければ null） */
+export function latestSuccessDeployAt(statuses: CommitStatusData[]): string | null {
+  return (
+    statuses
+      .filter((status) => status.context.startsWith("Vercel") && status.state === "success")
+      .map((status) => status.updatedAt)
+      .sort()
+      .at(-1) ?? null
+  );
+}
+
 /**
  * 公開ステータス（context が `Vercel` で始まるコミットステータス）の解決。
- * 無いときは、マージから30分たっていれば「公開済み（状況は不明）」、それまでは「公開中」
+ * 無いときは、マージから30分たっていれば「公開済み（状況は不明）」、それまでは「公開中」。
+ * failure・error でも、main のあとの公開（mainDeployedAt）がマージより後に成功していれば「公開済み」
  */
 export function deployState(
   statuses: CommitStatusData[],
   mergedAt: string | null,
   now: Date,
+  mainDeployed: string | null = null,
 ): DeployState {
   const latest = statuses
     .filter((status) => status.context.startsWith("Vercel"))
@@ -341,7 +364,11 @@ export function deployState(
     .at(-1);
   if (latest) {
     if (latest.state === "success") return { state: "deployed", unknown: false };
-    if (latest.state === "failure" || latest.state === "error") return { state: "failed", unknown: false };
+    if (latest.state === "failure" || latest.state === "error") {
+      return isAfter(mainDeployed, mergedAt)
+        ? { state: "deployed", unknown: false }
+        : { state: "failed", unknown: false };
+    }
     return { state: "deploying", unknown: false };
   }
   const merged = mergedAt ? Date.parse(mergedAt) : NaN;
@@ -384,7 +411,7 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   });
 
   if (pull && checks && pull.merged) {
-    const deploy = deployState(checks.statuses, pull.mergedAt, now);
+    const deploy = deployState(checks.statuses, pull.mergedAt, now, input.mainDeployedAt ?? null);
     if (deploy.state === "deployed") return result("deployed", { deployUnknown: deploy.unknown });
     if (deploy.state === "failed") return result("deployFailed");
     return result("deploying");
