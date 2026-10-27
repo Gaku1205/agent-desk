@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   formatSyncTime,
   BUSY_REFRESH_INTERVAL_MS,
+  getDisplayedSyncTime,
   getRefreshIntervalMs,
   hasAiTurnWork,
   IDLE_REFRESH_INTERVAL_MS,
@@ -40,6 +41,19 @@ class FakeDocument implements VisibilitySource {
     for (const listener of [...this.listeners]) listener();
   }
 }
+
+describe("getDisplayedSyncTime", () => {
+  const syncedAt = new Date("2026-10-27T08:19:17Z");
+  const now = new Date("2026-10-27T08:23:40Z");
+
+  it("つながっている間は今の時刻を出す", () => {
+    expect(getDisplayedSyncTime(true, syncedAt, now)).toBe(now);
+  });
+
+  it("切れていれば最後に取り直した時刻を出す", () => {
+    expect(getDisplayedSyncTime(false, syncedAt, now)).toBe(syncedAt);
+  });
+});
 
 describe("startAutoRefresh", () => {
   beforeEach(() => {
