@@ -22,8 +22,9 @@
   z-index: 10;
   align-items: center;
   height: 40px;
-  /* 先頭の行の枠の上辺（はみ出し4px）が見出しに隠れないように、下に4px空ける。スマホでは display: none なので空かない */
-  margin-bottom: 4px;
+  /* 行の中身と列を揃えるため、行と同じ左右12px。先頭の行との間も、行と行の間と同じ6px空ける。スマホでは display: none なので空かない */
+  margin-bottom: 6px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--line);
   background: var(--bg);
 }
@@ -39,12 +40,12 @@
   text-align: left;
 }
 
-/* 行と行の間は枠の外側どうしで6pxになるように、枠のはみ出し（上下4px）を引いた14px */
+/* 枠は行の外形に収まる。行と行の間は6px。左右12pxは枠（2px）に中身が重ならないための余白 */
 .row {
   align-items: start;
-  min-height: 64px;
-  margin-bottom: 14px;
-  padding: 14px 0;
+  min-height: 52px;
+  margin-bottom: 6px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--line-soft);
   color: inherit;
   text-decoration: none;
@@ -63,12 +64,14 @@
 
 .row[data-frame] {
   position: relative;
+  /* 枠が行の下の線を覆うので、枠のある行は線を見せない（高さは変えない） */
+  border-bottom-color: transparent;
 }
 
 .row[data-frame]::before {
   content: "";
   position: absolute;
-  inset: -4px -12px;
+  inset: 0;
   padding: 2px;
   border-radius: 6px;
   background: var(--frame-color);
@@ -340,9 +343,9 @@
   .row {
     grid-template-columns: repeat(8, minmax(0, 1fr));
     column-gap: 3px;
-    row-gap: 8px;
-    margin-bottom: 14px;
-    padding: 16px 0;
+    row-gap: 6px;
+    margin-bottom: 6px;
+    padding: 10px 12px;
   }
 
   .issue {
@@ -409,9 +412,9 @@
   .row {
     grid-template-columns: repeat(8, minmax(0, 1fr));
     column-gap: 3px;
-    row-gap: 8px;
-    margin-bottom: 14px;
-    padding: 16px 0;
+    row-gap: 6px;
+    margin-bottom: 6px;
+    padding: 10px 12px;
   }
 
   .issue {
