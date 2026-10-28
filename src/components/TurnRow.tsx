@@ -20,6 +20,8 @@ type Props = {
   stage: string;
   url: string;
   description: string;
+  /** 止まった理由のログのURL（あるときだけ「ログを開く ↗」を出す） */
+  logUrl: string | null;
   wait: string;
   buttons: TurnButton[];
   merge: MergeSummary | null;
@@ -82,6 +84,11 @@ export function TurnRow(props: Props) {
             <PipelineTitle title={props.title} className={styles.marqueeTitle} />
           </a>
           <p className={styles.desc}>{props.description}</p>
+          {props.logUrl && (
+            <a className={styles.logLink} href={props.logUrl} target="_blank" rel="noreferrer">
+              ログを開く ↗
+            </a>
+          )}
           <div className={styles.progress}>{props.children}</div>
           {error && (
             <p className={styles.opError} role="alert">
