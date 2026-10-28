@@ -258,19 +258,31 @@ limit_signal() {
 # AIの実行記録（claude-code-action の execution_file）から、失敗の原因を一言に分類する
 #   使用量の上限 / 許可不足 / 作業回数の上限 / その他 / 不明（記録なし）
 classify_failure() {
-  local f="${1:-}" info subtype denials result
+  local f="${1:-}" info subtype denials first result
   if [ -z "$f" ] || [ ! -s "$f" ]; then
     echo "不明（AIの実行記録がありません）"
     return
   fi
+  # first：許可されなかった最初の操作（例：Bash(git rebase main)）。人間がどの許可を足すか決められるように出す。
+  # 中の | と改行は区切りとぶつかるので置き換え、長い物は60文字で切る
   info=$(jq -r 'if type == "array" then . else [.] end | map(select(.type == "result")) | last // {}
-    | "\(.subtype // "")|\(.permission_denials // [] | length)|\(.result // "" | tostring | .[0:300] | gsub("\n"; " "))"' "$f" 2> /dev/null) || info=""
+    | (.permission_denials // []) as $d
+    | ($d[0] // {}) as $x
+    | (if ($x.tool_name // "") == "" then ""
+       else (($x.tool_input.command // $x.tool_input.file_path // $x.tool_input.pattern // "") | tostring) as $arg
+         | if $arg == "" then $x.tool_name else ($x.tool_name + "(" + $arg + ")") end
+       end | gsub("[|\n\r]"; " ") | if length > 60 then .[0:59] + "…" else . end) as $first
+    | "\(.subtype // "")|\($d | length)|\($first)|\(.result // "" | tostring | .[0:300] | gsub("\n"; " "))"' "$f" 2> /dev/null) || info=""
   # 区切りは | （空白の区切りだと、先頭の項目が空のときに詰められてずれる）。result は最後なので、中に | があってもよい
-  IFS='|' read -r subtype denials result <<< "$info"
+  IFS='|' read -r subtype denials first result <<< "$info"
   if printf '%s' "$result" | grep -qiE 'usage limit|rate limit|limit reached|overloaded|429'; then
     echo "使用量の上限"
   elif [ "${denials:-0}" -gt 0 ]; then
-    echo "許可不足（AIが許可されていない操作を試した：${denials}件）"
+    if [ -n "$first" ]; then
+      echo "許可不足（AIが許可されていない操作を試した：${denials}件。最初の1件：${first}）"
+    else
+      echo "許可不足（AIが許可されていない操作を試した：${denials}件）"
+    fi
   elif [ "$subtype" = "error_max_turns" ]; then
     echo "作業回数の上限（--max-turns）"
   elif [ -n "$subtype" ]; then
@@ -436,6 +448,31 @@ mark_for_retry() {
   write_retry_record "$num" "$count" "$kind" "$reason"
   add_label "$num" "ai:retry"
   echo "#$num：${reason}。あとで自動でやり直します（${count}/${MAX_RETRY}回やり直し済み）"
+  alert_if_repeated_failures "$num" "$reason"
+}
+
+# 静かな失敗に早く気づくため：使用量の上限以外の理由で、直近 REPEAT_WINDOW_MIN 分のうちに
+# やり直し待ちになった物が REPEAT_ALERT_AT 件そろったら、1回だけ通知する（仕組みそのものが壊れているかもしれないので）
+REPEAT_WINDOW_MIN="${REPEAT_WINDOW_MIN:-60}"
+REPEAT_ALERT_AT="${REPEAT_ALERT_AT:-2}"
+alert_if_repeated_failures() {
+  local num="$1" reason="$2" now n c body updated recent=0 list=""
+  now=$(date +%s)
+  for n in $(gh api "repos/$REPO/issues?state=open&labels=ai%3Aretry&per_page=100" -q '.[].number' 2> /dev/null); do
+    c=$(retry_comment "$n")
+    [ -z "$c" ] && continue
+    body=$(printf '%s' "$c" | jq -r '.body // ""')
+    # 使用量の上限の待ちは、別の通知（limit）があるので数えない
+    [ -n "$(retry_mark_value "$body" limit-until)" ] && continue
+    updated=$(date -d "$(printf '%s' "$c" | jq -r '.updated_at')" +%s 2> /dev/null || echo 0)
+    if [ $(( now - updated )) -le $(( REPEAT_WINDOW_MIN * 60 )) ]; then
+      recent=$((recent + 1)); list="${list} #${n}"
+    fi
+  done
+  if [ "$recent" -eq "$REPEAT_ALERT_AT" ]; then
+    notify repeat_fail "AIの失敗が続いています" "${list# }：${reason}。仕組みの不調かもしれません。確認してください" 4
+    echo "失敗が ${recent} 件続いたので通知しました"
+  fi
 }
 
 

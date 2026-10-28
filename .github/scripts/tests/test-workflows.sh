@@ -106,4 +106,26 @@ PY
 )
 assert_eq "鍵を使うジョブに App の鍵の段がある" "ok" "$result"
 
+echo "== AIのアクションは、パイプラインの App が起こした実行を断らない（AI自身は除く）"
+for name in claude-plan.yml claude-implement.yml claude-review.yml claude-mention.yml; do
+  wf="$(cat "$WORKFLOWS/$name")"
+  assert_contains "$name：allowed_bots を渡す" "$wf" "allowed_bots: \${{ steps.bots.outputs.list }}"
+  assert_contains "$name：claude[bot] は許可しない" "$wf" '"$SENDER" != "claude[bot]"'
+done
+
+echo "== @claude を呼べるのは、オーナー・メンバー・共同作業者とパイプラインのボットだけ"
+wf="$(cat "$WORKFLOWS/claude-mention.yml")"
+assert_contains "claude-mention.yml：コメントした人の立場を見る" "$wf" "github.event.comment.author_association"
+assert_contains "claude-mention.yml：OWNER・MEMBER・COLLABORATOR だけ" "$wf" "fromJSON('[\"OWNER\",\"MEMBER\",\"COLLABORATOR\"]')"
+assert_contains "claude-mention.yml：ボットは claude[bot] 以外" "$wf" "github.event.comment.user.login != 'claude[bot]'"
+
+echo "== 清書AIの質問には、ダッシュボードが拾う印を付けさせる"
+wf="$(cat "$WORKFLOWS/claude-plan.yml")"
+assert_contains "claude-plan.yml：質問の1行目は <!-- human-request -->" "$wf" "<!-- human-request -->"
+
+echo "== 配り先は sync-targets.sh で決める（テンプレートから作ったリポジトリは自動）"
+wf="$(cat "$WORKFLOWS/sync.yml")"
+assert_contains "sync.yml：sync-targets.sh を使う" "$wf" "list=\$(.github/scripts/sync-targets.sh .github/sync-targets)"
+assert_not_contains "sync.yml：配り先の失敗をプロセス置換で隠さない" "$wf" "< <(.github/scripts/sync-targets.sh"
+
 finish

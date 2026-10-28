@@ -1,0 +1,11 @@
+/* 待機中のパイプライン（ホームだけ）。表の見た目は PipelineTable.module.css */
+
+.count {
+  margin-left: 6px;
+  color: var(--queue);
+  font-weight: 500;
+}
+
+.empty {
+  padding-top: 14px;
+}
