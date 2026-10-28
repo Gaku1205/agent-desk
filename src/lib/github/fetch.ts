@@ -35,7 +35,10 @@ export async function fetchRepoData(
   now: Date = new Date(),
 ): Promise<RepoData> {
   const base = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
-  const since = new Date(now.getTime() - WINDOW_DAYS * DAY_MS).toISOString();
+  // 直近14日の境目。結果の絞り込みに使う
+  const cutoffMs = now.getTime() - WINDOW_DAYS * DAY_MS;
+  // URL に入れる since は日の始め（UTC の0時）に切り下げる。同じ日のあいだは URL が変わり、ETag が効く
+  const since = new Date(Math.floor(cutoffMs / DAY_MS) * DAY_MS).toISOString();
 
   const [rawIssues, rawPulls, rawComments, rawEvents, pipeline, mainDeployedAt] = await Promise.all([
     client.getAll<GhIssue>(
@@ -48,12 +51,18 @@ export async function fetchRepoData(
     fetchMainDeployedAt(client, base),
   ]);
 
-  const sinceMs = Date.parse(since);
-  const issues = rawIssues.map(convertIssue).filter(nonNull);
+  // since は切り下げているので、取ったあとで直近14日に絞り直す
+  const issues = rawIssues
+    .map(convertIssue)
+    .filter(nonNull)
+    .filter((issue) => Date.parse(issue.updatedAt) >= cutoffMs);
   const pulls = rawPulls
     .map(convertPull)
-    .filter((pull) => Date.parse(pull.updatedAt) >= sinceMs);
-  const comments = rawComments.map(convertComment).filter(nonNull);
+    .filter((pull) => Date.parse(pull.updatedAt) >= cutoffMs);
+  const comments = rawComments
+    .map(convertComment)
+    .filter(nonNull)
+    .filter((comment) => Date.parse(comment.createdAt) >= cutoffMs);
   const events = rawEvents.map(convertIssueEvent);
 
   const pullChecks: Record<number, PullChecks> = {};
