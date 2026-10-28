@@ -74,7 +74,7 @@ export type StatusInput = {
   pulls: PullData[];
   comments: CommentData[];
   pullChecks: Record<number, PullChecks>;
-  /** main の最新コミットの、いちばん新しい成功した公開の時刻（無ければ null／未取得なら無し） */
+  /** main の直近のコミットのうち、公開が成功したいちばん新しい物の時刻（無ければ null／未取得なら無し） */
   mainDeployedAt?: string | null;
   /** 公開が無いリポジトリか（`hasNoDeploys` の結果）。渡さなければ pulls と pullChecks から求める */
   noDeploys?: boolean;
@@ -338,11 +338,26 @@ function isAfter(time: string | null, base: string | null): boolean {
   return !Number.isNaN(t) && !Number.isNaN(b) && t > b;
 }
 
-/** main の最新コミットの公開ステータスから、いちばん新しい成功した公開の時刻を取る（無ければ null） */
+/** 公開を飛ばしたコミットのVercelのステータスの説明（パイプラインの更新だけのコミットは Ignored Build Step が公開を止める） */
+const IGNORED_BUILD_DESCRIPTION = "Canceled by Ignored Build Step";
+
+/** 公開の成功に数えるか：Vercel の success で、説明が「Canceled by Ignored Build Step」ではない（前後の空白は無視） */
+function isCountedDeploySuccess(status: CommitStatusData): boolean {
+  return (
+    status.context.startsWith("Vercel") &&
+    status.state === "success" &&
+    status.description.trim() !== IGNORED_BUILD_DESCRIPTION
+  );
+}
+
+/**
+ * 1つのコミットの公開ステータスから、いちばん新しい成功した公開の時刻を取る（無ければ null）。
+ * 公開を飛ばした success（Ignored Build Step）は数えない
+ */
 export function latestSuccessDeployAt(statuses: CommitStatusData[]): string | null {
   return (
     statuses
-      .filter((status) => status.context.startsWith("Vercel") && status.state === "success")
+      .filter(isCountedDeploySuccess)
       .map((status) => status.updatedAt)
       .sort()
       .at(-1) ?? null

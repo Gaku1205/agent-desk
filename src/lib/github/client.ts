@@ -45,6 +45,11 @@ export class GitHubClient {
     this.fetcher = fetcher;
   }
 
+  /** サーバーのメモリに覚える物のキー（トークンのハッシュ＋名前。トークンそのものは入れない） */
+  memoKey(name: string): string {
+    return etagCacheKey(this.token, name);
+  }
+
   /** 1回のGET。失敗したら GitHubError（トークンは含めない）。次のページのURLも返す */
   async request(pathOrUrl: string): Promise<{ json: unknown; next: string | null }> {
     const url = pathOrUrl.startsWith("https://") ? pathOrUrl : `${API_BASE}${pathOrUrl}`;

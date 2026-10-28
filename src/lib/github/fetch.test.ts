@@ -6,7 +6,7 @@ import {
   parseNextLink,
 } from "./client";
 import { classifyError, GitHubError } from "./errors";
-import { fetchAllRepos } from "./fetch";
+import { fetchAllRepos, mainDeployedCacheForTest } from "./fetch";
 
 const TOKEN = "ghp_secret_token_value";
 const NOW = new Date("2026-10-25T00:00:00Z");
@@ -160,10 +160,17 @@ describe("parseNextLink", () => {
 });
 
 /** リポジトリ `ok/repo` はデータを返し、`ng/repo` は指定のステータスで失敗する偽のGitHub */
-function fakeGitHub(failStatus: number, mainStatusFails = false): typeof fetch {
+function fakeGitHub(
+  failStatus: number,
+  mainStatusFails = false,
+  mainCommits: Record<string, unknown[]> = {
+    mainsha: [{ context: "Vercel", state: "success", updated_at: "2026-10-21T01:00:00Z" }],
+  },
+): typeof fetch {
   return async (input) => {
-    const path = new URL(String(input)).pathname;
-    if (mainStatusFails && path.endsWith("/commits/main/status")) {
+    const url = new URL(String(input));
+    const path = url.pathname;
+    if (mainStatusFails && path.endsWith("/commits") && url.searchParams.get("sha") === "main") {
       return json({ message: "x" }, { status: 404 });
     }
     if (path.startsWith("/repos/ng/")) return json({ message: "x" }, { status: failStatus });
@@ -237,10 +244,12 @@ function fakeGitHub(failStatus: number, mainStatusFails = false): typeof fetch {
         statuses: [{ context: "Vercel", state: "success", updated_at: "2026-10-21T00:05:00Z" }],
       });
     }
-    if (path.endsWith("/commits/main/status")) {
-      return json({
-        statuses: [{ context: "Vercel", state: "success", updated_at: "2026-10-21T01:00:00Z" }],
-      });
+    if (path.endsWith("/commits") && url.searchParams.get("sha") === "main") {
+      return json(Object.keys(mainCommits).map((sha) => ({ sha })));
+    }
+    const mainStatus = /\/commits\/([^/]+)\/status$/.exec(path);
+    if (mainStatus && mainStatus[1] in mainCommits) {
+      return json({ statuses: mainCommits[mainStatus[1]] });
     }
     return json({ message: "unexpected" }, { status: 500 });
   };
@@ -333,6 +342,11 @@ describe("fetchAllRepos の since（日の始めに切り下げ）", () => {
 });
 
 describe("fetchAllRepos", () => {
+  beforeEach(() => {
+    etagCacheForTest.clear();
+    mainDeployedCacheForTest.clear();
+  });
+
   it("リポジトリのデータを自前の型にして返す", async () => {
     const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], {
       fetcher: fakeGitHub(404),
@@ -347,7 +361,73 @@ describe("fetchAllRepos", () => {
     expect(result.data.events).toHaveLength(1);
   });
 
-  it("main の公開ステータスが取れなくても、ほかのデータは取れる（公開の時刻は null）", async () => {
+  describe("main の最後に公開が成功した時刻", () => {
+    const repo = [{ owner: "ok", repo: "repo" }];
+    const success = (at: string, description?: string) => ({
+      context: "Vercel",
+      state: "success",
+      description,
+      updated_at: at,
+    });
+    const pending = { context: "Vercel", state: "pending", updated_at: "2026-10-21T03:00:00Z" };
+    const mainDeployedAt = async (fetcher: typeof fetch) => {
+      const [result] = await fetchAllRepos(TOKEN, repo, { fetcher, now: NOW });
+      if (!result.ok) throw new Error("取れていない");
+      return result.data.mainDeployedAt;
+    };
+
+    it("いちばん新しいコミットが pending でも、1つ前のコミットが success ならその時刻を使う", async () => {
+      const at = await mainDeployedAt(
+        fakeGitHub(404, false, { new: [pending], prev: [success("2026-10-21T02:00:00Z")] }),
+      );
+      expect(at).toBe("2026-10-21T02:00:00Z");
+    });
+
+    it("Ignored Build Step の success は数えず、そのさきの success を使う", async () => {
+      const at = await mainDeployedAt(
+        fakeGitHub(404, false, {
+          new: [success("2026-10-21T03:00:00Z", " Canceled by Ignored Build Step ")],
+          prev: [success("2026-10-21T02:00:00Z", "Deployment has completed")],
+        }),
+      );
+      expect(at).toBe("2026-10-21T02:00:00Z");
+    });
+
+    it("直近10件に成功が無ければ null", async () => {
+      expect(await mainDeployedAt(fakeGitHub(404, false, { new: [pending] }))).toBeNull();
+    });
+
+    it("コミット一覧・ステータスのURLに、毎回変わる値を入れない", async () => {
+      const seen: string[] = [];
+      const base = fakeGitHub(404);
+      await mainDeployedAt(async (input, init) => {
+        seen.push(String(input));
+        return base(input, init);
+      });
+      expect(seen).toContain("https://api.github.com/repos/ok/repo/commits?sha=main&per_page=10");
+      expect(seen).toContain(
+        "https://api.github.com/repos/ok/repo/commits/mainsha/status?per_page=100",
+      );
+    });
+
+    it("取得に失敗したら前回の値を使う", async () => {
+      expect(await mainDeployedAt(fakeGitHub(404))).toBe("2026-10-21T01:00:00Z");
+      expect(await mainDeployedAt(fakeGitHub(404, true))).toBe("2026-10-21T01:00:00Z");
+    });
+
+    it("一部のコミットのステータスだけ失敗したときも前回の値を使う", async () => {
+      expect(await mainDeployedAt(fakeGitHub(404))).toBe("2026-10-21T01:00:00Z");
+      const base = fakeGitHub(404, false, { new: [pending], prev: [success("2026-10-21T02:00:00Z")] });
+      const at = await mainDeployedAt(async (input, init) =>
+        String(input).includes("/commits/prev/status")
+          ? json({ message: "x" }, { status: 500 })
+          : base(input, init),
+      );
+      expect(at).toBe("2026-10-21T01:00:00Z");
+    });
+  });
+
+  it("main の公開ステータスが取れなくても、ほかのデータは取れる（前回の値が無ければ公開の時刻は null）", async () => {
     const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], {
       fetcher: fakeGitHub(404, true),
       now: NOW,

@@ -669,6 +669,23 @@ describe("latestSuccessDeployAt", () => {
     expect(latestSuccessDeployAt(statuses)).toBe("2026-10-25T11:58:00Z");
   });
 
+  it("説明が Ignored Build Step の success は数えない（前後の空白は無視）", () => {
+    const ignored = {
+      context: "Vercel",
+      state: "success",
+      description: " Canceled by Ignored Build Step ",
+      updatedAt: "2026-10-25T12:00:00Z",
+    };
+    const deployed = {
+      context: "Vercel",
+      state: "success",
+      description: "Deployment has completed",
+      updatedAt: "2026-10-25T11:00:00Z",
+    };
+    expect(latestSuccessDeployAt([ignored, deployed])).toBe("2026-10-25T11:00:00Z");
+    expect(latestSuccessDeployAt([ignored])).toBeNull();
+  });
+
   it("成功が無ければ null", () => {
     expect(latestSuccessDeployAt([])).toBeNull();
   });
