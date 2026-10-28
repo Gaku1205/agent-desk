@@ -1,3 +1,4 @@
+import { trimTrailingPeriod } from "./humanRequest";
 import { MAX_AUTO_FIX, type IssueStatus } from "./status";
 
 export type Description = {
@@ -37,7 +38,7 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
   switch (status.stage) {
     case "stuck":
       return {
-        long: `${status.stuckReason ?? ""}。確認して、対応したら「再開」を押してください`,
+        long: `${trimTrailingPeriod(status.stuckReason ?? "")}。確認して、対応したら「再開」を押してください`,
         short: "止まっています",
       };
     case "retrying": {
@@ -87,7 +88,10 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
     }
     case "mergeWaiting":
       if (status.mergeWait === "hold") {
-        return { long: `CI ${ci} 通過・マージできます`, short: "マージできます" };
+        return {
+          long: status.holdRequest ?? `CI ${ci} 通過・マージできます`,
+          short: "マージできます",
+        };
       }
       if (status.mergeWait === "autoMerge") {
         return { long: "CIもレビューもOK・自動でマージします", short: "自動でマージします" };

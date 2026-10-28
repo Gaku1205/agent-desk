@@ -15,6 +15,7 @@ function status(overrides: Partial<IssueStatus>): IssueStatus {
     implementError: false,
     deployUnknown: false,
     stuckReason: null,
+    holdRequest: null,
     planned: true,
     fixCount: 1,
     verifyingFix: false,

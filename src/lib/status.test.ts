@@ -329,6 +329,68 @@ describe("getIssueStatus：止まった", () => {
     expect(status.stuckReason).toBe("CIの失敗を2回直しても解決しません");
   });
 
+  it("PRなしで止まったIssueは、清書AIのお願いのコメントの理由を使う", () => {
+    const status = getIssueStatus(
+      issue({ labels: ["ai:stuck"] }),
+      input([], {}, [comment({ body: "<!-- human-request -->\n`zod` を足してください。\n\n詳細" })]),
+      NOW,
+    );
+    expect(status.stuckReason).toBe("`zod` を足してください。");
+  });
+
+  it("お願いのコメントとPRの停止コメントは、新しい方の理由を使う", () => {
+    const pullStuck = (createdAt: string) =>
+      comment({
+        issueNumber: 11,
+        author: "Gaku1205",
+        body: "⏸ 自動で進めるのを止めました：PRの理由",
+        createdAt,
+      });
+    const request = comment({
+      body: "<!-- human-request -->\nお願いの理由",
+      createdAt: "2026-10-25T10:30:00Z",
+    });
+    const run = (stuckAt: string) =>
+      getIssueStatus(
+        issue(),
+        input([pull({ labels: ["ai:stuck"] })], { 11: { checkRuns: [ciFailed] } }, [
+          request,
+          pullStuck(stuckAt),
+        ]),
+        NOW,
+      ).stuckReason;
+    expect(run("2026-10-25T11:00:00Z")).toBe("PRの理由");
+    expect(run("2026-10-25T10:00:00Z")).toBe("お願いの理由");
+  });
+
+  it("claude[bot] 以外のコメントの印は使わない", () => {
+    const status = getIssueStatus(
+      issue({ labels: ["ai:stuck"] }),
+      input([], {}, [comment({ author: "Gaku1205", body: "<!-- human-request -->\n偽物" })]),
+      NOW,
+    );
+    expect(status.stuckReason).toBe(DEFAULT_STUCK_REASON);
+  });
+
+  it("ai:hold のマージ待ちは、PRの説明のお願いを持つ", () => {
+    const body = "Closes #3\n\n## 人間にお願いしたいこと\n- a\n- b\n- c";
+    const status = getIssueStatus(
+      issue(),
+      input([pull({ labels: ["ai:hold"], body })], { 11: { checkRuns: [check()] } }),
+      NOW,
+    );
+    expect(status.mergeWait).toBe("hold");
+    expect(status.holdRequest).toBe("マージの前に：a（ほか2件）");
+    const none = getIssueStatus(
+      issue(),
+      input([pull({ labels: ["ai:hold"], body: "Closes #3\n\n## 人間にお願いしたいこと\nなし" })], {
+        11: { checkRuns: [check()] },
+      }),
+      NOW,
+    );
+    expect(none.holdRequest).toBeNull();
+  });
+
   it("停止コメントが無ければ既定の理由", () => {
     const status = getIssueStatus(issue({ labels: ["ai:stuck", "ai:implement"] }), input(), NOW);
     expect(status.stageBeforeStuck).toBe("implementing");

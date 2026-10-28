@@ -1,3 +1,4 @@
+import { holdRequestText, humanRequestReason } from "./humanRequest";
 import type { CheckRunData, CommentData, CommitStatusData, IssueData, PullChecks, PullData } from "./github/types";
 
 /** 各Issueの段階（docs/spec.md の「状態の判定」） */
@@ -62,6 +63,8 @@ export type IssueStatus = {
   deployUnknown: boolean;
   /** 止まった理由（止まったときだけ） */
   stuckReason: string | null;
+  /** `ai:hold` のマージ待ちで、PRの説明のお願いから作った説明文（`マージの前に：…`。無ければ null） */
+  holdRequest: string | null;
   /** 企画AIが清書した（Issue本文に `> 元のメモ：` がある） */
   planned: boolean;
   /** 自動の修正依頼の数（0〜2） */
@@ -269,8 +272,11 @@ export function reviewedWithoutIssues(comments: CommentData[], pullNumber: numbe
   return reviewOutcome(comments, pullNumber) === "clean";
 }
 
-/** パイプラインがPRに書いた最新の「⏸ 自動で進めるのを止めました：{理由}」の理由 */
-export function stuckReason(comments: CommentData[], pullNumber: number | null): string | null {
+/** パイプラインがPRに書いた最新の「⏸ 自動で進めるのを止めました：{理由}」の理由と、その時刻 */
+function stuckPullReason(
+  comments: CommentData[],
+  pullNumber: number | null,
+): { reason: string; createdAt: string } | null {
   if (pullNumber === null) return null;
   const last = comments
     .filter((comment) => comment.issueNumber === pullNumber && comment.body.includes(STUCK_PREFIX))
@@ -279,7 +285,24 @@ export function stuckReason(comments: CommentData[], pullNumber: number | null):
   if (!last) return null;
   const after = last.body.slice(last.body.indexOf(STUCK_PREFIX) + STUCK_PREFIX.length);
   const reason = after.split("\n")[0].trim();
-  return reason === "" ? null : reason;
+  return reason === "" ? null : { reason, createdAt: last.createdAt };
+}
+
+/** パイプラインがPRに書いた最新の「⏸ 自動で進めるのを止めました：{理由}」の理由 */
+export function stuckReason(comments: CommentData[], pullNumber: number | null): string | null {
+  return stuckPullReason(comments, pullNumber)?.reason ?? null;
+}
+
+/** 止まった物の理由：PRの ⏸ の理由と清書AIのお願いのコメントのうち、新しい方（どちらも無ければ null） */
+export function stuckReasonFor(
+  comments: CommentData[],
+  issueNumber: number,
+  pullNumber: number | null,
+): string | null {
+  const pull = stuckPullReason(comments, pullNumber);
+  const request = humanRequestReason(comments, issueNumber);
+  if (pull && request) return request.createdAt > pull.createdAt ? request.reason : pull.reason;
+  return (pull ?? request)?.reason ?? null;
 }
 
 /**
@@ -433,7 +456,7 @@ export function deployState(
 
 type BaseStatus = Omit<
   IssueStatus,
-  "stage" | "stageBeforeStuck" | "stageBeforeRetry" | "retry" | "stuckReason"
+  "stage" | "stageBeforeStuck" | "stageBeforeRetry" | "retry" | "stuckReason" | "holdRequest"
 > & {
   stage: BaseStage;
 };
@@ -508,6 +531,7 @@ export function getIssueStatus(issue: IssueData, input: StatusInput, now: Date):
     stageBeforeRetry: null,
     retry: null,
     stuckReason: null,
+    holdRequest: base.mergeWait === "hold" && base.pull ? holdRequestText(base.pull.body) : null,
   };
   if (open && hasLabel(LABEL.stuck)) {
     return {
@@ -515,7 +539,9 @@ export function getIssueStatus(issue: IssueData, input: StatusInput, now: Date):
       stage: "stuck",
       turn: "human",
       stageBeforeStuck: base.stage,
-      stuckReason: stuckReason(input.comments, base.pull?.number ?? null) ?? DEFAULT_STUCK_REASON,
+      stuckReason:
+        stuckReasonFor(input.comments, issue.number, base.pull?.number ?? null) ??
+        DEFAULT_STUCK_REASON,
     };
   }
   if (open && hasLabel(LABEL.retry) && !(base.pull?.merged ?? false)) {
