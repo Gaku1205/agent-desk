@@ -77,16 +77,53 @@ export async function fetchRepoData(
   return { issues, pulls, comments, pullChecks, events, pipeline, mainDeployedAt, watchdog };
 }
 
+/** main の直近のコミット（新しい順）を何件まで見るか */
+const MAIN_COMMITS_SAMPLE = 10;
+/** 前回取れた「main の最後の公開の成功の時刻」を覚えておく件数の上限（超えたら古い物から捨てる） */
+export const MAIN_DEPLOYED_CACHE_MAX_ENTRIES = 100;
+
+/** サーバーのメモリ。キーは「トークンのハッシュ＋リポジトリ」（`GitHubClient.memoKey`） */
+const lastMainDeployedAt = new Map<string, string | null>();
+
+function rememberMainDeployedAt(key: string, value: string | null): void {
+  lastMainDeployedAt.delete(key);
+  lastMainDeployedAt.set(key, value);
+  while (lastMainDeployedAt.size > MAIN_DEPLOYED_CACHE_MAX_ENTRIES) {
+    const oldest = lastMainDeployedAt.keys().next();
+    if (oldest.done) break;
+    lastMainDeployedAt.delete(oldest.value);
+  }
+}
+
+/** テスト用：覚えている物を空にする */
+export const mainDeployedCacheForTest = { clear: (): void => lastMainDeployedAt.clear() };
+
 /**
- * main の最新コミットの公開ステータスから、いちばん新しい成功した公開の時刻を取る（リポジトリごとに1回）。
- * 補助の情報なので、取れなければ null（今までどおり「公開に失敗」のまま）にして、ほかのデータは落とさない
+ * main の直近10件のコミットを新しい順に見て、公開の成功（Ignored Build Step を除く）がある
+ * いちばん新しいコミットの時刻を取る（リポジトリごとに1回。見つかった時点でやめる）。
+ * 取得に失敗したら、そのリポジトリで前回取れた値を使う（無ければ null）。
+ * 補助の情報なので、失敗してもほかのデータは落とさない
  */
 async function fetchMainDeployedAt(client: GitHubClient, base: string): Promise<string | null> {
+  const key = client.memoKey(base);
   try {
-    const status = await client.get<{ statuses?: GhStatus[] }>(`${base}/commits/main/status`);
-    return latestSuccessDeployAt((status.statuses ?? []).map(convertStatus));
+    const commits = await client.get<{ sha?: unknown }[]>(
+      `${base}/commits?sha=main&per_page=${MAIN_COMMITS_SAMPLE}`,
+    );
+    if (!Array.isArray(commits)) throw new GitHubError("other");
+    let found: string | null = null;
+    for (const commit of commits.slice(0, MAIN_COMMITS_SAMPLE)) {
+      if (typeof commit?.sha !== "string") throw new GitHubError("other");
+      const status = await client.get<{ statuses?: GhStatus[] }>(
+        `${base}/commits/${encodeURIComponent(commit.sha)}/status?per_page=100`,
+      );
+      found = latestSuccessDeployAt((status.statuses ?? []).map(convertStatus));
+      if (found) break;
+    }
+    rememberMainDeployedAt(key, found);
+    return found;
   } catch {
-    return null;
+    return lastMainDeployedAt.get(key) ?? null;
   }
 }
 
