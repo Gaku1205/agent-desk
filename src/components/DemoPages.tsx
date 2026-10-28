@@ -6,6 +6,7 @@ import { parseNotifyEvents } from "@/lib/notifyEvents";
 import { buildPipelineRows } from "@/lib/pipeline";
 import { buildRunningPipelineRows } from "@/lib/runningPipeline";
 import { filterTurnItems } from "@/lib/turn";
+import { buildWaitingPipelineRows } from "@/lib/waitingPipeline";
 import { useDemoState } from "./DemoContext";
 import { EventSection } from "./EventSection";
 import { Header } from "./Header";
@@ -13,6 +14,7 @@ import { PipelineTable } from "./PipelineTable";
 import { RunningPipelineSection } from "./RunningPipelineSection";
 import { SettingsSections } from "./SettingsSections";
 import { TurnSection } from "./TurnSection";
+import { WaitingPipelineSection } from "./WaitingPipelineSection";
 
 /** デモのホーム：本物のホームと同じ部品に、サンプルのデータを渡す */
 export function DemoHome() {
@@ -23,6 +25,7 @@ export function DemoHome() {
       <Header kind="home" />
       <main className="content">
         <TurnSection items={items} errors={[]} now={now} scope="all" />
+        <WaitingPipelineSection rows={buildWaitingPipelineRows(results, now)} />
         <RunningPipelineSection rows={buildRunningPipelineRows(results, now)} />
         <EventSection events={buildRecentEvents(results, now)} now={now} />
       </main>
