@@ -38,6 +38,8 @@ Issueごとに、清書 → 実装 → PR → CI → レビュー → 修正 →
 
 Next.js（App Router）・TypeScript・Auth.js（GitHubログイン）・GitHub REST API・Vitest・Playwright・Vercel
 
+Vercelは、`.github/` と `docs/pipeline.md` だけの変更では公開を飛ばします。
+
 ## READMEの画像の撮り直し
 
 見た目を変えたときは、`npm run readme:shots` で `assets/readme/` の画像とGIFを撮り直します（初回は `npx playwright install chromium` が要ります）。
