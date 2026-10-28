@@ -33,7 +33,7 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
 
 ### ログインで頼む権限（OAuthのスコープ）
 
-ログインのたびに、`WATCHED_REPOS` と `SETTINGS_REPO`（あれば）のリポジトリが公開かどうかで決める（`src/lib/loginScope.ts`）。人間の設定は増やさない。
+ログインを始めるとき（ログインボタンを押したとき）だけ、`WATCHED_REPOS` と `SETTINGS_REPO`（あれば）のリポジトリが公開かどうかで決める（`src/lib/loginScope.ts`）。人間の設定は増やさない。
 
 - 全部公開 → `read:user public_repo`
 - 1つでも非公開、公開か分からない、または監視リポジトリが0件 → `read:user repo`

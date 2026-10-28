@@ -20,6 +20,7 @@ export async function fetchRepoIsPublic(
           "X-GitHub-Api-Version": "2022-11-28",
         },
         cache: "no-store",
+        signal: AbortSignal.timeout(5000),
       },
     );
     if (!response.ok) return null;
