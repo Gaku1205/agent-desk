@@ -15,6 +15,7 @@ function status(overrides: Partial<IssueStatus>): IssueStatus {
     implementError: false,
     deployUnknown: false,
     stuckReason: null,
+    holdRequest: null,
     planned: false,
     fixCount: 0,
     verifyingFix: false,
@@ -104,6 +105,18 @@ describe("describeStatus", () => {
       { stage: "mergeWaiting", mergeWait: "hold", ci },
       "CI 4/4 通過・マージできます",
       "マージできます",
+    ],
+    [
+      "マージ待ち（hold・PRの説明のお願いあり）",
+      { stage: "mergeWaiting", mergeWait: "hold", ci, holdRequest: "マージの前に：秘密情報を登録（ほか2件）" },
+      "マージの前に：秘密情報を登録（ほか2件）",
+      "マージできます",
+    ],
+    [
+      "止まった（理由の末尾に。がある）",
+      { stage: "stuck", stuckReason: "依存を足してください。" },
+      "依存を足してください。確認して、対応したら「再開」を押してください",
+      "止まっています",
     ],
     [
       "マージ待ち（レビュー前）",
