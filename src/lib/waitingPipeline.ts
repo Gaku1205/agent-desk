@@ -20,7 +20,7 @@ export function buildWaitingPipelineRows(results: RepoResult[], now: Date): Wait
   for (const result of results) {
     if (!result.ok) continue;
     const updatedAtByNumber = new Map(result.data.issues.map((issue) => [issue.number, Date.parse(issue.updatedAt)]));
-    for (const row of buildPipelineRows(result.data, now)) {
+    for (const row of buildPipelineRows(result.data, now, `${result.owner}/${result.repo}`)) {
       if (!isWaitingStage(row.status.stage)) continue;
       entries.push({
         row: { ...row, owner: result.owner, repo: result.repo },

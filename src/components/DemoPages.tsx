@@ -37,7 +37,7 @@ export function DemoHome() {
 export function DemoRepo({ owner, repo }: { owner: string; repo: string }) {
   const { results, items, now } = useDemoState();
   const result = results.find((r) => r.owner === owner && r.repo === repo);
-  const rows = result?.ok ? buildPipelineRows(result.data, now) : [];
+  const rows = result?.ok ? buildPipelineRows(result.data, now, `${owner}/${repo}`) : [];
 
   return (
     <>
