@@ -58,6 +58,8 @@ export type CommitStatusData = {
   /** ステータスの説明（無ければ空文字）。Vercelは失敗の理由をここに書く */
   description: string;
   updatedAt: string;
+  /** ステータスのリンク先（無ければ無し）。公開が success なら公開先、failure・error ならActionsの実行のページ */
+  targetUrl?: string;
 };
 
 export type IssueEventData = {
@@ -85,6 +87,8 @@ export type RepoData = {
   events: IssueEventData[];
   /** main の直近のコミットのうち、公開が成功したいちばん新しい物の時刻（無ければ null。調べていなければ無し） */
   mainDeployedAt?: string | null;
+  /** context ごとの、main の最後に公開が成功した時刻。無ければ（テストなど）`mainDeployedAt` をどの context にも使う */
+  mainDeployedByContext?: Record<string, string>;
   /** パイプラインが動いているか。調べていなければ（テストなど）無し＝分からない */
   pipeline?: PipelineState;
   /** 見張り役（watchdog.yml）の最後の実行。調べていなければ無し＝分からない */

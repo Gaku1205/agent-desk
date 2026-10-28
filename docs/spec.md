@@ -14,7 +14,7 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
   - `ai:implement` → 実装AIがブランチ `claude/issue-<番号>-...` に実装し、PRを自動で作る
   - CIが通ると `ai:review` が付いてレビューAIが確認。指摘なしなら自動でマージ、指摘やCI失敗はAIが2回まで直す
   - 自動で進められないときは `ai:stuck` が付いて止まる。`ai:hold` のPRはマージだけ人間が押す
-  - マージされるとVercelが本番に公開し、結果をマージコミットのコミットステータスに書き込む
+  - マージされるとVercelが本番に公開し、結果をマージコミットのコミットステータスに書き込む。Vercel以外の公開先（AWS App Runner・GitHub Releases の exe・Expo）は、パイプラインが context `deploy/<種類>`（`deploy/aws-apprunner`・`deploy/github-release`・`deploy/expo`）で書く（pending → success／failure・error。success の `target_url` は公開先、failure・error の `target_url` はActionsの実行のページ。`description` は日本語の説明）
   - 監視するリポジトリが全部このパイプラインを入れているとは限らない（`PIPELINE_TOKEN` が無いリポジトリでは、PR作成とマージは人間がする）
 - データベースは持たない。表示する情報は毎回GitHubのREST APIから取る
 - 技術：Next.js（App Router）＋TypeScript、認証はAuth.js（next-auth v5）のGitHubプロバイダ、テストはVitest
@@ -49,8 +49,8 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
 | --- | --- | --- |
 | 止まった | Issueか紐づくPRに `ai:stuck` がある（閉じたIssueは除く） | 人間 |
 | やり直し待ち | Issueか紐づくPRに `ai:retry` があり、閉じたIssueでなく、紐づくPRが未マージ（`ai:stuck` が無いとき。あれば上の「止まった」が優先）。`ai:implement`・CI中・レビュー中などの進行中の段階より優先 | なし |
-| 公開済み | 紐づくPRがマージ済みで、マージコミットの公開ステータスが success。または、マージコミットの公開が failure・error でも、あとの公開が成功している（下の「あとの公開が成功」）。または公開ステータスが無いままマージから30分以上たった。または、公開が無いリポジトリで公開ステータスが無い（マージ直後でも。下の「公開が無いリポジトリ」） | なし |
-| 公開中／公開失敗 | 紐づくPRがマージ済みで、公開ステータスが pending／failure・error。公開ステータスが無く、マージから30分たっていないときも公開中（公開が無いリポジトリを除く）。failure・error でも、あとの公開が成功していれば公開済み（上の行） | なし／人間 |
+| 公開済み | 紐づくPRがマージ済みで、マージコミットの公開ステータスが（context ごとの最新で）全部 success。または、マージコミットの公開が failure・error でも、あとの公開が成功している（下の「あとの公開が成功」）。または公開ステータスが無いままマージから30分以上たった。または、公開が無いリポジトリで公開ステータスが無い（マージ直後でも。下の「公開が無いリポジトリ」） | なし |
+| 公開中／公開失敗 | 紐づくPRがマージ済みで、公開ステータスのどれかが failure・error（公開失敗）、それ以外でどれかが pending（公開中）。公開ステータスが無く、マージから30分たっていないときも公開中（公開が無いリポジトリを除く）。failure・error でも、あとの公開が成功していれば公開済み（上の行） | なし／人間 |
 | 修正中 | 紐づくPRがopenで、パイプラインの「直して」の依頼（`<!-- auto-fix -->` を含むコメント）があり、その依頼に書かれたコミット（`<!-- auto-fix-sha: … -->`）がPRの先頭コミットのまま（AIがまだpushしていない） | AI |
 | レビュー中 | 紐づくPRがopenで、`ai:review` ラベルがあり、Claude Reviewのチェックが「`skipped` 以外の結果で完了」したものがまだ無い（チェックが無い・実行中・`skipped` のみ） | AI |
 | マージ待ち | 紐づくPRがopenで、GitHub ActionsのCIチェック（Claude Review以外）が1つ以上あり、チェックが全部 success | 下を参照 |
@@ -64,9 +64,11 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
 
 「公開が無いリポジトリ」：そのリポジトリの、マージから30分以上たった直近のPR（マージ時刻の新しい順に最大5件）のマージコミットに、公開ステータスがどれも無い。Vercelをつないでいないリポジトリで、マージのたびに30分「公開中」が続くのを避けるため、ここでは公開ステータスが無いPRをマージ時点で「公開済み」にする（「公開状況は不明」は出さない）。1件でも公開ステータスが付いているPRがあるリポジトリは、今までどおり。30分以上前にマージされたPRが0件のときは判断材料が無いので「公開が無い」とはしない（今までどおり30分まで「公開中」）。新しいデータの取得はせず、取得済みの各PRの公開ステータスで判定する。判定は `src/lib/status.ts` の `hasNoDeploys`、結果は `deployState` に渡す。
 
-「あとの公開が成功」：マージコミットの公開が failure・error でも、同じリポジトリの「main の最後に公開が成功した時刻」が、そのPRのマージ時刻より後なら、そのPRの変更は本番に含まれているので公開済みにする（公開済みの表示は「公開状況は不明」にしない）。後のコミットの公開は、それ以前のコミットの内容も含むため。その時刻が無い、またはマージより前のときは、今までどおり「公開に失敗」。判定は `src/lib/status.ts` の `deployState`。
+「公開ステータス」の判定：context が `Vercel` で始まる物**または** `deploy/` で始まる物（判定は `src/lib/deployStatus.ts` の `isDeployStatus` 1つにまとめる）。1つのコミットに複数あるとき（App Runner と Releases など）は、context ごとに `updated_at` が最新の物を取り、まとめる：どれかが failure・error → 公開失敗／それ以外でどれかが pending → 公開中／全部 success → 公開済み。
 
-「main の最後に公開が成功した時刻」は、main の直近のコミット（新しい順に最大10件）の公開ステータス（`Vercel` で始まるcontext）から、success がある一番新しいコミットの、その success の `updated_at` の最新で決める。一番新しいコミットの公開がまだ途中（pending）でも、1つ前のコミットが success ならその時刻を使うので、マージの直後に解決ずみの古い失敗がよみがえらない。説明（`description`）が「Canceled by Ignored Build Step」（前後の空白を除いた完全一致）の success は、公開を飛ばしたコミット（パイプラインの更新だけのコミット）なので、公開の成功に数えない（`src/lib/status.ts` の `latestSuccessDeployAt`）。新しい順に見て、数えられる success が見つかった時点でやめる。10件とも無ければ「無い」（null）。
+「あとの公開が成功」：マージコミットの公開が failure・error でも、その context が、同じリポジトリの「main の最後に公開が成功した時刻」（context ごとに持つ）で、そのPRのマージ時刻より後に**同じ context で**成功していれば、その context は解決ずみ（そのPRの変更は本番に含まれているので）。全部の失敗が解決ずみなら公開済みにする（公開済みの表示は「公開状況は不明」にしない）。後のコミットの公開は、それ以前のコミットの内容も含むため。別の context の success では解決しない（App Runner が失敗したまま Releases だけが後で成功しても、App Runner の失敗は残る）。その時刻が無い、またはマージより前のときは、今までどおり「公開に失敗」。判定は `src/lib/status.ts` の `deployState`。
+
+「main の最後に公開が成功した時刻」は、main の直近のコミット（新しい順に最大10件）の公開ステータス（`Vercel` で始まる、または `deploy/` で始まるcontext）から、context ごとに、success がある一番新しいコミットの、その success の `updated_at` の最新で決める。一番新しいコミットの公開がまだ途中（pending）でも、1つ前のコミットが success ならその時刻を使うので、マージの直後に解決ずみの古い失敗がよみがえらない。説明（`description`）が「Canceled by Ignored Build Step」（前後の空白を除いた完全一致）の success は、公開を飛ばしたコミット（パイプラインの更新だけのコミット）なので、公開の成功に数えない。これは Vercel の context だけの扱い（`deploy/` の context には適用しない）（`src/lib/status.ts` の `latestSuccessDeployAt`・`latestSuccessDeployByContext`）。新しい順に見て、見えた公開の context が全部、数えられる success を見つけた時点でやめる（Vercel だけのリポジトリは、今までどおり success のある最初のコミットで止まる）。10件のうちに無い context は「無い」。取得の回数は増やさない。
 取得は `GET /repos/{owner}/{repo}/commits?sha=main&per_page=10` と、各コミットの `GET /repos/{owner}/{repo}/commits/{sha}/status?per_page=100`（リポジトリごとに1回。回数制限のため、URLに時刻など毎回変わる値は入れず、ETag を効かせる）。コミット一覧・ステータスの取得が1つでも失敗したときは、そのリポジトリで前回うまく取れた値を使い、古い失敗を戻さない（前回の値が無いときだけ null）。前回の値はサーバーのメモリに覚える（キーはトークンのハッシュ＋リポジトリ、件数に上限あり、再起動で消えてよい）。`fetchMainDeployedAt`（`src/lib/github/fetch.ts`）。
 
 一緒に持つ情報（バーと説明文に使う）：
@@ -105,8 +107,9 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
 PR作成待ちは、パイプラインが入っていれば数秒でPRになるので、ふつうは見えない。パイプラインの無いリポジトリや、PR作成が失敗したときに人間の番として出る。
 
 - 「紐づくPR」：本文に `Closes #<番号>`（大文字小文字は問わない、Fixes/Resolvesも可）を含むか、ブランチ名が `claude/issue-<番号>-` で始まるPR
-- 「公開ステータス」：マージコミットのコミットステータス（`GET /repos/{owner}/{repo}/commits/{sha}/status`）のうち、context が `Vercel` で始まるもの。VercelはGitHubのDeploymentではなく、ここに結果を書く（2026年10月25日に実データで確認）
-- 公開失敗の理由：公開失敗の行では、公開ステータスのうち failure・error のものの `description`（Vercelが失敗の理由を書く）を理由として出す。複数あるときは `updated_at` が最新のもの。`description` が空なら理由は出さない（「理由を見る」も出さない）。「rate limited — retry in N hours」の形（N の単位は分・時間・日）は「利用上限に達しました。あとN時間で再開します」のように日本語にし、それ以外は `description` をそのまま出す。Nは `description` の数字をそのまま使う。出す場所はパイプライン表の公開失敗の行だけ（理由の取り出しは `src/lib/deployFailure.ts`）
+- 「公開ステータス」：マージコミットのコミットステータス（`GET /repos/{owner}/{repo}/commits/{sha}/status`）のうち、context が `Vercel` で始まる、または `deploy/` で始まるもの。VercelはGitHubのDeploymentではなく、ここに結果を書く（2026年10月25日に実データで確認）。`deploy/<種類>` はパイプラインが書く
+- 公開失敗の理由：公開失敗の行では、context ごとの最新が failure・error のものの `description`（Vercelが失敗の理由を書く）を理由として出す。失敗しているのが Vercel の1つだけなら `description` だけ。それ以外（`deploy/` の context が失敗しているとき）は、`{種類}：{説明}` を1行ずつ（種類は context の `deploy/` の後ろ。Vercel は「Vercel」）。`description` が空の物は出さず、出す物が無ければ理由は出さない（「理由を見る」も出さない）。「rate limited — retry in N hours」の形（N の単位は分・時間・日）は「利用上限に達しました。あとN時間で再開します」のように日本語にし、それ以外は `description` をそのまま出す。Nは `description` の数字をそのまま使う。出す場所はパイプライン表の公開失敗の行だけ（理由の取り出しは `src/lib/deployFailure.ts`）
+- 公開先のリンク：公開済みの行で、context ごとの最新が success かつ `target_url` が `https://` で始まる物は、文字のリンク `開く ↗`（新しいタブ）を出す。複数あれば種類の名前つきで並べる（`App Runner ↗` `Releases ↗` `Expo ↗`。それ以外の種類は context の `deploy/` の後ろをそのまま）。`target_url` が無い・`https://` で始まらないときは出さない（`src/lib/deployStatus.ts` の `deployLinks`）
 - 公開ステータスが無いまま30分以上たったもの（Vercelをつなぐ前にマージしたものなど）は「公開済み」に入れ、カードに「公開状況は不明」と出す
 - 「GitHub ActionsのCIチェック」：チェックランのうち、作ったアプリが `github-actions` のもの（APIの `app.slug`）で、Claude Reviewのチェック（名前が `review`）を除いたもの。Vercelのチェック（`Vercel Preview Comments` など）は数に入れるが、これだけでは「CIが通った」とみなさない
 - 「実装AIの完了コメント」：`claude[bot]` のコメントで `Claude finished` を含むもの
@@ -182,7 +185,7 @@ PCでは、ウィンドウの幅を変えても崩れないようにする（ホ
 | CIが全部通った／失敗した | PRの先頭コミットのチェック（Claude Reviewを除く）が全部完了したとき、いちばん遅い `completed_at`。失敗は、失敗したチェックの `completed_at` |
 | レビューAIが終わった | Claude Reviewのチェック（`skipped` 以外で完了）の `completed_at` |
 | マージされた | PRの `mergedAt` |
-| 公開された／公開に失敗した | 公開ステータス（`Vercel` で始まるcontext）の `updated_at`（success／failure・error のとき） |
+| 公開された／公開に失敗した | 公開ステータス（`Vercel` または `deploy/` で始まるcontext）の `updated_at`（success／failure・error のとき） |
 
 - 出来事は、画面に出すIssue・PRと同じ取得データから作る。増えるAPI呼び出しは、リポジトリごとにIssueのイベント1回（`per_page=100`）だけにする
 - 出来事を作る処理は `src/lib/` の純粋関数にまとめ、テストする（入力：取得済みのIssue・PR・コメント・チェック・ステータス・イベントと「今」の時刻。出力：新しい順の出来事の配列）

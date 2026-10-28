@@ -1,4 +1,5 @@
 import { describeStatus, failureLogUrl, PIPELINE_MISSING_TEXT } from "./describe";
+import { isDeployStatus } from "./deployStatus";
 import type { IssueData, RepoData, RepoResult } from "./github/types";
 import {
   getIssueStatus,
@@ -181,7 +182,7 @@ export function waitingSince(issue: IssueData, status: IssueStatus, data: RepoDa
     case "deployFailed":
       since = latest(
         (checks?.statuses ?? [])
-          .filter((s) => s.context.startsWith("Vercel"))
+          .filter((s) => isDeployStatus(s.context))
           .map((s) => s.updatedAt),
       );
       since ??= pull?.mergedAt ?? null;

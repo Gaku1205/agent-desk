@@ -267,6 +267,13 @@
   align-self: auto;
 }
 
+/* 公開先のリンク：「理由を見る」と同じ見た目の文字を、横に並べる */
+.deployLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+}
+
 .toggle:hover {
   color: var(--text);
 }

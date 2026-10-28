@@ -1,4 +1,5 @@
 import { deployFailureReason } from "./deployFailure";
+import { deployLinks, type DeployLink } from "./deployStatus";
 import { describeStatus } from "./describe";
 import { failureReasonText, parseFailureReason } from "./failureReason";
 import type { CommentData, RepoData } from "./github/types";
@@ -18,6 +19,8 @@ export type PipelineRow = {
   queueReason: string | null;
   /** 公開失敗の理由（公開ステータスの description）。公開失敗の行で、description があるときだけ */
   deployFailReason: string | null;
+  /** 公開先へのリンク（`開く ↗` など）。公開済みの行で、success の `target_url` が `https://` で始まる物だけ */
+  deployLinks: DeployLink[];
 };
 
 const CLAUDE_BOT = "claude[bot]";
@@ -58,6 +61,11 @@ function failReason(issueNumber: number, data: RepoData): string | null {
   return pull ? deployFailureReason(data.pullChecks[pull.number]?.statuses ?? []) : null;
 }
 
+function deployedLinks(issueNumber: number, data: RepoData): DeployLink[] {
+  const pull = findLinkedPull(data.pulls, issueNumber);
+  return pull ? deployLinks(data.pullChecks[pull.number]?.statuses ?? []) : [];
+}
+
 /** パイプライン表の行：Issue番号が大きい順（段階が変わっても行の位置は変えない） */
 export function buildPipelineRows(data: RepoData, now: Date, repo = ""): PipelineRow[] {
   const visible = data.issues
@@ -78,6 +86,7 @@ export function buildPipelineRows(data: RepoData, now: Date, repo = ""): Pipelin
       queuePosition,
       queueReason: queuePosition === null ? null : queueReasonText(getQueueReason(issue.number, data.comments), repo),
       deployFailReason: status.stage === "deployFailed" ? failReason(issue.number, data) : null,
+      deployLinks: status.stage === "deployed" ? deployedLinks(issue.number, data) : [],
     };
   });
 }
