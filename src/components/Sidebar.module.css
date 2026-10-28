@@ -116,12 +116,25 @@
   color: var(--text-sub);
 }
 
+/* 行の右端の件数2つ（あなたの番 → 実行中。間は8px） */
+.counts {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
 /* 「あなたの番」の件数 */
 .count {
   flex-shrink: 0;
   color: var(--human);
   font-size: 12.5px;
   white-space: nowrap;
+}
+
+/* 「実行中のパイプライン」の件数 */
+.count.countRunning {
+  color: var(--ai);
 }
 
 /* デモ：上の帯（高さ40px）の下に置く */

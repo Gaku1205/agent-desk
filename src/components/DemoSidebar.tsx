@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { DEMO_APP_REPO_URL, DEMO_BASE_PATH, DEMO_REPOS } from "@/lib/demo/data";
+import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
 import { useDemoState } from "./DemoContext";
 import styles from "./Sidebar.module.css";
@@ -11,12 +12,17 @@ import { SyncControl } from "./SyncControl";
 
 /** デモのサイドバー。本物と同じ部品で、リンクの頭が `/demo`。ユーザー名の行の代わりに、スマホでは帯の残りのリンクを出す */
 export function DemoSidebar() {
-  const { items } = useDemoState();
+  const { items, results, now } = useDemoState();
 
   return (
     <SidebarFrame belowBanner>
       <p className={`${styles.title} mono`}>agent-desk</p>
-      <SidebarNav repos={DEMO_REPOS} counts={countTurnItems(items)} basePath={DEMO_BASE_PATH} />
+      <SidebarNav
+        repos={DEMO_REPOS}
+        counts={countTurnItems(items)}
+        runningCounts={countRunningPipelineRows(results, now)}
+        basePath={DEMO_BASE_PATH}
+      />
       <SettingsLink basePath={DEMO_BASE_PATH} />
 
       <div className={styles.footer}>

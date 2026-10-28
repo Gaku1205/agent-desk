@@ -1,5 +1,6 @@
 import { signOut } from "@/lib/auth";
 import { loadTurns } from "@/lib/loadTurns";
+import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
 import styles from "./Sidebar.module.css";
@@ -13,8 +14,9 @@ type Props = {
 
 export async function Sidebar({ login }: Props) {
   const { repos } = await loadWatchedRepos();
-  const { items } = await loadTurns();
+  const { items, results, now } = await loadTurns();
   const counts = countTurnItems(items);
+  const runningCounts = countRunningPipelineRows(results, now);
 
   async function logout() {
     "use server";
@@ -24,7 +26,7 @@ export async function Sidebar({ login }: Props) {
   return (
     <SidebarFrame>
       <p className={`${styles.title} mono`}>agent-desk</p>
-      <SidebarNav repos={repos} counts={counts} />
+      <SidebarNav repos={repos} counts={counts} runningCounts={runningCounts} />
       <SettingsLink />
 
       <div className={styles.footer}>

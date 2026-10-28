@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IssueData, PullData, RepoData, RepoResult } from "./github/types";
-import { buildRunningPipelineRows, isRunningStage } from "./runningPipeline";
+import { buildRunningPipelineRows, countRunningPipelineRows, isRunningStage } from "./runningPipeline";
 import type { Stage } from "./status";
 
 const NOW = new Date("2026-10-25T12:00:00Z");
@@ -62,6 +62,24 @@ describe("isRunningStage", () => {
     ];
     for (const stage of running) expect(isRunningStage(stage)).toBe(true);
     for (const stage of others) expect(isRunningStage(stage)).toBe(false);
+  });
+});
+
+describe("countRunningPipelineRows", () => {
+  it("全体と、owner/repo（小文字）ごとに数える。全体は表の行数と同じ", () => {
+    const results = [
+      ok("O", "A", data({ issues: [issue(2, { labels: ["ai:plan"] }), issue(9, { labels: ["ai:plan"] })] })),
+      ok("o", "b", data({ issues: [issue(5, { labels: ["ai:implement"] }), issue(6)] })),
+      ok("o", "c", data({ issues: [issue(1)] })),
+      { owner: "o", repo: "x", ok: false, error: { kind: "not_found", message: "見つかりません" } } as RepoResult,
+    ];
+    const counts = countRunningPipelineRows(results, NOW);
+    expect(counts).toEqual({ total: 3, byRepo: { "o/a": 2, "o/b": 1 } });
+    expect(counts.total).toBe(buildRunningPipelineRows(results, NOW).length);
+  });
+
+  it("動いている物が無ければ 0 件", () => {
+    expect(countRunningPipelineRows([], NOW)).toEqual({ total: 0, byRepo: {} });
   });
 });
 
