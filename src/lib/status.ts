@@ -76,6 +76,8 @@ export type StatusInput = {
   pullChecks: Record<number, PullChecks>;
   /** main の最新コミットの、いちばん新しい成功した公開の時刻（無ければ null／未取得なら無し） */
   mainDeployedAt?: string | null;
+  /** 公開が無いリポジトリか（`hasNoDeploys` の結果）。渡さなければ pulls と pullChecks から求める */
+  noDeploys?: boolean;
 };
 
 export const LABEL = {
@@ -347,9 +349,43 @@ export function latestSuccessDeployAt(statuses: CommitStatusData[]): string | nu
   );
 }
 
+/** 公開が無いリポジトリかを見る、直近のマージ済みPRの数 */
+export const NO_DEPLOYS_SAMPLE = 5;
+
+/**
+ * 公開が無いリポジトリか：マージから30分以上たった直近のPR（マージ時刻の新しい順に最大5件）の
+ * マージコミットに、公開ステータス（`Vercel` で始まるcontext）がどれも無い。
+ * 30分以上前にマージされたPRが0件なら、判断材料が無いので false
+ */
+export function hasNoDeploys(
+  merged: { mergedAt: string | null; statuses: CommitStatusData[] }[],
+  now: Date,
+): boolean {
+  const recent = merged
+    .flatMap((item) => {
+      const time = item.mergedAt ? Date.parse(item.mergedAt) : NaN;
+      return Number.isNaN(time) || now.getTime() - time < DEPLOY_UNKNOWN_AFTER_MS
+        ? []
+        : [{ time, statuses: item.statuses }];
+    })
+    .sort((a, b) => b.time - a.time)
+    .slice(0, NO_DEPLOYS_SAMPLE);
+  if (recent.length === 0) return false;
+  return recent.every((item) => !item.statuses.some((status) => status.context.startsWith("Vercel")));
+}
+
+/** リポジトリのマージ済みPRと取得済みの pullChecks から `hasNoDeploys` を求める（checks が未取得のPRは見ない） */
+function repoHasNoDeploys(input: StatusInput, now: Date): boolean {
+  const merged = input.pulls
+    .filter((pull) => pull.merged && input.pullChecks[pull.number])
+    .map((pull) => ({ mergedAt: pull.mergedAt, statuses: input.pullChecks[pull.number].statuses }));
+  return hasNoDeploys(merged, now);
+}
+
 /**
  * 公開ステータス（context が `Vercel` で始まるコミットステータス）の解決。
  * 無いときは、マージから30分たっていれば「公開済み（状況は不明）」、それまでは「公開中」。
+ * ただし公開が無いリポジトリ（noDeploys）では、30分たっていなくても「公開済み」（状況は不明にしない）。
  * failure・error でも、main のあとの公開（mainDeployedAt）がマージより後に成功していれば「公開済み」
  */
 export function deployState(
@@ -357,6 +393,7 @@ export function deployState(
   mergedAt: string | null,
   now: Date,
   mainDeployed: string | null = null,
+  noDeploys = false,
 ): DeployState {
   const latest = statuses
     .filter((status) => status.context.startsWith("Vercel"))
@@ -375,6 +412,7 @@ export function deployState(
   if (!Number.isNaN(merged) && now.getTime() - merged >= DEPLOY_UNKNOWN_AFTER_MS) {
     return { state: "deployed", unknown: true };
   }
+  if (noDeploys) return { state: "deployed", unknown: false };
   return { state: "deploying", unknown: false };
 }
 
@@ -411,7 +449,8 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   });
 
   if (pull && checks && pull.merged) {
-    const deploy = deployState(checks.statuses, pull.mergedAt, now, input.mainDeployedAt ?? null);
+    const noDeploys = input.noDeploys ?? repoHasNoDeploys(input, now);
+    const deploy = deployState(checks.statuses, pull.mergedAt, now, input.mainDeployedAt ?? null, noDeploys);
     if (deploy.state === "deployed") return result("deployed", { deployUnknown: deploy.unknown });
     if (deploy.state === "failed") return result("deployFailed");
     return result("deploying");

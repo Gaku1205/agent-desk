@@ -8,6 +8,7 @@ import {
   findLinkedPull,
   getIssueStatus,
   hasFinishedReviewCheck,
+  hasNoDeploys,
   implementResult,
   isClaudeReviewCheck,
   latestSuccessDeployAt,
@@ -579,6 +580,81 @@ describe("deployState", () => {
 
   it("公開ステータスが無いときは、あとの公開があっても今までどおり", () => {
     expect(deployState([], MERGED, NOW, "2026-10-25T11:58:00Z").state).toBe("deploying");
+  });
+});
+
+describe("hasNoDeploys", () => {
+  const vercel = [{ context: "Vercel", state: "success", description: "", updatedAt: "2026-10-25T10:00:00Z" }];
+  const none = (mergedAt: string) => ({ mergedAt, statuses: [] });
+  const withDeploy = (mergedAt: string) => ({ mergedAt, statuses: vercel });
+
+  it("PRが0件なら false", () => {
+    expect(hasNoDeploys([], NOW)).toBe(false);
+  });
+
+  it("30分未満の物しか無いなら false（判断材料なし）", () => {
+    expect(hasNoDeploys([none("2026-10-25T11:50:00Z")], NOW)).toBe(false);
+  });
+
+  it("30分以上前のPRに公開ステータスがどれも無ければ true", () => {
+    expect(hasNoDeploys([none("2026-10-25T11:30:00Z"), none("2026-10-24T09:00:00Z")], NOW)).toBe(true);
+  });
+
+  it("1件でも公開ステータスがあれば false", () => {
+    expect(hasNoDeploys([none("2026-10-25T11:00:00Z"), withDeploy("2026-10-24T09:00:00Z")], NOW)).toBe(false);
+  });
+
+  it("30分未満の物は数えない", () => {
+    expect(hasNoDeploys([withDeploy("2026-10-25T11:50:00Z"), none("2026-10-25T11:00:00Z")], NOW)).toBe(true);
+  });
+
+  it("新しい5件より古い物は見ない", () => {
+    const recent = [1, 2, 3, 4, 5].map((n) => none(`2026-10-25T0${n}:00:00Z`));
+    expect(hasNoDeploys([...recent, withDeploy("2026-10-20T09:00:00Z")], NOW)).toBe(true);
+    expect(hasNoDeploys([...recent.slice(1), withDeploy("2026-10-20T09:00:00Z")], NOW)).toBe(false);
+  });
+
+  it("Vercel で始まらないステータスは公開とみなさない", () => {
+    const other = [{ context: "ci/other", state: "success", description: "", updatedAt: "2026-10-25T10:00:00Z" }];
+    expect(hasNoDeploys([{ mergedAt: "2026-10-25T09:00:00Z", statuses: other }], NOW)).toBe(true);
+  });
+});
+
+describe("公開が無いリポジトリの状態判定", () => {
+  const old = () => mergedPull("2026-10-24T09:00:00Z", { number: 5, body: "Closes #1", headRef: "x" });
+
+  it("deployState：公開が無ければマージ直後でも公開済み（不明にしない）", () => {
+    expect(deployState([], "2026-10-25T11:50:00Z", NOW, null, true)).toEqual({ state: "deployed", unknown: false });
+  });
+
+  it("deployState：公開ステータスがあれば noDeploys でも今までどおり", () => {
+    const pending = [{ context: "Vercel", state: "pending", description: "", updatedAt: "2026-10-25T11:55:00Z" }];
+    expect(deployState(pending, "2026-10-25T11:50:00Z", NOW, null, true).state).toBe("deploying");
+  });
+
+  it("deployState：30分以上たっていれば今までどおり不明", () => {
+    expect(deployState([], "2026-10-25T11:30:00Z", NOW, null, true)).toEqual({ state: "deployed", unknown: true });
+  });
+
+  it("マージ直後のPRが公開済みになる（過去のPRにも公開ステータスが無い）", () => {
+    const status = getIssueStatus(issue({ state: "closed" }), input([mergedPull(), old()], { 11: {}, 5: {} }), NOW);
+    expect(status.stage).toBe("deployed");
+    expect(status.deployUnknown).toBe(false);
+  });
+
+  it("過去に公開ステータスが付いたPRがあれば、マージ直後は公開中", () => {
+    const vercel = [{ context: "Vercel", state: "success", description: "", updatedAt: "2026-10-24T09:05:00Z" }];
+    const status = getIssueStatus(
+      issue({ state: "closed" }),
+      input([mergedPull(), old()], { 11: {}, 5: { statuses: vercel } }),
+      NOW,
+    );
+    expect(status.stage).toBe("deploying");
+  });
+
+  it("30分以上前にマージされたPRが無ければ、マージ直後は公開中", () => {
+    const status = getIssueStatus(issue({ state: "closed" }), input([mergedPull()], { 11: {} }), NOW);
+    expect(status.stage).toBe("deploying");
   });
 });
 
