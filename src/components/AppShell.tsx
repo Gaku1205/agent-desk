@@ -11,14 +11,16 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
-import { getRefreshIntervalMs, isFastRefresh, startAutoRefresh } from "@/lib/refresh";
+import { isFastRefresh, startAutoRefresh } from "@/lib/refresh";
 
 export type ShellState = {
   /** 最後に同期した時刻 */
   syncedAt: Date;
   refreshing: boolean;
-  /** 今は5秒ごとに自動で取り直している（AIの番の作業がある）か */
+  /** 今は10秒ごとに自動で取り直している（AIの番の作業がある）か */
   fastRefresh: boolean;
+  /** 回数制限の残りが少なく、この時刻まで自動更新を止めている。止めていなければ null */
+  pausedUntil: Date | null;
   refresh: () => void;
   /** 今のページで、取り直しが終わった回数（ページを移ると0に戻る） */
   refreshCountOnPage: number;
@@ -61,13 +63,16 @@ export function useMenuState(): Pick<ShellState, "menuOpen" | "openMenu" | "clos
 /** 自動更新・更新ボタン・スマホのメニューの開閉を、画面全体で共有する */
 export function AppShell({
   initialSyncedAt,
-  hasAiWork,
+  refreshIntervalMs,
+  resumeAt,
   children,
 }: {
   /** サーバーが最初に取った時刻（ISO文字列） */
   initialSyncedAt: string;
-  /** AIの番の作業があるか。取り直しのたびにサーバーが決め直す（自動で取り直す間隔に使う） */
-  hasAiWork: boolean;
+  /** 自動で取り直す間隔。取り直しのたびにサーバーが決め直す。null は自動では取り直さない */
+  refreshIntervalMs: number | null;
+  /** 自動更新を止めているとき、再開する時刻（ISO文字列） */
+  resumeAt: string | null;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -93,11 +98,10 @@ export function AppShell({
     });
   }
 
-  const refreshIntervalMs = getRefreshIntervalMs(hasAiWork);
-  useEffect(
-    () => startAutoRefresh({ refresh, source: document, intervalMs: refreshIntervalMs }),
-    [refresh, refreshIntervalMs],
-  );
+  useEffect(() => {
+    if (refreshIntervalMs === null) return;
+    return startAutoRefresh({ refresh, source: document, intervalMs: refreshIntervalMs });
+  }, [refresh, refreshIntervalMs]);
 
   const { menuOpen, openMenu, closeMenu } = useMenuState();
 
@@ -105,7 +109,8 @@ export function AppShell({
     () => ({
       syncedAt,
       refreshing,
-      fastRefresh: isFastRefresh(refreshIntervalMs),
+      fastRefresh: refreshIntervalMs !== null && isFastRefresh(refreshIntervalMs),
+      pausedUntil: refreshIntervalMs === null && resumeAt !== null ? new Date(resumeAt) : null,
       refresh,
       refreshCountOnPage: refreshCount.pathname === pathname ? refreshCount.count : 0,
       menuOpen,
@@ -116,6 +121,7 @@ export function AppShell({
       syncedAt,
       refreshing,
       refreshIntervalMs,
+      resumeAt,
       refresh,
       refreshCount,
       pathname,

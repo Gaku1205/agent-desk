@@ -17,7 +17,8 @@ export default async function AppLayout({
   return (
     <AppShell
       initialSyncedAt={syncedAt.toISOString()}
-      hasAiWork={loaded?.hasAiWork ?? false}
+      refreshIntervalMs={loaded?.refreshPlan.intervalMs ?? null}
+      resumeAt={loaded?.refreshPlan.resumeAt ?? null}
     >
       <div className="app">
         <Sidebar login={login} />

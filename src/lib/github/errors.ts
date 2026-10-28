@@ -1,3 +1,4 @@
+import { formatResetTime } from "../refresh";
 import type { GitHubErrorKind } from "./types";
 
 const MESSAGES: Record<GitHubErrorKind, string> = {
@@ -12,13 +13,28 @@ const MESSAGES: Record<GitHubErrorKind, string> = {
 export class GitHubError extends Error {
   readonly kind: GitHubErrorKind;
   readonly status: number | null;
+  /** 返事の `X-RateLimit-Reset`（回復する時刻。UNIX秒）。無ければ null */
+  readonly rateLimitResetAt: number | null;
 
-  constructor(kind: GitHubErrorKind, status: number | null = null) {
-    super(MESSAGES[kind]);
+  constructor(
+    kind: GitHubErrorKind,
+    status: number | null = null,
+    rateLimitResetAt: number | null = null,
+  ) {
+    super(buildMessage(kind, rateLimitResetAt));
     this.name = "GitHubError";
     this.kind = kind;
     this.status = status;
+    this.rateLimitResetAt = rateLimitResetAt;
   }
+}
+
+/** レート制限で、回復する時刻が分かるときは日本時間 `HH:MM` を入れる */
+function buildMessage(kind: GitHubErrorKind, resetAt: number | null): string {
+  if (kind === "rate_limited" && resetAt !== null) {
+    return `GitHubのレート制限に達しました。${formatResetTime(resetAt)}（日本時間）ごろに回復します`;
+  }
+  return MESSAGES[kind];
 }
 
 /** 失敗したレスポンスのステータスとヘッダーから、エラーの種類を決める */
