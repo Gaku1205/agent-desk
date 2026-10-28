@@ -10,6 +10,8 @@ type Props = {
   repos: { owner: string; repo: string }[];
   /** 各ページの「あなたの番」の件数 */
   counts: TurnCounts;
+  /** 各ページの「実行中のパイプライン」の件数 */
+  runningCounts: TurnCounts;
   /** リンクの頭（デモでは `/demo`） */
   basePath?: string;
 };
@@ -33,7 +35,28 @@ export function SettingsLink({ basePath = "" }: { basePath?: string }) {
   );
 }
 
-export function SidebarNav({ repos, counts, basePath = "" }: Props) {
+/** 行の右端の2つの件数：あなたの番（オレンジ）→ 実行中（青）。リポジトリの行は 0 なら出さない */
+function Counts({ turn, running, hideZero }: { turn: number; running: number; hideZero: boolean }) {
+  const showTurn = !hideZero || turn > 0;
+  const showRunning = !hideZero || running > 0;
+  if (!showTurn && !showRunning) return null;
+  return (
+    <span className={styles.counts}>
+      {showTurn && (
+        <span role="img" aria-label={`あなたの番 ${turn}件`} className={`${styles.count} mono`}>
+          {turn}
+        </span>
+      )}
+      {showRunning && (
+        <span role="img" aria-label={`実行中 ${running}件`} className={`${styles.count} ${styles.countRunning} mono`}>
+          {running}
+        </span>
+      )}
+    </span>
+  );
+}
+
+export function SidebarNav({ repos, counts, runningCounts, basePath = "" }: Props) {
   const pathname = usePathname();
   const isCurrent = (href: string) =>
     pathname.toLowerCase() === href.toLowerCase();
@@ -47,13 +70,13 @@ export function SidebarNav({ repos, counts, basePath = "" }: Props) {
       >
         <HomeIcon />
         <span className={styles.itemLabel}>ホーム</span>
-        <span className={`${styles.count} mono`}>{counts.total}</span>
+        <Counts turn={counts.total} running={runningCounts.total} hideZero={false} />
       </Link>
 
       <p className={styles.heading}>リポジトリ</p>
       {repos.map(({ owner, repo }) => {
         const href = `${basePath}/repos/${owner}/${repo}`;
-        const count = counts.byRepo[`${owner}/${repo}`.toLowerCase()] ?? 0;
+        const key = `${owner}/${repo}`.toLowerCase();
         return (
           <Link
             key={href}
@@ -64,7 +87,11 @@ export function SidebarNav({ repos, counts, basePath = "" }: Props) {
           >
             <FileIcon />
             <span className={`${styles.itemLabel} mono`}>{repo}</span>
-            {count > 0 && <span className={`${styles.count} mono`}>{count}</span>}
+            <Counts
+              turn={counts.byRepo[key] ?? 0}
+              running={runningCounts.byRepo[key] ?? 0}
+              hideZero
+            />
           </Link>
         );
       })}
