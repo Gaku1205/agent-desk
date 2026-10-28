@@ -129,3 +129,44 @@ export function startAutoRefresh(options: {
     source.removeEventListener("visibilitychange", onVisibilityChange);
   };
 }
+
+/**
+ * 自動更新を止めている間、`resumeAt` になったら `refresh` を1回呼ぶ。
+ * その時刻にタブが非表示なら、表示に戻ったときに呼ぶ。取り直したあとの間隔はサーバーが決め直す。
+ * 戻り値は止める関数
+ */
+export function startResumeRefresh(options: {
+  refresh: () => void;
+  source: VisibilitySource;
+  resumeAt: Date;
+  now?: () => Date;
+}): () => void {
+  const { refresh, source, resumeAt, now = () => new Date() } = options;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let waitingForVisible = false;
+
+  const onVisibilityChange = () => {
+    if (source.hidden) return;
+    source.removeEventListener("visibilitychange", onVisibilityChange);
+    waitingForVisible = false;
+    refresh();
+  };
+  const onTime = () => {
+    timer = null;
+    if (source.hidden) {
+      waitingForVisible = true;
+      source.addEventListener("visibilitychange", onVisibilityChange);
+      return;
+    }
+    refresh();
+  };
+
+  timer = setTimeout(onTime, Math.max(0, resumeAt.getTime() - now().getTime()));
+
+  return () => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    if (waitingForVisible) source.removeEventListener("visibilitychange", onVisibilityChange);
+    waitingForVisible = false;
+  };
+}

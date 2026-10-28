@@ -10,6 +10,7 @@ import {
   IDLE_REFRESH_INTERVAL_MS,
   isFastRefresh,
   startAutoRefresh,
+  startResumeRefresh,
   type VisibilitySource,
 } from "./refresh";
 import type { RepoResult } from "./github/types";
@@ -231,5 +232,77 @@ describe("hasAiTurnWork", () => {
     };
     expect(hasAiTurnWork([failed], now)).toBe(false);
     expect(hasAiTurnWork([], now)).toBe(false);
+  });
+});
+
+describe("startResumeRefresh", () => {
+  const now = new Date("2026-10-28T06:00:00Z");
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("再開する時刻になったら1回だけ取り直す", () => {
+    const refresh = vi.fn();
+    startResumeRefresh({
+      refresh,
+      source: new FakeDocument(),
+      resumeAt: new Date(now.getTime() + 60_000),
+      now: () => now,
+    });
+
+    vi.advanceTimersByTime(59_999);
+    expect(refresh).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(10 * 60_000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("再開する時刻を過ぎていれば、すぐ取り直す", () => {
+    const refresh = vi.fn();
+    startResumeRefresh({
+      refresh,
+      source: new FakeDocument(),
+      resumeAt: new Date(now.getTime() - 1_000),
+      now: () => now,
+    });
+    vi.advanceTimersByTime(0);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("その時刻にタブが非表示なら、表示に戻ったときに取り直す", () => {
+    const refresh = vi.fn();
+    const source = new FakeDocument();
+    source.hidden = true;
+    startResumeRefresh({
+      refresh,
+      source,
+      resumeAt: new Date(now.getTime() + 1_000),
+      now: () => now,
+    });
+
+    vi.advanceTimersByTime(5_000);
+    expect(refresh).not.toHaveBeenCalled();
+    source.setHidden(false);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(source.listenerCount).toBe(0);
+  });
+
+  it("止めたら取り直さない", () => {
+    const refresh = vi.fn();
+    const source = new FakeDocument();
+    const stop = startResumeRefresh({
+      refresh,
+      source,
+      resumeAt: new Date(now.getTime() + 1_000),
+      now: () => now,
+    });
+    stop();
+    vi.advanceTimersByTime(5_000);
+    expect(refresh).not.toHaveBeenCalled();
+    expect(source.listenerCount).toBe(0);
   });
 });

@@ -11,7 +11,7 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
-import { isFastRefresh, startAutoRefresh } from "@/lib/refresh";
+import { isFastRefresh, startAutoRefresh, startResumeRefresh } from "@/lib/refresh";
 
 export type ShellState = {
   /** 最後に同期した時刻 */
@@ -99,9 +99,13 @@ export function AppShell({
   }
 
   useEffect(() => {
-    if (refreshIntervalMs === null) return;
+    if (refreshIntervalMs === null) {
+      // 回数制限で止めている間は、再開する時刻に1回だけ取り直す
+      if (resumeAt === null) return;
+      return startResumeRefresh({ refresh, source: document, resumeAt: new Date(resumeAt) });
+    }
     return startAutoRefresh({ refresh, source: document, intervalMs: refreshIntervalMs });
-  }, [refresh, refreshIntervalMs]);
+  }, [refresh, refreshIntervalMs, resumeAt]);
 
   const { menuOpen, openMenu, closeMenu } = useMenuState();
 
