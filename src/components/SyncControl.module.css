@@ -38,7 +38,7 @@
   transition: background 0.3s;
 }
 
-/* 速い更新（10秒ごと）の間はゆっくり明滅する。取り直し中の脈打ち（下）が優先される */
+/* 速い更新（5秒ごと）の間はゆっくり明滅する。取り直し中の脈打ち（下）が優先される */
 .dot[data-fast="true"] {
   background: var(--ai);
   animation: sync-blink 2s ease-in-out infinite;
@@ -48,20 +48,6 @@
   50% {
     opacity: 0.35;
   }
-}
-
-/* 即時反映がつながっている間は点灯（動かない）。取り直し中の脈打ち（下）が優先される */
-.dot[data-live="true"] {
-  background: var(--done);
-  animation: none;
-}
-
-/* 即時反映がつながっている間に時刻の右に出す文字（色だけで伝えないため） */
-.live {
-  margin-left: 6px;
-  color: var(--text-sub);
-  font-family: var(--font-sans), sans-serif;
-  font-size: 12.5px;
 }
 
 .dot[data-busy="true"] {

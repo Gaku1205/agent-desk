@@ -85,8 +85,7 @@ export function DemoShell({
       syncedAt: demo.now,
       refreshing: false,
       fastRefresh: false,
-      // デモは自動更新も即時反映もしない
-      live: false,
+      // デモは自動更新をしない
       // 取り直す物が無いので、押しても動かないことを知らせる
       refresh: notify,
       refreshCountOnPage: seen.pathname === pathname ? seen.count : 0,

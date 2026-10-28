@@ -11,21 +11,14 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
-import {
-  getRefreshIntervalMs,
-  isFastRefresh,
-  startAutoRefresh,
-  startLiveRefresh,
-} from "@/lib/refresh";
+import { getRefreshIntervalMs, isFastRefresh, startAutoRefresh } from "@/lib/refresh";
 
 export type ShellState = {
   /** 最後に同期した時刻 */
   syncedAt: Date;
   refreshing: boolean;
-  /** 今は10秒ごとに自動で取り直している（AIの番の作業がある）か */
+  /** 今は5秒ごとに自動で取り直している（AIの番の作業がある）か */
   fastRefresh: boolean;
-  /** 即時反映（GitHubのWebhook）につながっているか */
-  live: boolean;
   refresh: () => void;
   /** 今のページで、取り直しが終わった回数（ページを移ると0に戻る） */
   refreshCountOnPage: number;
@@ -100,20 +93,7 @@ export function AppShell({
     });
   }
 
-  // 即時反映：Webhookを受けたサーバーから「取り直して」を受け取る（docs/spec.md の「即時反映」）
-  const [live, setLive] = useState(false);
-  useEffect(
-    () =>
-      startLiveRefresh({
-        open: () => new EventSource("/api/events"),
-        refresh,
-        onConnectedChange: setLive,
-        source: document,
-      }),
-    [refresh],
-  );
-
-  const refreshIntervalMs = getRefreshIntervalMs(hasAiWork, live);
+  const refreshIntervalMs = getRefreshIntervalMs(hasAiWork);
   useEffect(
     () => startAutoRefresh({ refresh, source: document, intervalMs: refreshIntervalMs }),
     [refresh, refreshIntervalMs],
@@ -126,7 +106,6 @@ export function AppShell({
       syncedAt,
       refreshing,
       fastRefresh: isFastRefresh(refreshIntervalMs),
-      live,
       refresh,
       refreshCountOnPage: refreshCount.pathname === pathname ? refreshCount.count : 0,
       menuOpen,
@@ -137,7 +116,6 @@ export function AppShell({
       syncedAt,
       refreshing,
       refreshIntervalMs,
-      live,
       refresh,
       refreshCount,
       pathname,

@@ -8,7 +8,6 @@ import {
 } from "./config";
 import { GitHubClient } from "./github/client";
 import { readVariable, WATCHED_REPOS_VARIABLE } from "./github/settings";
-import { rememberWatchedRepos } from "./liveRefresh";
 
 export type LoadedWatchedRepos = {
   repos: WatchedRepo[];
@@ -32,8 +31,5 @@ export const loadWatchedRepos = cache(async (): Promise<LoadedWatchedRepos> => {
       variable = null;
     }
   }
-  const chosen = chooseWatchedRepos(variable);
-  // Webhookの振り分け（即時反映）で、画面と同じ監視するリポジトリを使うために覚えておく
-  rememberWatchedRepos(chosen.repos);
-  return chosen;
+  return chooseWatchedRepos(variable);
 });
