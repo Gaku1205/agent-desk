@@ -1,3 +1,4 @@
+import { isFailedState, latestPerContext } from "./deployStatus";
 import type { IssueData, PullData, RepoData, RepoResult } from "./github/types";
 import {
   ciState,
@@ -206,10 +207,11 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
       }
     }
 
-    const deploy = checks.statuses
-      .filter((status) => status.context.startsWith("Vercel"))
-      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))
-      .at(-1);
+    // context ごとの最新をまとめる：どれかが失敗なら失敗、そうでなくどれかが途中なら出さない、全部成功なら成功
+    const deployStatuses = latestPerContext(checks.statuses).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+    const deploy =
+      deployStatuses.filter((s) => isFailedState(s.state)).at(-1) ??
+      (deployStatuses.every((s) => s.state === "success") ? deployStatuses.at(-1) : undefined);
     if (deploy && pull.merged) {
       if (deploy.state === "success") {
         drafts.push({

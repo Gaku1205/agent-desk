@@ -154,6 +154,25 @@ export function PipelineGrid({ rows, label }: { rows: PipelineGridRow[]; label: 
                 )}
               </>
             )}
+            {row.deployLinks.length > 0 && (
+              <span className={styles.deployLinks}>
+                {row.deployLinks.map((link) => (
+                  // 行全体がリンクなので、入れ子のリンクにせず、押したら新しいタブで開く
+                  <button
+                    type="button"
+                    className={styles.toggle}
+                    key={link.url}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      window.open(link.url, "_blank", "noopener,noreferrer");
+                    }}
+                  >
+                    {link.label} ↗
+                  </button>
+                ))}
+              </span>
+            )}
             <span className={`${styles.desc} ${styles.descMobile} ${TONE_CLASS[row.progress.tone]}`}>
               {row.description}
             </span>

@@ -1,3 +1,4 @@
+import { isCountedDeploySuccess, isDeployStatus, isFailedState, latestPerContext } from "./deployStatus";
 import { holdRequestText, humanRequestReason } from "./humanRequest";
 import type { CheckRunData, CommentData, CommitStatusData, IssueData, PullChecks, PullData } from "./github/types";
 
@@ -79,6 +80,7 @@ export type StatusInput = {
   pullChecks: Record<number, PullChecks>;
   /** main の直近のコミットのうち、公開が成功したいちばん新しい物の時刻（無ければ null／未取得なら無し） */
   mainDeployedAt?: string | null;
+  mainDeployedByContext?: Record<string, string>;
   /** 公開が無いリポジトリか（`hasNoDeploys` の結果）。渡さなければ pulls と pullChecks から求める */
   noDeploys?: boolean;
 };
@@ -361,16 +363,17 @@ function isAfter(time: string | null, base: string | null): boolean {
   return !Number.isNaN(t) && !Number.isNaN(b) && t > b;
 }
 
-/** 公開を飛ばしたコミットのVercelのステータスの説明（パイプラインの更新だけのコミットは Ignored Build Step が公開を止める） */
-const IGNORED_BUILD_DESCRIPTION = "Canceled by Ignored Build Step";
-
-/** 公開の成功に数えるか：Vercel の success で、説明が「Canceled by Ignored Build Step」ではない（前後の空白は無視） */
-function isCountedDeploySuccess(status: CommitStatusData): boolean {
-  return (
-    status.context.startsWith("Vercel") &&
-    status.state === "success" &&
-    status.description.trim() !== IGNORED_BUILD_DESCRIPTION
-  );
+/**
+ * 1つのコミットの公開ステータスから、context ごとに、いちばん新しい成功した公開の時刻を取る。
+ * 公開を飛ばした success（Vercel の Ignored Build Step）は数えない
+ */
+export function latestSuccessDeployByContext(statuses: CommitStatusData[]): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const status of statuses.filter(isCountedDeploySuccess)) {
+    const current = result[status.context];
+    if (current === undefined || status.updatedAt > current) result[status.context] = status.updatedAt;
+  }
+  return result;
 }
 
 /**
@@ -378,13 +381,7 @@ function isCountedDeploySuccess(status: CommitStatusData): boolean {
  * 公開を飛ばした success（Ignored Build Step）は数えない
  */
 export function latestSuccessDeployAt(statuses: CommitStatusData[]): string | null {
-  return (
-    statuses
-      .filter(isCountedDeploySuccess)
-      .map((status) => status.updatedAt)
-      .sort()
-      .at(-1) ?? null
-  );
+  return Object.values(latestSuccessDeployByContext(statuses)).sort().at(-1) ?? null;
 }
 
 /** 公開が無いリポジトリかを見る、直近のマージ済みPRの数 */
@@ -409,7 +406,7 @@ export function hasNoDeploys(
     .sort((a, b) => b.time - a.time)
     .slice(0, NO_DEPLOYS_SAMPLE);
   if (recent.length === 0) return false;
-  return recent.every((item) => !item.statuses.some((status) => status.context.startsWith("Vercel")));
+  return recent.every((item) => !item.statuses.some((status) => isDeployStatus(status.context)));
 }
 
 /** リポジトリのマージ済みPRと取得済みの pullChecks から `hasNoDeploys` を求める（checks が未取得のPRは見ない） */
@@ -421,30 +418,32 @@ function repoHasNoDeploys(input: StatusInput, now: Date): boolean {
 }
 
 /**
- * 公開ステータス（context が `Vercel` で始まるコミットステータス）の解決。
+ * 公開ステータス（context が `Vercel` または `deploy/` で始まるコミットステータス）の解決。
+ * context ごとに updatedAt が最新の物を取り、まとめる：どれかが failure・error → 公開失敗、
+ * そうでなくどれかが pending → 公開中、全部 success → 公開済み。
  * 無いときは、マージから30分たっていれば「公開済み（状況は不明）」、それまでは「公開中」。
  * ただし公開が無いリポジトリ（noDeploys）では、30分たっていなくても「公開済み」（状況は不明にしない）。
- * failure・error でも、main のあとの公開（mainDeployedAt）がマージより後に成功していれば「公開済み」
+ * failure・error の context は、main のあとの公開がマージより後に同じ context で成功していれば解決ずみ。
+ * mainDeployed が文字列のときは、どの context にも同じ時刻を使う
  */
 export function deployState(
   statuses: CommitStatusData[],
   mergedAt: string | null,
   now: Date,
-  mainDeployed: string | null = null,
+  mainDeployed: string | null | Record<string, string> = null,
   noDeploys = false,
 ): DeployState {
-  const latest = statuses
-    .filter((status) => status.context.startsWith("Vercel"))
-    .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))
-    .at(-1);
-  if (latest) {
-    if (latest.state === "success") return { state: "deployed", unknown: false };
-    if (latest.state === "failure" || latest.state === "error") {
-      return isAfter(mainDeployed, mergedAt)
-        ? { state: "deployed", unknown: false }
-        : { state: "failed", unknown: false };
+  const latest = latestPerContext(statuses);
+  if (latest.length > 0) {
+    const resolved = (context: string): boolean =>
+      isAfter(typeof mainDeployed === "object" && mainDeployed !== null ? (mainDeployed[context] ?? null) : mainDeployed, mergedAt);
+    if (latest.some((s) => isFailedState(s.state) && !resolved(s.context))) {
+      return { state: "failed", unknown: false };
     }
-    return { state: "deploying", unknown: false };
+    if (latest.some((s) => s.state !== "success" && !isFailedState(s.state))) {
+      return { state: "deploying", unknown: false };
+    }
+    return { state: "deployed", unknown: false };
   }
   const merged = mergedAt ? Date.parse(mergedAt) : NaN;
   if (!Number.isNaN(merged) && now.getTime() - merged >= DEPLOY_UNKNOWN_AFTER_MS) {
@@ -488,7 +487,7 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
 
   if (pull && checks && pull.merged) {
     const noDeploys = input.noDeploys ?? repoHasNoDeploys(input, now);
-    const deploy = deployState(checks.statuses, pull.mergedAt, now, input.mainDeployedAt ?? null, noDeploys);
+    const deploy = deployState(checks.statuses, pull.mergedAt, now, input.mainDeployedByContext ?? input.mainDeployedAt ?? null, noDeploys);
     if (deploy.state === "deployed") return result("deployed", { deployUnknown: deploy.unknown });
     if (deploy.state === "failed") return result("deployFailed");
     return result("deploying");

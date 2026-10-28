@@ -17,7 +17,8 @@ import {
 } from "./convert";
 import { GitHubError, toErrorInfo } from "./errors";
 import { judgePipelineState, type PipelineProbe, type PipelineState } from "../pipelineState";
-import { latestSuccessDeployAt } from "../status";
+import { isDeployStatus } from "../deployStatus";
+import { latestSuccessDeployByContext } from "../status";
 import type { WatchdogLastRun } from "../watchdogState";
 import { PIPELINE_WORKFLOW_PATH } from "./settings";
 import type { PullChecks, PullData, RepoData, RepoResult } from "./types";
@@ -41,7 +42,7 @@ export async function fetchRepoData(
   // URL に入れる since は日の始め（UTC の0時）に切り下げる。同じ日のあいだは URL が変わり、ETag が効く
   const since = new Date(Math.floor(cutoffMs / DAY_MS) * DAY_MS).toISOString();
 
-  const [rawIssues, rawPulls, rawComments, rawEvents, pipeline, mainDeployedAt, watchdog] = await Promise.all([
+  const [rawIssues, rawPulls, rawComments, rawEvents, pipeline, mainDeployed, watchdog] = await Promise.all([
     client.getAll<GhIssue>(
       `${base}/issues?state=all&since=${since}&sort=updated&direction=desc&per_page=100`,
     ),
@@ -74,7 +75,17 @@ export async function fetchRepoData(
     }),
   );
 
-  return { issues, pulls, comments, pullChecks, events, pipeline, mainDeployedAt, watchdog };
+  return {
+    issues,
+    pulls,
+    comments,
+    pullChecks,
+    events,
+    pipeline,
+    mainDeployedAt: mainDeployed.at,
+    mainDeployedByContext: mainDeployed.byContext,
+    watchdog,
+  };
 }
 
 /** main の直近のコミット（新しい順）を何件まで見るか */
@@ -83,9 +94,12 @@ const MAIN_COMMITS_SAMPLE = 10;
 export const MAIN_DEPLOYED_CACHE_MAX_ENTRIES = 100;
 
 /** サーバーのメモリ。キーは「トークンのハッシュ＋リポジトリ」（`GitHubClient.memoKey`） */
-const lastMainDeployedAt = new Map<string, string | null>();
+const lastMainDeployedAt = new Map<string, MainDeployed>();
 
-function rememberMainDeployedAt(key: string, value: string | null): void {
+/** main の最後の公開の成功：全体のいちばん新しい時刻と、context ごとの時刻 */
+type MainDeployed = { at: string | null; byContext: Record<string, string> };
+
+function rememberMainDeployedAt(key: string, value: MainDeployed): void {
   lastMainDeployedAt.delete(key);
   lastMainDeployedAt.set(key, value);
   while (lastMainDeployedAt.size > MAIN_DEPLOYED_CACHE_MAX_ENTRIES) {
@@ -104,26 +118,34 @@ export const mainDeployedCacheForTest = { clear: (): void => lastMainDeployedAt.
  * 取得に失敗したら、そのリポジトリで前回取れた値を使う（無ければ null）。
  * 補助の情報なので、失敗してもほかのデータは落とさない
  */
-async function fetchMainDeployedAt(client: GitHubClient, base: string): Promise<string | null> {
+async function fetchMainDeployedAt(client: GitHubClient, base: string): Promise<MainDeployed> {
   const key = client.memoKey(base);
   try {
     const commits = await client.get<{ sha?: unknown }[]>(
       `${base}/commits?sha=main&per_page=${MAIN_COMMITS_SAMPLE}`,
     );
     if (!Array.isArray(commits)) throw new GitHubError("other");
-    let found: string | null = null;
+    const byContext: Record<string, string> = {};
+    // 見えた公開の context。全部の context で成功が見つかったらやめる
+    const seen = new Set<string>();
     for (const commit of commits.slice(0, MAIN_COMMITS_SAMPLE)) {
       if (typeof commit?.sha !== "string") throw new GitHubError("other");
       const status = await client.get<{ statuses?: GhStatus[] }>(
         `${base}/commits/${encodeURIComponent(commit.sha)}/status?per_page=100`,
       );
-      found = latestSuccessDeployAt((status.statuses ?? []).map(convertStatus));
-      if (found) break;
+      const statuses = (status.statuses ?? []).map(convertStatus);
+      for (const s of statuses) if (isDeployStatus(s.context)) seen.add(s.context);
+      // 新しいコミットで見つかった context は、古いコミットの値で上書きしない
+      for (const [context, at] of Object.entries(latestSuccessDeployByContext(statuses))) {
+        byContext[context] ??= at;
+      }
+      if (seen.size > 0 && [...seen].every((context) => context in byContext)) break;
     }
+    const found: MainDeployed = { at: Object.values(byContext).sort().at(-1) ?? null, byContext };
     rememberMainDeployedAt(key, found);
     return found;
   } catch {
-    return lastMainDeployedAt.get(key) ?? null;
+    return lastMainDeployedAt.get(key) ?? { at: null, byContext: {} };
   }
 }
 

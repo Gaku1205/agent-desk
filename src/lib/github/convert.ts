@@ -57,6 +57,7 @@ export type GhStatus = {
   context: string;
   state: string;
   description?: string | null;
+  target_url?: string | null;
   updated_at: string;
 };
 
@@ -144,6 +145,7 @@ export function convertStatus(raw: GhStatus): CommitStatusData {
     state: raw.state,
     description: raw.description ?? "",
     updatedAt: raw.updated_at,
+    ...(typeof raw.target_url === "string" ? { targetUrl: raw.target_url } : {}),
   };
 }
 
