@@ -173,7 +173,7 @@ export function PipelineGrid({ rows, label }: { rows: PipelineGridRow[]; label: 
                 ))}
               </span>
             )}
-            <span className={`${styles.desc} ${styles.descMobile}${TONE_CLASS[row.progress.tone]}`}>
+            <span className={`${styles.desc} ${styles.descMobile} ${TONE_CLASS[row.progress.tone]}`}>
               {row.description}
             </span>
           </div>
