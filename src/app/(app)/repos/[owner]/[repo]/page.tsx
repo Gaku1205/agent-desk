@@ -31,7 +31,7 @@ export default async function RepoPage({
       result.owner.toLowerCase() === watched.owner.toLowerCase() &&
       result.repo.toLowerCase() === watched.repo.toLowerCase(),
   );
-  const rows = repoResult?.ok ? buildPipelineRows(repoResult.data, now) : [];
+  const rows = repoResult?.ok ? buildPipelineRows(repoResult.data, now, `${repoResult.owner}/${repoResult.repo}`) : [];
 
   return (
     <>

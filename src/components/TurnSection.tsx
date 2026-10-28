@@ -51,6 +51,7 @@ export function TurnSection({ items, errors, now, scope }: Props) {
               stage={item.status.stage}
               url={item.issue.url}
               description={item.description}
+              logUrl={item.logUrl}
               wait={formatWait(item.waitingSince, now)}
               buttons={item.buttons}
               merge={item.merge}

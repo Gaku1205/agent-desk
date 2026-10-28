@@ -1,4 +1,4 @@
-import { describeStatus, PIPELINE_MISSING_TEXT } from "./describe";
+import { describeStatus, failureLogUrl, PIPELINE_MISSING_TEXT } from "./describe";
 import type { IssueData, RepoData, RepoResult } from "./github/types";
 import {
   getIssueStatus,
@@ -57,6 +57,8 @@ export type TurnItem = {
   issue: { number: number; title: string; url: string };
   status: IssueStatus;
   description: string;
+  /** 止まった理由のログのURL（この行のリポジトリの実行のページ。無ければ null） */
+  logUrl: string | null;
   /** 人間の番になった時刻（ISO文字列） */
   waitingSince: string;
   buttons: TurnButton[];
@@ -217,7 +219,8 @@ export function repoTurnItems(owner: string, repo: string, data: RepoData, now: 
       description:
         status.stage === "notStarted" && data.pipeline === "notConfigured"
           ? PIPELINE_MISSING_TEXT
-          : describeStatus(status).long,
+          : describeStatus(status, { repo: `${owner}/${repo}` }).long,
+      logUrl: failureLogUrl(status, `${owner}/${repo}`),
       waitingSince: waitingSince(issue, status, data),
       buttons,
       merge:

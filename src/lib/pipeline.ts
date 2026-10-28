@@ -1,5 +1,6 @@
 import { deployFailureReason } from "./deployFailure";
 import { describeStatus } from "./describe";
+import { failureReasonText, parseFailureReason } from "./failureReason";
 import type { CommentData, RepoData } from "./github/types";
 import { getProgress, type Progress } from "./progress";
 import { findLinkedPull, getIssueStatus, shouldShowIssue,type IssueStatus } from "./status";
@@ -33,6 +34,11 @@ export function getQueueReason(issueNumber: number, comments: CommentData[]): st
   return text === "" ? null : text;
 }
 
+/** 理由の文からログのURLを外し、`{説明}（{原因}）` にする */
+function queueReasonText(reason: string | null, repo: string): string | null {
+  return reason === null ? null : failureReasonText(parseFailureReason(reason, repo));
+}
+
 /** 順番待ちの順番：Issue番号の小さい順に 1, 2, … */
 export function getQueuePositions(queuedNumbers: number[]): Map<number, number> {
   const sorted = [...queuedNumbers].sort((a, b) => a - b);
@@ -53,7 +59,7 @@ function failReason(issueNumber: number, data: RepoData): string | null {
 }
 
 /** パイプライン表の行：Issue番号が大きい順（段階が変わっても行の位置は変えない） */
-export function buildPipelineRows(data: RepoData, now: Date): PipelineRow[] {
+export function buildPipelineRows(data: RepoData, now: Date, repo = ""): PipelineRow[] {
   const visible = data.issues
     .filter((issue) => shouldShowIssue(issue, data.pulls))
     .sort((a, b) => b.number - a.number);
@@ -70,7 +76,7 @@ export function buildPipelineRows(data: RepoData, now: Date): PipelineRow[] {
       description: queuePosition === null ? describeStatus(status).short : `順番待ち ${queuePosition}番目`,
       progress: getProgress(status),
       queuePosition,
-      queueReason: queuePosition === null ? null : getQueueReason(issue.number, data.comments),
+      queueReason: queuePosition === null ? null : queueReasonText(getQueueReason(issue.number, data.comments), repo),
       deployFailReason: status.stage === "deployFailed" ? failReason(issue.number, data) : null,
     };
   });
