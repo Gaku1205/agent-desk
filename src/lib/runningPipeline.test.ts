@@ -98,7 +98,12 @@ describe("buildRunningPipelineRows", () => {
             pulls: [merged, deployed, pull(32, 8)],
             pullChecks: {
               30: { checkRuns: [], statuses: [] },
-              31: { checkRuns: [], statuses: [] },
+              31: {
+                checkRuns: [],
+                statuses: [
+                  { context: "Vercel", state: "success", description: "", updatedAt: "2026-10-25T09:05:00Z" },
+                ],
+              },
               32: { checkRuns: [], statuses: [] },
             },
           }),
