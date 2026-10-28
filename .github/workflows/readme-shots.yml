@@ -1,6 +1,7 @@
 # READMEの画像とGIFを、CIと同じ環境で撮ってPRのブランチにコミットする（npm run readme:shots）。
 # 手で動かす：Actions → README Shots → Run workflow（ブランチ名を入れる）。
-# ブランチ名を省くと main で撮って、assets/readme/ を main にコミットする。
+# ブランチ名を省くと main で撮って、PR（readme-shots/<番号>）にする（main の保護で、直接は入れられないため）。
+# 安全のため2段に分ける：撮る（PRのコードを動かす。鍵を渡さない）→ 画像とGIFだけ取り出してコミット（鍵を使う。コードは動かさない）。
 name: README Shots
 
 on:
@@ -12,9 +13,36 @@ on:
         default: ""
 
 jobs:
-  shots:
+  shoot:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      # ここではブランチのコードを動かすので、鍵は使わず、トークンも残さない
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.branch || 'main' }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: 画像とGIFを撮る
+        run: npm run readme:shots
+      - uses: actions/upload-artifact@v4
+        with:
+          name: readme-shots
+          path: assets/readme
+          if-no-files-found: error
+          retention-days: 1
+
+  commit:
+    needs: shoot
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
@@ -47,28 +75,39 @@ jobs:
         with:
           app-id: ${{ vars.PIPELINE_APP_ID }}
           private-key: ${{ steps.app-key.outputs.pem }}
+      # ここではコードを動かさない（npm も実行しない）。画像（png・gif）だけを取り出す
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.branch || 'main' }}
           token: ${{ steps.app-token.outputs.token || secrets.PIPELINE_TOKEN }}
-      - uses: actions/setup-node@v5
+      - uses: actions/download-artifact@v4
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - name: 画像とGIFを撮る
-        run: npm run readme:shots
+          name: readme-shots
+          path: ${{ runner.temp }}/shots
       - name: コミットする
         env:
           BRANCH: ${{ inputs.branch || 'main' }}
+          SHOTS: ${{ runner.temp }}/shots
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.PIPELINE_TOKEN }}
         run: |
           git config user.name "agent-desk pipeline"
           git config user.email "noreply@github.com"
+          (cd "$SHOTS" && find . -type f \( -name '*.png' -o -name '*.gif' \) -print0) | while IFS= read -r -d '' f; do
+            mkdir -p "assets/readme/$(dirname "$f")"
+            cp "$SHOTS/$f" "assets/readme/$f"
+          done
           git add -A assets/readme
           if git diff --cached --quiet; then
             echo "変わった画像はありません"
-          else
-            git commit -m "READMEの画像とGIFを撮る（CIの環境）"
-            git push origin "HEAD:$BRANCH"
+            exit 0
           fi
+          git commit -m "READMEの画像とGIFを撮る（CIの環境）"
+          if [ "$BRANCH" != main ]; then
+            git push origin "HEAD:$BRANCH"
+            exit 0
+          fi
+          # main は保護されていて直接入れられないので、PRにする（CI → レビュー → 自動マージ）
+          pr_branch="readme-shots/${GITHUB_RUN_ID}"
+          git push origin "HEAD:refs/heads/$pr_branch"
+          gh api "repos/$GITHUB_REPOSITORY/pulls" -f title="READMEの画像とGIFを撮り直す" -f head="$pr_branch" -f base=main \
+            -f body="README Shots（手動実行）で、CIの環境で撮り直した画像とGIFです。画像だけの変更です。" -q .html_url
