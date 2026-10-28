@@ -1,4 +1,5 @@
 import type { PipelineState } from "../pipelineState";
+import type { WatchdogLastRun } from "../watchdogState";
 
 /** 画面とロジックが使う、GitHubのデータの形（GitHubのAPIの形から convert.ts で変換する） */
 
@@ -86,6 +87,8 @@ export type RepoData = {
   mainDeployedAt?: string | null;
   /** パイプラインが動いているか。調べていなければ（テストなど）無し＝分からない */
   pipeline?: PipelineState;
+  /** 見張り役（watchdog.yml）の最後の実行。調べていなければ無し＝分からない */
+  watchdog?: WatchdogLastRun;
 };
 
 export type GitHubErrorKind =

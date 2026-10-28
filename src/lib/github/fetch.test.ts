@@ -359,6 +359,54 @@ describe("fetchAllRepos", () => {
     expect(result.data.pulls.map((p) => p.number)).toEqual([2]);
   });
 
+  describe("見張り役（watchdog.yml）の最後の実行", () => {
+    /** watchdog.yml の問い合わせだけ差し替える。ほかは fakeGitHub のまま */
+    function withWatchdog(respond: () => Response): typeof fetch {
+      const base = fakeGitHub(404);
+      return async (input, init) =>
+        new URL(String(input)).pathname.endsWith("/actions/workflows/watchdog.yml/runs")
+          ? respond()
+          : base(input, init);
+    }
+    async function watchdogOf(respond: () => Response) {
+      const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], {
+        fetcher: withWatchdog(respond),
+        now: NOW,
+      });
+      expect(result.ok).toBe(true);
+      return result.ok ? result.data : null;
+    }
+
+    it("実行が1件あれば created_at を最後の実行の時刻にする", async () => {
+      const data = await watchdogOf(() =>
+        json({ total_count: 5, workflow_runs: [{ created_at: "2026-10-20T00:00:00Z" }] }),
+      );
+      expect(data?.watchdog).toEqual({ at: "2026-10-20T00:00:00Z" });
+    });
+
+    it("404（watchdog.yml が無い）は「無い」", async () => {
+      const data = await watchdogOf(() => json({ message: "Not Found" }, { status: 404 }));
+      expect(data?.watchdog).toBe("none");
+    });
+
+    it("実行が0件は「無い」", async () => {
+      const data = await watchdogOf(() => json({ total_count: 0, workflow_runs: [] }));
+      expect(data?.watchdog).toBe("none");
+    });
+
+    it("取れない・形が違うときは「分からない」で、ほかのデータは取れる", async () => {
+      for (const respond of [
+        () => json({ message: "x" }, { status: 500 }),
+        () => json({ workflow_runs: [{ created_at: 123 }] }),
+        () => json({ foo: 1 }),
+      ]) {
+        const data = await watchdogOf(respond);
+        expect(data?.watchdog).toBe("unknown");
+        expect(data?.issues.map((i) => i.number)).toEqual([1]);
+      }
+    });
+  });
+
   it("1つのリポジトリが失敗しても、ほかは取れる", async () => {
     const results = await fetchAllRepos(
       TOKEN,
