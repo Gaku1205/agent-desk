@@ -4,6 +4,7 @@ import { getToken } from "next-auth/jwt";
 import { headers } from "next/headers";
 import { isAllowedLogin } from "./allowlist";
 import { getAllowedLogins } from "./config";
+import { getLoginScope } from "./loginScope";
 
 // GitHubのトークンは暗号化したJWT（Cookie）の中にだけ置く。
 // session コールバックでは返さないので、/api/auth/session やクライアントには出ない。
@@ -20,10 +21,11 @@ declare module "next-auth" {
   }
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut } = NextAuth(async () => ({
   providers: [
     GitHub({
-      authorization: { params: { scope: "read:user repo" } },
+      // 頼む権限は、ログインのたびに監視リポジトリの公開・非公開で決める
+      authorization: { params: { scope: await getLoginScope() } },
     }),
   ],
   session: { strategy: "jwt" },
@@ -44,7 +46,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
-});
+}));
 
 /** ログイン中で、許可リストに入っているユーザー名。そうでなければ null */
 export async function getSignedInLogin(): Promise<string | null> {
