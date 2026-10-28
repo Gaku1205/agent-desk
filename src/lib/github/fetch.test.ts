@@ -246,6 +246,92 @@ function fakeGitHub(failStatus: number, mainStatusFails = false): typeof fetch {
   };
 }
 
+/** 取り直しのURLと If-None-Match を順に覚える */
+type Seen = { url: string; inm: string | null };
+
+/** fakeGitHub に ETag を付けたもの。同じ内容のあいだは If-None-Match に 304 を返す */
+function etagGitHub(seen: Seen[]): typeof fetch {
+  const base = fakeGitHub(404);
+  return async (input, init) => {
+    const inm = new Headers(init?.headers).get("if-none-match");
+    seen.push({ url: String(input), inm });
+    if (inm) return new Response(null, { status: 304 });
+    const res = await base(input, init);
+    if (!res.ok) return res;
+    return new Response(res.body, {
+      status: 200,
+      headers: { "content-type": "application/json", etag: '"e"' },
+    });
+  };
+}
+
+function rawIssue(number: number, updatedAt: string) {
+  return {
+    number,
+    title: `issue ${number}`,
+    state: "open",
+    labels: [],
+    html_url: "u",
+    created_at: "2026-10-01T00:00:00Z",
+    updated_at: updatedAt,
+  };
+}
+
+function rawComment(id: number, createdAt: string) {
+  return {
+    id,
+    issue_url: "https://api.github.com/repos/ok/repo/issues/1",
+    user: { login: "gaku" },
+    body: "c",
+    created_at: createdAt,
+  };
+}
+
+describe("fetchAllRepos の since（日の始めに切り下げ）", () => {
+  beforeEach(() => etagCacheForTest.clear());
+
+  it("同じ日の中で時刻をずらして2回取り直すと、URL が同じで2回目に If-None-Match が付く", async () => {
+    const seen: Seen[] = [];
+    const fetcher = etagGitHub(seen);
+    const repos = [{ owner: "ok", repo: "repo" }];
+    await fetchAllRepos(TOKEN, repos, { fetcher, now: new Date("2026-10-25T01:00:00Z") });
+    await fetchAllRepos(TOKEN, repos, { fetcher, now: new Date("2026-10-25T20:00:00Z") });
+
+    const issueCalls = seen.filter((s) => new URL(s.url).pathname.endsWith("/issues"));
+    const commentCalls = seen.filter((s) => new URL(s.url).pathname.endsWith("/issues/comments"));
+    expect(issueCalls).toHaveLength(2);
+    expect(commentCalls).toHaveLength(2);
+    expect(new URL(issueCalls[0].url).searchParams.get("since")).toBe("2026-10-11T00:00:00.000Z");
+    expect(issueCalls[1].url).toBe(issueCalls[0].url);
+    expect(issueCalls[0].inm).toBeNull();
+    expect(issueCalls[1].inm).toBe('"e"');
+    expect(commentCalls[1].url).toBe(commentCalls[0].url);
+    expect(commentCalls[1].inm).toBe('"e"');
+  });
+
+  it("14日より古い Issue（updatedAt）・コメント（createdAt）は、切り下げで返ってきても結果に入らない", async () => {
+    const base = fakeGitHub(404);
+    const fetcher: typeof fetch = async (input, init) => {
+      const path = new URL(String(input)).pathname;
+      if (path.endsWith("/issues")) {
+        return json([rawIssue(1, "2026-10-20T00:00:00Z"), rawIssue(3, "2026-10-11T06:00:00Z")]);
+      }
+      if (path.endsWith("/issues/comments")) {
+        return json([rawComment(10, "2026-10-11T06:00:00Z"), rawComment(11, "2026-10-12T00:00:00Z")]);
+      }
+      return base(input, init);
+    };
+    const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], {
+      fetcher,
+      now: new Date("2026-10-25T12:00:00Z"),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.issues.map((i) => i.number)).toEqual([1]);
+    expect(result.data.comments.map((c) => c.id)).toEqual([11]);
+  });
+});
+
 describe("fetchAllRepos", () => {
   it("リポジトリのデータを自前の型にして返す", async () => {
     const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], {
