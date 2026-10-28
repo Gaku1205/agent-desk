@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
 import { PipelineTable } from "@/components/PipelineTable";
 import { TurnSection } from "@/components/TurnSection";
+import { WatchdogNotices } from "@/components/WatchdogNotices";
+import { buildWatchdogNotices } from "@/lib/watchdogState";
 import { findWatchedRepo } from "@/lib/config";
 import { loadTurns } from "@/lib/loadTurns";
 import { buildPipelineRows } from "@/lib/pipeline";
@@ -35,6 +37,14 @@ export default async function RepoPage({
     <>
       <Header kind="repo" owner={watched.owner} repo={watched.repo} />
       <main className="content">
+        <WatchdogNotices
+          notices={buildWatchdogNotices(results, now).filter(
+            (notice) =>
+              notice.owner.toLowerCase() === watched.owner.toLowerCase() &&
+              notice.repo.toLowerCase() === watched.repo.toLowerCase(),
+          )}
+          showRepo={false}
+        />
         <TurnSection
           items={filterTurnItems(items, watched.owner, watched.repo)}
           errors={errors}

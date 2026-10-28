@@ -18,6 +18,7 @@ import {
 import { GitHubError, toErrorInfo } from "./errors";
 import { judgePipelineState, type PipelineProbe, type PipelineState } from "../pipelineState";
 import { latestSuccessDeployAt } from "../status";
+import type { WatchdogLastRun } from "../watchdogState";
 import { PIPELINE_WORKFLOW_PATH } from "./settings";
 import type { PullChecks, PullData, RepoData, RepoResult } from "./types";
 
@@ -40,7 +41,7 @@ export async function fetchRepoData(
   // URL に入れる since は日の始め（UTC の0時）に切り下げる。同じ日のあいだは URL が変わり、ETag が効く
   const since = new Date(Math.floor(cutoffMs / DAY_MS) * DAY_MS).toISOString();
 
-  const [rawIssues, rawPulls, rawComments, rawEvents, pipeline, mainDeployedAt] = await Promise.all([
+  const [rawIssues, rawPulls, rawComments, rawEvents, pipeline, mainDeployedAt, watchdog] = await Promise.all([
     client.getAll<GhIssue>(
       `${base}/issues?state=all&since=${since}&sort=updated&direction=desc&per_page=100`,
     ),
@@ -49,6 +50,7 @@ export async function fetchRepoData(
     client.get<GhIssueEvent[]>(`${base}/issues/events?per_page=100`),
     fetchPipelineState(client, base),
     fetchMainDeployedAt(client, base),
+    fetchWatchdogLastRun(client, base),
   ]);
 
   // since は切り下げているので、取ったあとで直近14日に絞り直す
@@ -72,7 +74,7 @@ export async function fetchRepoData(
     }),
   );
 
-  return { issues, pulls, comments, pullChecks, events, pipeline, mainDeployedAt };
+  return { issues, pulls, comments, pullChecks, events, pipeline, mainDeployedAt, watchdog };
 }
 
 /**
@@ -85,6 +87,26 @@ async function fetchMainDeployedAt(client: GitHubClient, base: string): Promise<
     return latestSuccessDeployAt((status.statuses ?? []).map(convertStatus));
   } catch {
     return null;
+  }
+}
+
+/**
+ * `watchdog.yml` の最後の実行の時刻を取る。404（ワークフローが無い）と実行0件は「無い」、
+ * それ以外の失敗・形が違うときは「分からない」。補助の情報なので、失敗してもほかのデータは落とさない
+ */
+async function fetchWatchdogLastRun(client: GitHubClient, base: string): Promise<WatchdogLastRun> {
+  try {
+    const runs = await client.get<{ workflow_runs?: unknown }>(
+      `${base}/actions/workflows/watchdog.yml/runs?per_page=1`,
+    );
+    if (!Array.isArray(runs?.workflow_runs)) return "unknown";
+    if (runs.workflow_runs.length === 0) return "none";
+    const createdAt = (runs.workflow_runs[0] as { created_at?: unknown } | null)?.created_at;
+    return typeof createdAt === "string" && !Number.isNaN(Date.parse(createdAt))
+      ? { at: createdAt }
+      : "unknown";
+  } catch (error) {
+    return error instanceof GitHubError && error.status === 404 ? "none" : "unknown";
   }
 }
 
