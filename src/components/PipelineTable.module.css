@@ -22,7 +22,7 @@
   z-index: 10;
   align-items: center;
   height: 40px;
-  /* 行の中身と列を揃えるため、行と同じ左右12px。先頭の行との間も、行と行の間と同じ6px空ける。スマホでは display: none なので空かない */
+  /* 行の中身と列を揃えるため、行と同じ左右12px。先頭の行との間も、行と行の間と同じ6px空ける（スマホのブロックでは display: none なので、先頭の行側で6px空ける） */
   margin-bottom: 6px;
   padding: 0 12px;
   border-bottom: 1px solid var(--line);
@@ -340,6 +340,11 @@
     display: none;
   }
 
+  /* 列見出しが消えても、見出しの区切り線と先頭の行の枠が重ならないよう6px空ける */
+  .head + .row {
+    margin-top: 6px;
+  }
+
   .row {
     grid-template-columns: repeat(8, minmax(0, 1fr));
     column-gap: 3px;
@@ -407,6 +412,11 @@
 @container pipeline (max-width: 719px) {
   .head {
     display: none;
+  }
+
+  /* 列見出しが消えても、見出しの区切り線と先頭の行の枠が重ならないよう6px空ける */
+  .head + .row {
+    margin-top: 6px;
   }
 
   .row {
