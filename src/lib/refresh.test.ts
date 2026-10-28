@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  formatResetTime,
   formatSyncTime,
+  getAutoRefreshPlan,
   BUSY_REFRESH_INTERVAL_MS,
   getDisplayedSyncTime,
   getRefreshIntervalMs,
@@ -8,6 +10,7 @@ import {
   IDLE_REFRESH_INTERVAL_MS,
   isFastRefresh,
   startAutoRefresh,
+  startResumeRefresh,
   type VisibilitySource,
 } from "./refresh";
 import type { RepoResult } from "./github/types";
@@ -52,8 +55,8 @@ describe("startAutoRefresh", () => {
     vi.useRealTimers();
   });
 
-  it("既定の間隔は15秒", () => {
-    expect(IDLE_REFRESH_INTERVAL_MS).toBe(15_000);
+  it("既定の間隔は30秒", () => {
+    expect(IDLE_REFRESH_INTERVAL_MS).toBe(30_000);
   });
 
   it("指定した間隔ごとに取り直す", () => {
@@ -108,12 +111,12 @@ describe("startAutoRefresh", () => {
     const refresh = vi.fn();
     const source = new FakeDocument();
     const stopBusy = startAutoRefresh({ refresh, source, intervalMs: BUSY_REFRESH_INTERVAL_MS });
-    vi.advanceTimersByTime(5_000);
+    vi.advanceTimersByTime(10_000);
     expect(refresh).toHaveBeenCalledTimes(1);
 
     stopBusy();
     startAutoRefresh({ refresh, source, intervalMs: IDLE_REFRESH_INTERVAL_MS });
-    vi.advanceTimersByTime(14_999);
+    vi.advanceTimersByTime(29_999);
     expect(refresh).toHaveBeenCalledTimes(1);
     vi.advanceTimersByTime(1);
     expect(refresh).toHaveBeenCalledTimes(2);
@@ -121,16 +124,66 @@ describe("startAutoRefresh", () => {
 });
 
 describe("getRefreshIntervalMs", () => {
-  it("AIの番の作業があれば5秒、無ければ15秒", () => {
+  it("AIの番の作業があれば10秒、無ければ30秒", () => {
     expect(getRefreshIntervalMs(true)).toBe(BUSY_REFRESH_INTERVAL_MS);
-    expect(getRefreshIntervalMs(true)).toBe(5_000);
+    expect(getRefreshIntervalMs(true)).toBe(10_000);
     expect(getRefreshIntervalMs(false)).toBe(IDLE_REFRESH_INTERVAL_MS);
-    expect(getRefreshIntervalMs(false)).toBe(15_000);
+    expect(getRefreshIntervalMs(false)).toBe(30_000);
+  });
+});
+
+describe("getAutoRefreshPlan", () => {
+  const now = new Date("2026-10-28T06:00:00Z");
+  const future = now.getTime() / 1000 + 1800;
+  const plan = (hasAiWork: boolean, remaining: number | null, resetAt: number | null) =>
+    getAutoRefreshPlan({ hasAiWork, remaining, resetAt, now });
+
+  it("残りが1,500以上なら普段の間隔（作業の有無で10秒／30秒）", () => {
+    expect(plan(true, 1500, future)).toEqual({ intervalMs: 10_000, resumeAt: null });
+    expect(plan(false, 1500, future)).toEqual({ intervalMs: 30_000, resumeAt: null });
+    expect(plan(true, 5000, future)).toEqual({ intervalMs: 10_000, resumeAt: null });
+  });
+
+  it("残りが1,500未満500以上なら60秒（作業の有無によらない）", () => {
+    expect(plan(true, 1499, future)).toEqual({ intervalMs: 60_000, resumeAt: null });
+    expect(plan(false, 500, future)).toEqual({ intervalMs: 60_000, resumeAt: null });
+  });
+
+  it("残りが500未満なら回復する時刻まで取り直さない", () => {
+    expect(plan(true, 499, future)).toEqual({
+      intervalMs: null,
+      resumeAt: new Date(future * 1000),
+    });
+    expect(plan(false, 0, future).intervalMs).toBeNull();
+  });
+
+  it("回復する時刻を過ぎたら、残りは古いので普段の間隔に戻る", () => {
+    const past = now.getTime() / 1000 - 1;
+    expect(plan(true, 10, past)).toEqual({ intervalMs: 10_000, resumeAt: null });
+    expect(plan(false, 1000, past)).toEqual({ intervalMs: 30_000, resumeAt: null });
+    // ちょうどその時刻も過ぎた扱い
+    expect(plan(false, 10, now.getTime() / 1000).intervalMs).toBe(30_000);
+  });
+
+  it("残りが不明なら普段の間隔", () => {
+    expect(plan(true, null, null)).toEqual({ intervalMs: 10_000, resumeAt: null });
+    expect(plan(false, null, future)).toEqual({ intervalMs: 30_000, resumeAt: null });
+  });
+
+  it("残りが少なくて回復する時刻が不明なら、止めずに60秒", () => {
+    expect(plan(true, 10, null)).toEqual({ intervalMs: 60_000, resumeAt: null });
+  });
+});
+
+describe("formatResetTime", () => {
+  it("日本時間の時:分で出す（秒は落とす）", () => {
+    expect(formatResetTime(Date.parse("2026-10-28T06:42:59Z") / 1000)).toBe("15:42");
+    expect(formatResetTime(Date.parse("2026-10-28T15:00:00Z") / 1000)).toBe("00:00");
   });
 });
 
 describe("isFastRefresh", () => {
-  it("5秒ごとの間だけ速い更新", () => {
+  it("10秒ごとの間だけ速い更新", () => {
     expect(isFastRefresh(getRefreshIntervalMs(true))).toBe(true);
     expect(isFastRefresh(getRefreshIntervalMs(false))).toBe(false);
   });
@@ -179,5 +232,77 @@ describe("hasAiTurnWork", () => {
     };
     expect(hasAiTurnWork([failed], now)).toBe(false);
     expect(hasAiTurnWork([], now)).toBe(false);
+  });
+});
+
+describe("startResumeRefresh", () => {
+  const now = new Date("2026-10-28T06:00:00Z");
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("再開する時刻になったら1回だけ取り直す", () => {
+    const refresh = vi.fn();
+    startResumeRefresh({
+      refresh,
+      source: new FakeDocument(),
+      resumeAt: new Date(now.getTime() + 60_000),
+      now: () => now,
+    });
+
+    vi.advanceTimersByTime(59_999);
+    expect(refresh).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(10 * 60_000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("再開する時刻を過ぎていれば、すぐ取り直す", () => {
+    const refresh = vi.fn();
+    startResumeRefresh({
+      refresh,
+      source: new FakeDocument(),
+      resumeAt: new Date(now.getTime() - 1_000),
+      now: () => now,
+    });
+    vi.advanceTimersByTime(0);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("その時刻にタブが非表示なら、表示に戻ったときに取り直す", () => {
+    const refresh = vi.fn();
+    const source = new FakeDocument();
+    source.hidden = true;
+    startResumeRefresh({
+      refresh,
+      source,
+      resumeAt: new Date(now.getTime() + 1_000),
+      now: () => now,
+    });
+
+    vi.advanceTimersByTime(5_000);
+    expect(refresh).not.toHaveBeenCalled();
+    source.setHidden(false);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(source.listenerCount).toBe(0);
+  });
+
+  it("止めたら取り直さない", () => {
+    const refresh = vi.fn();
+    const source = new FakeDocument();
+    const stop = startResumeRefresh({
+      refresh,
+      source,
+      resumeAt: new Date(now.getTime() + 1_000),
+      now: () => now,
+    });
+    stop();
+    vi.advanceTimersByTime(5_000);
+    expect(refresh).not.toHaveBeenCalled();
+    expect(source.listenerCount).toBe(0);
   });
 });

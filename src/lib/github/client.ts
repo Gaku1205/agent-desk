@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { classifyError, GitHubError } from "./errors";
+import { parseRateLimit, rememberRateLimit } from "./rateLimit";
 
 const API_BASE = "https://api.github.com";
 const MAX_PAGES = 5;
@@ -64,11 +65,17 @@ export class GitHubClient {
       // ネットワークエラーの原因にはヘッダー（トークン）が入りうるので捨てる
       throw new GitHubError("other");
     }
+    // 304の返事にも付くので、成功・失敗にかかわらず読む
+    rememberRateLimit(this.token, response.headers);
     if (response.status === 304 && cached) {
       return { json: cached.json, next: cached.next };
     }
     if (!response.ok) {
-      throw new GitHubError(classifyError(response.status, response.headers), response.status);
+      throw new GitHubError(
+        classifyError(response.status, response.headers),
+        response.status,
+        parseRateLimit(response.headers).resetAt,
+      );
     }
     let json: unknown;
     try {
@@ -105,8 +112,13 @@ export class GitHubClient {
     } catch {
       throw new GitHubError("other");
     }
+    rememberRateLimit(this.token, response.headers);
     if (!response.ok) {
-      throw new GitHubError(classifyError(response.status, response.headers), response.status);
+      throw new GitHubError(
+        classifyError(response.status, response.headers),
+        response.status,
+        parseRateLimit(response.headers).resetAt,
+      );
     }
     if (response.status === 204) return null;
     try {

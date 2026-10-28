@@ -85,6 +85,7 @@ export function DemoShell({
       syncedAt: demo.now,
       refreshing: false,
       fastRefresh: false,
+      pausedUntil: null,
       // デモは自動更新をしない
       // 取り直す物が無いので、押しても動かないことを知らせる
       refresh: notify,

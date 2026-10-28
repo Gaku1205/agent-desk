@@ -27,6 +27,13 @@
 
 /* 同期の点（docs/design.md の「動き」） */
 
+/* 回数制限の残りが少なく、自動更新を止めている間の控えめな説明 */
+.paused {
+  margin: 0;
+  color: var(--text-mute);
+  font-size: 12px;
+}
+
 .dot {
   display: inline-block;
   width: 6px;
@@ -38,7 +45,7 @@
   transition: background 0.3s;
 }
 
-/* 速い更新（5秒ごと）の間はゆっくり明滅する。取り直し中の脈打ち（下）が優先される */
+/* 速い更新（10秒ごと）の間はゆっくり明滅する。取り直し中の脈打ち（下）が優先される */
 .dot[data-fast="true"] {
   background: var(--ai);
   animation: sync-blink 2s ease-in-out infinite;
