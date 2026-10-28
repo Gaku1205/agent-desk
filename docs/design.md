@@ -306,7 +306,7 @@ Issueを行、パイプラインの5段階を列にした表。Issueの行は上
 | `description` | 出す文言 |
 | --- | --- |
 | `Deployment rate limited — retry in N minutes.`（`hours`・`days` も同じ形。単数も可） | `利用上限に達しました。あとN分で再開します`（時間なら `N時間`、日なら `N日`）。Nは `description` の数字そのまま |
-| それ以外 | それ以外 | `description` をそのまま（英語のまま） |
+| それ以外 | `description` をそのまま（英語のまま） |
 
 失敗している公開先が Vercel の1つだけなら上の表のとおり。`deploy/` の公開先が失敗しているときは、`{種類}：{説明}`（例：`aws-apprunner：AWS の設定がまだです（Variable：AWS_REGION）`）を、失敗している公開先ごとに1行ずつ出す（`description` は上の表のとおりに直す）。
 
