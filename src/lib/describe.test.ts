@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeStatus, statusIconSpec } from "./describe";
+import { describeStatus, failureLogUrl, statusIconSpec } from "./describe";
 import type { IssueStatus } from "./status";
 
 function status(overrides: Partial<IssueStatus>): IssueStatus {
@@ -143,6 +143,40 @@ describe("describeStatus", () => {
 
   it.each(cases)("%s", (_name, overrides, long, short) => {
     expect(describeStatus(status(overrides))).toEqual({ long, short });
+  });
+
+  describe("原因とログのURLが付いた理由", () => {
+    const url = "https://github.com/Gaku1205/agent-desk/actions/runs/123456";
+    const reason = `実装AIがエラーで止まりました（原因：許可不足（Bash(git rebase main)）。ログ：${url}）`;
+    const options = { repo: "Gaku1205/agent-desk" };
+
+    it("止まった：URLを外して {説明}（{原因}） にする", () => {
+      const stuck = status({ stage: "stuck", stuckReason: reason });
+      expect(describeStatus(stuck, options).long).toBe(
+        "実装AIがエラーで止まりました（許可不足（Bash(git rebase main)））。確認して、対応したら「再開」を押してください",
+      );
+      expect(failureLogUrl(stuck, "Gaku1205/agent-desk")).toBe(url);
+    });
+
+    it("やり直し待ち：URLを外す", () => {
+      const retrying = status({
+        stage: "retrying",
+        turn: "none",
+        retry: { count: 1, max: 10, reason },
+      });
+      expect(describeStatus(retrying, options).long).toBe(
+        "実装AIがエラーで止まりました（許可不足（Bash(git rebase main)））（1/10回）。時間をおいて自動でやり直します",
+      );
+      expect(failureLogUrl(retrying, "Gaku1205/agent-desk")).toBe(url);
+    });
+
+    it("別のリポジトリのURLはログに採らない", () => {
+      expect(failureLogUrl(status({ stage: "stuck", stuckReason: reason }), "other/repo")).toBeNull();
+    });
+
+    it("止まった・やり直し待ち以外はログが無い", () => {
+      expect(failureLogUrl(status({ stage: "implementing" }), "Gaku1205/agent-desk")).toBeNull();
+    });
   });
 
   it("修正中は回数と理由を出す", () => {

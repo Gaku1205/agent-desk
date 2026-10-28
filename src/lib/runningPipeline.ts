@@ -37,7 +37,7 @@ export function buildRunningPipelineRows(results: RepoResult[], now: Date): Runn
   const rows: RunningPipelineRow[] = [];
   for (const result of results) {
     if (!result.ok) continue;
-    for (const row of buildPipelineRows(result.data, now)) {
+    for (const row of buildPipelineRows(result.data, now, `${result.owner}/${result.repo}`)) {
       if (isRunningStage(row.status.stage)) rows.push({ ...row, owner: result.owner, repo: result.repo });
     }
   }

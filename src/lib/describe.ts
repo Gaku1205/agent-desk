@@ -1,3 +1,4 @@
+import { failureReasonText, parseFailureReason } from "./failureReason";
 import { trimTrailingPeriod } from "./humanRequest";
 import { MAX_AUTO_FIX, type IssueStatus } from "./status";
 
@@ -11,6 +12,8 @@ export type Description = {
 export type DescribeOptions = {
   /** 修正中のときの「CIの失敗」か「レビューの指摘」（分かるときだけ） */
   fixReason?: string;
+  /** その行のリポジトリ（`owner/repo`）。止まった理由のログのURLがこのリポジトリの物かを調べる */
+  repo?: string;
 };
 
 /** 状態アイコンの形 */
@@ -32,18 +35,33 @@ function ciText(status: IssueStatus): string {
   return `${status.ci.passed}/${status.ci.total}`;
 }
 
+/** 止まった・やり直し待ちの理由の文（パイプラインが書いた物）。それ以外の段階は null */
+function failureReasonOf(status: IssueStatus): string | null {
+  if (status.stage === "stuck") return status.stuckReason ?? "";
+  if (status.stage === "retrying") return status.retry?.reason ?? "AIが止まりました";
+  return null;
+}
+
+/** 止まった・やり直し待ちの理由に付いている、この行のリポジトリのログのURL（無ければ null） */
+export function failureLogUrl(status: IssueStatus, repo: string): string | null {
+  const reason = failureReasonOf(status);
+  return reason === null ? null : parseFailureReason(reason, repo).logUrl;
+}
+
 /** 段階から、説明文（あなたの番用）と短い説明（パイプライン用）を決める（docs/design.md の「段階ごとの説明文」） */
 export function describeStatus(status: IssueStatus, options: DescribeOptions = {}): Description {
   const ci = ciText(status);
   switch (status.stage) {
     case "stuck":
       return {
-        long: `${trimTrailingPeriod(status.stuckReason ?? "")}。確認して、対応したら「再開」を押してください`,
+        long: `${trimTrailingPeriod(failureReasonText(parseFailureReason(status.stuckReason ?? "", options.repo ?? "")))}。確認して、対応したら「再開」を押してください`,
         short: "止まっています",
       };
     case "retrying": {
       const count = status.retry ? `${status.retry.count}/${status.retry.max}回` : null;
-      const reason = status.retry?.reason ?? "AIが止まりました";
+      const reason = failureReasonText(
+        parseFailureReason(status.retry?.reason ?? "AIが止まりました", options.repo ?? ""),
+      );
       return {
         long: `${reason}${count ? `（${count}）` : ""}。時間をおいて自動でやり直します`,
         short: count ? `やり直し待ち ${count}` : "やり直し待ち",
