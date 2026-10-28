@@ -43,15 +43,9 @@ class FakeDocument implements VisibilitySource {
 }
 
 describe("getDisplayedSyncTime", () => {
-  const syncedAt = new Date("2026-10-27T08:19:17Z");
-  const now = new Date("2026-10-27T08:23:40Z");
-
-  it("つながっている間は今の時刻を出す", () => {
-    expect(getDisplayedSyncTime(true, syncedAt, now)).toBe(now);
-  });
-
-  it("切れていれば最後に取り直した時刻を出す", () => {
-    expect(getDisplayedSyncTime(false, syncedAt, now)).toBe(syncedAt);
+  it("最後に取り直した時刻を出す（即時反映がつながっていても現在時刻では進めない）", () => {
+    const syncedAt = new Date("2026-10-27T08:19:17Z");
+    expect(getDisplayedSyncTime(syncedAt)).toBe(syncedAt);
   });
 });
 

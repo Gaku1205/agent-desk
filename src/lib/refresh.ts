@@ -46,11 +46,11 @@ export function formatSyncTime(at: Date): string {
 }
 
 /**
- * 同期の表示に出す時刻：即時反映がつながっている間（`live`）は今の時刻、切れていれば最後に取り直した時刻
- * （docs/spec.md の「更新」）
+ * 同期の表示に出す時刻：つながっていても切れていても、最後に取り直した時刻（docs/spec.md の「更新」）。
+ * 即時反映は1プロセスのメモリで配るので、現在時刻で進めると古い画面が最新に見えてしまう
  */
-export function getDisplayedSyncTime(live: boolean, syncedAt: Date, now: Date): Date {
-  return live ? now : syncedAt;
+export function getDisplayedSyncTime(syncedAt: Date): Date {
+  return syncedAt;
 }
 
 /** 自動更新が見るタブの情報（`document` の一部） */
