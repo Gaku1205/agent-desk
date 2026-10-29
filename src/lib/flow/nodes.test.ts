@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildDemoResults } from "../demo/data";
 import { startPlayback } from "../demo/playback";
 import type { IssueStatus } from "../status";
-import { buildFlowNodes, compareFlowNodes, countByStage, dedupeCaption, whoOf } from "./nodes";
+import { buildFlowNodes, compareFlowNodes, countByStage, dedupeCaption, isUrgentStage, whoOf } from "./nodes";
 
 const NOW = new Date("2026-10-26T03:00:00Z");
 
@@ -96,7 +96,20 @@ describe("buildFlowNodes", () => {
   it("止まった物は人間の番で、押す列にも出る", () => {
     const nodes = buildFlowNodes(results, NOW);
     const stuck = nodes.find((n) => n.repo === "todo-app" && n.number === 23);
-    expect(stuck).toMatchObject({ who: "human", turn: true, label: "止まっています", at: 5 });
+    expect(stuck).toMatchObject({ who: "human", turn: true, label: "止まっています", at: 5, urgent: true });
+  });
+
+  it("急ぐ物は、止まった・公開失敗だけ（ほかの人間の番・CI失敗は急がない）", () => {
+    const nodes = buildFlowNodes(results, NOW);
+    const urgent = nodes.filter((n) => n.urgent).map((n) => n.label);
+    expect(urgent.length).toBeGreaterThan(0);
+    for (const label of urgent) expect(["止まっています", "公開に失敗しました"]).toContain(label);
+    expect(nodes.some((n) => n.turn && !n.urgent)).toBe(true);
+    expect(nodes.filter((n) => n.label === "CIが失敗しました").every((n) => !n.urgent)).toBe(true);
+    expect(isUrgentStage("stuck")).toBe(true);
+    expect(isUrgentStage("deployFailed")).toBe(true);
+    expect(isUrgentStage("ciFailed")).toBe(false);
+    expect(isUrgentStage("mergeWaiting")).toBe(false);
   });
 
   it("並びは 人間 → 失敗 → AI → 待機 → 公開済み、同じなら番号の大きい順", () => {

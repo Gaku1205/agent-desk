@@ -33,9 +33,9 @@
   /* 寸法 */
   --gutter: clamp(20px, 2.2vw, 40px);
   --top-h: 52px;
-  --flow-h: clamp(200px, 26svh, 240px);
+  --flow-h: clamp(200px, 26svh, 420px);
   --nfs: clamp(11.5px, 0.23vw + 9.2px, 15px);
-  --giant: clamp(200px, 19vw, 480px);
+  --giant: clamp(200px, min(19vw + 10svh - 90px, 46svh), 600px);
 
   color-scheme: dark;
 }

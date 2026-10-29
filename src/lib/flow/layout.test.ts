@@ -1,17 +1,25 @@
 import { describe, expect, it } from "vitest";
+import { buildDemoResults } from "../demo/data";
+import type { DemoOp } from "../demo/ops";
+import { advancePlayback, startPlayback, type DemoPlayback } from "../demo/playback";
 import {
   COLUMN_END_MARGIN,
   chooseLabel,
   DOT_OFFSET,
+  hoverLabelBox,
   LABEL_GAP,
   labelHeight,
+  laneCountOf,
   layoutFlow,
+  MAX_LANES,
+  STAGES_ROOM,
   stripColumns,
   type FlowLayout,
+  type LayoutInput,
   type MeasureLabel,
   type PlacedNode,
 } from "./layout";
-import type { FlowNode, FlowWho } from "./nodes";
+import { buildFlowNodes, type FlowNode, type FlowWho } from "./nodes";
 
 function node(
   number: number,
@@ -34,12 +42,13 @@ function node(
     deployLinks: [],
     logUrl: null,
     turn: who === "human",
+    urgent: false,
   };
 }
 
-/** 1文字 = 文字の大きさ×0.9 として測る（テスト用）。番号はリポジトリ名つき */
+/** 和文1文字 = 文字の大きさ、欧文・数字1文字 = 0.6 として測る（テスト用。少し広め）。番号はリポジトリ名つき */
 function measureAt(fontSize: number): MeasureLabel {
-  const w = (text: string) => text.length * fontSize * 0.9;
+  const w = (text: string) => [...text].reduce((sum, ch) => sum + (ch.charCodeAt(0) < 0x2e80 ? 0.6 : 1) * fontSize, 0);
   return (n) => ({ id: w(`${n.repo}#${n.number}`), status: w(n.label), title: w(n.title) });
 }
 
@@ -75,23 +84,36 @@ function demoLike(): FlowNode[] {
   ];
 }
 
-/** 1440×900・1024×768・2560×1440 の流れ（幅は左右の余白を除く、高さは光の区域） */
+/** 8つの大きさの流れ（幅は左右の余白を除く、高さは光の区域 = --flow-h − 56px） */
 const SIZES = [
-  { name: "1024", width: 984, height: 144, fontSize: 11.55, overhang: 20 },
-  { name: "1280", width: 1224, height: 152, fontSize: 12.14, overhang: 28 },
-  { name: "1440", width: 1376, height: 178, fontSize: 12.5, overhang: 32 },
-  { name: "2560", width: 2480, height: 184, fontSize: 15, overhang: 40 },
+  { name: "1024×768", width: 984, height: 144, fontSize: 11.55, overhang: 20 },
+  { name: "1280×800", width: 1224, height: 152, fontSize: 12.14, overhang: 28 },
+  { name: "1440×900", width: 1376, height: 178, fontSize: 12.5, overhang: 32 },
+  { name: "1920×1080", width: 1840, height: 225, fontSize: 13.6, overhang: 40 },
+  { name: "2560×1080", width: 2480, height: 225, fontSize: 15, overhang: 40 },
+  { name: "2560×1440", width: 2480, height: 318, fontSize: 15, overhang: 40 },
 ];
 
-/** 光の区域の上の、段階の目盛り（乗せたときの名札はここまでかかってよい） */
-const STAGES_ROOM = 30;
+type Size = (typeof SIZES)[number];
 
-function run(size: (typeof SIZES)[number], nodes = demoLike()): FlowLayout {
-  return layoutFlow({ nodes, ...size, measure: measureAt(size.fontSize) });
+function input(size: Size, nodes: FlowNode[], prev: FlowLayout | null = null): LayoutInput {
+  return { nodes, ...size, measure: measureAt(size.fontSize), prev: prev?.next ?? null };
 }
 
-function labelRect(p: PlacedNode, fontSize: number) {
+function run(size: Size, nodes = demoLike(), prev: FlowLayout | null = null): FlowLayout {
+  return layoutFlow(input(size, nodes, prev));
+}
+
+function labelRect(p: { x: number; y: number; dx: number; dy: number; width: number }, fontSize: number) {
   return { x0: p.x + p.dx, x1: p.x + p.dx + p.width, y0: p.y + p.dy, y1: p.y + p.dy + labelHeight(fontSize) };
+}
+
+function overlaps(a: ReturnType<typeof labelRect>, b: ReturnType<typeof labelRect>): boolean {
+  return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+}
+
+function positions(layout: FlowLayout): Map<string, string> {
+  return new Map(layout.placed.map((p) => [p.key, `${p.x.toFixed(2)},${p.y.toFixed(2)}`]));
 }
 
 describe("layoutFlow", () => {
@@ -100,83 +122,183 @@ describe("layoutFlow", () => {
       const layout = run(size);
       const nodes = demoLike();
       const byKey = new Map(nodes.map((n) => [n.key, n]));
+      const pinned = layout.placed.filter((p) => p.pinned);
+      const dots = layout.placed.filter((p) => !p.pinned);
 
-      it("全部の光を出し、光は必ず自分の段階の列の中にある", () => {
-        expect(layout.placed).toHaveLength(nodes.length);
+      it("公開済み以外の光を全部出し、光は必ず自分の段階の列の中の、レーン（光の筋）の上にある", () => {
         expect(layout.hidden).toEqual([]);
+        expect(layout.placed).toHaveLength(nodes.filter((n) => n.who !== "done").length);
+        expect(layout.lanes).toBeLessThanOrEqual(MAX_LANES);
         for (const p of layout.placed) {
           const at = byKey.get(p.key)?.at ?? -1;
           expect(p.column).toBe(at);
           expect(p.x).toBeGreaterThanOrEqual(at * layout.columnWidth + DOT_OFFSET - 0.01);
           expect(p.x).toBeLessThanOrEqual((at + 1) * layout.columnWidth - COLUMN_END_MARGIN + 0.01);
+          expect(p.y).toBe(layout.laneYs[p.lane]);
           expect(p.y).toBeGreaterThanOrEqual(0);
           expect(p.y).toBeLessThanOrEqual(size.height);
         }
       });
 
-      it("常に名札を出すのは、人間の番と失敗だけ", () => {
-        const pinned = layout.placed.filter((p) => p.pinned).map((p) => byKey.get(p.key)?.who);
-        expect(pinned).toHaveLength(9);
-        expect(pinned.every((who) => who === "human" || who === "fail")).toBe(true);
+      it("公開済みは右の余白の1つの塊にまとめる", () => {
+        const done = nodes.filter((n) => n.who === "done").map((n) => n.key);
+        expect(layout.cluster?.keys).toEqual(done);
+        expect(layout.cluster?.x).toBeGreaterThan(size.width);
+        expect(layout.cluster?.x).toBeLessThan(size.width + size.overhang);
+        expect(layout.cluster?.y).toBe(layout.laneYs[layout.cluster?.lane ?? -1]);
       });
 
-      it("常に出す名札は光の右（反転しない）で、右端からはみ出さず、ほかの名札と重ならない", () => {
-        const pinned = layout.placed.filter((p) => p.pinned);
+      it("常に名札を出すのは、人間の番と失敗だけ", () => {
+        expect(pinned).toHaveLength(9);
+        expect(pinned.every((p) => ["human", "fail"].includes(byKey.get(p.key)?.who ?? ""))).toBe(true);
+      });
+
+      it("常に出す名札は光の右（反転しない）で、右端からはみ出さず、ほかの名札とも、ほかの光とも重ならない", () => {
         for (const p of pinned) {
           expect(p.dx).toBe(LABEL_GAP);
           expect(p.x + p.dx + p.width).toBeLessThanOrEqual(size.width + size.overhang);
           expect(p.width).toBeGreaterThan(size.fontSize * 5);
         }
         for (const a of pinned) {
+          const ra = labelRect(a, size.fontSize);
           for (const b of pinned) {
-            if (a === b) continue;
-            const ra = labelRect(a, size.fontSize);
-            const rb = labelRect(b, size.fontSize);
-            const overlap = ra.x0 < rb.x1 && rb.x0 < ra.x1 && ra.y0 < rb.y1 && rb.y0 < ra.y1;
-            expect(overlap, `${a.key} と ${b.key}`).toBe(false);
+            if (a !== b) expect(overlaps(ra, labelRect(b, size.fontSize)), `${a.key} と ${b.key}`).toBe(false);
+          }
+          for (const d of layout.placed) {
+            if (d === a) continue;
+            const inside = d.x >= ra.x0 - 4 && d.x <= ra.x1 + 4 && d.y >= ra.y0 && d.y <= ra.y1;
+            expect(inside, `${d.key} が ${a.key} の名札の下`).toBe(false);
+          }
+          const c = layout.cluster;
+          if (c) expect(c.x >= ra.x0 - 4 && c.x <= ra.x1 + 4 && c.y >= ra.y0 && c.y <= ra.y1).toBe(false);
+        }
+      });
+
+      it("同じレーンの光どうしは離れている", () => {
+        for (const a of layout.placed) {
+          for (const b of layout.placed) {
+            if (a === b || a.lane !== b.lane) continue;
+            expect(Math.abs(a.x - b.x), `${a.key} と ${b.key}`).toBeGreaterThanOrEqual(10);
           }
         }
       });
 
-      it("名札を出さない光は、名札の範囲とほかの光に重ならない", () => {
-        const pinned = layout.placed.filter((p) => p.pinned);
-        const dots = layout.placed.filter((p) => !p.pinned);
-        for (const d of dots) {
-          for (const p of pinned) {
-            const r = labelRect(p, size.fontSize);
-            const inside = d.x >= r.x0 - 10 && d.x <= r.x1 && d.y >= r.y0 && d.y <= r.y1;
-            expect(inside, `${d.key} が ${p.key} の名札の上`).toBe(false);
-          }
-          for (const e of dots) {
-            if (d === e) continue;
-            expect(Math.hypot(d.x - e.x, d.y - e.y), `${d.key} と ${e.key}`).toBeGreaterThan(9);
-          }
+      it("乗せたときの名札は、右端からはみ出さず、常に出ている名札と重ならない側に出る（左右の反転はしない）", () => {
+        const boxes: (PlacedNode | NonNullable<FlowLayout["cluster"]>)[] = [...dots];
+        const crowded: string[] = [];
+        if (layout.cluster) boxes.push(layout.cluster);
+        for (const p of boxes) {
+          const r = labelRect(p, size.fontSize);
+          expect(r.x1).toBeLessThanOrEqual(size.width + size.overhang + 0.01);
+          expect(r.x0).toBeGreaterThanOrEqual(-0.01);
+          expect(r.y1).toBeLessThanOrEqual(size.height + 0.01);
+          expect(r.y0).toBeGreaterThanOrEqual(-STAGES_ROOM - 0.01);
+          // 光そのものは隠さない
+          expect(p.x > r.x0 && p.x < r.x1 && p.y > r.y0 && p.y < r.y1).toBe(false);
+          if (pinned.some((q) => overlaps(r, labelRect(q, size.fontSize)))) crowded.push("key" in p ? p.key : "公開済み");
+        }
+        // どの側も常に出す名札でふさがっているときだけ、重なりのいちばん小さい所に出る（1024×768 の右端の1つ）
+        expect(crowded.length, crowded.join(", ")).toBeLessThanOrEqual(size.width < 1000 ? 1 : 0);
+      });
+
+      it("前の配置を渡すと、何も変わっていなければ全部同じ位置", () => {
+        const again = run(size, nodes, layout);
+        expect(positions(again)).toEqual(positions(layout));
+        expect(again.cluster?.y).toBe(layout.cluster?.y);
+      });
+
+      it("1つが次の段階へ進んでも、ほかの光と名札は動かない。進んだ物は同じレーンに置く", () => {
+        const moved = nodes.map((n) => (n.key === "o/todo-app#19" ? { ...n, at: 4 } : n));
+        const next = run(size, moved, layout);
+        const before = positions(layout);
+        const after = positions(next);
+        for (const [key, pos] of before) if (key !== "o/todo-app#19") expect(after.get(key), key).toBe(pos);
+        const was = layout.placed.find((p) => p.key === "o/todo-app#19");
+        const now = next.placed.find((p) => p.key === "o/todo-app#19");
+        expect(now?.column).toBe(4);
+        expect(now?.lane).toBe(was?.lane);
+        for (const p of layout.placed.filter((q) => q.pinned)) {
+          const q = next.placed.find((r) => r.key === p.key);
+          expect(q?.width, p.key).toBe(p.width);
         }
       });
 
-      it("乗せたときの名札も右端からはみ出さず、光の右か、光の下・上に出る（左右の反転はしない）", () => {
-        for (const p of layout.placed.filter((q) => !q.pinned)) {
-          expect(p.x + p.dx + p.width).toBeLessThanOrEqual(size.width + size.overhang + 0.01);
-          expect(p.x + p.dx).toBeGreaterThanOrEqual(-0.01);
-          if (p.dx !== LABEL_GAP) {
-            // ずらしたときは光と重ならない高さ
-            const r = labelRect(p, size.fontSize);
-            expect(r.y0 > p.y || r.y1 < p.y).toBe(true);
-            // 下端の行（説明と凡例）にかからない
-            expect(r.y1).toBeLessThanOrEqual(size.height + 0.01);
-            expect(r.y0).toBeGreaterThanOrEqual(-STAGES_ROOM);
-          }
-        }
+      it("押した人間の番が AI の番になって次の列へ進んでも（PRを作る）、ほかは動かない", () => {
+        const moved = nodes.map((n) => (n.key === "o/landing-page#6" ? { ...n, at: 3, who: "ai" as const, label: "CI 実行中" } : n));
+        const next = run(size, moved, layout);
+        const before = positions(layout);
+        const after = positions(next);
+        for (const [key, pos] of before) if (key !== "o/landing-page#6") expect(after.get(key), key).toBe(pos);
+        expect(next.placed.find((p) => p.key === "o/landing-page#6")).toMatchObject({ column: 3, pinned: false });
+      });
+
+      it("新しい Issue が増えても、消えても、ほかは動かない", () => {
+        const added = run(size, [...nodes, node(40, 1, "ai", { repo: "todo-app" }), node(41, 4, "human", { repo: "todo-app" })], layout);
+        const before = positions(layout);
+        const after = positions(added);
+        for (const [key, pos] of before) expect(after.get(key), key).toBe(pos);
+        const removed = run(size, nodes.filter((n) => n.key !== "o/todo-app#24"), layout);
+        for (const [key, pos] of positions(removed)) expect(pos, key).toBe(before.get(key));
       });
     });
   }
+
+  it("デモの再生と押す操作を通しても、変わった物以外の光は動かない", () => {
+    const size = SIZES[2];
+    const now = new Date("2026-10-26T03:00:00Z");
+    let playback: DemoPlayback = startPlayback(now);
+    let nodes = buildFlowNodes(buildDemoResults(now, playback), now);
+    let layout = run(size, nodes);
+    const press = (op: Omit<DemoOp, "owner" | "at">) => {
+      playback = { ...playback, ops: [...playback.ops, { owner: "demo", at: playback.now, ...op }] };
+    };
+    const steps: (() => void)[] = [
+      ...Array.from({ length: 4 }, () => () => {
+        playback = advancePlayback(playback);
+      }),
+      () => press({ repo: "landing-page", number: 6, kind: "createPull" }),
+      () => press({ repo: "todo-app", number: 23, kind: "resume" }),
+      () => press({ repo: "todo-app", number: 22, kind: "merge" }),
+      ...Array.from({ length: 5 }, () => () => {
+        playback = advancePlayback(playback);
+      }),
+    ];
+    for (const step of steps) {
+      step();
+      const next = buildFlowNodes(buildDemoResults(now, playback), now);
+      const nextLayout = run(size, next, layout);
+      const was = new Map(nodes.map((n) => [n.key, n]));
+      const before = positions(layout);
+      for (const p of nextLayout.placed) {
+        const old = was.get(p.key);
+        if (!old || old.at !== p.column || !before.has(p.key)) continue;
+        expect(`${p.x.toFixed(2)},${p.y.toFixed(2)}`, p.key).toBe(before.get(p.key));
+      }
+      nodes = next;
+      layout = nextLayout;
+    }
+  });
+
+  it("レーンの数が変わる（画面の高さが変わる）ときは置き直す", () => {
+    const small = run(SIZES[2]);
+    const tall = run({ ...SIZES[2], height: 300 }, demoLike(), small);
+    expect(tall.lanes).toBeGreaterThan(small.lanes);
+    expect(tall.hidden).toEqual([]);
+  });
+
+  it("レーンの数は区域の高さで決まり、多すぎない", () => {
+    expect(laneCountOf(144, 11.55)).toBe(4);
+    expect(laneCountOf(178, 12.5)).toBe(4);
+    expect(laneCountOf(600, 15)).toBe(MAX_LANES);
+    expect(laneCountOf(10, 12)).toBe(1);
+  });
 
   it("同じ列の常に出す名札は別のレーンで、区域の真ん中に寄せる", () => {
     const nodes = [node(1, 2, "human"), node(2, 2, "human")];
     const layout = layoutFlow({ nodes, width: 1200, height: 160, fontSize: 12, overhang: 30, measure: measureAt(12) });
     const [a, b] = layout.placed;
     expect(a.lane).not.toBe(b.lane);
-    expect(Math.abs((a.y + b.y) / 2 - 80)).toBeLessThan(1);
+    expect(Math.abs((a.y + b.y) / 2 - 80)).toBeLessThan(layout.laneHeight);
   });
 
   it("左の列の名札がかかっているレーンは避ける", () => {
@@ -187,24 +309,22 @@ describe("layoutFlow", () => {
     expect(a.lane).not.toBe(b.lane);
   });
 
-  it("レーンより多い人間の番は、入らない物だけ名札を出さない光にする", () => {
-    const nodes = Array.from({ length: 6 }, (_, i) => node(i + 1, 0, "human"));
-    const layout = layoutFlow({ nodes, width: 1200, height: 160, fontSize: 12, overhang: 30, measure: measureAt(12) });
-    expect(layout.lanes).toBe(4);
-    // 4つのレーンを全部使うと残りの光が入らないので、3つにする
-    expect(layout.placed.filter((p) => p.pinned)).toHaveLength(3);
-    expect(layout.placed).toHaveLength(6);
+  it("名札を出さない光は、同じレーンの上に間隔をあけて並ぶ（点の群れにしない）", () => {
+    const nodes = Array.from({ length: 10 }, (_, i) => node(i + 1, 1, "ai"));
+    const layout = layoutFlow({ nodes, width: 1376, height: 178, fontSize: 12.5, overhang: 32, measure: measureAt(12.5) });
     expect(layout.hidden).toEqual([]);
+    const lanes = new Set(layout.placed.map((p) => p.lane));
+    expect(lanes.size).toBe(layout.lanes);
+    for (const p of layout.placed) expect(layout.laneYs).toContain(p.y);
   });
 
-  it("名札のレーンで列がふさがり光が入らないときは、その列の常に出す名札を減らす（光は全部出す）", () => {
-    const nodes = Array.from({ length: 7 }, (_, i) => node(i + 1, 0, "human"));
-    const layout = layoutFlow({ nodes, width: 1200, height: 120, fontSize: 12, overhang: 30, measure: measureAt(12) });
-    expect(layout.lanes).toBe(3);
-    expect(layout.hidden).toEqual([]);
-    expect(layout.placed).toHaveLength(7);
-    expect(layout.placed.filter((p) => p.pinned).length).toBeGreaterThanOrEqual(1);
-    expect(layout.placed.filter((p) => p.pinned).length).toBeLessThan(3);
+  it("名札を出さない光が列に入らないときは間隔を詰め、それでも入らない物は出さない", () => {
+    const many = Array.from({ length: 40 }, (_, i) => node(i + 1, 3, "ai"));
+    const roomy = layoutFlow({ nodes: many, width: 1376, height: 178, fontSize: 12.5, overhang: 30, measure: measureAt(12.5) });
+    expect(roomy.hidden).toEqual([]);
+    const cramped = layoutFlow({ nodes: many, width: 600, height: 40, fontSize: 12.5, overhang: 30, measure: measureAt(12.5) });
+    expect(cramped.hidden.length).toBeGreaterThan(0);
+    expect(cramped.placed.length + cramped.hidden.length).toBe(40);
   });
 
   it("右の列の常に出す名札は、入らなければ縦に積む出し方にする", () => {
@@ -213,19 +333,41 @@ describe("layoutFlow", () => {
     expect(layout.placed[0]).toMatchObject({ pinned: true, variant: "stack", dx: LABEL_GAP });
   });
 
-  it("名札を出さない光が列に入らないときは格子を詰め、それでも入らない物は出さない", () => {
-    const many = Array.from({ length: 40 }, (_, i) => node(i + 1, 7, "done"));
-    const roomy = layoutFlow({ nodes: many, width: 1376, height: 178, fontSize: 12.5, overhang: 30, measure: measureAt(12.5) });
-    expect(roomy.hidden).toEqual([]);
-    const cramped = layoutFlow({ nodes: many, width: 600, height: 40, fontSize: 12.5, overhang: 30, measure: measureAt(12.5) });
-    expect(cramped.hidden.length).toBeGreaterThan(0);
-    expect(cramped.placed.length + cramped.hidden.length).toBe(40);
-  });
-
   it("0件でも壊れない", () => {
     const layout = layoutFlow({ nodes: [], width: 800, height: 150, fontSize: 12, overhang: 20, measure: measureAt(12) });
     expect(layout.placed).toEqual([]);
     expect(layout.hidden).toEqual([]);
+    expect(layout.cluster).toBeNull();
+  });
+});
+
+describe("hoverLabelBox", () => {
+  const base = { fontSize: 12, height: 160, rightEdge: 1000 };
+  const lh = labelHeight(12);
+  const m = { id: 50, status: 60, title: 188 };
+  it("空いていれば光の右に2行", () => {
+    expect(hoverLabelBox(100, 80, m, { ...base, avoid: [] })).toEqual({ dx: LABEL_GAP, dy: -lh / 2, width: 200, variant: "full" });
+  });
+  it("右に常に出す名札があれば、下か上へ", () => {
+    const avoid = [{ x0: 200, x1: 400, y0: 80 - lh / 2, y1: 80 + lh / 2 }];
+    const box = hoverLabelBox(100, 80, m, { ...base, avoid });
+    const r = { x0: 100 + box.dx, x1: 100 + box.dx + box.width, y0: 80 + box.dy, y1: 80 + box.dy + lh };
+    expect(r.x0 < 400 && r.x1 > 200 && r.y0 < 80 + lh / 2 && r.y1 > 80 - lh / 2).toBe(false);
+    expect(100 > r.x0 && 100 < r.x1 && 80 > r.y0 && 80 < r.y1).toBe(false);
+  });
+  it("右端に入らなければ、左へずらして下（反転はしない）", () => {
+    const box = hoverLabelBox(950, 40, m, { ...base, avoid: [] });
+    expect(950 + box.dx + box.width).toBeLessThanOrEqual(1000);
+    expect(box.dy).toBe(12);
+  });
+  it("どの側も2行では重なるなら、縦に積む出し方で空いた所を探す", () => {
+    const avoid = [
+      { x0: 0, x1: 1000, y0: 0, y1: 60 },
+      { x0: 0, x1: 1000, y0: 100, y1: 160 },
+      { x0: 260, x1: 1000, y0: 60, y1: 100 },
+    ];
+    const box = hoverLabelBox(100, 80, m, { ...base, avoid });
+    expect(box).toMatchObject({ variant: "stack", dx: LABEL_GAP, dy: -lh / 2 });
   });
 });
 
