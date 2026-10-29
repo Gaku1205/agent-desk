@@ -15,6 +15,7 @@ import {
   formatWait,
   isOperationAvailable,
   turnButtons,
+  turnItemKey,
   waitingSince,
   type TurnButton,
 } from "./turn";
@@ -245,6 +246,12 @@ describe("件数", () => {
 
   it("リポジトリ名の大文字小文字は区別しない", () => {
     expect(filterTurnItems(items, "O", "R")).toHaveLength(4);
+  });
+
+  it("1件のキーは `owner/repo#番号`（流れの光のキーと同じ）で、重ならない", () => {
+    const keys = items.map(turnItemKey);
+    expect(keys).toContain("o/other#1");
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
 

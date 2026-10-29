@@ -3,7 +3,7 @@
 import { createContext, useContext } from "react";
 import type { PlayButtonState } from "@/lib/demo/playback";
 import type { RepoResult } from "@/lib/github/types";
-import type { TurnItem } from "@/lib/turn";
+import type { OperationKind, TurnItem } from "@/lib/turn";
 
 export type DemoState = {
   /** サンプルのデータ（本物と同じ形） */
@@ -15,8 +15,10 @@ export type DemoState = {
   playState: PlayButtonState;
   /** 再生する（終わっていれば最初から） */
   play: () => void;
-  /** 「デモでは実際には動きません」を出す */
+  /** 「デモでは実際には動きません」を出す（設定の保存・同期） */
   notify: () => void;
+  /** 「あなたの番」のボタン：サンプルのデータの上で本当に段階を進める（少し遅れて当てる） */
+  operate: (target: { owner: string; repo: string; number: number }, kind: OperationKind) => void;
 };
 
 const DemoContext = createContext<DemoState | null>(null);

@@ -1,27 +1,37 @@
 import type { FlowNode, FlowWho } from "./nodes";
 
 /**
- * 流れ（PC）の配置：Issue の光を段階の列に置き、名札が隣と重ならないようレーン（行）に詰める。
+ * 流れ（PC）の配置：Issue の光を段階の列の中に置き、名札を常に出す光（人間の番・失敗）だけレーンに並べる。
+ * ほかの光は名札を出さず、列の中の格子に置く（名札は乗せたときだけ）。
  * 入力から出力が決まる純粋関数。文字の幅は呼ぶ側が測って渡す（canvas の measureText など）。
- * 寸法の決まりは docs/design.md の「流れ」
+ * 寸法の決まりは docs/design.md の「流れ（PC）」
  */
 
-/** 名札の出し方：リポジトリ名つき／リポジトリ名なし／1行だけ（公開済み：`#12 公開済み`） */
-export type LabelVariant = "full" | "noRepo" | "compact";
+/** 名札の出し方：2行（1行目 番号＋短い説明、2行目 題名）／縦に積む（1行目 番号、2行目 短い説明） */
+export type LabelVariant = "full" | "stack";
 
-/** 名札の2行の文字の幅（px）。compact は line2 を使わない */
-export type LabelMetrics = { line1: number; line2: number };
+/** 名札の部品ごとの文字の幅（px） */
+export type LabelMetrics = {
+  /** `todo-app#23`（1つのリポジトリだけなら `#23`） */
+  id: number;
+  /** 短い説明（`止まっています`） */
+  status: number;
+  /** 題名 */
+  title: number;
+};
 
-export type MeasureLabel = (node: FlowNode, variant: LabelVariant) => LabelMetrics;
+export type MeasureLabel = (node: FlowNode) => LabelMetrics;
 
 export type LayoutInput = {
   nodes: FlowNode[];
-  /** 流れの幅（px）。左端が 0 */
+  /** 流れの幅（px。左右の余白を除く）。左端が 0 */
   width: number;
-  /** レーンに使える高さ（px） */
+  /** 光の区域の高さ（px）。上端が 0 */
   height: number;
   /** 名札の文字の大きさ（px） */
   fontSize: number;
+  /** 右の余白（名札はここまではみ出してよい） */
+  overhang: number;
   measure: MeasureLabel;
 };
 
@@ -30,296 +40,258 @@ export type PlacedNode = {
   /** 光の中心（px） */
   x: number;
   y: number;
-  /** 名札を光の左に出す（右端に入らないとき） */
-  flip: boolean;
+  /** 段階の列（0〜7） */
+  column: number;
+  /** 名札を常に出す（人間の番・失敗で、レーンに入った物） */
+  pinned: boolean;
+  /** 常に出す名札のレーン（出さない光は -1） */
+  lane: number;
   /** 名札の幅（px） */
   width: number;
   variant: LabelVariant;
-  lane: number;
-};
-
-/** 公開済みをまとめた1つの光（名札が入らないときだけ） */
-export type DeployedCluster = {
-  keys: string[];
-  count: number;
-  x: number;
-  y: number;
-  lane: number;
+  /** 名札の左上の、光の中心からの位置（px）。乗せたときの名札も同じ */
+  dx: number;
+  dy: number;
 };
 
 export type FlowLayout = {
   placed: PlacedNode[];
-  cluster: DeployedCluster | null;
-  /** レーンの高さ（px） */
-  laneHeight: number;
-  /** 名札が横に使ってよい列の数（3→2→1） */
-  span: number;
+  /** 列に入りきらず出さない光 */
+  hidden: string[];
   columnWidth: number;
+  laneHeight: number;
+  lanes: number;
 };
 
 /** 光の中心の、列の左端からの位置 */
-export const DOT_OFFSET = 26;
-/** 光と名札の間（右に出すとき） */
-export const LABEL_GAP = 18;
-/** 光と名札の間（左に出すとき） */
-export const LABEL_GAP_FLIP = 19;
-/** 名札どうしの最低の間 */
-const LABEL_MARGIN = 6;
+export const DOT_OFFSET = 20;
+/** 光と名札の間 */
+export const LABEL_GAP = 16;
 /** 名札の左右の余白（文字の幅に足す） */
 export const LABEL_PADDING = 12;
-/** レーンの高さの上限（間延びさせない） */
-const MAX_LANE_HEIGHT = 72;
-/** 公開済みをまとめるのは、この数以上あるとき */
-const CLUSTER_MIN = 2;
-/** 名札だけ左へ出す物がこれより多いときは、公開済みをまとめる方を選ぶ */
-const MAX_AWKWARD = 4;
-/** 右端に入らない名札を縮めて切ってよい最小の幅（文字数） */
-const SHRINK_MIN_CHARS = 18;
+/** 名札の幅の上限（文字の大きさの倍数） */
+export const MAX_LABEL_EM = 26;
+/** 光の中心は、列の右端からこれだけ内側まで */
+export const COLUMN_END_MARGIN = 11;
+/** 名札の右端と、同じレーンの次の名札の光の間 */
+export const LABEL_CLEAR = 12;
+/** 名札が右の余白の端に近づいてよい所 */
+const EDGE = 2;
+/** 乗せたときの名札を光の下（上）に出すときの間 */
+export const HOVER_DROP = 12;
+/** 光の区域の下の、説明と凡例の行（乗せたときの名札は、ここにかからないように光の上に出す） */
+export const FOOT_ROOM = 26;
+/** 名札を出さない光の格子の間隔（横・縦）。入らなければ順に詰める */
+export const DOT_GRIDS: readonly (readonly [number, number])[] = [
+  [22, 20],
+  [16, 14],
+  [12, 10],
+];
+/** 格子の点を、名札の範囲・名札のある光から離す */
+const SLOT_CLEAR = 8;
+const PINNED_CLEAR = 20;
 
-/** 名札の最小のレーンの高さ（2行ぶん） */
-export function minLaneHeight(fontSize: number): number {
+/** 名札（2行）の高さ */
+export function labelHeight(fontSize: number): number {
   return fontSize * 2.5 + 4;
 }
 
-type Slot = { lane: number; x0: number; x1: number };
-
-function overlaps(slots: Slot[], lane: number, x0: number, x1: number): boolean {
-  return slots.some((s) => s.lane === lane && s.x0 < x1 + LABEL_MARGIN && s.x1 > x0 - LABEL_MARGIN);
+/** 常に出す名札のレーンの高さ */
+export function laneHeightOf(fontSize: number): number {
+  return labelHeight(fontSize) + 2;
 }
 
-/** 名札の幅と出し方を決める：入る範囲で リポジトリ名つき → なし → 切る */
-export function chooseVariant(
-  node: FlowNode,
-  maxWidth: number,
-  measure: MeasureLabel,
-): { variant: LabelVariant; width: number } {
-  if (node.who === "done") {
-    const m = measure(node, "compact");
-    return { variant: "compact", width: Math.min(maxWidth, Math.ceil(m.line1) + LABEL_PADDING + 6) };
-  }
-  for (const variant of ["full", "noRepo"] as const) {
-    const m = measure(node, variant);
-    const need = Math.ceil(Math.max(m.line1, m.line2)) + LABEL_PADDING;
-    if (need <= maxWidth) return { variant, width: need };
-  }
-  return { variant: "noRepo", width: maxWidth };
+/** 名札を常に出す色：人間の番と失敗だけ */
+export function isPinnedWho(who: FlowWho): boolean {
+  return who === "human" || who === "fail";
 }
 
-/** 真ん中から外へ、近い順にレーンを試す */
-function laneCandidates(desired: number, lanes: number): number[] {
-  const out: number[] = [];
-  for (let d = 0; d < lanes; d++) {
-    const below = desired + d;
-    const above = desired - d;
-    if (below < lanes && below >= 0) out.push(below);
-    if (d > 0 && above >= 0 && above < lanes) out.push(above);
-  }
-  return out;
+/** 名札の部品の間（CSS の gap 0.5em） */
+function gapOf(fontSize: number): number {
+  return fontSize * 0.5;
 }
 
-type Attempt = { placed: PlacedNode[]; lanesUsed: number; minLane: number };
-
-function attempt(
-  nodes: FlowNode[],
-  width: number,
-  columnWidth: number,
-  span: number,
-  lanes: number,
-  measure: MeasureLabel,
-  fontSize: number,
-  /** 右端の、公開済みを積む帯の幅（積まないときは 0） */
-  zone: number,
-): Attempt {
-  const columns: FlowNode[][] = Array.from({ length: 8 }, () => []);
-  for (const node of nodes) columns[Math.min(7, Math.max(0, node.at))].push(node);
-  const maxLabel = span * columnWidth - DOT_OFFSET - LABEL_GAP - 2;
-  const slots: Slot[] = [];
-  const placed: PlacedNode[] = [];
-  const center = (lanes - 1) / 2;
-  columns.forEach((column, k) => {
-    column.forEach((node, index) => {
-      const { variant: labelVariant, width: labelWidth } = chooseVariant(node, Math.max(40, maxLabel), measure);
-      let x = k * columnWidth + DOT_OFFSET;
-      let flip = false;
-      let w = labelWidth;
-      let variant = labelVariant;
-      // 右端の帯（公開済みを積む所）には、公開の列の物以外の名札を入れない
-      const limit = k === 7 ? width : width - zone;
-      if (x + LABEL_GAP + w > limit) {
-        const room = limit - x - LABEL_GAP;
-        if (room >= fontSize * SHRINK_MIN_CHARS + 10 && node.who !== "done") {
-          // 読める幅が残っていれば、縮めて切る
-          const shrunk = chooseVariant(node, room, measure);
-          w = shrunk.width;
-          variant = shrunk.variant;
-        } else if (k === 7 || zone === 0) {
-          // 公開の列（か、右端に公開済みを積まないとき）：光を右端に置いて、名札を左へ
-          flip = true;
-          x = width - DOT_OFFSET;
-        } else {
-          // それ以外の列：光はそのまま、名札だけ左へ（右端の帯に入れない）
-          flip = true;
-        }
-      }
-      const x0 = flip ? x - LABEL_GAP_FLIP - w : x - 12;
-      const x1 = flip ? x + 12 : x + LABEL_GAP + w;
-      const desired = Math.round(center - (column.length - 1) / 2 + index);
-      let lane = laneCandidates(Math.min(lanes - 1, Math.max(0, desired)), lanes).find(
-        (candidate) => !overlaps(slots, candidate, x0, x1),
-      );
-      if (lane === undefined) {
-        // どのレーンにも入らない：下に増やす（あとで高さが足りなければ span を減らす）
-        lane = lanes;
-        while (overlaps(slots, lane, x0, x1)) lane++;
-      }
-      slots.push({ lane, x0, x1 });
-      placed.push({ key: node.key, x, y: 0, flip, width: w, variant, lane });
-    });
-  });
-  const laneNumbers = placed.map((p) => p.lane);
-  const minLane = laneNumbers.length ? Math.min(...laneNumbers) : 0;
-  const maxLane = laneNumbers.length ? Math.max(...laneNumbers) : -1;
-  return { placed, lanesUsed: maxLane - minLane + 1, minLane };
-}
-
-/** 公開済みを1つにまとめた光（名札は `公開済み N件`） */
-export function clusterNode(dones: FlowNode[]): FlowNode {
-  const first = dones[0];
+/** 2行の名札の、ほしい幅と、1行目だけの幅 */
+function wants(m: LabelMetrics, fontSize: number) {
+  const line1 = m.id + gapOf(fontSize) + m.status;
   return {
-    key: "cluster:deployed",
-    owner: first.owner,
-    repo: first.repo,
-    number: 0,
-    title: dones.map((d) => `#${d.number}`).join(" "),
-    url: first.url,
-    at: 7,
-    who: "done",
-    label: `公開済み ${dones.length}件`,
-    caption: dones.map((d) => `#${d.number} ${d.title}`).join("　"),
-    deployLinks: [],
-    logUrl: null,
-    turn: false,
+    full: Math.ceil(Math.max(line1, m.title)) + LABEL_PADDING,
+    line1: Math.ceil(line1) + LABEL_PADDING,
+    stack: Math.ceil(Math.max(m.id, m.status)) + LABEL_PADDING,
   };
 }
 
-/** 公開済みの名札（1行）の縦の間隔 */
-export function doneLaneHeight(fontSize: number): number {
-  return fontSize * 1.25 + 6;
-}
-
-/** 公開済みが右端に縦に並ぶ帯の幅（名札の最大の幅 ＋ 光と余白） */
-function doneZoneWidth(dones: FlowNode[], measure: MeasureLabel): number {
-  const widest = Math.max(0, ...dones.map((d) => chooseVariant(d, 400, measure).width));
-  return widest + DOT_OFFSET + LABEL_GAP_FLIP + LABEL_MARGIN;
-}
-
-/**
- * 公開済みを右端に縦に積む（名札は1行）。ほかの名札が右端の帯にかかる所は避ける。
- * 全部置けなければ null（まとめる）
- */
-function stackDones(
-  dones: FlowNode[],
-  placed: PlacedNode[],
-  width: number,
-  height: number,
+/** 使ってよい幅の中で、名札の出し方と幅を決める：2行（題名は切ってよい）→ 縦に積む → 切る */
+export function chooseLabel(
+  m: LabelMetrics,
+  room: number,
   fontSize: number,
-  laneHeight: number,
-  measure: MeasureLabel,
-): PlacedNode[] | null {
-  if (dones.length === 0) return [];
-  const zone = doneZoneWidth(dones, measure);
-  const step = doneLaneHeight(fontSize);
-  const blocked = placed
-    .filter((p) => {
-      const x1 = p.flip ? p.x + 12 : p.x + LABEL_GAP + p.width;
-      return x1 > width - zone;
-    })
-    .map((p) => [p.y - laneHeight / 2, p.y + laneHeight / 2] as const);
-  const out: PlacedNode[] = [];
-  let y = step / 2;
-  for (const node of dones) {
-    // ふさがっている区間を飛ばす（浮動小数の誤差で同じ区間に戻らないよう、少し余裕をとる）
-    for (;;) {
-      const hit = blocked.find(([a, b]) => y + step / 2 > a + 0.01 && y - step / 2 < b - 0.01);
-      if (!hit) break;
-      y = hit[1] + step / 2 + 0.05;
-    }
-    if (y + step / 2 > height + 0.5) return null;
-    const { width: w, variant } = chooseVariant(node, zone, measure);
-    out.push({ key: node.key, x: width - DOT_OFFSET, y, flip: true, width: w, variant, lane: -1 });
-    y += step;
+): { variant: LabelVariant; width: number } {
+  const want = wants(m, fontSize);
+  const cap = Math.min(room, fontSize * MAX_LABEL_EM);
+  if (want.line1 <= cap) return { variant: "full", width: Math.max(0, Math.min(want.full, cap)) };
+  return { variant: "stack", width: Math.max(0, Math.min(want.stack, cap)) };
+}
+
+type Pin = { node: FlowNode; column: number; x: number; lane: number; limit: number; reach: number };
+type Rect = { x0: number; x1: number; y0: number; y1: number };
+
+/** 真ん中に近い順（同じなら上）にレーンを並べる */
+function byCenter(lanes: number[], total: number): number[] {
+  const center = (total - 1) / 2;
+  return [...lanes].sort((a, b) => Math.abs(a - center) - Math.abs(b - center) || a - b);
+}
+
+/** 区域の真ん中から上下へ、step 間隔の縦の位置 */
+function rowsFromCenter(height: number, step: number): number[] {
+  const center = height / 2;
+  const out = [center];
+  for (let d = 1; ; d++) {
+    const below = center + d * step;
+    const above = center - d * step;
+    const okBelow = below <= height - step / 2 + 0.01;
+    const okAbove = above >= step / 2 - 0.01;
+    if (!okBelow && !okAbove) break;
+    if (okBelow) out.push(below);
+    if (okAbove) out.push(above);
   }
   return out;
 }
 
 /**
- * 流れの配置を決める。公開済み以外をレーンに詰め、公開済みは右端に縦に積む。
- * レーンが高さに入らなければ名札の幅（span）を 3→2→1 と縮め、公開済みが積めなければ1つにまとめる
+ * 流れの配置を決める。
+ * 1. 人間の番・失敗の光を、列ごとに左から、空いているレーンの真ん中寄りに置き、名札の幅を決める（右へ伸ばし、反転しない）
+ * 2. ほかの光（と、レーンに入らなかった物）を、列の中の格子の空いた所に置く。入らなければ格子を詰める
  */
 export function layoutFlow(input: LayoutInput): FlowLayout {
-  const { nodes, width, height, fontSize, measure } = input;
-  const columnWidth = width / 8;
-  const minLH = minLaneHeight(fontSize);
-  const lanes = Math.max(1, Math.floor(height / minLH));
-  const dones = nodes.filter((n) => n.who === "done");
-  const others = nodes.filter((n) => n.who !== "done");
-  const canCluster = dones.length >= CLUSTER_MIN;
+  // 名札のレーンで列がふさがり、名札を出さない光が入らない列は、その列の常に出す名札を1つずつ減らして置き直す
+  const lanes = Math.max(1, Math.floor(input.height / laneHeightOf(input.fontSize)));
+  const maxPinned = Array.from({ length: 8 }, () => lanes);
+  let layout = place(input, maxPinned);
+  for (let guard = 0; guard < 8 * lanes && layout.hidden.length > 0; guard++) {
+    const columns = new Set<number>();
+    for (const key of layout.hidden) {
+      const node = input.nodes.find((n) => n.key === key);
+      if (node) columns.add(Math.min(7, Math.max(0, node.at)));
+    }
+    const shrink = [...columns].filter((c) => maxPinned[c] > 0);
+    if (shrink.length === 0) break;
+    for (const c of shrink) maxPinned[c] -= 1;
+    layout = place(input, maxPinned);
+  }
+  return layout;
+}
 
-  type Candidate = {
-    span: number;
-    clustered: boolean;
-    placed: PlacedNode[];
-    laneHeight: number;
-    ok: boolean;
-    /** 光はそのままで名札だけ左へ出した数（多いと列が読みにくい） */
-    awkward: number;
-  };
-  const candidates: Candidate[] = [];
-  for (const span of [3, 2, 1]) {
-    for (const clustered of [false, true]) {
-      if (clustered && !canCluster) continue;
-      const stacking = !clustered && dones.length >= CLUSTER_MIN;
-      const list = clustered ? [...others, clusterNode(dones)] : stacking ? others : nodes;
-      const zone = stacking ? doneZoneWidth(dones, measure) : 0;
-      const result = attempt(list, width, columnWidth, span, lanes, measure, fontSize, zone);
-      const { placed, lanesUsed, minLane } = result;
-      const fitsLanes = lanesUsed * minLH <= height + 0.5;
-      const laneHeight = Math.max(
-        minLH * 0.85,
-        Math.min(MAX_LANE_HEIGHT, lanesUsed > 0 ? height / lanesUsed : MAX_LANE_HEIGHT),
-      );
-      const y0 = Math.max(0, (height - lanesUsed * laneHeight) / 2);
-      for (const p of placed) p.y = y0 + (p.lane - minLane) * laneHeight + laneHeight / 2;
-      let ok = fitsLanes;
-      let all = placed;
-      if (stacking) {
-        const stacked = stackDones(dones, placed, width, height, fontSize, laneHeight, measure);
-        if (stacked) all = [...placed, ...stacked];
-        else ok = false;
+function place(input: LayoutInput, maxPinned: number[]): FlowLayout {
+  const { nodes, width, height, fontSize, overhang, measure } = input;
+  const columnWidth = width / 8;
+  const lh = labelHeight(fontSize);
+  const laneH = laneHeightOf(fontSize);
+  const lanes = Math.max(1, Math.floor(height / laneH));
+  const laneTop = Math.max(0, (height - lanes * laneH) / 2);
+  const laneY = (lane: number) => laneTop + (lane + 0.5) * laneH;
+  const rightEdge = width + overhang - EDGE;
+  const colOf = (node: FlowNode) => Math.min(7, Math.max(0, node.at));
+  const dotX = (column: number) => column * columnWidth + DOT_OFFSET;
+
+  // 1. 常に名札を出す光
+  const reach: (Pin | null)[] = Array.from({ length: lanes }, () => null);
+  const pins: Pin[] = [];
+  const pinnedKeys = new Set<string>();
+  for (let column = 0; column < 8; column++) {
+    const candidates = nodes.filter((n) => colOf(n) === column && isPinnedWho(n.who)).slice(0, Math.min(lanes, maxPinned[column]));
+    const x = dotX(column);
+    const used = new Set<number>();
+    for (const node of candidates) {
+      const open = Array.from({ length: lanes }, (_, l) => l).filter((l) => !used.has(l));
+      const free = open.filter((l) => {
+        const prev = reach[l];
+        return prev === null || prev.reach + LABEL_CLEAR <= x;
+      });
+      const lane = byCenter(free.length > 0 ? free : open, lanes)[0];
+      const prev = reach[lane];
+      if (prev && prev.reach + LABEL_CLEAR > x) {
+        // 左の列の名札を、この光の手前で切る
+        prev.limit = Math.min(prev.limit, x - LABEL_CLEAR - (prev.x + LABEL_GAP));
       }
-      const awkward = placed.filter((p) => p.flip && p.x !== width - DOT_OFFSET).length;
-      candidates.push({ span, clustered, placed: all, laneHeight, ok, awkward });
+      const want = wants(measure(node), fontSize);
+      const pin: Pin = {
+        node,
+        column,
+        x,
+        lane,
+        limit: Infinity,
+        reach: x + LABEL_GAP + Math.min(want.full, fontSize * MAX_LABEL_EM),
+      };
+      used.add(lane);
+      reach[lane] = pin;
+      pins.push(pin);
+      pinnedKeys.add(node.key);
     }
   }
-  // 題名が読める幅（22文字ぶん）があれば、まとめない方を選ぶ。無ければ、入る中でいちばん広い物
-  const readable = (c: Candidate) => c.span * columnWidth - DOT_OFFSET - LABEL_GAP - 2 >= fontSize * 22 + 10;
-  // 名札だけ左へ出した物が5つ以上あると列が読みにくいので、そのときは公開済みをまとめる方を選ぶ
-  const tidy = (c: Candidate) => c.awkward <= MAX_AWKWARD;
-  const fitting = candidates.filter((c) => c.ok);
-  const pick =
-    fitting.find((c) => !c.clustered && readable(c) && tidy(c)) ??
-    fitting.find((c) => readable(c) && tidy(c)) ??
-    fitting.find((c) => readable(c)) ??
-    fitting.find((c) => !c.clustered) ??
-    fitting[0] ??
-    candidates[candidates.length - 1];
 
-  let cluster: DeployedCluster | null = null;
-  if (pick.clustered) {
-    const c = pick.placed.find((p) => p.key === "cluster:deployed");
-    if (c) cluster = { keys: dones.map((d) => d.key), count: dones.length, x: c.x, y: c.y, lane: c.lane };
+  const placed: PlacedNode[] = [];
+  const rects: Rect[] = [];
+  const pinPoints: { x: number; y: number }[] = [];
+  for (const pin of pins) {
+    const room = Math.min(pin.limit, rightEdge - (pin.x + LABEL_GAP));
+    const { variant, width: w } = chooseLabel(measure(pin.node), room, fontSize);
+    const y = laneY(pin.lane);
+    placed.push({
+      key: pin.node.key,
+      x: pin.x,
+      y,
+      column: pin.column,
+      pinned: true,
+      lane: pin.lane,
+      width: w,
+      variant,
+      dx: LABEL_GAP,
+      dy: -lh / 2,
+    });
+    rects.push({ x0: pin.x - 10, x1: pin.x + LABEL_GAP + w, y0: y - lh / 2, y1: y + lh / 2 });
+    pinPoints.push({ x: pin.x, y });
   }
-  return { placed: pick.placed, cluster, laneHeight: pick.laneHeight, span: pick.span, columnWidth };
+
+  // 2. 名札を出さない光
+  const hidden: string[] = [];
+  const blocked = (x: number, y: number) =>
+    rects.some((r) => x >= r.x0 - SLOT_CLEAR && x <= r.x1 + SLOT_CLEAR && y >= r.y0 - SLOT_CLEAR && y <= r.y1 + SLOT_CLEAR) ||
+    pinPoints.some((p) => Math.abs(p.x - x) < PINNED_CLEAR && Math.abs(p.y - y) < PINNED_CLEAR);
+  for (let column = 0; column < 8; column++) {
+    const dots = nodes.filter((n) => colOf(n) === column && !pinnedKeys.has(n.key));
+    if (dots.length === 0) continue;
+    const colRight = (column + 1) * columnWidth - COLUMN_END_MARGIN;
+    let slots: { x: number; y: number }[] = [];
+    for (const [stepX, stepY] of DOT_GRIDS) {
+      slots = [];
+      for (let j = 0; ; j++) {
+        const x = dotX(column) + j * stepX;
+        if (j > 0 && x > colRight + 0.01) break;
+        for (const y of rowsFromCenter(height, stepY)) if (!blocked(x, y)) slots.push({ x, y });
+      }
+      if (slots.length >= dots.length) break;
+    }
+    dots.forEach((node, index) => {
+      const slot = slots[index];
+      if (!slot) {
+        hidden.push(node.key);
+        return;
+      }
+      const m = measure(node);
+      const { variant, width: w } = chooseLabel(m, rightEdge, fontSize);
+      let dx = LABEL_GAP;
+      let dy = -lh / 2;
+      if (slot.x + LABEL_GAP + w > rightEdge) {
+        // 右端に入らない：左へずらして右端をそろえ、光の下（入らなければ上）に出す。反転はしない
+        dx = Math.max(-slot.x, rightEdge - w - slot.x);
+        dy = slot.y + HOVER_DROP + lh <= height ? HOVER_DROP : -HOVER_DROP - lh;
+      }
+      placed.push({ key: node.key, x: slot.x, y: slot.y, column, pinned: false, lane: -1, width: w, variant, dx, dy });
+    });
+  }
+
+  return { placed, hidden, columnWidth, laneHeight: laneH, lanes };
 }
 
 /** スマホの細い帯：段階ごとに1つの光にまとめる */

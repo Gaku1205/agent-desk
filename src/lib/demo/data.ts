@@ -7,7 +7,9 @@ import type {
   RepoData,
   RepoResult,
 } from "../github/types";
-import { PLAY_STEPS, playStep, type DemoPlayback, type PlayStep } from "./playback";
+import type { OperationKind } from "../turn";
+import { applyDemoOps } from "./ops";
+import { advancePlayback, PLAY_STEPS, playStep, type DemoPlayback, type PlayStep } from "./playback";
 
 /**
  * デモのサンプルのデータ。GitHub には一切問い合わせず、本物と同じ形（RepoData）を「今」からの相対の時刻で作る。
@@ -566,11 +568,27 @@ function landingPage(base: Date): RepoData {
   return ctx.data;
 }
 
-/** デモの全リポジトリのデータ。base はサンプルの時刻の基準、playback は再生の状態 */
+/** デモの全リポジトリのデータ。base はサンプルの時刻の基準、playback は再生の状態（押した操作を含む） */
 export function buildDemoResults(base: Date, playback: DemoPlayback): RepoResult[] {
   const [todo, landing] = DEMO_REPOS;
   return [
-    { ...todo, ok: true, data: todoApp(base, playback) },
-    { ...landing, ok: true, data: landingPage(base) },
+    { ...todo, ok: true, data: applyDemoOps(todoApp(base, playback), playback.ops, todo.owner, todo.repo) },
+    { ...landing, ok: true, data: applyDemoOps(landingPage(base), playback.ops, landing.owner, landing.repo) },
   ];
+}
+
+/**
+ * デモで「あなたの番」のボタンを押した：押した操作を覚える（データには buildDemoResults が当てる）。
+ * 再生で進む1件のボタンは、再生を1段階進める（docs/spec.md の「デモ」）
+ */
+export function pressDemo(
+  playback: DemoPlayback,
+  target: { owner: string; repo: string; number: number },
+  kind: OperationKind,
+): DemoPlayback {
+  const [todo] = DEMO_REPOS;
+  if (target.owner === todo.owner && target.repo === DEMO_PLAY_ISSUE.repo && target.number === DEMO_PLAY_ISSUE.number) {
+    return advancePlayback(playback);
+  }
+  return { ...playback, ops: [...playback.ops, { ...target, kind, at: playback.now }] };
 }

@@ -32,17 +32,11 @@
   /* 寸法 */
   --gutter: clamp(20px, 2.2vw, 40px);
   --top-h: 52px;
-  --flow-h: clamp(300px, 45svh, 660px);
+  --flow-h: clamp(200px, 26svh, 240px);
   --nfs: clamp(11.5px, 0.23vw + 9.2px, 15px);
-  --giant: clamp(160px, 13vw, 340px);
+  --giant: clamp(200px, 19vw, 480px);
 
   color-scheme: dark;
-}
-
-@media (max-width: 1299px) {
-  :root {
-    --flow-h: clamp(300px, 50svh, 560px);
-  }
 }
 
 @media (max-width: 899px) {

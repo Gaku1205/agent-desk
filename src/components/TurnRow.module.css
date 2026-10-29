@@ -47,16 +47,41 @@
   }
 }
 
-/* 押した操作が通った行：畳まれて消える（取り直しで行が無くなるまで） */
+/* 押した操作が通った行：今の高さ（--h）から0へ畳まれる。下の行が詰めて上がる（取り直しで行が無くなるまで） */
 .row[data-leaving] {
-  animation: row-leave 0.36s var(--ease) forwards;
+  overflow: hidden;
+  animation: row-fold 0.42s var(--ease) forwards;
+  pointer-events: none;
 }
 
-@keyframes row-leave {
-  to {
-    opacity: 0;
-    transform: translateY(-6px);
+@keyframes row-fold {
+  0% {
+    max-height: var(--h, 160px);
+    opacity: 1;
   }
+
+  40% {
+    opacity: 0;
+  }
+
+  100% {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-top-color: transparent;
+    opacity: 0;
+  }
+}
+
+/* 動きを減らすときは、畳む動きの代わりにすぐ消す */
+@media (prefers-reduced-motion: reduce) {
+  :global(:root:not([data-motion="full"])) .row[data-leaving] {
+    display: none;
+  }
+}
+
+:global(:root[data-motion="reduce"]) .row[data-leaving] {
+  display: none;
 }
 
 .head {
