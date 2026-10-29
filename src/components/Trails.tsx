@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { groupTrailDays, trailLimit } from "@/lib/eventGroups";
 import type { TrailEvent } from "@/lib/events";
 import { TriangleDownIcon } from "./icons";
+import { SmartLink } from "./SmartLink";
 import styles from "./Trails.module.css";
 
 type Props = {
@@ -51,34 +52,42 @@ export function Trails({ events, now, hint }: Props) {
         <p className="empty">直近3日の出来事はありません</p>
       ) : (
         <>
-          <div className={styles.days} role="tablist" aria-label="日">
-            {days.map((d) => (
-              <button
-                key={d.day}
-                type="button"
-                role="tab"
-                className={styles.day}
-                aria-selected={current?.day === d.day}
-                onClick={() => {
-                  setDay(d.day);
-                  setOpen(false);
-                }}
-              >
-                {d.heading}
-                <i className="num">{d.count}</i>
-              </button>
-            ))}
-          </div>
-          <div role="tabpanel">
+          {days.length > 1 ? (
+            <div className={styles.days} role="tablist" aria-label="日">
+              {days.map((d) => (
+                <button
+                  key={d.day}
+                  type="button"
+                  role="tab"
+                  className={styles.day}
+                  aria-selected={current?.day === d.day}
+                  onClick={() => {
+                    setDay(d.day);
+                    setOpen(false);
+                  }}
+                >
+                  {d.heading}
+                  <i className="num">{d.count}</i>
+                </button>
+              ))}
+            </div>
+          ) : (
+            // 日が1つだけのときは、押せないタブを出さない。日の名前と件数を文字だけで
+            <p className={styles.dayOnly}>
+              {days[0].heading}
+              <i className="num">{days[0].count}</i>
+            </p>
+          )}
+          <div role={days.length > 1 ? "tabpanel" : undefined}>
             {list.map((trail) => (
               <article className={styles.group} data-new={fresh.has(trail.key) ? "" : undefined} key={trail.key}>
                 <div className={styles.groupHead}>
                   <span className={`${styles.id} num`}>
                     {trail.issue.repo}#{trail.issue.number}
                   </span>
-                  <a className={styles.ttl} href={trail.issue.url} target="_blank" rel="noreferrer">
+                  <SmartLink className={styles.ttl} href={trail.issue.url}>
                     {trail.issue.title}
-                  </a>
+                  </SmartLink>
                 </div>
                 <ul className={styles.trail}>
                   {trail.steps.map((step) => (

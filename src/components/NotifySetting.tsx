@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { saveNotifyEvents } from "@/app/(app)/settings/actions";
 import { useDemo } from "./DemoContext";
 import styles from "./NotifySetting.module.css";
@@ -40,6 +40,26 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [saving, startSaving] = useTransition();
   const demo = useDemo();
+  // 表が横に流れるとき、右にまだ続くか（スマホで、横に動かせる手がかりを出す）
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [moreRight, setMoreRight] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const measure = useCallback(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    setMoreRight(el.scrollWidth - el.clientWidth - el.scrollLeft > 4);
+    setScrolled(el.scrollLeft > 0);
+  }, []);
+
+  useEffect(() => {
+    measure();
+    const el = wrapRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => observer.disconnect();
+  }, [measure, rows.length]);
 
   useEffect(() => {
     if (status.kind !== "saved") return;
@@ -96,7 +116,14 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
 
   return (
     <div>
-      <div className={styles.tableWrap}>
+      {moreRight && <p className={styles.scrollHint}>横に動かすと、ほかのリポジトリが見えます</p>}
+      <div
+        className={styles.tableWrap}
+        ref={wrapRef}
+        data-more-right={moreRight ? "" : undefined}
+        data-scrolled={scrolled ? "" : undefined}
+        onScroll={measure}
+      >
         <table className={styles.table}>
           <thead>
             <tr>
@@ -142,7 +169,7 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
           disabled={saving}
           aria-busy={saving}
         >
-          {saving ? "保存中…" : "保存"}
+          {saving ? "保存中…" : "通知を保存"}
         </button>
         {status.kind === "saved" && (
           <span className={settingsStyles.saved} role="status">

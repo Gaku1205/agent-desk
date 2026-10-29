@@ -29,6 +29,24 @@
   margin: 0 0 6px;
 }
 
+/* 日が1つだけのとき：タブではない（押せない）日の名前と件数 */
+.dayOnly {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  height: 28px;
+  margin: 0 0 6px;
+  color: var(--bone-2);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.dayOnly i {
+  color: var(--mute);
+  font-style: normal;
+  font-weight: 400;
+}
+
 .day {
   height: 28px;
   padding: 0 10px;

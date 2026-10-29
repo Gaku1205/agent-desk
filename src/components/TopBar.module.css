@@ -66,22 +66,87 @@
 
 .counts {
   display: inline-flex;
-  gap: 5px;
+  gap: 8px;
   font-size: 12px;
   font-style: normal;
   font-weight: 500;
 }
 
 .counts b {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
   font-weight: 500;
 }
 
-.countTurn {
+/* 数の前の光る点：誌面の左の凡例と同じ色（あなたの番・AIの番）。何の数かを点で言う */
+.counts b::before,
+.keyTurn::before,
+.keyRunning::before {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentcolor;
+  box-shadow: 0 0 6px currentcolor;
+  content: "";
+}
+
+.countTurn,
+.keyTurn {
   color: var(--you);
 }
 
-.countRunning {
+.countRunning,
+.keyRunning {
   color: var(--ai);
+}
+
+/* メニューの凡例（スマホ）：点つきで、2つの数が何かを言う */
+.key {
+  display: inline-flex;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.keyTurn,
+.keyRunning {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--mute);
+}
+
+.keyTurn::before {
+  color: var(--you);
+}
+
+.keyRunning::before {
+  color: var(--ai);
+}
+
+/* 本文へ移るリンク：フォーカスしたときだけ見える */
+.skip {
+  position: absolute;
+  top: 11px;
+  left: var(--gutter);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  backdrop-filter: blur(22px) saturate(1.2);
+  color: var(--bone);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transform: translateY(-80px);
+}
+
+.skip:focus-visible {
+  transform: none;
 }
 
 .right {
@@ -352,6 +417,11 @@
     margin: 12px 12px 4px;
     color: var(--mute);
     font-size: 11.5px;
+  }
+
+  .lblRow {
+    display: flex;
+    align-items: center;
   }
 
   .lnk {

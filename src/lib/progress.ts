@@ -42,13 +42,22 @@ export type Progress = {
 /** まだの段階の棒の色 */
 export const PENDING_COLOR = "#1C1D21";
 
+/** docs/design.md の「色」と同じ値（`--you`・`--ai`・`--done`・`--fail`・`--q`） */
 const TONE_RGB: Record<ProgressTone, string> = {
-  human: "232,163,61",
-  ai: "94,155,247",
-  done: "76,195,138",
-  fail: "242,85,90",
-  queue: "139,92,246",
+  human: "245,167,58",
+  ai: "91,141,255",
+  done: "77,211,154",
+  fail: "242,92,92",
+  queue: "155,124,245",
 };
+
+/** 静かな色（`--bone`）。押す列で、止まった・公開失敗以外の行の目盛りに使う */
+const CALM_RGB = "236,232,223";
+
+/** 静かな色の `rgba(...)` */
+export function calmRgba(opacity: number): string {
+  return `rgba(${CALM_RGB},${opacity})`;
+}
 
 /** 色の種類と不透明度から `rgba(...)` を作る */
 export function toneRgba(tone: ProgressTone, opacity: number): string {

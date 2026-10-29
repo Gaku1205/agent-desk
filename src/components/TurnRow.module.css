@@ -14,6 +14,24 @@
   border-top-color: transparent;
 }
 
+/* 流れの名札を押して飛んできた行：下地が少しの間浮かぶ（どの行へ飛んだかが分かる） */
+.row::before {
+  position: absolute;
+  inset: 4px -10px 2px;
+  z-index: -1;
+  border-radius: 8px;
+  background: var(--well);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s var(--ease);
+}
+
+.row[data-picked]::before {
+  opacity: 1;
+  transition-duration: 0.12s;
+}
+
 /* 新しく入った行：上から4px下がりながら出る */
 .row[data-fade-in] {
   animation: row-in 0.2s var(--ease);
@@ -66,11 +84,16 @@
   min-width: 0;
 }
 
+/* 種類の札：強い色は止まった（アンバー）と公開失敗（赤）だけ。ほかは静かな色 */
 .kind {
-  color: var(--you);
+  color: var(--bone-2);
   font-size: 12.5px;
   font-weight: 500;
   white-space: nowrap;
+}
+
+.kind[data-tone="human"] {
+  color: var(--you);
 }
 
 .kind[data-tone="fail"] {
@@ -112,17 +135,44 @@
   line-height: 1.55;
 }
 
-/* マージの確認：3行の結果（check / review / deploy） */
-.desc[data-lines] {
+/* マージの確認：3行の結果（check / review / deploy）。空白でそろえず、grid の3列（印・名前・結果）でそろえる */
+.lines {
   display: grid;
-  color: var(--bone-2);
+  grid-template-columns: max-content max-content minmax(0, 1fr);
   font-size: 12.5px;
   line-height: 1.7;
 }
 
-.desc[data-lines] :global(.ph) {
-  display: block;
-  white-space: pre;
+.lines li {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  column-gap: 10px;
+  align-items: baseline;
+}
+
+.mark {
+  color: var(--done);
+  text-align: center;
+}
+
+.lname {
+  color: var(--mute);
+}
+
+.lres {
+  min-width: 0;
+  color: var(--bone-2);
+}
+
+.lines li[data-tone="next"] .mark {
+  color: var(--mute);
+}
+
+/* レビューが未実施・指摘あり：その行を失敗の弱い色にする */
+.lines li[data-tone="warn"] .mark,
+.lines li[data-tone="warn"] .lres {
+  color: var(--fail-dim);
 }
 
 .error {
@@ -145,64 +195,132 @@
   align-items: center;
 }
 
+/* ボタン：静かなボタンが基本。強い色（アンバー・赤）は止まった・公開失敗の行だけ */
 .act {
   display: inline-flex;
   align-items: center;
   height: 30px;
   padding: 0 13px;
   border-radius: 5px;
-  background: rgba(245, 167, 58, 0.09);
-  box-shadow: inset 0 0 0 1px rgba(245, 167, 58, 0.4);
-  color: var(--you);
+  background: none;
+  box-shadow: inset 0 0 0 1px rgba(236, 232, 223, 0.16);
+  color: var(--bone);
   font-size: 12.5px;
   font-weight: 500;
   white-space: nowrap;
-  transition:
-    transform 0.12s var(--ease),
-    background 0.12s,
-    color 0.12s;
+  /* 縮みだけ動かす。地と文字の色は即座に変える（押した瞬間に、薄い地に薄い文字の中間色を見せない） */
+  transition: transform 0.12s var(--ease);
 }
 
 .act:hover {
-  background: rgba(245, 167, 58, 0.18);
+  background: var(--well);
 }
 
-/* 押した瞬間（100ms以内）：縮んで塗りつぶす */
 .act:active,
 .act[data-hit] {
-  background: var(--you);
+  background: var(--bone);
   color: var(--bg);
   transform: scale(0.96);
 }
 
-.act:disabled {
-  opacity: 0.7;
+.acts[data-tone="human"] .act {
+  background: rgba(245, 167, 58, 0.09);
+  box-shadow: inset 0 0 0 1px rgba(245, 167, 58, 0.4);
+  color: var(--you);
 }
 
-.act:focus-visible {
+.acts[data-tone="human"] .act:hover {
+  background: rgba(245, 167, 58, 0.18);
+}
+
+.acts[data-tone="human"] .act:active,
+.acts[data-tone="human"] .act[data-hit] {
+  background: var(--you);
+  color: var(--bg);
+}
+
+.acts[data-tone="fail"] .act {
+  background: rgba(242, 92, 92, 0.09);
+  box-shadow: inset 0 0 0 1px rgba(242, 92, 92, 0.4);
+  color: var(--fail-soft);
+}
+
+.acts[data-tone="fail"] .act:hover {
+  background: rgba(242, 92, 92, 0.18);
+}
+
+.acts[data-tone="fail"] .act:active,
+.acts[data-tone="fail"] .act[data-hit] {
+  background: var(--fail);
+  color: var(--bg);
+}
+
+/* 強いボタンもフォーカスの輪を失わない（枠の影を上書きしているため、同じ強さで書き直す） */
+.acts[data-tone="human"] .act:focus-visible {
   box-shadow:
     inset 0 0 0 1px rgba(245, 167, 58, 0.8),
     0 0 0 2px var(--bg),
     0 0 0 3.5px var(--bone);
 }
 
-.fill {
-  background: var(--you);
+.acts[data-tone="fail"] .act:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px rgba(242, 92, 92, 0.8),
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+}
+
+/* 操作の最中は薄くするが、押した直後の220msは薄くしない（押した文字が読める） */
+.act:disabled:not([data-hit]) {
+  opacity: 0.7;
+}
+
+.act:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px rgba(236, 232, 223, 0.5),
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+}
+
+/* マージの確認：「マージする」は塗りつぶし。レビューが未実施・指摘ありのときは弱める */
+.acts .fill {
+  background: var(--bone);
   box-shadow: none;
-  color: #1a1206;
+  color: var(--bg);
 }
 
-.fill:hover {
-  background: #ffb95a;
+.acts .fill:hover {
+  background: #f6f2e9;
 }
 
-.ghost {
+.acts .fill[data-weak] {
+  background: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 138, 141, 0.32);
+  color: var(--fail-dim);
+}
+
+.acts .fill[data-weak]:hover {
+  background: rgba(242, 92, 92, 0.1);
+}
+
+.acts .fill[data-weak]:active {
+  background: var(--fail-dim);
+  color: var(--bg);
+}
+
+.acts .fill:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+}
+
+.acts .ghost {
   background: none;
   box-shadow: inset 0 0 0 1px rgba(236, 232, 223, 0.16);
   color: var(--bone-2);
 }
 
-.ghost:hover {
+.acts .ghost:hover {
   background: var(--well);
 }
 
