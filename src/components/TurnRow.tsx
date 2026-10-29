@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { runOperation } from "@/app/actions";
+import { flightColumn } from "@/lib/flow/flight";
 import { isMergeWeak, mergeResultLines } from "@/lib/mergeLines";
 import { getProgress } from "@/lib/progress";
 import { splitPhrases, turnKind } from "@/lib/turnKind";
@@ -17,15 +18,22 @@ type Props = {
   wait: string;
   /** 行に乗せた・離れた（流れの光を強める） */
   onHover: (key: string | null) => void;
-  /** ボタンを押した（流れの光が跳ねる） */
-  onPress: (key: string) => void;
+  /** ボタンを押した（流れの光が、操作のあとの段階の列 column へ飛んで行く） */
+  onPress: (key: string, column: number) => void;
+  /** 操作の結果（失敗・時間切れなら false で、光を元の位置へ戻す） */
+  onSettle: (key: string, ok: boolean) => void;
+  /** 行を畳み始めた・畳むのをやめた（巨大な数字を取り直しを待たずに減らす） */
+  onLeave: (key: string, leaving: boolean) => void;
 };
+
+/** 操作が通っても段階が変わらないまま、行を畳んでおく長さ */
+const LEAVE_MS = 8000;
 
 /**
  * 押す列の1件（docs/design.md の「押す列」）。種類の札 → 題名 → 理由 → ボタンと目盛り。
  * ボタンはサーバー側で操作して、画面を取り直す。「マージ…」はその場で「マージする／やめる」に変わる（確認）
  */
-export function TurnRow({ item, wait, onHover, onPress }: Props) {
+export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Props) {
   const { owner, repo, issue, status, buttons, merge } = item;
   const key = `${owner}/${repo}#${issue.number}`;
   const kind = turnKind(status);
@@ -40,6 +48,7 @@ export function TurnRow({ item, wait, onHover, onPress }: Props) {
   const [leavingSig, setLeavingSig] = useState<string | null>(null);
   const leaving = leavingSig === sig;
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const rowRef = useRef<HTMLElement>(null);
   const demo = useDemo();
 
   useEffect(() => {
@@ -54,25 +63,44 @@ export function TurnRow({ item, wait, onHover, onPress }: Props) {
 
   useEffect(() => {
     if (leavingSig === null) return;
-    // 取り直しが古い内容のままでも、行が見えないまま残らないようにする
-    const timer = window.setTimeout(() => setLeavingSig(null), 6000);
+    // 取り直しが古い内容のままでも、行が見えないまま残らないようにする（光も元の位置へ）
+    const timer = window.setTimeout(() => {
+      setLeavingSig(null);
+      onSettle(key, false);
+    }, LEAVE_MS);
     return () => window.clearTimeout(timer);
-  }, [leavingSig]);
+  }, [leavingSig, key, onSettle]);
+
+  // 畳む：今の高さから0へ（CSS の --h）。数字は取り直しを待たずに減らす
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (leaving && row) row.style.setProperty("--h", `${row.offsetHeight}px`);
+    onLeave(key, leaving);
+  }, [leaving, key, onLeave]);
+
+  useEffect(() => () => onLeave(key, false), [key, onLeave]);
 
   function run(kind: OperationKind) {
     setError(null);
     setHit(kind);
-    onPress(key);
+    onPress(key, flightColumn(kind, progress.at));
     if (demo) {
+      // デモ：サンプルのデータの上で本当に段階を進める（少し遅れて、行が畳み終わる頃に）
       setConfirming(false);
-      demo.notify();
+      setLeavingSig(sig);
+      demo.operate({ owner, repo, number: issue.number }, kind);
       return;
     }
     startTransition(async () => {
       const result = await runOperation({ kind, owner, repo, issueNumber: issue.number });
       setConfirming(false);
-      if (!result.ok && !result.changed) setError(result.message);
-      else setLeavingSig(sig);
+      if (!result.ok && !result.changed) {
+        setError(result.message);
+        onSettle(key, false);
+      } else {
+        setLeavingSig(sig);
+        onSettle(key, true);
+      }
     });
   }
 
@@ -91,6 +119,7 @@ export function TurnRow({ item, wait, onHover, onPress }: Props) {
 
   return (
     <article
+      ref={rowRef}
       className={styles.row}
       data-key={key}
       data-fade-in={fadeIn ? "" : undefined}

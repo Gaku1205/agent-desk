@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { buildDemoResults } from "@/lib/demo/data";
+import { buildDemoResults, pressDemo } from "@/lib/demo/data";
 import {
   advancePlayback,
   isPlaybackDone,
@@ -11,13 +11,15 @@ import {
   startPlayback,
   type PlayButtonState,
 } from "@/lib/demo/playback";
-import { buildTurnItems } from "@/lib/turn";
+import { buildTurnItems, type OperationKind } from "@/lib/turn";
 import { ShellProvider, useMenuState, type ShellState } from "./AppShell";
 import { DemoProvider, type DemoState } from "./DemoContext";
 import styles from "./DemoShell.module.css";
 
 /** 「デモでは実際には動きません」を出しておく長さ */
 const NOTICE_MS = 2000;
+/** 押してから、データに当てるまで（行が畳み終わる頃。光はその間に次の列へ飛んで行く） */
+const DEMO_OP_DELAY_MS = 420;
 
 /**
  * デモの画面全体。サンプルのデータと再生の状態を持ち、本物と同じ部品に渡す。
@@ -62,6 +64,9 @@ export function DemoShell({
   }, [notice]);
 
   const notify = useCallback(() => setNotice((n) => n + 1), []);
+  const operate = useCallback((target: { owner: string; repo: string; number: number }, kind: OperationKind) => {
+    window.setTimeout(() => setPlayback((prev) => pressDemo(prev, target, kind)), DEMO_OP_DELAY_MS);
+  }, []);
   const play = useCallback(() => {
     if (playing) return;
     if (isPlaybackDone(playback)) setPlayback(restartPlayback(playback));
@@ -77,8 +82,8 @@ export function DemoShell({
   const demo = useMemo<DemoState>(() => {
     const now = new Date(playback.now);
     const results = buildDemoResults(base, playback);
-    return { results, items: buildTurnItems(results, now), now, playState, play, notify };
-  }, [base, playback, playState, play, notify]);
+    return { results, items: buildTurnItems(results, now), now, playState, play, notify, operate };
+  }, [base, playback, playState, play, notify, operate]);
 
   const shell = useMemo<ShellState>(
     () => ({

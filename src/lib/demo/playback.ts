@@ -1,4 +1,6 @@
-/** デモの「再生」：サンプルの1件（メモから始めた物）を、4秒ごとに次の段階へ進める */
+import type { DemoOp } from "./ops";
+
+/** デモの「再生」：サンプルの1件（メモから始めた物）を、4秒ごとに次の段階へ進める。押した操作もここに持つ */
 
 /** 次の段階へ進む間隔 */
 export const PLAY_INTERVAL_MS = 4000;
@@ -26,6 +28,8 @@ export type DemoPlayback = {
   now: string;
   /** 各段階に入った時刻（ISO文字列、PLAY_STEPS の番号ごと） */
   times: string[];
+  /** 「あなたの番」で押した操作（押した順。src/lib/demo/ops.ts で当てる） */
+  ops: DemoOp[];
 };
 
 const MINUTE_MS = 60 * 1000;
@@ -36,6 +40,7 @@ export function startPlayback(now: Date): DemoPlayback {
     step: 0,
     now: now.toISOString(),
     times: [new Date(now.getTime() - 2 * MINUTE_MS).toISOString()],
+    ops: [],
   };
 }
 
@@ -52,10 +57,10 @@ export function isPlaybackDone(playback: DemoPlayback): boolean {
 export function advancePlayback(playback: DemoPlayback): DemoPlayback {
   if (isPlaybackDone(playback)) return playback;
   const now = new Date(Date.parse(playback.now) + PLAY_INTERVAL_MS).toISOString();
-  return { step: playback.step + 1, now, times: [...playback.times, now] };
+  return { ...playback, step: playback.step + 1, now, times: [...playback.times, now] };
 }
 
-/** 「もう一度」：今の時刻のまま、最初の段階に戻す */
+/** 「もう一度」：今の時刻のまま、最初の段階に戻す（押した操作も戻す） */
 export function restartPlayback(playback: DemoPlayback): DemoPlayback {
   return startPlayback(new Date(playback.now));
 }

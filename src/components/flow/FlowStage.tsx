@@ -10,7 +10,7 @@ import {
 } from "react";
 import { stripColumns } from "@/lib/flow/layout";
 import { isNavKey, nextByArrow, pickTabStop, type NavBox } from "@/lib/flow/navigate";
-import { countByStage, type FlowNode } from "@/lib/flow/nodes";
+import { countByStage, type FlowNode, type FlowWho } from "@/lib/flow/nodes";
 import { isMotionReduced } from "@/lib/motion";
 import { PROGRESS_STAGE_NAMES } from "@/lib/progress";
 import { FlowEngine, WHO_CSS } from "./engine";
@@ -32,6 +32,15 @@ function isMobile(): boolean {
 }
 
 type Caption = { key: string; pinned: boolean } | null;
+
+/** 色の凡例（流れの下端の右） */
+const LEGEND: { who: FlowWho; label: string }[] = [
+  { who: "human", label: "あなたの番" },
+  { who: "ai", label: "AIの番" },
+  { who: "queue", label: "待機" },
+  { who: "fail", label: "失敗" },
+  { who: "done", label: "公開済み" },
+];
 
 /**
  * 名札（または帯の列）の入れ物の中で、Tab で止まる物を1つにする（ほかは tabindex=-1）。
@@ -81,7 +90,6 @@ type Props = {
  * 映像の計算は flow/engine.ts。ここは要素を用意して、データが変わるたびに渡す
  */
 export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
-  const fogRef = useRef<HTMLCanvasElement>(null);
   const riverRef = useRef<HTMLCanvasElement>(null);
   const flowRef = useRef<HTMLElement>(null);
   const nodesRef = useRef<HTMLDivElement>(null);
@@ -96,10 +104,9 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
 
   useEffect(() => {
     const river = riverRef.current;
-    const fog = fogRef.current;
-    if (!river || !fog) return;
+    if (!river) return;
     const engine = new FlowEngine(
-      { river, fog, flow: flowRef.current, nodes: nodesRef.current, band: bandRef.current },
+      { river, fog: document.body, flow: flowRef.current, nodes: nodesRef.current, band: bandRef.current },
       {
         isReduced: motionReduced,
         isMobile,
@@ -166,8 +173,7 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
 
   const counts = countByStage(nodes);
   const multiRepo = new Set(nodes.map((n) => `${n.owner}/${n.repo}`)).size > 1;
-  const dones = nodes.filter((n) => n.who === "done");
-  const current = caption ? (caption.key === "cluster:deployed" ? clusterOf(dones) : nodes.find((n) => n.key === caption.key)) : null;
+  const current = caption ? (nodes.find((n) => n.key === caption.key) ?? null) : null;
   const columns = stripColumns(nodes);
 
   function show(key: string, pinned: boolean) {
@@ -179,7 +185,6 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
 
   return (
     <>
-      <canvas ref={fogRef} className={`${styles.layer} ${styles.fog}`} aria-hidden="true" />
       <canvas ref={riverRef} className={`${styles.layer} ${styles.river}`} aria-hidden="true" />
       {stage && (
         <div className={styles.wrap}>
@@ -229,7 +234,6 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
           <div
             ref={nodesRef}
             className={styles.nodes}
-            data-multi={multiRepo ? "" : undefined}
             role="group"
             aria-label="Issueの名札（矢印キーで移動）"
             onKeyDown={(event) => nodesRef.current && arrowMove(nodesRef.current, event, nodeKeyOf)}
@@ -242,6 +246,7 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                 className={styles.node}
                 data-key={node.key}
                 data-off=""
+                data-pinned={caption?.pinned && caption.key === node.key ? "" : undefined}
                 tabIndex={-1}
                 style={{ "--c": WHO_CSS[node.who] } as React.CSSProperties}
                 aria-label={`${node.repo}#${node.number} ${node.title}。${node.label}`}
@@ -258,94 +263,64 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                   onPick?.(node.key);
                 }}
               >
-                <span className={styles.l1}>
-                  <span className={styles.rpc}>{node.repo}</span>
-                  <span className={`${styles.id} num`}>#{node.number}</span>
-                  <span className={styles.st}>{node.label}</span>
-                </span>
-                <span className={styles.t}>
-                  <span className={styles.rp}>{node.repo}</span>
-                  <span className={styles.tt}>{node.title}</span>
+                <span className={styles.tag} aria-hidden="true">
+                  <span className={styles.l1}>
+                    <span className={`${styles.id} num`}>
+                      {multiRepo ? node.repo : ""}#{node.number}
+                    </span>
+                    <span className={styles.st}>{node.label}</span>
+                  </span>
+                  <span className={styles.l2}>
+                    <span className={styles.tt}>{node.title}</span>
+                    <span className={styles.st2}>{node.label}</span>
+                  </span>
                 </span>
               </button>
             ))}
-            {dones.length >= 2 && (
-              <button
-                key="cluster:deployed"
-                ref={register("cluster:deployed")}
-                type="button"
-                className={styles.node}
-                data-key="cluster:deployed"
-                data-off=""
-                tabIndex={-1}
-                style={{ "--c": WHO_CSS.done } as React.CSSProperties}
-                aria-label={`公開済み ${dones.length}件`}
-                onMouseEnter={() => show("cluster:deployed", false)}
-                onMouseLeave={hide}
-                onFocus={() => {
-                  nodeStopRef.current = "cluster:deployed";
-                  syncTabStop(nodesRef.current, nodeKeyOf, "cluster:deployed");
-                  show("cluster:deployed", false);
-                }}
-                onBlur={hide}
-                onClick={() => show("cluster:deployed", true)}
-              >
-                <span className={styles.l1}>
-                  <span className={styles.st}>公開済み {dones.length}件</span>
-                </span>
-              </button>
-            )}
           </div>
         </section>
-          <p
-            className={styles.caption}
-            data-on={current || stripOpen !== null ? "" : undefined}
-            data-pinned={caption?.pinned || stripOpen !== null ? "" : undefined}
-            aria-live="polite"
-            style={{ "--c": current ? WHO_CSS[current.who] : undefined } as React.CSSProperties}
-          >
-            {stripOpen !== null ? (
-              <StripCaption nodes={nodes.filter((n) => n.at === stripOpen)} onPick={onPick} />
-            ) : current ? (
-              <>
-                {current.key !== "cluster:deployed" && (
+          <div className={styles.foot}>
+            <p
+              className={styles.caption}
+              data-on={current || stripOpen !== null ? "" : undefined}
+              data-pinned={caption?.pinned || stripOpen !== null ? "" : undefined}
+              aria-live="polite"
+              style={{ "--c": current ? WHO_CSS[current.who] : undefined } as React.CSSProperties}
+            >
+              {stripOpen !== null ? (
+                <StripCaption nodes={nodes.filter((n) => n.at === stripOpen)} onPick={onPick} />
+              ) : current ? (
+                <>
                   <span className={`${styles.capId} num`}>
                     {current.repo}#{current.number}
                   </span>
-                )}
-                <b>{current.label}</b>
-                <span className={styles.capText}>{current.caption}</span>
-                {current.logUrl && (
-                  <a className={styles.capLink} href={current.logUrl} target="_blank" rel="noreferrer">
-                    ログを開く ↗
-                  </a>
-                )}
-                {current.deployLinks.map((link) => (
-                  <a key={link.url} className={styles.capLink} href={link.url} target="_blank" rel="noreferrer">
-                    {link.label} ↗
-                  </a>
-                ))}
-              </>
-            ) : null}
-          </p>
+                  <b>{current.label}</b>
+                  <span className={styles.capText}>{current.caption}</span>
+                  {current.logUrl && (
+                    <a className={styles.capLink} href={current.logUrl} target="_blank" rel="noreferrer">
+                      ログを開く ↗
+                    </a>
+                  )}
+                  {current.deployLinks.map((link) => (
+                    <a key={link.url} className={styles.capLink} href={link.url} target="_blank" rel="noreferrer">
+                      {link.label} ↗
+                    </a>
+                  ))}
+                </>
+              ) : null}
+            </p>
+            <ul className={styles.legend} aria-hidden="true">
+              {LEGEND.map(({ who, label }) => (
+                <li key={who} style={{ "--c": WHO_CSS[who] } as React.CSSProperties}>
+                  {label}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
     </>
   );
-}
-
-function clusterOf(dones: FlowNode[]): FlowNode | null {
-  if (dones.length < 2) return null;
-  return {
-    ...dones[0],
-    key: "cluster:deployed",
-    number: 0,
-    title: "",
-    label: `公開済み ${dones.length}件`,
-    caption: dones.map((d) => `#${d.number} ${d.title}`).join("　"),
-    deployLinks: dones.flatMap((d) => d.deployLinks).slice(0, 4),
-    logUrl: null,
-  };
 }
 
 /** スマホの帯で列を押したとき：その段階の Issue を1行ずつ */
@@ -363,7 +338,7 @@ function StripCaption({ nodes, onPick }: { nodes: FlowNode[]; onPick?: (key: str
           onClick={() => onPick?.(node.key)}
         >
           <span className={`${styles.id} num`}>
-            {multi ? `${node.repo} ` : ""}#{node.number}
+            {multi ? node.repo : ""}#{node.number}
           </span>
           <b>{node.label}</b>
           <span className={styles.stripTitle}>{node.title}</span>

@@ -67,6 +67,11 @@ export type TurnItem = {
   merge: MergeSummary | null;
 };
 
+/** 1件のキー（`owner/repo#番号`。流れの光のキーと同じ） */
+export function turnItemKey(item: Pick<TurnItem, "owner" | "repo" | "issue">): string {
+  return `${item.owner}/${item.repo}#${item.issue.number}`;
+}
+
 function operation(kind: OperationKind): TurnButton {
   return { type: "operation", kind, label: OPERATION_LABEL[kind] };
 }

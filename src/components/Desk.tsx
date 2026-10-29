@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { TrailEvent } from "@/lib/events";
 import type { FlowNode } from "@/lib/flow/nodes";
-import { formatWait, type TurnItem } from "@/lib/turn";
+import { formatWait, turnItemKey, type TurnItem } from "@/lib/turn";
 import type { WatchdogNotice } from "@/lib/watchdogState";
 import styles from "./Desk.module.css";
 import type { FlowEngine } from "./flow/engine";
-import { WHO_CSS } from "./flow/engine";
 import { FlowStage, motionReduced } from "./flow/FlowStage";
 import { Trails } from "./Trails";
 import { TurnRow } from "./TurnRow";
@@ -31,14 +30,6 @@ type Props = {
   notices: WatchdogNotice[];
 };
 
-const LEGEND: { who: keyof typeof WHO_CSS; label: string }[] = [
-  { who: "human", label: "あなたの番" },
-  { who: "ai", label: "AIの番" },
-  { who: "queue", label: "待機" },
-  { who: "fail", label: "失敗" },
-  { who: "done", label: "公開済み" },
-];
-
 /**
  * ホームとリポジトリのページの中身：上に流れ、下にすりガラスの誌面
  * （巨大な数字 ＋ 押す列 ＋ 出来事）。本物もデモも同じ物（docs/design.md）
@@ -49,7 +40,9 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
   const rowsRef = useRef<HTMLDivElement>(null);
   const giantRef = useRef<HTMLCanvasElement>(null);
   const ghostRef = useRef<HTMLSpanElement>(null);
-  const count = items.length;
+  // 操作が通って畳んでいる行。取り直しを待たずに数字を減らす（取り直しで行が消えたら自然に数えなくなる）
+  const [leaving, setLeaving] = useState<ReadonlySet<string>>(() => new Set());
+  const count = items.filter((item) => !leaving.has(turnItemKey(item))).length;
 
   useEffect(() => {
     const engine = engineRef.current;
@@ -65,7 +58,19 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
   }, [count]);
 
   const hover = useCallback((key: string | null) => engineRef.current?.highlight(key), []);
-  const press = useCallback((key: string) => engineRef.current?.kick(key), []);
+  const press =useCallback((key: string, column: number) => engineRef.current?.fly(key, column), []);
+  const settle = useCallback((key: string, ok: boolean) => {
+    if (!ok) engineRef.current?.land(key);
+  }, []);
+  const leave = useCallback((key: string, on: boolean) => {
+    setLeaving((prev) => {
+      if (prev.has(key) === on) return prev;
+      const next = new Set(prev);
+      if (on) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
   // 流れの名札・スマホの帯の行を押したとき：押す列の、その Issue の行へ。
   // 流れの名札も同じ data-key を持つので、探すのは押す列の中だけにする（名札に当たらないように）
   const pick = useCallback((key: string) => {
@@ -116,13 +121,6 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
               </>
             )}
           </p>
-          <ul className={styles.legend} aria-hidden="true">
-            {LEGEND.map(({ who, label }) => (
-              <li key={who} style={{ "--c": WHO_CSS[who] } as React.CSSProperties}>
-                {label}
-              </li>
-            ))}
-          </ul>
           {notices.length > 0 && (
             <ul className={styles.notices} role="status">
               {notices.map((notice) => (
@@ -150,11 +148,13 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
             ) : (
               items.map((item) => (
                 <TurnRow
-                  key={`${item.owner}/${item.repo}#${item.issue.number}`}
+                  key={turnItemKey(item)}
                   item={item}
                   wait={formatWait(item.waitingSince, new Date(now))}
                   onHover={hover}
                   onPress={press}
+                  onSettle={settle}
+                  onLeave={leave}
                 />
               ))
             )}
