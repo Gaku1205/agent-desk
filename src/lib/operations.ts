@@ -4,6 +4,7 @@ import type { GitHubClient } from "./github/client";
 import { GitHubError } from "./github/errors";
 import { addLabel, createPull, findIssueBranch, mergePull, removeLabel } from "./github/operations";
 import type { RepoData } from "./github/types";
+import { isFactoryIssue } from "./factoryIssue";
 import { getIssueStatus, LABEL, shouldShowIssue } from "./status";
 import { isOperationAvailable, OPERATION_KINDS, type OperationKind } from "./turn";
 
@@ -95,6 +96,8 @@ export async function executeOperation(
   if (!issue || !shouldShowIssue(issue, data.pulls)) return CHANGED;
   const status = getIssueStatus(issue, data, now);
   if (status.turn !== "human" || !isOperationAvailable(input.kind, status, data)) return CHANGED;
+  // 工場が受け持つ「新サービス：」のIssueには、ラベルを付けない
+  if (status.stage === "notStarted" && isFactoryIssue(issue.title, data.isTemplate, issue.state)) return CHANGED;
   const pull = status.pull;
 
   try {
