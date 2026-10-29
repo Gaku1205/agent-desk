@@ -124,7 +124,7 @@ export function PipelineGrid({ rows, label }: { rows: PipelineGridRow[]; label: 
           done={row.status.stage === "deployed"}
           ariaLabel={`${repoName}#${row.issue.number} ${row.issue.title}：${row.description}・${row.progress.ariaLabel}`}
           frame={rowFrameAttr(rowFrame(row.status))}
-          key={row.issue.url}
+          key={`${repoName}#${row.issue.number}`}
         >
           <div className={styles.issue} role="cell">
             <PipelineTitle title={row.issue.title} />

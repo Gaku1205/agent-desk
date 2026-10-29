@@ -439,8 +439,8 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
   addComment(ctx, 14, "#17 の並べ替えができてから、その順番を保存する作業なので順番待ちにします", ago(ctx, 32));
 
   // 保留（ai:skip）
-  addIssue(ctx, 25, "タスクをカレンダーに表示する", { createdAt: ago(ctx, 3 * 60), labels: ["ai:skip"] });
-  addLabeled(ctx, 25, "ai:skip", ago(ctx, 3 * 60));
+  addIssue(ctx, 31, "タスクをカレンダーに表示する", { createdAt: ago(ctx, 3 * 60), labels: ["ai:skip"] });
+  addLabeled(ctx, 31, "ai:skip", ago(ctx, 3 * 60));
 
   // 未着手
   addIssue(ctx, 13, "タスクに色のラベルを付けられるようにする", { createdAt: ago(ctx, 2 * 60 + 15) });
@@ -451,7 +451,7 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
   addDeployed(ctx, 10, 28, "期限を過ぎたタスクを赤くする", 20 * 60, { planned: true });
   addDeployed(ctx, 9, 27, "タスクの名前を編集できるようにする", 27 * 60, { planned: true, fixed: true });
   addDeployed(ctx, 8, 26, "スマホで文字が小さすぎるのを直す", 44 * 60);
-  addDeployed(ctx, 7, 25, "最初の画面にタスクの一覧を出す", 9 * 24 * 60, { unknown: true });
+  addDeployed(ctx, 7, 40,"最初の画面にタスクの一覧を出す", 9 * 24 * 60, { unknown: true });
 
   return ctx.data;
 }
