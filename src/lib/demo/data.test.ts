@@ -107,6 +107,36 @@ describe("デモのサンプル", () => {
   });
 });
 
+describe("デモの番号", () => {
+  /** リポジトリごとに、Issue と PR の番号（共通の番号）の重なりを集める */
+  function duplicates(results: ReturnType<typeof buildDemoResults>): string[] {
+    const found: string[] = [];
+    for (const result of results) {
+      if (!result.ok) continue;
+      const seen = new Set<number>();
+      const numbers = [...result.data.issues, ...result.data.pulls].map((item) => item.number);
+      for (const number of numbers) {
+        if (seen.has(number)) found.push(`${result.owner}/${result.repo}#${number}`);
+        seen.add(number);
+      }
+    }
+    return found;
+  }
+
+  it("リポジトリの中で、Issue と PR の番号が重ならない", () => {
+    expect(duplicates(buildDemoResults(NOW, startPlayback(NOW)))).toEqual([]);
+  });
+
+  it("再生の途中の各段階でも重ならない", () => {
+    let playback = startPlayback(NOW);
+    for (;;) {
+      expect(duplicates(buildDemoResults(NOW, playback))).toEqual([]);
+      if (isPlaybackDone(playback)) break;
+      playback = advancePlayback(playback);
+    }
+  });
+});
+
 describe("デモの間、GitHubに問い合わせない", () => {
   afterEach(() => {
     vi.restoreAllMocks();
