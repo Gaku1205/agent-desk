@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { isFastRefresh, startAutoRefresh, startResumeRefresh } from "@/lib/refresh";
+import { KeyboardHelp } from "./KeyboardHelp";
 
 export type ShellState = {
   /** 最後に同期した時刻 */
@@ -135,5 +136,10 @@ export function AppShell({
     ],
   );
 
-  return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
+  return (
+    <ShellContext.Provider value={value}>
+      {children}
+      <KeyboardHelp />
+    </ShellContext.Provider>
+  );
 }
