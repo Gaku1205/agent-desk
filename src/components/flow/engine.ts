@@ -3,8 +3,10 @@ import {
   FOOT_ROOM,
   layoutFlow,
   stripColumns,
+  type LabelMetrics,
   type LabelVariant,
   type MeasureLabel,
+  type PrevSeats,
 } from "@/lib/flow/layout";
 import type { FlowNode, FlowWho } from "@/lib/flow/nodes";
 import { seededRandom, seedOf } from "@/lib/flow/random";
@@ -12,7 +14,7 @@ import { squeezeTowardLabel } from "@/lib/flow/squeeze";
 
 /**
  * 流れの映像（docs/design.md の「映像」「流れ（PC）」「動き」）。
- * 画面全体の canvas に、川（背景の粒）・Issue の光と粒・止まった霧を描き、名札（HTML）を光に追従させる。
+ * 画面全体の canvas に、川（背景の粒）・光の筋（レーン）・Issue の光と粒・止まった霧を描き、名札（HTML）を光に追従させる。
  * 巨大な数字の中の粒も、同じ川の式で動かす。川の粒が数字を通ると灯り、灯ったまま流れていく（生きている映像は1系統だけ）。
  * データの判定はしない。もらった FlowNode を置いて描くだけ
  */
@@ -34,6 +36,9 @@ export const WHO_CSS: Record<FlowWho, string> = {
   done: "var(--done)",
 };
 
+/** 公開済みの塊の名札・光のキー */
+export const CLUSTER_KEY = "__done";
+
 /** 川の速さ（px/秒）と、ノイズで横に揺れる強さ */
 const RIVER_SPEED = 24;
 const RIVER_AMP = 12;
@@ -47,12 +52,27 @@ const HEAT_DECAY = 0.7;
 /** 数字の左から入って右へ抜ける流れ（数字の高さの帯だけ）：数字の左何pxから、右何pxまで */
 const CURRENT_IN = 60;
 const CURRENT_OUT = 90;
+/** 灯りの区域（数字の上・下、端で薄くする幅） */
+const LIT_ABOVE = 40;
+const LIT_BELOW = 16;
+const LIT_FADE = 30;
 /** 飛んでいる光が、段階が変わらないまま戻るまで */
 const FLY_MS = 8000;
 /** 飛んでいる光が尾を残す速さ（px/秒）と、尾の長さ（秒） */
 const TRAIL_SPEED = 60;
 const TRAIL_LIFE = 0.45;
 const TRAIL_MAX = 40;
+/** 光の筋：両端で消す幅、きらめきの長さ・速さ・1本の数 */
+const THREAD_FADE = 90;
+const GLINT_LEN = 90;
+const GLINT_SPEED = 72;
+const GLINTS_PER_LANE = 2;
+/** 光の尾の長さ（光から左へ）。0 は尾を引かない */
+const TAIL_LEN: Record<FlowWho, number> = { human: 60, ai: 46, fail: 28, queue: 0, done: 0 };
+/** この距離より目標から離れている光は「動いている」（名札を隠す） */
+const MOVING_PX = 2;
+/** 数字の canvas を、箱の上下にはみ出させる割合（転がる数字を端で消す所） */
+const GIANT_PAD = 0.35;
 
 type ParticleType = "orbit" | "comet" | "exit" | "wide" | "still";
 
@@ -94,24 +114,34 @@ type Body = {
   /** 名札の左上の、光からの位置 */
   dx: number;
   dy: number;
-  /** 公開済みの粒が抜けて消える所（列の右端。流れの中の座標） */
+  /** 公開済みの粒が抜けて消える所（列の右端。流れの中の座標。スマホの帯） */
   edgeU: number;
   fresh: boolean;
   lastX: number;
   lastY: number;
   rand: () => number;
-  /** スマホの帯のまとまり（件数ぶんの小さな芯） */
+  /** スマホの帯のまとまり・公開済みの塊（件数ぶん） */
   count: number;
   /** 押したときに飛んで行く先（null なら配置どおり） */
   flyU: number | null;
   flyUntil: number;
   trail: TrailDot[];
+  /** 名札を隠している（動いている） */
+  moving: boolean;
+  /** 光の尾を伸ばしてよい長さ（同じレーンの左の名札の手前まで） */
+  tailRoom: number;
 };
 
 type RiverParticle = { x: number; y: number; s: number; ph: number; sp: number; heat: number; vx: number; vy: number };
 
 /** スマホの帯で、押した Issue の段階から次の段階へ飛ぶ光 */
 type Spark = { u0: number; v0: number; u1: number; v1: number; t0: number; who: FlowWho; trail: TrailDot[] };
+
+/** 光の筋の上を走るきらめき（u は頭の位置。流れの中の座標） */
+type Glint = { lane: number; u: number; sp: number };
+
+/** 灯りの区域（画面の座標） */
+type Zone = { x0: number; x1: number; y0: number; y1: number };
 
 export type EngineElements = {
   river: HTMLCanvasElement;
@@ -125,7 +155,12 @@ export type EngineElements = {
   band: HTMLElement | null;
 };
 
-export type GiantElements = { canvas: HTMLCanvasElement; ghost: HTMLElement };
+export type GiantElements = {
+  canvas: HTMLCanvasElement;
+  ghost: HTMLElement;
+  /** 灯った粒を見せてよい右端（画面の x）。押す列の文字・ボタンの手前 */
+  litEdge: () => number;
+};
 
 export type EngineOptions = {
   isReduced: () => boolean;
@@ -147,6 +182,32 @@ function makeSprite(rgb: string, size: number, soft: boolean): HTMLCanvasElement
   grd.addColorStop(1, `rgba(${rgb},0)`);
   g.fillStyle = grd;
   g.fillRect(0, 0, size, size);
+  return c;
+}
+
+/** 横に細長い光（左は透明、右が明るい）。光の尾ときらめき。縦はやわらかく消える */
+function makeStreak(rgb: string, w: number, h: number, head: number): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const g = c.getContext("2d");
+  if (!g) return c;
+  // 先頭（右）の数pxで消す（頭を四角く切らない）
+  const across = g.createLinearGradient(0, 0, w, 0);
+  across.addColorStop(0, `rgba(${rgb},0)`);
+  across.addColorStop(0.7, `rgba(${rgb},${0.4 * head})`);
+  across.addColorStop(0.92, `rgba(${rgb},${head})`);
+  across.addColorStop(1, `rgba(${rgb},0)`);
+  g.fillStyle = across;
+  g.fillRect(0, 0, w, h);
+  // 縦：真ん中だけ残す
+  g.globalCompositeOperation = "destination-in";
+  const down = g.createLinearGradient(0, 0, 0, h);
+  down.addColorStop(0, "rgba(0,0,0,0)");
+  down.addColorStop(0.5, "rgba(0,0,0,1)");
+  down.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = down;
+  g.fillRect(0, 0, w, h);
   return c;
 }
 
@@ -183,6 +244,10 @@ function curl(x: number, y: number, t: number): [number, number] {
 }
 
 const ease = (x: number) => 1 - Math.pow(1 - x, 3);
+const smooth = (x: number) => {
+  const c = Math.min(1, Math.max(0, x));
+  return c * c * (3 - 2 * c);
+};
 
 export class FlowEngine {
   private el: EngineElements;
@@ -201,6 +266,11 @@ export class FlowEngine {
   private t = 0;
   private last = 0;
   private raf = 0;
+  /** rAF を回している */
+  private running = false;
+  /** 流れが画面の中にある（無い流れのページでは常に true） */
+  private flowVisible = true;
+  private observer: IntersectionObserver | null = null;
   private fogDirty = true;
   private fogCanvas: HTMLCanvasElement = document.createElement("canvas");
   private dirty = true;
@@ -219,6 +289,15 @@ export class FlowEngine {
   private meas: CanvasRenderingContext2D | null = null;
   private strip: { x: number; count: number; whos: FlowWho[]; lead: FlowWho | null; keys: string[] }[] = [];
   private stripHl = -1;
+  /** 前の配置の席（押した物以外を動かさないため） */
+  private seats: PrevSeats | null = null;
+  /** レーンの縦の位置（光の区域の中の座標）と、光の筋の画像 */
+  private laneYs: number[] = [];
+  private threads: HTMLCanvasElement = document.createElement("canvas");
+  private threadsKey = "";
+  private glints: Glint[] = [];
+  /** 常に出す名札の所（光の筋を切る所。流れの中の x とレーン） */
+  private gaps: { lane: number; x0: number; x1: number }[] = [];
   /** 巨大な数字 */
   private giant: GiantElements | null = null;
   private gBase: HTMLCanvasElement = document.createElement("canvas");
@@ -230,11 +309,15 @@ export class FlowEngine {
   private gRollT0 = 0;
   private gW = 0;
   private gH = 0;
+  /** 数字の canvas の、箱の上下へのはみ出し */
+  private gPad = 0;
+  /** 今フレームで描く縦の範囲（canvas の画素）。転がっていなければ箱の中だけ（描く面積を増やさない） */
+  private gSpan: [number, number] = [0, 0];
   private gDpr = 1;
   private gFs = 0;
   private gReady = false;
   private gMetrics: { asc: number; left: number } | null = null;
-  /** 数字の形の型（1倍の大きさ。1 = 数字の中） */
+  /** 数字の形の型（1倍。箱の中だけ。1 = 数字の中） */
   private gMask: Uint8Array | null = null;
   private gLocal: RiverParticle[] = [];
   /** 数字の高さの帯を、数字の左から入って右へ抜ける川の粒（数字に対する位置） */
@@ -246,6 +329,9 @@ export class FlowEngine {
   private onResize = () => {
     this.resize();
   };
+  private onVisibility = () => {
+    if (!document.hidden) this.wake();
+  };
 
   constructor(elements: EngineElements, options: EngineOptions) {
     this.el = elements;
@@ -256,23 +342,49 @@ export class FlowEngine {
     this.resize();
     addEventListener("resize", this.onResize);
     addEventListener("scroll", this.onScroll, { passive: true });
-    this.last = performance.now();
-    this.raf = requestAnimationFrame(this.frame);
+    document.addEventListener("visibilitychange", this.onVisibility);
+    // 流れが画面の外（上端の帯の下に見えていない）なら描かない
+    if (elements.flow && typeof IntersectionObserver === "function") {
+      this.observer = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[entries.length - 1];
+          if (!entry) return;
+          this.flowVisible = entry.isIntersecting;
+          this.dirty = true;
+          if (this.flowVisible) this.wake();
+        },
+        { rootMargin: "-52px 0px 0px 0px" },
+      );
+      this.observer.observe(elements.flow);
+    }
+    this.wake();
     if (typeof document.fonts?.ready?.then === "function") {
       void document.fonts.ready.then(() => {
         this.layout(false);
         this.dirty = true;
+        this.wake();
       });
     }
   }
 
   destroy() {
     cancelAnimationFrame(this.raf);
+    this.running = false;
+    this.observer?.disconnect();
     for (const prop of ["background-image", "background-size", "background-attachment", "background-repeat"]) {
       this.el.fog.style.removeProperty(prop);
     }
     removeEventListener("resize", this.onResize);
     removeEventListener("scroll", this.onScroll);
+    document.removeEventListener("visibilitychange", this.onVisibility);
+  }
+
+  /** 描く物があれば rAF を回し始める */
+  private wake() {
+    if (this.running || document.hidden) return;
+    this.running = true;
+    this.last = performance.now();
+    this.raf = requestAnimationFrame(this.frame);
   }
 
   /** 名札の要素を登録する（React が描いた物） */
@@ -283,6 +395,8 @@ export class FlowEngine {
     if (b && element) {
       b.lastX = NaN;
       this.applyLabel(b, element);
+    } else if (element && !b) {
+      element.setAttribute("data-off", "");
     }
     this.dirty = true;
   }
@@ -292,9 +406,12 @@ export class FlowEngine {
     this.nodes = nodes;
     this.multiRepo = new Set(nodes.map((n) => `${n.owner}/${n.repo}`)).size > 1;
     const keys = new Set(nodes.map((n) => n.key));
-    for (const key of this.bodies.keys()) if (!key.startsWith("strip:") && !keys.has(key)) this.bodies.delete(key);
+    for (const key of this.bodies.keys()) {
+      if (!key.startsWith("strip:") && key !== CLUSTER_KEY && !keys.has(key)) this.bodies.delete(key);
+    }
     this.layout(animate);
     this.dirty = true;
+    this.wake();
   }
 
   /** 行に乗せた Issue の光を強める */
@@ -310,7 +427,7 @@ export class FlowEngine {
   }
 
   /**
-   * ボタンを押した：その光が、操作のあとの段階の列（column）まで飛んで行く。
+   * ボタンを押した：その光が、操作のあとの段階の列（column）まで、自分の筋の上を飛んで行く。
    * 同じ列なら上へ跳ねて戻る。取り直しで段階か誰の番が変わるか、land・8秒で配置どおりに戻る
    */
   fly(key: string, column: number) {
@@ -368,6 +485,7 @@ export class FlowEngine {
       this.gReady = true;
       this.giantLayout();
       this.dirty = true;
+      this.wake();
     });
   }
 
@@ -388,6 +506,7 @@ export class FlowEngine {
     }
     this.giantLayout();
     this.dirty = true;
+    this.wake();
   }
 
   /** 画面の大きさが変わった */
@@ -406,13 +525,16 @@ export class FlowEngine {
     for (const who of Object.keys(WHO_RGB) as FlowWho[]) {
       this.sprites[who] = makeSprite(WHO_RGB[who], 16, false);
       this.sprites[`${who}_glow`] = makeSprite(WHO_RGB[who], 64, true);
+      this.sprites[`${who}_tail`] = makeStreak(WHO_RGB[who], 64, 6, 1);
     }
     this.sprites.river = makeSprite("150,165,205", 12, false);
     this.sprites.amber = makeSprite("255,196,96", 12, false);
+    this.sprites.glint = makeStreak("210,220,245", 96, 8, 1);
     this.seedRiver();
     this.layout(false);
     if (this.gReady) this.giantLayout();
     this.dirty = true;
+    this.wake();
   }
 
   private seedRiver() {
@@ -429,20 +551,22 @@ export class FlowEngine {
     return `${this.multiRepo ? node.repo : ""}#${node.number}`;
   }
 
-  private measure: MeasureLabel = (node) => {
+  private measureText(id: string, status: string, title: string): LabelMetrics {
     const m = this.meas;
     if (!m) return { id: 0, status: 0, title: 0 };
     const fs = this.labelFs;
     m.font = `400 ${fs * 0.92}px ${this.labelFamily}`;
-    const id = m.measureText(this.idText(node)).width;
+    const idW = m.measureText(id).width;
     m.font = `500 ${fs}px ${this.labelFamily}`;
-    const status = m.measureText(node.label).width;
+    const statusW = m.measureText(status).width;
     m.font = `400 ${fs * 0.96}px ${this.labelFamily}`;
-    const title = m.measureText(node.title).width;
-    return { id, status, title };
-  };
+    const titleW = m.measureText(title).width;
+    return { id: idW, status: statusW, title: titleW };
+  }
 
-  /** 光の位置を決める（PC：段階の列の中、スマホ：段階ごとに1つ） */
+  private measure: MeasureLabel = (node) => this.measureText(this.idText(node), node.label, node.title);
+
+  /** 光の位置を決める（PC：レーンの上・段階の列の中、スマホ：段階ごとに1つ） */
   private layout(animate: boolean) {
     this.mobile = this.opt.isMobile();
     const flow = this.el.flow;
@@ -464,6 +588,7 @@ export class FlowEngine {
     const height = Math.max(40, r.height - STAGES_H - FOOT_ROOM);
     this.labelFs = this.opt.labelFontSize();
     if (this.el.nodes) this.labelFamily = getComputedStyle(this.el.nodes).fontFamily || "sans-serif";
+    const done = this.nodes.filter((n) => n.who === "done");
     const layout = layoutFlow({
       nodes: this.nodes,
       width,
@@ -471,7 +596,10 @@ export class FlowEngine {
       fontSize: this.labelFs,
       overhang: gutter,
       measure: this.measure,
+      prev: this.seats,
+      clusterMetrics: done[0] ? this.measureText(`${done.length}件`, "公開済み", `${done[0].title} ほか`) : undefined,
     });
+    this.seats = layout.next;
     this.columnWidth = layout.columnWidth;
     this.scale = Math.min(1.5, Math.max(0.9, this.columnWidth / 190));
     const shown = new Set<string>();
@@ -484,8 +612,37 @@ export class FlowEngine {
       b.variant = p.variant;
       b.dx = p.dx;
       b.dy = p.dy;
-      b.edgeU = gutter + (p.column + 1) * this.columnWidth - 4;
+      b.count = 1;
       shown.add(p.key);
+    }
+    const c = layout.cluster;
+    if (c) {
+      const node: FlowNode = {
+        key: CLUSTER_KEY,
+        owner: "",
+        repo: "",
+        number: 0,
+        title: "",
+        url: "",
+        at: 7,
+        who: "done",
+        label: "",
+        caption: "",
+        deployLinks: [],
+        logUrl: null,
+        turn: false,
+        urgent: false,
+      };
+      const b = this.place(node, gutter + c.x, STAGES_H + c.y, animate);
+      b.pinned = false;
+      b.width = c.width;
+      b.variant = c.variant;
+      b.dx = c.dx;
+      b.dy = c.dy;
+      b.count = c.keys.length;
+      shown.add(CLUSTER_KEY);
+    } else {
+      this.bodies.delete(CLUSTER_KEY);
     }
     for (const [key, b] of this.bodies) {
       b.on = shown.has(key);
@@ -493,6 +650,71 @@ export class FlowEngine {
       if (el) this.applyLabel(b, el);
     }
     for (const [key, el] of this.labels) if (!shown.has(key)) el.setAttribute("data-off", "");
+    this.laneYs = layout.laneYs;
+    // 光の筋は、常に出す名札の文字の所で切る（線を文字に通さない）。光の尾も左の名札の手前まで
+    this.gaps = layout.placed
+      .filter((p) => p.pinned)
+      .map((p) => ({ lane: p.lane, x0: gutter + p.x + p.dx - 4, x1: gutter + p.x + p.dx + p.width + 4 }));
+    for (const p of layout.placed) {
+      const b = this.bodies.get(p.key);
+      if (!b) continue;
+      const u = gutter + p.x;
+      const left = this.gaps.filter((g) => g.lane === p.lane && g.x1 <= u).reduce((m, g) => Math.max(m, g.x1), -Infinity);
+      b.tailRoom = Math.max(0, u - left - 6);
+    }
+    this.buildThreads(r.width, height);
+  }
+
+  /** 光の筋（レーンごとに1本）を1回だけ描いて画像にする。きらめきの位置も決める */
+  private buildThreads(width: number, height: number) {
+    const key = `${width}x${height}:${this.laneYs.join(",")}:${this.DPR}:${this.gaps.map((g) => `${g.lane}/${Math.round(g.x0)}/${Math.round(g.x1)}`).join(",")}`;
+    if (key === this.threadsKey) return;
+    this.threadsKey = key;
+    const pad = 4;
+    const c = this.threads;
+    c.width = Math.max(1, Math.round(width * this.DPR));
+    c.height = Math.max(1, Math.round((height + pad * 2) * this.DPR));
+    const g = c.getContext("2d");
+    if (!g) return;
+    g.setTransform(this.DPR, 0, 0, this.DPR, 0, 0);
+    g.clearRect(0, 0, width, height + pad * 2);
+    const step = 3;
+    this.laneYs.forEach((ly, lane) => {
+      const y = ly + pad;
+      for (let u = 0; u < width; u += step) {
+        // 一様な線にしない：横にゆっくり変わるノイズで、ところどころ消えかける。両端は消す
+        const n = vnoise(u / 180 + lane * 13.7, lane * 3.1);
+        const fade = smooth(Math.min(u / THREAD_FADE, (width - u) / THREAD_FADE));
+        const a = (0.35 + 0.65 * smooth((n - 0.15) / 0.7)) * fade;
+        if (a <= 0.01) continue;
+        g.fillStyle = `rgba(150,165,205,${(0.05 * a).toFixed(3)})`;
+        g.fillRect(u, y - 2.5, step, 5);
+        g.fillStyle = `rgba(150,165,205,${(0.16 * a).toFixed(3)})`;
+        g.fillRect(u, y - 0.5, step, 1);
+      }
+    });
+    // 名札の所を、端をなだらかにして消す
+    g.globalCompositeOperation = "destination-out";
+    for (const gap of this.gaps) {
+      const y = (this.laneYs[gap.lane] ?? 0) + pad;
+      const soft = 14;
+      const grd = g.createLinearGradient(gap.x0 - soft, 0, gap.x1 + soft, 0);
+      const span = gap.x1 - gap.x0 + soft * 2;
+      grd.addColorStop(0, "rgba(0,0,0,0)");
+      grd.addColorStop(soft / span, "rgba(0,0,0,1)");
+      grd.addColorStop(1 - soft / span, "rgba(0,0,0,1)");
+      grd.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = grd;
+      g.fillRect(gap.x0 - soft, y - 4, span, 8);
+    }
+    g.globalCompositeOperation = "source-over";
+    const rand = seededRandom(23);
+    this.glints = [];
+    this.laneYs.forEach((_, lane) => {
+      for (let k = 0; k < GLINTS_PER_LANE; k++) {
+        this.glints.push({ lane, u: ((k + rand()) / GLINTS_PER_LANE) * (width + GLINT_LEN), sp: 0.8 + rand() * 0.4 });
+      }
+    });
   }
 
   /** 名札の要素に、出し方と位置を渡す */
@@ -500,6 +722,7 @@ export class FlowEngine {
     el.toggleAttribute("data-off", !b.on);
     el.toggleAttribute("data-pin", b.pinned);
     el.toggleAttribute("data-fly", b.flyU !== null);
+    el.toggleAttribute("data-moving", b.moving);
     el.setAttribute("data-variant", b.variant);
     el.style.setProperty("--w", `${b.width}px`);
     el.style.setProperty("--tx", `${b.dx}px`);
@@ -513,6 +736,9 @@ export class FlowEngine {
     const v = Math.max(18, this.flowRect.height * 0.34);
     const colW = this.flowRect.width / 8;
     this.strip = [];
+    this.laneYs = [];
+    this.glints = [];
+    this.bodies.delete(CLUSTER_KEY);
     const shown = new Set<string>();
     columns.forEach((column, k) => {
       const x = centers?.[k] ?? (k + 0.5) * colW;
@@ -533,6 +759,7 @@ export class FlowEngine {
         deployLinks: [],
         logUrl: null,
         turn: false,
+        urgent: false,
       };
       const b = this.place(node, x, v, animate);
       b.count = column.count;
@@ -571,7 +798,7 @@ export class FlowEngine {
   }
 
   private makeBody(node: FlowNode): Body {
-    const b: Body = {
+    return {
       node,
       u: 0,
       v: 0,
@@ -598,8 +825,9 @@ export class FlowEngine {
       flyU: null,
       flyUntil: 0,
       trail: [],
+      moving: false,
+      tailRoom: Infinity,
     };
-    return b;
   }
 
   private mkPart(b: Body, type: ParticleType, spawn: boolean): Particle {
@@ -618,10 +846,10 @@ export class FlowEngine {
       spawned: spawn,
     };
     if (type === "orbit") {
-      p.r = 5 + r() * 9;
+      p.r = 5 + r() * (this.mobile ? 9 : 6);
       p.w = (0.3 + r() * 0.4) * (r() < 0.5 ? 1 : -1);
     } else if (type === "comet") {
-      p.len = 34 + r() * 20;
+      p.len = this.mobile || spawn ? 34 + r() * 20 : 24 + r() * 16;
       p.sp = 0.6 + r() * 0.5;
     } else if (type === "exit") {
       p.sp = 0.22 + r() * 0.16;
@@ -635,33 +863,44 @@ export class FlowEngine {
   }
 
   private seedKey(b: Body): string {
-    return `${b.node.who}:${b.count > 1 ? b.count : ""}:${b.pinned ? 1 : 0}`;
+    return `${b.node.who}:${b.count > 1 ? b.count : ""}:${b.pinned ? 1 : 0}:${b.node.urgent ? 1 : 0}:${this.mobile ? 1 : 0}`;
   }
 
   private seedParts(b: Body) {
     const who = b.node.who;
-    const n = b.count > 1 ? 2.2 : 1;
-    // 名札を出さない光は、粒を半分にする
-    const f = b.pinned ? 1 : 0.5;
-    const mix: [ParticleType, number][] =
-      who === "ai"
-        ? [
-            ["orbit", 12],
-            ["comet", 12],
-          ]
-        : who === "human"
-          ? [["orbit", 26]]
-          : who === "queue"
-            ? [["wide", 16]]
-            : who === "fail"
-              ? [["still", 16]]
-              : [
-                  ["orbit", 8 * n],
-                  ["exit", 12 * n],
-                ];
+    let mix: [ParticleType, number][];
+    if (this.mobile) {
+      // スマホの帯：段階ごとのまとまり（今までどおり）
+      const n = b.count > 1 ? 2.2 : 1;
+      mix =
+        who === "ai"
+          ? [
+              ["orbit", 12],
+              ["comet", 12],
+            ]
+          : who === "human"
+            ? [["orbit", 26]]
+            : who === "queue"
+              ? [["wide", 16]]
+              : who === "fail"
+                ? [["still", 16]]
+                : [
+                    ["orbit", 8 * n],
+                    ["exit", 12 * n],
+                  ];
+    } else if (b.node.key === CLUSTER_KEY) {
+      // 公開済みの塊：小さく静か
+      mix = [["orbit", 6]];
+    } else if (b.pinned) {
+      // 常に名札を出す光：人間は回る粒、失敗は震える粒。急ぐ物だけ多い
+      mix = who === "fail" ? [["still", b.node.urgent ? 14 : 8]] : [["orbit", b.node.urgent ? 20 : 12]];
+    } else {
+      // 名札を出さない光：筋の上を進む1つの光。後ろへ抜ける小さな粒だけ（群れにしない）。待機は止まっている
+      mix = who === "queue" ? [] : [["comet", 5]];
+    }
     b.parts = [];
     for (const [type, count] of mix) {
-      for (let m = 0; m < Math.round(count * f); m++) b.parts.push(this.mkPart(b, type, false));
+      for (let m = 0; m < Math.round(count); m++) b.parts.push(this.mkPart(b, type, false));
     }
     b.seededFor = this.seedKey(b);
   }
@@ -680,23 +919,52 @@ export class FlowEngine {
   }
 
   private frame = (now: number) => {
+    const rolling = this.gRoll < 1;
+    if (document.hidden || (!this.flowVisible && !rolling && !this.dirty)) {
+      // タブが見えない・流れが画面の外：止める（また見えたら wake で続ける）
+      this.running = false;
+      return;
+    }
     this.raf = requestAnimationFrame(this.frame);
     const reduced = this.opt.isReduced();
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     if (this.W !== innerWidth || this.H !== innerHeight) this.resize();
-    const rolling = this.gRoll < 1;
+    if (!this.flowVisible) {
+      // 流れが画面の外：川は止めたまま1回だけ描き直し（誌面の下で暗くする）、数字の転がりだけ動かす
+      if (this.dirty) {
+        this.dirty = false;
+        this.draw(now, 0, true);
+      } else {
+        this.drawGiant(now, 0, true, this.giantRect());
+      }
+      return;
+    }
     if (reduced && !this.dirty && !rolling) return;
     this.dirty = false;
     if (!reduced) this.t += dt;
     this.draw(now, dt, reduced);
   };
 
-  /** 巨大な数字の、画面の中の位置（無ければ null） */
-  private giantRect(): DOMRect | null {
+  /** 巨大な数字の箱（文字の高さ）の、画面の中の位置（無ければ null） */
+  private giantRect(): Zone | null {
     const g = this.giant;
     if (!g || !this.gReady || !this.gMetrics) return null;
-    return g.canvas.getBoundingClientRect();
+    const r = g.canvas.getBoundingClientRect();
+    const top = r.top + this.gPad;
+    return { x0: r.left, x1: r.left + this.gW, y0: top, y1: top + this.gH };
+  }
+
+  /** 灯りの区域：数字の左から、押す列の手前まで（文字・ボタンの上で灯らない） */
+  private litZone(g: Zone | null): Zone | null {
+    if (!g || !this.giant) return null;
+    const edge = this.giant.litEdge();
+    return { x0: g.x0 - CURRENT_IN, x1: Math.max(g.x1, edge), y0: g.y0 - LIT_ABOVE, y1: g.y1 + LIT_BELOW };
+  }
+
+  /** 区域の中なら1、端の30pxで0へ */
+  private litIn(z: Zone, x: number, y: number): number {
+    return smooth(Math.min(x - z.x0, z.x1 - x, y - z.y0, z.y1 - y) / LIT_FADE);
   }
 
   private draw(now: number, dt: number, reduced: boolean) {
@@ -705,11 +973,12 @@ export class FlowEngine {
     this.bandTop = band ? band.getBoundingClientRect().top + 30 : Infinity;
     const bandTop = this.bandTop;
     const gRect = this.giantRect();
+    const zone = this.litZone(gRect);
     const mask = this.gMask;
     const decay = Math.exp(-HEAT_DECAY * dt);
     rctx.clearRect(0, 0, W, H);
     rctx.globalCompositeOperation = "lighter";
-    // 川（数字を通った粒は灯り、灯ったまま流れていく）
+    // 川（数字を通った粒は灯り、灯ったまま流れていく。灯って見えるのは灯りの区域の中だけ）
     for (const p of this.river) {
       if (!reduced) {
         this.flowStep(p, dt, t);
@@ -724,16 +993,17 @@ export class FlowEngine {
       }
       // 動きを止めているときは灯さない（スクロールで数字が動いた跡が残らないように）
       if (gRect && mask && !reduced) {
-        const lx = Math.floor(p.x - gRect.left);
-        const ly = Math.floor(p.y - gRect.top);
+        const lx = Math.floor(p.x - gRect.x0);
+        const ly = Math.floor(p.y - gRect.y0);
         if (lx >= 0 && ly >= 0 && lx < this.gW && ly < this.gH && mask[ly * this.gW + lx] === 1) p.heat = 1;
       }
       const tw = 0.55 + 0.45 * Math.sin(t * 1.1 + p.ph);
       let a = 0.15 * tw;
       if (p.y > bandTop) a *= 0.3;
-      if (p.heat > 0.02) {
-        rctx.globalAlpha = Math.min(1, a + 0.55 * p.heat);
-        const sz = 4 * p.s * (1 + 0.8 * p.heat);
+      const heat = p.heat > 0.02 && zone ? p.heat * this.litIn(zone, p.x, p.y) : 0;
+      if (heat > 0.02) {
+        rctx.globalAlpha = Math.min(1, a + 0.55 * heat);
+        const sz = 4 * p.s * (1 + 0.8 * heat);
         rctx.drawImage(sprites.amber, p.x - sz / 2, p.y - sz / 2, sz, sz);
         continue;
       }
@@ -741,11 +1011,11 @@ export class FlowEngine {
       const sz = 4 * p.s;
       rctx.drawImage(sprites.river, p.x - sz / 2, p.y - sz / 2, sz, sz);
     }
+    if (!this.mobile && this.laneYs.length > 0) this.drawThreads(dt, reduced);
     // 光と粒
     const sc = this.mobile ? 1 : this.scale;
     for (const b of this.bodies.values()) {
       if (!b.on) continue;
-      const who = b.node.who;
       if (b.seededFor !== this.seedKey(b)) this.seedParts(b);
       if (b.flyU !== null && now > b.flyUntil) this.land(b.node.key);
       const tu = b.flyU ?? b.u;
@@ -765,92 +1035,21 @@ export class FlowEngine {
       const stripHl = this.mobile && this.stripHl === b.node.at ? 1 : 0;
       b.hl += (Math.max(b.hlT, stripHl) - b.hl) * Math.min(1, dt * 10);
       const [x, y] = this.toXY(b.pu, b.pv);
-      if (!this.mobile) this.moveLabel(b);
-      this.drawTrail(b.trail, who, dt, bandTop);
-      const dim = y > bandTop ? 0.3 : 1;
-      const big = b.count > 1 ? 1.3 : 1;
-      const quiet = b.pinned ? 1 : 0.7;
-      let g = who === "human" ? 0.5 : who === "ai" ? 0.3 : who === "queue" ? 0.18 : who === "fail" ? 0.3 : 0.22;
-      g = (g * quiet + b.hl * 0.35) * dim;
-      let gr = (who === "human" ? 24 : who === "queue" ? 24 : 18) * sc * big * quiet;
-      if (this.mobile) gr *= 0.6;
-      gr += b.hl * 10;
-      rctx.globalAlpha = g;
-      rctx.drawImage(sprites[`${who}_glow`], x - gr, y - gr, gr * 2, gr * 2);
-      rctx.globalAlpha = (who === "queue" ? 0.7 : 1) * dim;
-      const cs = (who === "human" ? 7.5 : 6) * sc * big;
-      if (b.count > 1) {
-        for (let c = 0; c < Math.min(b.count, 12); c++) {
-          const an = c * 2.4 + 0.6;
-          const rr = (6 + c * 3.2) * sc;
-          rctx.drawImage(sprites[who], x + Math.cos(an) * rr - 3, y + Math.sin(an) * rr * 0.7 - 3, 6, 6);
-        }
-      } else {
-        rctx.drawImage(sprites[who], x - cs / 2, y - cs / 2, cs, cs);
-      }
-      for (let k = b.parts.length - 1; k >= 0; k--) {
-        const p = b.parts[k];
-        let px: number;
-        let py: number;
-        let a: number;
-        if (p.type === "orbit" || p.type === "wide" || p.type === "still") {
-          if (!reduced) p.a += p.w * dt;
-          const rr = p.r * sc * big * (1 + b.hl * 0.3);
-          const jx = p.type === "still" ? Math.sin(t * 9 + p.ph) * 0.8 : 0;
-          // 名札の側（光の右）へは張り出さない
-          const raw = Math.cos(p.a) * rr + jx;
-          const du = this.mobile ? raw : squeezeTowardLabel(raw);
-          const dv = Math.sin(p.a) * rr * 0.62;
-          [px, py] = this.toXY(b.pu + du, b.pv + dv);
-          a = (who === "queue" ? 0.5 : 0.85) * (0.6 + 0.4 * Math.sin(t * 1.6 + p.ph));
-        } else if (p.type === "comet") {
-          if (!reduced) p.p += dt * p.sp;
-          if (p.p >= 1) {
-            if (p.spawned) {
-              b.parts.splice(k, 1);
-              continue;
-            }
-            p.p = 0;
-            p.off = b.rand() - 0.5;
-          }
-          // 尾は進む向きの後ろ（左）へ流れる。名札（右）の上を通らない
-          const du = -p.p * p.len * (this.mobile ? 0.5 : 1);
-          const dv = p.off * 14 * (1 - p.p) + Math.sin(p.p * 6 + p.ph) * 2;
-          [px, py] = this.toXY(b.pu + du, b.pv + dv);
-          a = (1 - p.p) * 0.9;
-        } else {
-          if (!reduced) p.p += dt * p.sp;
-          if (p.p >= 1) {
-            p.p = 0;
-            p.off = b.rand() - 0.5;
-          }
-          // 公開済み：列の右端まで抜けて消える（ほかの列に入らない）
-          const edge = Math.max(8, b.edgeU - b.pu);
-          const du = p.p * p.p * edge;
-          const dv = p.off * 18 * big + Math.sin(p.p * 8 + p.ph) * 3;
-          [px, py] = this.toXY(b.pu + du, b.pv + dv);
-          a = (1 - p.p) * 0.55;
-        }
-        if (py > bandTop) a *= 0.3;
-        rctx.globalAlpha = Math.max(0, a);
-        const sz = 3 * p.s * Math.min(1.3, sc);
-        rctx.drawImage(sprites[who], px - sz / 2, py - sz / 2, sz, sz);
-      }
-      // スマホの帯：中の Issue の色の粒を、まとまりの周りに散らす
-      if (this.mobile && b.count > 1) {
-        const strip = this.strip[b.node.at];
-        if (strip) {
-          strip.whos.forEach((w, i) => {
-            if (i >= 12) return;
-            const an = t * 0.4 + i * 1.7;
-            const rr = 9 + (i % 3) * 4;
-            rctx.globalAlpha = 0.9;
-            rctx.drawImage(sprites[w], x + Math.cos(an) * rr - 2.5, y + Math.sin(an) * rr * 0.7 - 2.5, 5, 5);
-          });
+      if (!this.mobile) {
+        this.moveLabel(b);
+        // 動いている間は名札を隠す（着いてから出す）
+        const moving = b.flyU !== null || Math.hypot(b.pu - b.u, b.pv - b.v) > MOVING_PX;
+        if (moving !== b.moving) {
+          b.moving = moving;
+          this.labels.get(b.node.key)?.toggleAttribute("data-moving", moving);
         }
       }
+      this.drawTrail(b.trail, b.node.who, dt, bandTop);
+      if (this.mobile) this.drawStripBody(b, x, y, bandTop);
+      else this.drawBody(b, x, y, sc, bandTop);
+      this.drawParts(b, x, y, sc, dt, reduced, bandTop);
     }
-    if (gRect && mask) this.drawCurrent(dt, gRect, mask, reduced, decay);
+    if (gRect && mask && zone) this.drawCurrent(dt, gRect, zone, mask, reduced, decay);
     this.drawSparks(now, dt, bandTop);
     rctx.globalAlpha = 1;
     rctx.globalCompositeOperation = "source-over";
@@ -859,39 +1058,197 @@ export class FlowEngine {
     if (this.sparks.length > 0 || this.hasTrails()) this.dirty = true;
   }
 
+  /** 光の筋と、筋の上を走るきらめき（流れの中だけ） */
+  private drawThreads(dt: number, reduced: boolean) {
+    const { rctx } = this;
+    const [x0, y0] = this.toXY(0, STAGES_H - 4);
+    const width = this.flowRect.width;
+    rctx.globalAlpha = 1;
+    // 筋のある所（レーンの高さの8px）だけを重ねる（画像の大部分は透明。重ね合わせの面積を減らす）
+    const dpr = this.DPR;
+    for (const ly of this.laneYs) {
+      rctx.drawImage(this.threads, 0, Math.round(ly * dpr), this.threads.width, Math.round(8 * dpr), x0, y0 + ly, width, 8);
+    }
+    for (const gl of this.glints) {
+      if (!reduced) gl.u += GLINT_SPEED * gl.sp * dt;
+      if (gl.u - GLINT_LEN > width) gl.u = -this.riverRand() * width * 0.4;
+      let fade = smooth(Math.min((gl.u - GLINT_LEN * 0.5) / THREAD_FADE, (width - gl.u) / THREAD_FADE));
+      // 名札の所では消える（文字の下を光が走らない）
+      for (const gap of this.gaps) {
+        if (gap.lane !== gl.lane) continue;
+        const d = Math.max(gap.x0 - gl.u, gl.u - GLINT_LEN * 0.4 - gap.x1);
+        fade *= smooth(d / 24);
+      }
+      if (fade <= 0.01) continue;
+      const [x, y] = this.toXY(gl.u - GLINT_LEN, STAGES_H + (this.laneYs[gl.lane] ?? 0) - 4);
+      rctx.globalAlpha = 0.42 * fade;
+      rctx.drawImage(this.sprites.glint, x, y, GLINT_LEN, 8);
+    }
+  }
+
+  /** PC の光：芯・にじみ・光の尾 */
+  private drawBody(b: Body, x: number, y: number, sc: number, bandTop: number) {
+    const { rctx, sprites } = this;
+    const who = b.node.who;
+    const dim = y > bandTop ? 0.3 : 1;
+    const cluster = b.node.key === CLUSTER_KEY;
+    const urgent = b.node.urgent;
+    let glow: number;
+    let radius: number;
+    let core: number;
+    if (cluster) {
+      glow = 0.14;
+      radius = 12;
+      core = 4.5;
+    } else if (b.pinned) {
+      glow = urgent ? 0.55 : 0.32;
+      radius = (who === "human" ? 20 : 16) * sc * (urgent ? 1.3 : 1);
+      core = (who === "human" ? 7.5 : 6) * sc;
+    } else {
+      glow = who === "queue" ? 0.16 : who === "human" ? 0.3 : 0.26;
+      radius = (who === "queue" ? 16 : 14) * sc;
+      core = 5.5 * sc;
+    }
+    // 光の尾：光の後ろ（左）の筋を、誰の番かの色で明るくする
+    const tail = cluster ? 0 : Math.min(TAIL_LEN[who] * sc, b.tailRoom);
+    if (tail > 0) {
+      rctx.globalAlpha = 0.5 * dim * (1 + b.hl * 0.4);
+      rctx.drawImage(sprites[`${who}_tail`], x - tail, y - 2, tail, 4);
+    }
+    const g = (glow + b.hl * 0.35) * dim;
+    const gr = radius + b.hl * 10;
+    rctx.globalAlpha = g;
+    rctx.drawImage(sprites[`${who}_glow`], x - gr, y - gr, gr * 2, gr * 2);
+    rctx.globalAlpha = (who === "queue" ? 0.7 : cluster ? 0.8 : 1) * dim;
+    rctx.drawImage(sprites[who], x - core / 2, y - core / 2, core, core);
+  }
+
+  /** スマホの帯の光（今までどおり：段階ごとのまとまり） */
+  private drawStripBody(b: Body, x: number, y: number, bandTop: number) {
+    const { rctx, sprites, t } = this;
+    const who = b.node.who;
+    const dim = y > bandTop ? 0.3 : 1;
+    const big = b.count > 1 ? 1.3 : 1;
+    let g = who === "human" ? 0.5 : who === "ai" ? 0.3 : who === "queue" ? 0.18 : who === "fail" ? 0.3 : 0.22;
+    g = (g + b.hl * 0.35) * dim;
+    let gr = (who === "human" ? 24 : who === "queue" ? 24 : 18) * big * 0.6;
+    gr += b.hl * 10;
+    rctx.globalAlpha = g;
+    rctx.drawImage(sprites[`${who}_glow`], x - gr, y - gr, gr * 2, gr * 2);
+    rctx.globalAlpha = (who === "queue" ? 0.7 : 1) * dim;
+    const cs = (who === "human" ? 7.5 : 6) * big;
+    if (b.count > 1) {
+      for (let c = 0; c < Math.min(b.count, 12); c++) {
+        const an = c * 2.4 + 0.6;
+        const rr = 6 + c * 3.2;
+        rctx.drawImage(sprites[who], x + Math.cos(an) * rr - 3, y + Math.sin(an) * rr * 0.7 - 3, 6, 6);
+      }
+      const strip = this.strip[b.node.at];
+      if (strip) {
+        strip.whos.forEach((w, i) => {
+          if (i >= 12) return;
+          const an = t * 0.4 + i * 1.7;
+          const rr = 9 + (i % 3) * 4;
+          rctx.globalAlpha = 0.9;
+          rctx.drawImage(sprites[w], x + Math.cos(an) * rr - 2.5, y + Math.sin(an) * rr * 0.7 - 2.5, 5, 5);
+        });
+      }
+    } else {
+      rctx.drawImage(sprites[who], x - cs / 2, y - cs / 2, cs, cs);
+    }
+  }
+
+  /** 光の周りの粒（回る・震える・後ろへ抜ける） */
+  private drawParts(b: Body, x: number, y: number, sc: number, dt: number, reduced: boolean, bandTop: number) {
+    const { rctx, sprites, t } = this;
+    const who = b.node.who;
+    const big = this.mobile && b.count > 1 ? 1.3 : 1;
+    const cluster = b.node.key === CLUSTER_KEY;
+    const psc = cluster ? 1 : sc;
+    for (let k = b.parts.length - 1; k >= 0; k--) {
+      const p = b.parts[k];
+      let du: number;
+      let dv: number;
+      let a: number;
+      if (p.type === "orbit" || p.type === "wide" || p.type === "still") {
+        if (!reduced) p.a += p.w * dt;
+        const rr = p.r * psc * big * (1 + b.hl * 0.3) * (cluster ? 0.75 : 1);
+        const jx = p.type === "still" ? Math.sin(t * 9 + p.ph) * 0.8 : 0;
+        // 名札の側（光の右）へは張り出さない
+        const raw = Math.cos(p.a) * rr + jx;
+        du = this.mobile ? raw : squeezeTowardLabel(raw);
+        dv = Math.sin(p.a) * rr * 0.62;
+        a = (who === "queue" ? 0.5 : cluster ? 0.5 : 0.85) * (0.6 + 0.4 * Math.sin(t * 1.6 + p.ph));
+      } else if (p.type === "comet") {
+        if (!reduced) p.p += dt * p.sp;
+        if (p.p >= 1) {
+          if (p.spawned) {
+            b.parts.splice(k, 1);
+            continue;
+          }
+          p.p = 0;
+          p.off = b.rand() - 0.5;
+        }
+        // 後ろ（左）へ抜ける。名札（右）の上を通らない。PC は筋から上下2pxまで（粒の群れにしない）
+        du = -p.p * (this.mobile ? p.len * 0.5 : Math.min(p.len, b.tailRoom));
+        dv = this.mobile || p.spawned ? p.off * 14 * (1 - p.p) + Math.sin(p.p * 6 + p.ph) * 2 : p.off * 4 * (1 - p.p);
+        a = (1 - p.p) * (this.mobile || p.spawned ? 0.9 : 0.6);
+      } else {
+        if (!reduced) p.p += dt * p.sp;
+        if (p.p >= 1) {
+          p.p = 0;
+          p.off = b.rand() - 0.5;
+        }
+        // 公開済み（スマホの帯）：列の右端まで抜けて消える（ほかの列に入らない）
+        const edge = Math.max(8, b.edgeU - b.pu);
+        du = p.p * p.p * edge;
+        dv = p.off * 18 * big + Math.sin(p.p * 8 + p.ph) * 3;
+        a = (1 - p.p) * 0.55;
+      }
+      const px = x + du;
+      const py = y + dv;
+      if (py > bandTop) a *= 0.3;
+      rctx.globalAlpha = Math.max(0, a);
+      const sz = (cluster ? 2.4 : 3) * p.s * Math.min(1.3, psc);
+      rctx.drawImage(sprites[who], px - sz / 2, py - sz / 2, sz, sz);
+    }
+  }
+
   /**
    * 数字の高さの帯を流れる川の粒：数字の左から入り、数字を通ると灯って、灯ったまま右へ抜けて冷める。
-   * 流れが数字の中を通っていることを見せる（川と同じ式・同じ速さ）
+   * 流れが数字の中を通っていることを見せる（川と同じ式・同じ速さ）。灯りの区域の右端で消える
    */
-  private drawCurrent(dt: number, rect: DOMRect, mask: Uint8Array, reduced: boolean, decay: number) {
+  private drawCurrent(dt: number, rect: Zone, zone: Zone, mask: Uint8Array, reduced: boolean, decay: number) {
     const { rctx, sprites, t } = this;
+    const out = Math.min(this.gW + CURRENT_OUT, zone.x1 - rect.x0);
     for (const p of this.gCurrent) {
       if (!reduced) {
-        const q = { x: rect.left + p.x, y: rect.top + p.y, sp: p.sp, vx: 0, vy: 0 };
+        const q = { x: rect.x0 + p.x, y: rect.y0 + p.y, sp: p.sp, vx: 0, vy: 0 };
         this.flowStep(q, dt, t);
-        p.x = q.x - rect.left;
-        p.y = q.y - rect.top;
+        p.x = q.x - rect.x0;
+        p.y = q.y - rect.y0;
         p.heat *= decay;
-        if (p.x > this.gW + CURRENT_OUT || p.y < -8 || p.y > this.gH + 8) {
+        if (p.x > out || p.y < -8 || p.y > this.gH + 8) {
           p.x = -CURRENT_IN * this.gRand();
           p.y = this.gRand() * this.gH;
           p.heat = 0;
         }
       }
+      if (p.x > out) continue;
       const lx = Math.floor(p.x);
       const ly = Math.floor(p.y);
       if (lx >= 0 && ly >= 0 && lx < this.gW && ly < this.gH && mask[ly * this.gW + lx] === 1) p.heat = 1;
       // 端では薄く（入り口と出口で急に現れない・消えない）
-      const edge = Math.min(1, (p.x + CURRENT_IN) / 30, (this.gW + CURRENT_OUT - p.x) / 40);
+      const edge = Math.max(0, Math.min(1, (p.x + CURRENT_IN) / 30, (out - p.x) / 40));
       const tw = 0.55 + 0.45 * Math.sin(t * 1.1 + p.ph);
       if (p.heat > 0.02) {
         rctx.globalAlpha = Math.max(0, Math.min(1, (0.08 * tw + 0.7 * p.heat) * edge));
         const sz = 4 * p.s * (1 + 0.6 * p.heat);
-        rctx.drawImage(sprites.amber, rect.left + p.x - sz / 2, rect.top + p.y - sz / 2, sz, sz);
+        rctx.drawImage(sprites.amber, rect.x0 + p.x - sz / 2, rect.y0 + p.y - sz / 2, sz, sz);
       } else {
         rctx.globalAlpha = Math.max(0, 0.22 * tw * edge);
         const sz = 4 * p.s;
-        rctx.drawImage(sprites.river, rect.left + p.x - sz / 2, rect.top + p.y - sz / 2, sz, sz);
+        rctx.drawImage(sprites.river, rect.x0 + p.x - sz / 2, rect.y0 + p.y - sz / 2, sz, sz);
       }
     }
   }
@@ -1006,6 +1363,7 @@ export class FlowEngine {
     const des = m.actualBoundingBoxDescent;
     this.gW = Math.ceil(m.width - this.gFs * 0.06 * (text.length - 1)) + 4;
     this.gH = Math.ceil(asc + des) + 8;
+    this.gPad = Math.round(this.gH * GIANT_PAD);
     this.gMetrics = { asc, left: m.actualBoundingBoxLeft };
     this.gDpr = Math.min(devicePixelRatio || 1, 2);
     const box = g.canvas.parentElement;
@@ -1013,40 +1371,46 @@ export class FlowEngine {
       box.style.width = `${this.gW}px`;
       box.style.height = `${this.gH}px`;
     }
+    const total = this.gH + this.gPad * 2;
     for (const c of [g.canvas, this.gField, this.gTmp, this.gBase]) {
       c.width = Math.round(this.gW * this.gDpr);
-      c.height = Math.round(this.gH * this.gDpr);
+      c.height = Math.round(total * this.gDpr);
       c.style.width = `${this.gW}px`;
-      c.style.height = `${this.gH}px`;
+      c.style.height = `${total}px`;
     }
+    // 箱の上下へはみ出して重ねる（転がる数字を、はみ出しの所で消す）
+    g.canvas.style.position = "absolute";
+    g.canvas.style.left = "0";
+    g.canvas.style.top = `${-this.gPad}px`;
+    g.canvas.style.pointerEvents = "none";
     this.drawGiantBase();
     this.buildMask();
-    const n = Math.round((this.gW * this.gH) / 260);
     this.gRand = seededRandom(11);
-    const r = this.gRand;
+    const rand = this.gRand;
+    const n = Math.round((this.gW * total) / 260);
     this.gLocal = [];
     for (let k = 0; k < n; k++) {
-      this.gLocal.push({ x: r() * this.gW, y: r() * this.gH, s: 0.6 + r() * 1.2, ph: r() * 6.28, sp: 0.6 + r() * 0.8, heat: 0, vx: 0, vy: 0 });
+      this.gLocal.push({ x: rand() * this.gW, y: rand() * total - this.gPad, s: 0.6 + rand() * 1.2, ph: rand() * 6.28, sp: 0.6 + rand() * 0.8, heat: 0, vx: 0, vy: 0 });
     }
     const span = this.gW + CURRENT_IN + CURRENT_OUT;
     this.gCurrent = [];
     for (let k = 0; k < Math.round((span * this.gH) / 900); k++) {
-      const x = r() * span - CURRENT_IN;
+      const x = rand() * span - CURRENT_IN;
       // 最初から、数字を出た粒は灯った名残りがある状態にする（開いた瞬間から流れが見える）
       const heat = x > this.gW * 0.5 ? Math.exp((-HEAT_DECAY * (x - this.gW * 0.5)) / RIVER_SPEED) : 0;
-      this.gCurrent.push({ x, y: r() * this.gH, s: 0.6 + r() * 1.1, ph: r() * 6.28, sp: 0.6 + r() * 0.8, heat, vx: 0, vy: 0 });
+      this.gCurrent.push({ x, y: rand() * this.gH, s: 0.6 + rand() * 1.1, ph: rand() * 6.28, sp: 0.6 + rand() * 0.8, heat, vx: 0, vy: 0 });
     }
   }
 
-  /** 数字の中の地と、止まった2つの光（数字を描き直すときだけ） */
+  /** 数字の中の地と、止まった2つの光（数字を描き直すときだけ。はみ出しの所まで） */
   private drawGiantBase() {
     const fc = this.gBase.getContext("2d");
     if (!fc) return;
-    const { gW: GW, gH: GH, gDpr: dpr } = this;
+    const { gW: GW, gH: GH, gDpr: dpr, gPad: pad } = this;
     fc.setTransform(dpr, 0, 0, dpr, 0, 0);
     fc.globalCompositeOperation = "source-over";
     fc.fillStyle = "#2A1804";
-    fc.fillRect(0, 0, GW, GH);
+    fc.fillRect(0, 0, GW, GH + pad * 2);
     fc.globalCompositeOperation = "lighter";
     const blobs: [string, number, number, number][] = [
       ["255,176,64", 0.9, 0.3, 0.25],
@@ -1054,18 +1418,18 @@ export class FlowEngine {
     ];
     for (const [c, a, bx, by] of blobs) {
       const x = GW * bx;
-      const y = GH * by;
+      const y = pad + GH * by;
       const r = Math.max(GW, GH) * 0.6;
       const grd = fc.createRadialGradient(x, y, 0, x, y, r);
       grd.addColorStop(0, `rgba(${c},${a})`);
       grd.addColorStop(1, `rgba(${c},0)`);
       fc.fillStyle = grd;
-      fc.fillRect(0, 0, GW, GH);
+      fc.fillRect(0, 0, GW, GH + pad * 2);
     }
     fc.globalCompositeOperation = "source-over";
   }
 
-  /** 数字の形の型（1倍）：川の粒が数字の中にいるかを見る */
+  /** 数字の形の型（1倍。箱の中だけ）：川の粒が数字の中にいるかを見る */
   private buildMask() {
     const w = this.gW;
     const h = this.gH;
@@ -1089,30 +1453,34 @@ export class FlowEngine {
     this.gMask = mask;
   }
 
-  private drawGiantField(dt: number, rect: DOMRect, reduced: boolean) {
+  private drawGiantField(dt: number, rect: Zone, reduced: boolean, rolling: boolean) {
     const fc = this.gField.getContext("2d");
     if (!fc) return;
-    const { gW: GW, gH: GH, gDpr: dpr, t } = this;
-    const tt = reduced ? 12 : t;
+    const { gW: GW, gH: GH, gDpr: dpr, gPad: pad, t } = this;
+    // ゆらぎの時刻：動きを減らす設定のときだけ止めた値（流れが画面の外で止めているときは、今の時刻のまま）
+    const tt = this.opt.isReduced() ? 12 : t;
     fc.setTransform(1, 0, 0, 1, 0, 0);
     fc.globalCompositeOperation = "source-over";
-    fc.drawImage(this.gBase, 0, 0);
-    fc.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const [sy, sh] = this.gSpan;
+    fc.drawImage(this.gBase, 0, sy, this.gBase.width, sh, 0, sy, this.gBase.width, sh);
+    fc.setTransform(dpr, 0, 0, dpr, 0, pad * dpr);
     fc.globalCompositeOperation = "lighter";
     for (const p of this.gLocal) {
+      // はみ出しの所の粒は、転がっている間だけ動かして描く（止まった数字は箱の中だけ。計算を増やさない）
+      if (!rolling && (p.y < -6 || p.y > GH + 6)) continue;
       if (!reduced) {
-        const q = { x: rect.left + p.x, y: rect.top + p.y, sp: p.sp, vx: 0, vy: 0 };
+        const q = { x: rect.x0 + p.x, y: rect.y0 + p.y, sp: p.sp, vx: 0, vy: 0 };
         this.flowStep(q, dt, t);
-        p.x = q.x - rect.left;
-        p.y = q.y - rect.top;
+        p.x = q.x - rect.x0;
+        p.y = q.y - rect.y0;
         p.vx = q.vx;
         p.vy = q.vy;
         if (p.x > GW + 4) {
           p.x = -4;
-          p.y = this.gRand() * GH;
+          p.y = this.gRand() * (GH + pad * 2) - pad;
         }
-        if (p.y < -4) p.y = GH + 4;
-        if (p.y > GH + 4) p.y = -4;
+        if (p.y < -pad - 4) p.y = GH + pad + 4;
+        if (p.y > GH + pad + 4) p.y = -pad - 4;
       }
       const tw = 0.55 + 0.45 * Math.sin(tt * 1.1 + p.ph);
       const sz = 5 * p.s;
@@ -1127,9 +1495,9 @@ export class FlowEngine {
       fc.drawImage(this.sprites.amber, p.x - sz / 2, p.y - sz / 2, sz, sz);
     }
     for (const p of this.river) {
-      const x = p.x - rect.left;
-      const y = p.y - rect.top;
-      if (x < -4 || y < -4 || x > GW + 4 || y > GH + 4) continue;
+      const x = p.x - rect.x0;
+      const y = p.y - rect.y0;
+      if (x < -4 || y < -pad - 4 || x > GW + 4 || y > GH + pad + 4) continue;
       fc.globalAlpha = 0.8;
       const sz = 9 * p.s;
       fc.drawImage(this.sprites.amber, x - sz / 2, y - sz / 2, sz, sz);
@@ -1144,34 +1512,59 @@ export class FlowEngine {
     const { gDpr: dpr, gFs: fs } = this;
     tc.setTransform(1, 0, 0, 1, 0, 0);
     tc.globalCompositeOperation = "source-over";
-    tc.clearRect(0, 0, this.gTmp.width, this.gTmp.height);
+    const [sy, sh] = this.gSpan;
+    tc.clearRect(0, sy, this.gTmp.width, sh);
     tc.save();
     tc.scale(dpr, dpr);
     tc.font = this.giantFont();
     tc.textBaseline = "alphabetic";
     tc.letterSpacing = `${-0.06 * fs}px`;
     tc.fillStyle = "#fff";
-    tc.fillText(text, this.gMetrics.left + 2, this.gMetrics.asc + 4 + dy);
+    tc.fillText(text, this.gMetrics.left + 2, this.gPad + this.gMetrics.asc + 4 + dy);
     tc.restore();
     tc.globalCompositeOperation = "source-in";
-    tc.drawImage(this.gField, 0, 0);
+    tc.drawImage(this.gField, 0, sy, this.gField.width, sh, 0, sy, this.gField.width, sh);
     ctx.globalAlpha = alpha;
-    ctx.drawImage(this.gTmp, 0, 0);
+    ctx.drawImage(this.gTmp, 0, sy, this.gTmp.width, sh, 0, sy, this.gTmp.width, sh);
     ctx.globalAlpha = 1;
   }
 
-  private drawGiant(now: number, dt: number, reduced: boolean, rect: DOMRect | null) {
+  private drawGiant(now: number, dt: number, reduced: boolean, rect: Zone | null) {
     const g = this.giant;
     if (!g || !rect) return;
     const ctx = g.canvas.getContext("2d");
     if (!ctx) return;
     if (this.gRoll < 1) this.gRoll = Math.min(1, (now - this.gRollT0) / 460);
-    this.drawGiantField(dt, rect, reduced);
+    const rolling = this.gRoll < 1 && this.gPrev !== null;
+    const dpr = this.gDpr;
+    this.gSpan = rolling
+      ? [0, g.canvas.height]
+      : [Math.max(0, Math.floor(this.gPad * dpr) - 2), Math.min(g.canvas.height, Math.ceil(this.gH * dpr) + 4)];
+    this.drawGiantField(dt, rect, reduced, rolling);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = "source-over";
     ctx.clearRect(0, 0, g.canvas.width, g.canvas.height);
-    if (this.gRoll < 1 && this.gPrev !== null) {
+    if (rolling && this.gPrev !== null) {
       const p = ease(this.gRoll);
       this.glyph(ctx, String(this.gPrev), -this.gH * 0.9 * p, 1 - p);
       this.glyph(ctx, String(this.gValue), this.gH * 0.9 * (1 - p), p);
+      // 上：前の数字は、箱の上のはみ出しの所で外の端へ向けて消える。
+      // 下：新しい数字は、箱の下端の手前（高さ×0.3。転がり終わるにつれて0へ）から下端へ向けて現れる。
+      // 箱の下にはみ出しては描かない（下の見出しの文字に重ねない）。どちらも四角い切れ目を作らない
+      const h = g.canvas.height;
+      const top = (this.gPad * this.gDpr) / h;
+      const bottom = ((this.gPad + this.gH) * this.gDpr) / h;
+      const rise = ((this.gH * 0.3 * (1 - p)) * this.gDpr) / h;
+      const fade = ctx.createLinearGradient(0, 0, 0, h);
+      fade.addColorStop(0, "rgba(0,0,0,0)");
+      fade.addColorStop(top, "rgba(0,0,0,1)");
+      fade.addColorStop(Math.max(top, bottom - rise), "rgba(0,0,0,1)");
+      fade.addColorStop(bottom, "rgba(0,0,0,0)");
+      fade.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.fillStyle = fade;
+      ctx.fillRect(0, 0, g.canvas.width, h);
+      ctx.globalCompositeOperation = "source-over";
     } else {
       this.glyph(ctx, String(this.gValue), 0, 1);
     }

@@ -146,8 +146,9 @@
   pointer-events: auto;
 }
 
-/* 押して飛んでいる間は名札を隠す */
-.node[data-fly] .tag {
+/* 押して飛んでいる間・段階が変わって動いている間は名札を隠す（着いてから出す） */
+.node[data-fly] .tag,
+.node[data-moving] .tag {
   opacity: 0;
   pointer-events: none;
 }
@@ -166,13 +167,19 @@
   font-size: 0.92em;
 }
 
+/* 短い説明：誰の番かの強い色は急ぐ物（止まった・公開失敗）だけ。ほかは静かな色 */
 .st,
 .st2 {
   min-width: 0;
   overflow: hidden;
-  color: var(--c);
+  color: var(--bone-2);
   font-weight: 500;
   text-overflow: ellipsis;
+}
+
+.node[data-urgent] .st,
+.node[data-urgent] .st2 {
+  color: var(--c);
 }
 
 .l2 {

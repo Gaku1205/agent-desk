@@ -13,7 +13,7 @@ import { isNavKey, nextByArrow, pickTabStop, type NavBox } from "@/lib/flow/navi
 import { countByStage, type FlowNode, type FlowWho } from "@/lib/flow/nodes";
 import { isMotionReduced } from "@/lib/motion";
 import { PROGRESS_STAGE_NAMES } from "@/lib/progress";
-import { FlowEngine, WHO_CSS } from "./engine";
+import { CLUSTER_KEY, FlowEngine, WHO_CSS } from "./engine";
 import styles from "./FlowStage.module.css";
 
 const MOBILE_MAX = 899;
@@ -175,6 +175,10 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
   const multiRepo = new Set(nodes.map((n) => `${n.owner}/${n.repo}`)).size > 1;
   const current = caption ? (nodes.find((n) => n.key === caption.key) ?? null) : null;
   const columns = stripColumns(nodes);
+  // 公開済みは右端の1つの塊（いちばん新しい物＝並びの先頭）
+  const done = nodes.filter((n) => n.who === "done");
+  const latest = done[0] ?? null;
+  const clusterOn = caption?.key === CLUSTER_KEY && latest !== null;
 
   function show(key: string, pinned: boolean) {
     setCaption((prev) => (prev?.pinned && !pinned ? prev : { key, pinned }));
@@ -246,6 +250,7 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                 className={styles.node}
                 data-key={node.key}
                 data-off=""
+                data-urgent={node.urgent ? "" : undefined}
                 data-pinned={caption?.pinned && caption.key === node.key ? "" : undefined}
                 tabIndex={-1}
                 style={{ "--c": WHO_CSS[node.who] } as React.CSSProperties}
@@ -277,18 +282,71 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                 </span>
               </button>
             ))}
+            {latest && (
+              <button
+                ref={register(CLUSTER_KEY)}
+                type="button"
+                className={styles.node}
+                data-key={CLUSTER_KEY}
+                data-off=""
+                data-cluster=""
+                data-pinned={caption?.pinned && caption.key === CLUSTER_KEY ? "" : undefined}
+                tabIndex={-1}
+                style={{ "--c": WHO_CSS.done } as React.CSSProperties}
+                aria-label={`公開済み ${done.length}件（いちばん新しい物：${latest.repo}#${latest.number} ${latest.title}）`}
+                onMouseEnter={() => show(CLUSTER_KEY, false)}
+                onMouseLeave={hide}
+                onFocus={() => {
+                  nodeStopRef.current = CLUSTER_KEY;
+                  syncTabStop(nodesRef.current, nodeKeyOf, CLUSTER_KEY);
+                  show(CLUSTER_KEY, false);
+                }}
+                onBlur={hide}
+                onClick={() => show(CLUSTER_KEY, true)}
+              >
+                <span className={styles.tag} aria-hidden="true">
+                  <span className={styles.l1}>
+                    <span className={styles.st}>公開済み</span>
+                    <span className={`${styles.id} num`}>{done.length}件</span>
+                  </span>
+                  <span className={styles.l2}>
+                    <span className={styles.tt}>{latest.title} ほか</span>
+                    <span className={styles.st2}>公開済み</span>
+                  </span>
+                </span>
+              </button>
+            )}
           </div>
         </section>
           <div className={styles.foot}>
             <p
               className={styles.caption}
-              data-on={current || stripOpen !== null ? "" : undefined}
+              data-on={current || clusterOn || stripOpen !== null ? "" : undefined}
               data-pinned={caption?.pinned || stripOpen !== null ? "" : undefined}
               aria-live="polite"
-              style={{ "--c": current ? WHO_CSS[current.who] : undefined } as React.CSSProperties}
+              style={
+                {
+                  // 強い色は急ぐ物（止まった・公開失敗）だけ
+                  "--c": current?.urgent ? WHO_CSS[current.who] : undefined,
+                } as React.CSSProperties
+              }
             >
               {stripOpen !== null ? (
                 <StripCaption nodes={nodes.filter((n) => n.at === stripOpen)} onPick={onPick} />
+              ) : clusterOn && latest ? (
+                <>
+                  <b>公開済み</b>
+                  <span className={`${styles.capId} num`}>{done.length}件</span>
+                  <span className={`${styles.capId} num`}>
+                    {latest.repo}#{latest.number}
+                  </span>
+                  <span className={styles.capText}>{latest.title}</span>
+                  {latest.deployLinks.map((link) => (
+                    <a key={link.url} className={styles.capLink} href={link.url} target="_blank" rel="noreferrer">
+                      {link.label} ↗
+                    </a>
+                  ))}
+                </>
               ) : current ? (
                 <>
                   <span className={`${styles.capId} num`}>

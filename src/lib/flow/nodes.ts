@@ -31,6 +31,8 @@ export type FlowNode = {
   logUrl: string | null;
   /** 人間の判断待ち（押す列にも出る物） */
   turn: boolean;
+  /** 急ぐ物（止まった・公開失敗）。流れの中で強い色の名札を出すのはこれだけ */
+  urgent: boolean;
 };
 
 /** 段階ごとの件数（0 清書 〜 7 公開） */
@@ -50,6 +52,11 @@ export function whoOf(status: Pick<IssueStatus, "stage" | "turn">): FlowWho {
     default:
       return status.turn === "human" ? "human" : "ai";
   }
+}
+
+/** 急ぐ物か：止まった・公開失敗（押す列で強い色を使う行と同じ。docs/design.md の「流れ」） */
+export function isUrgentStage(stage: IssueStatus["stage"]): boolean {
+  return stage === "stuck" || stage === "deployFailed";
 }
 
 /** 流れの名札に出す短い説明。順番待ちは「順番待ち · #17 の後」のように、理由の中の Issue 番号を添える */
@@ -105,6 +112,7 @@ export function rowToNode(owner: string, repo: string, row: PipelineRow): FlowNo
     deployLinks: row.deployLinks,
     logUrl: logUrlOf(row.status, full),
     turn: row.status.turn === "human",
+    urgent: isUrgentStage(row.status.stage),
   };
 }
 

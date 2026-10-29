@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TrailEvent } from "@/lib/events";
 import type { FlowNode } from "@/lib/flow/nodes";
+import { repoBreakdown } from "@/lib/breakdown";
 import { formatWait, turnItemKey, type TurnItem } from "@/lib/turn";
 import type { WatchdogNotice } from "@/lib/watchdogState";
 import styles from "./Desk.module.css";
@@ -40,6 +41,8 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
   const rowsRef = useRef<HTMLDivElement>(null);
   const giantRef = useRef<HTMLCanvasElement>(null);
   const ghostRef = useRef<HTMLSpanElement>(null);
+  const unitRef = useRef<HTMLSpanElement>(null);
+  const turnsRef = useRef<HTMLElement>(null);
   // 操作が通って畳んでいる行。取り直しを待たずに数字を減らす（取り直しで行が消えたら自然に数えなくなる）
   const [leaving, setLeaving] = useState<ReadonlySet<string>>(() => new Set());
   const count = items.filter((item) => !leaving.has(turnItemKey(item))).length;
@@ -49,7 +52,14 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
     const canvas = giantRef.current;
     const ghost = ghostRef.current;
     if (!engine || !canvas || !ghost) return;
-    engine.setGiant({ canvas, ghost });
+    // 灯った粒を見せてよい右端：PC は押す列の左端の10px手前、スマホは「件」の右端の6px先（右隣の見出しの手前）
+    const litEdge = () => {
+      const turns = turnsRef.current;
+      const unit = unitRef.current;
+      if (window.innerWidth <= 899) return unit ? unit.getBoundingClientRect().right + 6 : 0;
+      return turns ? turns.getBoundingClientRect().left - 10 : innerWidth;
+    };
+    engine.setGiant({ canvas, ghost, litEdge });
     return () => engine.setGiant(null);
   }, []);
 
@@ -96,14 +106,15 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
               {count}
             </span>
           </div>
-          <span className={styles.unit} aria-hidden="true">
+          <span className={styles.unit} ref={unitRef} aria-hidden="true">
             件
           </span>
           <h1 className={styles.h1} id="turn-title">
             あなたの番
             <small>{count > 0 ? "待ちが長い順" : "今はAIの番です"}</small>
           </h1>
-          <p className={styles.split}>
+          {scope.kind === "all" && <RepoBreakdown repos={scope.repos} />}
+          <p className={styles.split} data-scope={scope.kind}>
             {scope.kind === "all" ? (
               scope.repos.map(({ repo, count: n }) => (
                 <span key={repo} className={styles.splitItem}>
@@ -141,7 +152,7 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
             </ul>
           )}
         </div>
-        <section className={styles.turns} aria-labelledby="turn-title" data-skip-target="">
+        <section className={styles.turns} ref={turnsRef} aria-labelledby="turn-title" data-skip-target="">
           <div className={styles.rows} ref={rowsRef}>
             {items.length === 0 ? (
               <p className="empty">今はAIの番です。流れの上で光が進んでいます</p>
@@ -163,5 +174,25 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
         <Trails events={events} now={now} hint={scope.kind === "all" ? "直近3日" : "直近3日・このリポジトリ"} />
       </main>
     </>
+  );
+}
+
+/**
+ * リポジトリごとの内訳（ホームの PC）：件数の多い順に、数の大きさの差で見せる（docs/design.md の「巨大な数字」）。
+ * 読み上げは下の1行（スマホで見せる物。PC では見た目だけ隠す）と同じ中身なので、ここは aria-hidden
+ */
+function RepoBreakdown({ repos }: { repos: { repo: string; count: number }[] }) {
+  const sorted = repoBreakdown(repos);
+  return (
+    <ul className={styles.breakdown} aria-hidden="true">
+      {sorted.map(({ repo, count, size }) => (
+        <li key={repo} data-zero={count === 0 ? "" : undefined}>
+          <b className="num" style={{ fontSize: `${size}px` }}>
+            {count}
+          </b>
+          <span>{repo}</span>
+        </li>
+      ))}
+    </ul>
   );
 }

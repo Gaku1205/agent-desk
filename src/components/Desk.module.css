@@ -16,7 +16,8 @@
 
 @media (min-width: 1180px) {
   .band {
-    grid-template-columns: auto minmax(0, 1fr) minmax(300px, 31%);
+    /* 押す列は最大920px。広い画面の余りは出来事の列が受け取る */
+    grid-template-columns: auto minmax(0, 920px) minmax(max(300px, 31%), 1fr);
   }
 }
 
@@ -50,6 +51,7 @@
   display: grid;
   grid-template-columns: auto auto;
   align-content: start;
+  justify-content: start;
   align-items: end;
   gap: 8px 6px;
   padding-top: 2px;
@@ -63,8 +65,10 @@
   line-height: 0;
 }
 
+/* 数字の canvas は箱の上下へはみ出して重ねる（位置は flow/engine.ts が決める） */
 .giant canvas {
   display: block;
+  pointer-events: none;
 }
 
 .ghost {
@@ -126,6 +130,55 @@
   font-weight: 500;
 }
 
+/* リポジトリごとの内訳（ホームの PC）：数の大きさの差で見せる */
+.breakdown {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .breakdown {
+    display: grid;
+    grid-column: 1 / -1;
+    gap: 2px;
+    margin-top: 18px;
+  }
+
+  .breakdown li {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    white-space: nowrap;
+  }
+
+  .breakdown b {
+    color: var(--bone);
+    font-family: var(--disp);
+    font-weight: 800;
+    font-variation-settings: "opsz" 96;
+    letter-spacing: -0.04em;
+    line-height: 0.9;
+  }
+
+  .breakdown span {
+    color: var(--bone-2);
+    font-size: 12.5px;
+  }
+
+  .breakdown li[data-zero] b {
+    color: var(--mute);
+  }
+
+  /* PC のホームでは、1行の件数は読み上げだけに残す（見た目は上の内訳） */
+  .split[data-scope="all"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 .splitLink {
   color: var(--mute);
 }
@@ -156,19 +209,12 @@
 /* 押す列 */
 .turns {
   min-width: 0;
-  container-type: inline-size;
 }
 
+/* 押す列はどの幅でも1列（並び順のとおりに上から読める） */
 .rows {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  column-gap: 48px;
-}
-
-@container (min-width: 1120px) {
-  .rows {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 /* ───── スマホ：あなたの番が先。流れは細い帯 ───── */
