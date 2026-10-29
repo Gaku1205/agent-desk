@@ -1,138 +1,188 @@
 "use client";
 
-import { useState, useTransition, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { runOperation } from "@/app/actions";
-import { toneRgba } from "@/lib/progress";
-import type { MergeSummary, OperationKind, TurnButton } from "@/lib/turn";
+import { mergeResultLines } from "@/lib/mergeLines";
+import { getProgress } from "@/lib/progress";
+import { splitPhrases, turnKind } from "@/lib/turnKind";
+import type { OperationKind, TurnItem } from "@/lib/turn";
 import { useDemo } from "./DemoContext";
-import { MergeDialog } from "./MergeDialog";
-import pipelineStyles from "./PipelineTable.module.css";
-import { PipelineTitle } from "./PipelineTitle";
+import { Ticks } from "./Ticks";
 import styles from "./TurnRow.module.css";
 import { useRowEffects } from "./useRowEffects";
 
 type Props = {
-  owner: string;
-  repo: string;
-  issueNumber: number;
-  title: string;
-  /** 段階（取り直しで変わったら行を光らせる） */
-  stage: string;
-  url: string;
-  description: string;
-  /** 止まった理由のログのURL（あるときだけ「ログを開く ↗」を出す） */
-  logUrl: string | null;
+  item: TurnItem;
   wait: string;
-  buttons: TurnButton[];
-  merge: MergeSummary | null;
-  /** 進み具合のバー */
-  children: ReactNode;
+  /** 行に乗せた・離れた（流れの光を強める） */
+  onHover: (key: string | null) => void;
+  /** ボタンを押した（流れの光が跳ねる） */
+  onPress: (key: string) => void;
 };
 
 /**
- * あなたの番の1行（ボタンを押すとサーバー側で操作して、画面を取り直す）。
- * 並べ方は行の幅で変わる（TurnRow.module.css）。切れているタイトルは行に乗せた間に流す
+ * 押す列の1件（docs/design.md の「押す列」）。種類の札 → 題名 → 理由 → ボタンと目盛り。
+ * ボタンはサーバー側で操作して、画面を取り直す。「マージ…」はその場で「マージする／やめる」に変わる（確認）
  */
-export function TurnRow(props: Props) {
-  const { owner, repo, issueNumber, buttons, merge } = props;
-  const { fadeIn, flash } = useRowEffects(props.stage);
+export function TurnRow({ item, wait, onHover, onPress }: Props) {
+  const { owner, repo, issue, status, buttons, merge } = item;
+  const key = `${owner}/${repo}#${issue.number}`;
+  const kind = turnKind(status);
+  const progress = getProgress(status);
+  const { fadeIn, flash } = useRowEffects(status.stage);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [mergeOpen, setMergeOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [hit, setHit] = useState<string | null>(null);
+  // 操作が通った時点の段階とボタン。取り直しで変わったら（行が残るなら）元に戻す
+  const sig = `${status.stage}:${buttons.map((b) => b.label).join(",")}`;
+  const [leavingSig, setLeavingSig] = useState<string | null>(null);
+  const leaving = leavingSig === sig;
+  const confirmRef = useRef<HTMLButtonElement>(null);
   const demo = useDemo();
 
-  function run(kind: OperationKind, onDone?: () => void) {
+  useEffect(() => {
+    if (confirming) confirmRef.current?.focus();
+  }, [confirming]);
+
+  useEffect(() => {
+    if (hit === null) return;
+    const timer = window.setTimeout(() => setHit(null), 220);
+    return () => window.clearTimeout(timer);
+  }, [hit]);
+
+  useEffect(() => {
+    if (leavingSig === null) return;
+    // 取り直しが古い内容のままでも、行が見えないまま残らないようにする
+    const timer = window.setTimeout(() => setLeavingSig(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [leavingSig]);
+
+  function run(kind: OperationKind) {
     setError(null);
+    setHit(kind);
+    onPress(key);
     if (demo) {
-      // デモでは何も書き込まず、動かないことを知らせる
-      onDone?.();
+      setConfirming(false);
       demo.notify();
       return;
     }
     startTransition(async () => {
-      const result = await runOperation({ kind, owner, repo, issueNumber });
-      onDone?.();
+      const result = await runOperation({ kind, owner, repo, issueNumber: issue.number });
+      setConfirming(false);
       if (!result.ok && !result.changed) setError(result.message);
+      else setLeavingSig(sig);
     });
   }
 
+  function onKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === "Escape" && confirming) {
+      event.stopPropagation();
+      setConfirming(false);
+    }
+  }
+
+  const phrases = confirming && merge ? mergeResultLines(merge) : splitPhrases(item.description);
+
   return (
-    <li
-      className={`${styles.row} ${pipelineStyles.marqueeHost}`}
-      data-fade-in={fadeIn ? "true" : undefined}
+    <article
+      className={styles.row}
+      data-key={key}
+      data-fade-in={fadeIn ? "" : undefined}
       data-flash={flash ?? undefined}
-      style={{ "--flash-color": toneRgba("human", 0.12) } as CSSProperties}
+      data-leaving={leaving ? "" : undefined}
+      onMouseEnter={() => onHover(key)}
+      onMouseLeave={() => onHover(null)}
+      onFocus={() => onHover(key)}
+      onBlur={() => onHover(null)}
+      onKeyDown={onKeyDown}
     >
-      <div className={styles.grid}>
-        <svg
-          className={styles.icon}
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          fill="none"
-          strokeWidth="1.5"
-          aria-hidden="true"
-        >
-          <circle cx="7" cy="7" r="5.5" stroke="var(--human)" />
-          <circle cx="7" cy="7" r="2" fill="var(--human)" />
-        </svg>
-        <a className={`${styles.ref} mono`} href={props.url} target="_blank" rel="noreferrer">
-          {repo}#{issueNumber}
+      <div className={styles.head}>
+        <span className={styles.kind} data-tone={kind.tone}>
+          {kind.label}
+        </span>
+        <span className={`${styles.id} num`}>
+          {repo}#{issue.number}
+          {status.pull ? `　PR #${status.pull.number}` : ""}
+        </span>
+        <span className={`${styles.wait} num`}>{wait}</span>
+      </div>
+      <h3 className={styles.title}>
+        <a href={issue.url} target="_blank" rel="noreferrer">
+          {issue.title}
         </a>
-        <div className={styles.body}>
-          <a className={styles.title} href={props.url} target="_blank" rel="noreferrer">
-            <PipelineTitle title={props.title} className={styles.marqueeTitle} />
-          </a>
-          <p className={styles.desc}>{props.description}</p>
-          {props.logUrl && (
-            <a className={styles.logLink} href={props.logUrl} target="_blank" rel="noreferrer">
+      </h3>
+      <p className={styles.desc} data-lines={confirming && merge ? "" : undefined}>
+        {phrases.map((phrase, i) => (
+          <span className="ph" key={i}>
+            {phrase}
+          </span>
+        ))}
+      </p>
+      {error && (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      )}
+      <div className={styles.foot}>
+        <div className={styles.acts}>
+          {confirming && merge ? (
+            <>
+              <button
+                ref={confirmRef}
+                type="button"
+                className={`${styles.act} ${styles.fill}`}
+                disabled={pending}
+                onClick={() => run("merge")}
+                onKeyDown={(event) => {
+                  // 押し続けた Enter の繰り返しで、意図せずマージしない
+                  if (event.key === "Enter" && event.repeat) event.preventDefault();
+                }}
+              >
+                {pending ? "マージ中…" : "マージする"}
+              </button>
+              <button
+                type="button"
+                className={`${styles.act} ${styles.ghost}`}
+                disabled={pending}
+                onClick={() => setConfirming(false)}
+              >
+                やめる
+              </button>
+            </>
+          ) : (
+            buttons.map((button) =>
+              button.type === "link" ? (
+                <a key={button.label} className={styles.act} href={button.href} target="_blank" rel="noreferrer">
+                  {button.label}
+                </a>
+              ) : (
+                <button
+                  key={button.kind}
+                  type="button"
+                  className={styles.act}
+                  data-hit={hit === button.kind ? "" : undefined}
+                  disabled={pending}
+                  onClick={() => (button.kind === "merge" ? setConfirming(true) : run(button.kind))}
+                >
+                  {button.label}
+                </button>
+              ),
+            )
+          )}
+          {item.logUrl && (
+            <a className={styles.link} href={item.logUrl} target="_blank" rel="noreferrer">
               ログを開く ↗
             </a>
           )}
-          <div className={styles.progress}>{props.children}</div>
-          {error && (
-            <p className={styles.opError} role="alert">
-              {error}
-            </p>
-          )}
         </div>
-        <span className={`${styles.wait} mono`}>{props.wait}</span>
-        <div className={styles.buttons}>
-          {buttons.map((button) =>
-            button.type === "link" ? (
-              <a
-                key={button.label}
-                className={styles.button}
-                href={button.href}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {button.label}
-              </a>
-            ) : (
-              <button
-                key={button.kind}
-                type="button"
-                className={styles.button}
-                disabled={pending}
-                onClick={() => (button.kind === "merge" ? setMergeOpen(true) : run(button.kind))}
-              >
-                {button.label}
-              </button>
-            ),
-          )}
+        <div className={styles.prog}>
+          <Ticks progress={progress} />
+          <span className={styles.stage} data-tone={progress.tone}>
+            {progress.currentName}
+          </span>
         </div>
       </div>
-      {mergeOpen && merge && (
-        <MergeDialog
-          repo={repo}
-          title={props.title}
-          merge={merge}
-          pending={pending}
-          onCancel={() => setMergeOpen(false)}
-          onConfirm={() => run("merge", () => setMergeOpen(false))}
-        />
-      )}
-    </li>
+    </article>
   );
 }

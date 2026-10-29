@@ -4,8 +4,9 @@ const REPO_PAGE = "/demo/repos/demo/todo-app";
 
 /**
  * フォントの読み込みを待ち、画面の高さをページ全体に広げてから撮る。
- * fullPage のままだと、上に貼り付く帯やサイドバー（`position: sticky`・`100vh`）が
- * スクロール位置や最初の画面の高さの所に写って、ずれて見えるため
+ * fullPage のままだと、上に貼り付く帯（`position: sticky`）や画面いっぱいの映像（`position: fixed`）が
+ * スクロール位置や最初の画面の高さの所に写って、ずれて見えるため。
+ * 映像（流れ）は、動きを減らす設定（playwright.config.ts の reducedMotion）で止まり、粒の位置は種から決まるので毎回同じ
  */
 async function settle(page: Page) {
   // フォントは使う文字ごとに分けて読み込まれる。読み込みが終わる前に高さを測ると、
@@ -46,11 +47,11 @@ test.describe("デモの画面", () => {
     await expect(page).toHaveScreenshot("repo.png");
   });
 
-  test("リポジトリのページ（公開済みを出した状態）", async ({ page }) => {
+  test("マージの確認（その場で「マージする／やめる」に変わる）", async ({ page }) => {
     await page.goto(REPO_PAGE);
-    await page.getByRole("button", { name: /公開済みを表示/ }).click();
+    await page.getByRole("button", { name: "マージ…" }).first().click();
     await settle(page);
-    await expect(page).toHaveScreenshot("repo-deployed.png");
+    await expect(page).toHaveScreenshot("repo-merge.png");
   });
 
   test("設定", async ({ page }) => {

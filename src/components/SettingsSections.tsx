@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MotionSetting } from "./MotionSetting";
+import { Sheet } from "./Sheet";
 import { NotifySetting, type NotifyRepoRow } from "./NotifySetting";
 import styles from "./SettingsSections.module.css";
 import { WatchedReposSetting, type WatchedRepoRow } from "./WatchedReposSetting";
@@ -27,30 +28,36 @@ export function SettingsSections({ repoRows, repoOptions, editable, notifyRows }
   }
 
   return (
-    <main className={`content ${styles.settings}`}>
-      <section className={styles.section} aria-labelledby="settings-repos">
-        <h2 id="settings-repos" className={styles.title}>
-          監視するリポジトリ
-        </h2>
-        <WatchedReposSetting
-          initialRows={repoRows}
-          options={repoOptions}
-          editable={editable}
-          onListChange={handleListChange}
-        />
-      </section>
-      <section className={styles.section} aria-labelledby="settings-notify">
-        <h2 id="settings-notify" className={styles.title}>
-          通知
-        </h2>
-        <NotifySetting rows={shownNotifyRows} />
-      </section>
-      <section className={styles.section} aria-labelledby="settings-motion">
-        <h2 id="settings-motion" className={styles.title}>
-          アニメーション
-        </h2>
-        <MotionSetting />
-      </section>
-    </main>
+    <Sheet narrow={false}>
+      <h1 className={styles.h1}>設定</h1>
+      {/* 広い画面では2列：左にリポジトリとアニメーション、右に通知の表（幅いっぱい） */}
+      <div className={styles.grid}>
+        <div className={styles.column}>
+          <section className={styles.section} aria-labelledby="settings-repos">
+            <h2 id="settings-repos" className={styles.title}>
+              監視するリポジトリ
+            </h2>
+            <WatchedReposSetting
+              initialRows={repoRows}
+              options={repoOptions}
+              editable={editable}
+              onListChange={handleListChange}
+            />
+          </section>
+          <section className={styles.section} aria-labelledby="settings-motion">
+            <h2 id="settings-motion" className={styles.title}>
+              アニメーション
+            </h2>
+            <MotionSetting />
+          </section>
+        </div>
+        <section className={`${styles.section} ${styles.notify}`} aria-labelledby="settings-notify">
+          <h2 id="settings-notify" className={styles.title}>
+            通知
+          </h2>
+          <NotifySetting rows={shownNotifyRows} />
+        </section>
+      </div>
+    </Sheet>
   );
 }

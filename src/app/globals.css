@@ -1,40 +1,81 @@
-/* 色・文字・骨組みなど、画面全体で共通の物だけ。部品ごとの見た目は部品と同じ場所の *.module.css */
+/*
+ * 色・文字・骨組みなど、画面全体で共通の物だけ。部品ごとの見た目は部品と同じ場所の *.module.css。
+ * 値はすべて docs/design.md の「色」「文字」「寸法」のとおり
+ */
 
 :root {
-  --bg: #0a0a0b;
-  --surface: #111214;
-  --line: #1b1c20;
-  --line-soft: #16171a;
-  --border: #26282d;
-  --text-strong: #f2f2f4;
-  --text: #dedfe3;
-  --text-sub: #8c8f97;
-  --text-mute: #5f626a;
-  --human: #e8a33d;
-  --human-text: #f0b65a;
-  --human-bg: #1c1710;
-  --human-border: #3a2d17;
-  --ai: #5e9bf7;
-  --done: #4cc38a;
-  --fail: #f2555a;
-  --queue: #8b5cf6;
-  --idle: #5f626a;
+  /* 色 */
+  --bg: #0b0c10;
+  --bone: #ece8df;
+  --bone-2: #a9a59c;
+  --mute: #6b6963;
+  --you: #f5a73a;
+  --ai: #5b8dff;
+  --q: #9b7cf5;
+  --fail: #f25c5c;
+  --done: #4dd39a;
+  --you-soft: #ffc06a;
+  --fail-soft: #ff8a8d;
+  --done-soft: #7bdcae;
+  --hair: rgba(236, 232, 223, 0.09);
+  --hair-2: rgba(236, 232, 223, 0.05);
+  --well: rgba(236, 232, 223, 0.06);
+  --glass: rgba(11, 12, 16, 0.62);
+
+  /* 文字 */
+  --jp: var(--font-latin), var(--font-jp), system-ui, sans-serif;
+  --disp: var(--font-disp), var(--font-latin), sans-serif;
+
+  /* 動き */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* 寸法 */
+  --gutter: clamp(20px, 2.2vw, 40px);
+  --top-h: 52px;
+  --flow-h: clamp(300px, 45svh, 660px);
+  --nfs: clamp(11.5px, 0.23vw + 9.2px, 15px);
+  --giant: clamp(160px, 13vw, 340px);
 
   color-scheme: dark;
+}
+
+@media (max-width: 1299px) {
+  :root {
+    --flow-h: clamp(300px, 50svh, 560px);
+  }
+}
+
+@media (max-width: 899px) {
+  :root {
+    --gutter: 16px;
+    --giant: 128px;
+    --flow-h: 96px;
+  }
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
 body {
   margin: 0;
+  min-height: 100svh;
+  overflow-x: hidden;
   background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-sans), sans-serif;
-  font-size: 15px;
+  color: var(--bone);
+  font-family: var(--jp);
+  font-size: 13.5px;
+  line-height: 1.5;
+  font-feature-settings: "palt";
   font-variant-numeric: tabular-nums;
   word-break: auto-phrase;
+  overflow-wrap: anywhere;
 }
 
 a {
@@ -43,81 +84,82 @@ a {
 }
 
 button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
   font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.mono {
-  font-family: var(--font-mono), monospace;
+button:disabled {
+  cursor: default;
 }
 
-/* 骨組み */
-
-.app {
-  display: flex;
-  min-height: 100vh;
-}
-
-.main {
-  flex: 1;
-  min-width: 0;
-}
-
-/*
- * 上に固定する物の高さ。--header-top は、その上に別の帯がある分（デモは 40px。demo/layout.module.css）。
- * ヘッダーは Header.module.css、パイプラインの列見出しは PipelineTable.module.css で使う
- */
-:root {
-  --header-top: 0px;
-  --header-h: 52px;
-}
-
-/* 見出しへジャンプしたとき、固定したヘッダーの下に隠れないように */
-[id] {
-  scroll-margin-top: calc(var(--header-top) + var(--header-h));
-}
-
-/* 中身 */
-
-.content {
-  max-width: 1320px;
-  padding: 28px 24px;
-}
-
-.section + .section {
-  margin-top: 38px;
-}
-
-.section-title {
+ol,
+ul {
   margin: 0;
-  color: var(--text-strong);
-  font-size: 17px;
-  font-weight: 600;
+  padding: 0;
+  list-style: none;
 }
 
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+:focus-visible {
+  outline: none;
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+}
+
+/* 番号・時刻・件数：欧文（Geist）で桁をそろえる */
+.num {
+  font-family: var(--jp);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 日本語の文は、「、」「。」で分けた塊ごとに折る（文節の途中で切らない） */
+.ph {
+  display: inline-block;
+  margin-right: 0.2em;
+}
+
+/* 読み込み中など、空の文 */
 .empty {
-  margin: 0;
-  color: var(--text-sub);
+  padding: 14px 0 24px;
+  color: var(--mute);
+  font-size: 13px;
 }
 
-/* セクションの見出し */
-
-.section-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line);
-}
-
-.section-note {
-  color: var(--text-mute);
-  font-size: 12.5px;
-  white-space: nowrap;
+/* 見出しへジャンプしたとき、上に固定した帯の下に隠れないように */
+[id] {
+  scroll-margin-top: calc(var(--top-h) + 8px);
 }
 
 /*
- * @keyframes はここに置かない。*.module.css の中の名前は部品ごとに付け替えられ、
- * globals.css の @keyframes を指せないため、使う部品の *.module.css に書く
+ * 動きを減らす：端末の設定（prefers-reduced-motion）か、設定の「アニメーション：オフ」（data-motion="reduce"）。
+ * 「オン」（data-motion="full"）は端末の設定にかかわらず動かす。映像（canvas）は FlowStage が同じ判定で止める
  */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) *,
+  :root:not([data-motion="full"]) *::before,
+  :root:not([data-motion="full"]) *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+:root[data-motion="reduce"] *,
+:root[data-motion="reduce"] *::before,
+:root[data-motion="reduce"] *::after {
+  animation: none !important;
+  transition: none !important;
+}

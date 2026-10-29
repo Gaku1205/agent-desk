@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MOTION_INIT_SCRIPT,
   MOTION_STORAGE_KEY,
+  isMotionReduced,
   motionAttribute,
   parseMotion,
   readMotion,
@@ -109,5 +110,15 @@ describe("MOTION_INIT_SCRIPT", () => {
     expect(run(null)).toEqual({});
     expect(run("x")).toEqual({});
     expect(run("throw")).toEqual({});
+  });
+});
+
+describe("isMotionReduced", () => {
+  it("オフなら止める、オンなら動かす、従うなら端末の設定どおり", () => {
+    expect(isMotionReduced(true, "reduce")).toBe(true);
+    expect(isMotionReduced(false, "reduce")).toBe(true);
+    expect(isMotionReduced(true, "full")).toBe(false);
+    expect(isMotionReduced(true, null)).toBe(true);
+    expect(isMotionReduced(false, null)).toBe(false);
   });
 });

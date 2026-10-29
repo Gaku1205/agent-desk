@@ -1,33 +1,68 @@
-/* ログイン */
+/* ログイン画面 */
 
 .login {
+  position: relative;
+  z-index: 4;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
+  gap: 28px;
+  min-height: 100svh;
+  padding: 0 var(--gutter) clamp(40px, 8vh, 96px);
+}
+
+/* 画面いっぱいの極太のワードマーク。映像に溶かす */
+.mark {
+  color: var(--bone);
+  font-family: var(--disp);
+  font-size: clamp(56px, 11vw, 200px);
+  font-weight: 800;
+  font-variation-settings: "opsz" 96;
+  letter-spacing: -0.06em;
+  line-height: 0.95;
+  mix-blend-mode: screen;
+  opacity: 0.92;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
   align-items: center;
-  justify-content: center;
-  gap: 16px;
-  min-height: 100vh;
 }
 
 .button {
-  height: 40px;
-  padding: 0 18px;
-  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 16px;
   border-radius: 6px;
-  background: var(--surface);
-  color: var(--text-strong);
-  cursor: pointer;
+  background: var(--you);
+  color: #1a1206;
+  font-size: 13.5px;
+  font-weight: 500;
   white-space: nowrap;
+  transition:
+    transform 0.12s var(--ease),
+    background 0.12s;
+}
+
+.button:hover {
+  background: #ffb95a;
+}
+
+.button:active {
+  transform: scale(0.96);
 }
 
 .demoLink {
-  color: var(--text-sub);
+  color: var(--bone-2);
   font-size: 13px;
   white-space: nowrap;
 }
 
 .demoLink:hover {
-  color: var(--text);
+  color: var(--bone);
 }
 
 @media (max-width: 899px) {

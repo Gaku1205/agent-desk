@@ -1,61 +1,105 @@
-/* 設定画面。保存の行とボタンは WatchedReposSetting・NotifySetting でも使う */
+/* 設定画面（docs/design.md の「設定」）。保存の行とボタンは WatchedReposSetting・NotifySetting でも使う */
 
-/* globals.css の `.content`（1320px）に勝つよう、2つ重ねて指定する */
-:global(.content).settings {
+.h1 {
+  margin: 0 0 28px;
+  color: var(--bone);
+  font-family: var(--disp);
+  font-size: 34px;
+  font-weight: 800;
+  font-variation-settings: "opsz" 96;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.grid {
+  display: grid;
+  gap: 40px clamp(40px, 5vw, 96px);
   max-width: 720px;
 }
 
-.section + .section {
-  margin-top: 40px;
+/* 幅1180px以上：2列。左（リポジトリ・アニメーション）2 : 右（通知）3 で、通知の表が幅を使う */
+@media (min-width: 1180px) {
+  .grid {
+    grid-template-columns: minmax(340px, 2fr) minmax(0, 3fr);
+    max-width: none;
+  }
+}
+
+.column {
+  display: grid;
+  align-content: start;
+  gap: 40px;
+}
+
+.notify {
+  min-width: 0;
 }
 
 .title {
-  margin: 0 0 16px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line);
-  color: var(--text-strong);
-  font-size: 17px;
-  font-weight: 600;
+  margin: 0 0 14px;
+  color: var(--bone);
+  font-size: 15px;
+  font-weight: 500;
 }
 
 .save {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 12px;
+  align-items: center;
   margin-top: 16px;
 }
 
 .button {
-  width: 92px;
-  height: 28px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 13.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 5px;
+  background: none;
+  box-shadow: inset 0 0 0 1px rgba(236, 232, 223, 0.16);
+  color: var(--bone-2);
+  font-size: 12.5px;
+  font-weight: 500;
   white-space: nowrap;
-  cursor: pointer;
+  transition:
+    transform 0.12s var(--ease),
+    background 0.12s,
+    color 0.12s;
+}
+
+.button:hover {
+  background: var(--well);
+  color: var(--bone);
+}
+
+.button:active {
+  transform: scale(0.96);
 }
 
 .button:disabled {
-  cursor: default;
+  opacity: 0.6;
 }
 
 .saved {
-  color: var(--done);
-  font-size: 13.5px;
+  color: var(--done-soft);
+  font-size: 12.5px;
 }
 
 .error {
-  color: var(--fail);
-  font-size: 13.5px;
+  color: var(--fail-soft);
+  font-size: 12.5px;
   word-break: auto-phrase;
 }
 
 @media (max-width: 899px) {
+  .h1 {
+    font-size: 30px;
+  }
+
   .button {
-    height: 44px;
-    border-radius: 8px;
+    height: 36px;
+    font-size: 13px;
   }
 }

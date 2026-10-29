@@ -1,4 +1,4 @@
-import { Header } from "@/components/Header";
+import { Backdrop } from "@/components/Backdrop";
 import type { NotifyRepoRow } from "@/components/NotifySetting";
 import { SettingsSections } from "@/components/SettingsSections";
 import type { WatchedRepoRow } from "@/components/WatchedReposSetting";
@@ -41,7 +41,7 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <Header kind="settings" />
+      <Backdrop />
       <SettingsSections
         repoRows={rows}
         repoOptions={options}

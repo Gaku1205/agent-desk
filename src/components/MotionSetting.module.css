@@ -1,29 +1,38 @@
-/* 「アニメーション」の切り替え */
+/* 「アニメーション」の切り替え（3つを横に並べる） */
 
 .segmented {
   display: inline-flex;
+  gap: 2px;
   max-width: 100%;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--hair-2);
 }
 
 .option {
   height: 28px;
   padding: 0 14px;
-  border: 0;
-  background: transparent;
-  color: var(--text-sub);
-  font-size: 13px;
+  border-radius: 5px;
+  color: var(--bone-2);
+  font-size: 12.5px;
+  font-weight: 500;
   white-space: nowrap;
-  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 
-.option + .option {
-  border-left: 1px solid var(--border);
+.option:hover {
+  color: var(--bone);
 }
 
 .option[aria-checked="true"] {
-  background: var(--surface);
-  color: var(--text-strong);
+  background: var(--well);
+  color: var(--bone);
+}
+
+@media (max-width: 899px) {
+  .option {
+    height: 40px;
+  }
 }

@@ -1,8 +1,12 @@
 import { AppShell } from "@/components/AppShell";
 import { LoginScreen } from "@/components/LoginScreen";
-import { Sidebar } from "@/components/Sidebar";
+import { TopBar } from "@/components/TopBar";
 import { getSignedInLogin } from "@/lib/auth";
 import { loadTurns } from "@/lib/loadTurns";
+import { countRunningPipelineRows } from "@/lib/runningPipeline";
+import { countTurnItems } from "@/lib/turn";
+import { loadWatchedRepos } from "@/lib/watchedRepos";
+import { logout } from "./logout";
 
 /** 本物の画面。ログインしていなければ、どのURLでもログインボタンだけを出す */
 export default async function AppLayout({
@@ -12,18 +16,24 @@ export default async function AppLayout({
   const loaded = login ? await loadTurns() : null;
   const syncedAt = loaded?.now ?? null;
 
-  if (!login || !syncedAt) return <LoginScreen />;
+  if (!login || !loaded || !syncedAt) return <LoginScreen />;
+
+  const { repos } = await loadWatchedRepos();
 
   return (
     <AppShell
       initialSyncedAt={syncedAt.toISOString()}
-      refreshIntervalMs={loaded?.refreshPlan.intervalMs ?? null}
-      resumeAt={loaded?.refreshPlan.resumeAt ?? null}
+      refreshIntervalMs={loaded.refreshPlan.intervalMs}
+      resumeAt={loaded.refreshPlan.resumeAt}
     >
-      <div className="app">
-        <Sidebar login={login} />
-        <div className="main">{children}</div>
-      </div>
+      <TopBar
+        repos={repos}
+        counts={countTurnItems(loaded.items)}
+        runningCounts={countRunningPipelineRows(loaded.results, loaded.now)}
+        login={login}
+        logout={logout}
+      />
+      {children}
     </AppShell>
   );
 }

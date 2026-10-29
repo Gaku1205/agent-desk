@@ -2,16 +2,24 @@
 
 .notice {
   position: fixed;
-  bottom: 24px;
+  bottom: 22px;
   left: 50%;
   z-index: 60;
-  margin: 0;
   padding: 8px 14px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 13px;
+  border-radius: 8px;
+  background: rgba(20, 21, 27, 0.92);
+  color: var(--bone);
+  font-size: 12.5px;
   white-space: nowrap;
   transform: translateX(-50%);
+  animation: notice-in 0.2s var(--ease);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+@keyframes notice-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
 }

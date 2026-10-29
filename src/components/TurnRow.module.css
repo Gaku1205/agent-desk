@@ -1,291 +1,280 @@
-/*
- * あなたの番の1行（ホーム・リポジトリのページ共通）。
- * 並べ方は行の幅で変える（docs/design.md の「あなたの番」）。行の幅は行そのもの（`.row`）をコンテナにして測る
- */
+/* 押す列の1件（docs/design.md の「押す列」） */
 
 .row {
-  container-type: inline-size;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--line-soft);
-}
-
-/* 広い（行の幅1000px以上）：左から アイコン → 番号（150px）→ 文字の列 → 待ち時間 → ボタン（横に並べる） */
-.grid {
+  position: relative;
   display: grid;
-  grid-template-columns: 14px 150px minmax(0, 1fr) auto auto;
-  grid-template-areas: "icon ref body wait buttons";
-  align-items: start;
-  gap: 0 14px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+  padding: 14px 0 16px;
+  border-top: 1px solid var(--hair);
+  transition: background 0.5s var(--ease);
 }
 
-.icon {
-  grid-area: icon;
-  margin-top: 4px;
+.row:first-child {
+  border-top-color: transparent;
 }
 
-.ref {
-  grid-area: ref;
-  overflow: hidden;
-  padding-top: 2px;
-  color: var(--text-mute);
-  font-size: 12.5px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* 新しく入った行：上から4px下がりながら出る */
+.row[data-fade-in] {
+  animation: row-in 0.2s var(--ease);
 }
 
-.ref:hover,
-.title:hover {
-  text-decoration: underline;
-}
-
-.body {
-  grid-area: body;
-  min-width: 0;
-}
-
-/* タイトルは1行。入らなければ「…」で切り、行に乗せた間に流す（PipelineTitle） */
-.title {
-  display: block;
-  color: var(--text);
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.title .marqueeTitle {
-  display: block;
-  font-size: inherit;
-}
-
-.desc {
-  margin: 4px 0 0;
-  color: var(--text-sub);
-  font-size: 13.5px;
-}
-
-/* 説明文は2行まで。超えたら「…」 */
-@media (min-width: 900px) {
-  .desc {
-    display: -webkit-box;
-    overflow: hidden;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-  }
-}
-
-/* ログのリンク：「理由を見る」と同じ文字だけの見た目（枠・背景なし） */
-.logLink {
-  display: block;
-  position: relative;
-  width: fit-content;
-  margin-top: 4px;
-  color: var(--text-sub);
-  font-size: 12.5px;
-  line-height: 18px;
-  white-space: nowrap;
-}
-
-.logLink:hover {
-  color: var(--text);
-}
-
-.progress {
-  margin-top: 6px;
-}
-
-.opError {
-  margin: 8px 0 0;
-  color: var(--fail);
-  font-size: 13.5px;
-}
-
-.wait {
-  grid-area: wait;
-  padding-top: 2px;
-  color: var(--text-mute);
-  font-size: 12.5px;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.buttons {
-  grid-area: buttons;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  width: 120px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--human-border);
-  border-radius: 6px;
-  background: var(--human-bg);
-  color: var(--human-text);
-  font-size: 12.5px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.button:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-/* 中くらい（行の幅560〜999px）：1段目に番号と待ち時間、2段目に文字の列。ボタンは右端に縦に並べて縦の中央 */
-@container (max-width: 999px) {
-  .grid {
-    grid-template-columns: 14px minmax(0, 1fr) auto auto;
-    grid-template-areas:
-      "icon ref wait buttons"
-      "icon body body buttons";
-    gap: 6px 14px;
-  }
-
-  .icon {
-    margin-top: 2px;
-  }
-
-  .ref,
-  .wait {
-    padding-top: 0;
-  }
-
-  .buttons {
-    align-self: center;
-    flex-direction: column;
-  }
-}
-
-/* 狭い（行の幅560px未満）：ボタンを文字の列の下に回し、左寄せで横に並べる */
-@container (max-width: 559px) {
-  .grid {
-    grid-template-columns: 14px minmax(0, 1fr) auto;
-    grid-template-areas:
-      "icon ref wait"
-      "icon body body"
-      ". buttons buttons";
-  }
-
-  .buttons {
-    align-self: start;
-    flex-direction: row;
-    justify-content: flex-start;
-    margin-top: 4px;
-  }
-}
-
-/* スマホ（幅900px未満）：文字の列とボタンを行の幅いっぱいに。タイトルは折り返す */
-@media (max-width: 899px) {
-  .grid {
-    grid-template-columns: 14px minmax(0, 1fr) auto;
-    grid-template-areas:
-      "icon ref wait"
-      "body body body"
-      "buttons buttons buttons";
-    gap: 8px 10px;
-  }
-
-  .icon {
-    margin-top: 4px;
-  }
-
-  .ref,
-  .wait {
-    padding-top: 2px;
-  }
-
-  .title {
-    font-size: 15px;
-  }
-
-  .title .marqueeTitle {
-    overflow: visible;
-    white-space: normal;
-  }
-
-  .buttons {
-    align-self: start;
-    flex-direction: row;
-    justify-content: flex-start;
-    margin-top: 4px;
-  }
-
-  .button {
-    height: 36px;
-    border-radius: 8px;
-    font-size: 13px;
-  }
-
-  /* 押せる範囲だけ上下に広げて44pxにする（見た目の高さは変えない） */
-  .logLink::before {
-    position: absolute;
-    inset: -13px 0;
-    content: "";
-  }
-
-  .button::before {
-    position: absolute;
-    inset: -4px 0;
-    content: "";
-  }
-}
-
-/* 行の動き（docs/design.md の「動き」） */
-
-.row[data-fade-in="true"] {
-  animation: row-fade-in 0.2s ease-out;
-}
-
-@keyframes row-fade-in {
+@keyframes row-in {
   from {
     opacity: 0;
     transform: translateY(-4px);
   }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
+/* 取り直しで段階が変わった行：アンバー（12%）から元に戻す */
 .row[data-flash="a"] {
-  animation: row-flash-a 1.2s ease-out;
+  animation: row-flash-a 1.2s var(--ease);
 }
 
 .row[data-flash="b"] {
-  animation: row-flash-b 1.2s ease-out;
+  animation: row-flash-b 1.2s var(--ease);
 }
 
-/* 同じ動きを2つ用意して、続けて段階が変わっても最初からやり直せるようにする（PipelineTable.module.css にも同じ物） */
 @keyframes row-flash-a {
   from {
-    background: var(--flash-color);
-  }
-  to {
-    background: transparent;
+    background: rgba(245, 167, 58, 0.12);
   }
 }
 
 @keyframes row-flash-b {
   from {
-    background: var(--flash-color);
+    background: rgba(245, 167, 58, 0.12);
   }
+}
+
+/* 押した操作が通った行：畳まれて消える（取り直しで行が無くなるまで） */
+.row[data-leaving] {
+  animation: row-leave 0.36s var(--ease) forwards;
+}
+
+@keyframes row-leave {
   to {
-    background: transparent;
+    opacity: 0;
+    transform: translateY(-6px);
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  :root:not([data-motion="full"]) .row[data-fade-in="true"] {
-    animation: none;
-  }
+.head {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  min-width: 0;
 }
 
-:root[data-motion="reduce"] .row[data-fade-in="true"] {
-  animation: none;
+.kind {
+  color: var(--you);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.kind[data-tone="fail"] {
+  color: var(--fail);
+}
+
+.id {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--mute);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wait {
+  flex: none;
+  margin-left: auto;
+  color: var(--mute);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.title {
+  color: var(--bone);
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1.4;
+}
+
+.title a:hover {
+  color: var(--you-soft);
+}
+
+.desc {
+  color: var(--bone-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* マージの確認：3行の結果（check / review / deploy） */
+.desc[data-lines] {
+  display: grid;
+  color: var(--bone-2);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.desc[data-lines] :global(.ph) {
+  display: block;
+  white-space: pre;
+}
+
+.error {
+  color: var(--fail);
+  font-size: 12.5px;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.act {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 13px;
+  border-radius: 5px;
+  background: rgba(245, 167, 58, 0.09);
+  box-shadow: inset 0 0 0 1px rgba(245, 167, 58, 0.4);
+  color: var(--you);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    transform 0.12s var(--ease),
+    background 0.12s,
+    color 0.12s;
+}
+
+.act:hover {
+  background: rgba(245, 167, 58, 0.18);
+}
+
+/* 押した瞬間（100ms以内）：縮んで塗りつぶす */
+.act:active,
+.act[data-hit] {
+  background: var(--you);
+  color: var(--bg);
+  transform: scale(0.96);
+}
+
+.act:disabled {
+  opacity: 0.7;
+}
+
+.act:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px rgba(245, 167, 58, 0.8),
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+}
+
+.fill {
+  background: var(--you);
+  box-shadow: none;
+  color: #1a1206;
+}
+
+.fill:hover {
+  background: #ffb95a;
+}
+
+.ghost {
+  background: none;
+  box-shadow: inset 0 0 0 1px rgba(236, 232, 223, 0.16);
+  color: var(--bone-2);
+}
+
+.ghost:hover {
+  background: var(--well);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 6px;
+  color: var(--bone-2);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.link:hover {
+  color: var(--bone);
+}
+
+.prog {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.stage {
+  color: var(--bone-2);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.stage[data-tone="fail"] {
+  color: var(--fail);
+}
+
+@media (max-width: 899px) {
+  .title {
+    font-size: 15.5px;
+  }
+
+  .act {
+    height: 36px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+
+  /* 押せる範囲だけ上下に広げて44pxにする（見た目の高さは変えない） */
+  .act::before,
+  .link::before {
+    position: absolute;
+    inset: -4px 0;
+    content: "";
+  }
+
+  .act,
+  .link {
+    position: relative;
+  }
+
+  .link {
+    height: 36px;
+  }
+
+  .prog {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .prog > :first-child {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
 }

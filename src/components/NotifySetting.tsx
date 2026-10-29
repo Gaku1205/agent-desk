@@ -103,7 +103,7 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
               <th scope="col" className={styles.kindHead} aria-label="通知の種類" />
               {rows.map((row) => (
                 <th key={row.name} scope="col" className={styles.repoHead}>
-                  <span className={`${styles.repoName} mono`} title={row.name}>
+                  <span className={styles.repoName} title={row.name}>
                     {shortName(row.name)}
                   </span>
                   {!row.pipeline && <span className={styles.noPipeline}>パイプラインなし</span>}

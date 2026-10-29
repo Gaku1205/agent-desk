@@ -67,3 +67,13 @@ export function applyMotion(setting: MotionSetting, root: HTMLElement): void {
 export const MOTION_INIT_SCRIPT = `try{var m=localStorage.getItem(${JSON.stringify(
   MOTION_STORAGE_KEY,
 )});if(m==="on")document.documentElement.setAttribute("data-motion","full");else if(m==="off")document.documentElement.setAttribute("data-motion","reduce")}catch(e){}`;
+
+/**
+ * 映像（canvas）や JS の動きを止めるか。端末の設定（`prefers-reduced-motion`）と `<html>` の `data-motion` の両方を見る。
+ * CSS の判定（globals.css）と同じ：オフなら止める、オンなら端末の設定にかかわらず動かす、従うなら端末の設定どおり
+ */
+export function isMotionReduced(systemReduced: boolean, attribute: string | null): boolean {
+  if (attribute === "reduce") return true;
+  if (attribute === "full") return false;
+  return systemReduced;
+}
