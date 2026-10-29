@@ -1,12 +1,16 @@
 /* 通知の表：縦が種類、横がリポジトリ。幅が足りないときは表だけ横に流れ、左の列は固定。保存の行とボタンは SettingsSections.module.css */
 
 .tableWrap {
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
 }
 
+/* 列の幅を縮めず、足りなければ表を囲む箱の中で横に流す（ページは横にはみ出さない） */
 .table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
 }
 

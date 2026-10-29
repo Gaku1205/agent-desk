@@ -135,7 +135,16 @@ describe("公開済みの段階表示", () => {
     const view = getPipelineView(rows, 5);
     expect(numbers(view.rows)).toEqual([30, 22, 25, 20, 19, 18, 17]);
     expect(view.deployedRemaining).toBe(2);
-    expect(deployedMoreLabel(view)).toBe("さらに5件表示（残り2件）");
+    expect(deployedMoreLabel(view)).toBe("残り2件を表示");
+  });
+
+  it("残りが5件より多いときは「さらに5件表示」、5件以下なら「残りN件を表示」", () => {
+    // 1件出している状態から、残りが7件・5件・1件
+    const label = (total: number) =>
+      deployedMoreLabel(getPipelineView(deployed(total, total), 1));
+    expect(label(8)).toBe("さらに5件表示（残り7件）");
+    expect(label(6)).toBe("残り5件を表示");
+    expect(label(2)).toBe("残り1件を表示");
   });
 
   it("押すたびに5件ずつ増え、総数で止まる", () => {
