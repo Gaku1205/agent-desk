@@ -91,6 +91,8 @@ export type RepoData = {
   mainDeployedByContext?: Record<string, string>;
   /** パイプラインが動いているか。調べていなければ（テストなど）無し＝分からない */
   pipeline?: PipelineState;
+  /** テンプレートリポジトリか（GitHub の `is_template`）。調べられなければ無し＝分からない */
+  isTemplate?: boolean;
   /** 見張り役（watchdog.yml）の最後の実行。調べていなければ無し＝分からない */
   watchdog?: WatchdogLastRun;
 };

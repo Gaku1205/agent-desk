@@ -1,5 +1,6 @@
 import { describeStatus, failureLogUrl, PIPELINE_MISSING_TEXT } from "./describe";
 import { isDeployStatus } from "./deployStatus";
+import { isFactoryIssue } from "./factoryIssue";
 import type { IssueData, RepoData, RepoResult } from "./github/types";
 import {
   getIssueStatus,
@@ -224,6 +225,8 @@ export function repoTurnItems(owner: string, repo: string, data: RepoData, now: 
     if (!shouldShowIssue(issue, data.pulls)) continue;
     const status = getIssueStatus(issue, data, now);
     if (status.turn !== "human") continue;
+    // 工場が受け持つ「新サービス：」のIssueは、未着手のとき「あなたの番」に出さない
+    if (status.stage === "notStarted" && isFactoryIssue(issue.title, data.isTemplate, issue.state)) continue;
     const buttons = turnButtons(status, data);
     const canMerge = buttons.some((b) => b.type === "operation" && b.kind === "merge");
     items.push({

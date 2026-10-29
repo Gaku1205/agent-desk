@@ -42,7 +42,7 @@ export async function fetchRepoData(
   // URL に入れる since は日の始め（UTC の0時）に切り下げる。同じ日のあいだは URL が変わり、ETag が効く
   const since = new Date(Math.floor(cutoffMs / DAY_MS) * DAY_MS).toISOString();
 
-  const [rawIssues, rawPulls, rawComments, rawEvents, pipeline, mainDeployed, watchdog] = await Promise.all([
+  const [rawIssues, rawPulls, rawComments, rawEvents, pipeline, mainDeployed, watchdog, isTemplate] = await Promise.all([
     client.getAll<GhIssue>(
       `${base}/issues?state=all&since=${since}&sort=updated&direction=desc&per_page=100`,
     ),
@@ -52,6 +52,7 @@ export async function fetchRepoData(
     fetchPipelineState(client, base),
     fetchMainDeployedAt(client, base),
     fetchWatchdogLastRun(client, base),
+    fetchIsTemplate(client, base),
   ]);
 
   // since は切り下げているので、取ったあとで直近14日に絞り直す
@@ -85,7 +86,18 @@ export async function fetchRepoData(
     mainDeployedAt: mainDeployed.at,
     mainDeployedByContext: mainDeployed.byContext,
     watchdog,
+    ...(isTemplate === undefined ? {} : { isTemplate }),
   };
+}
+
+/** `GET /repos/{owner}/{repo}` の `is_template`。調べられなかった（エラー・形が違う）ときは undefined */
+async function fetchIsTemplate(client: GitHubClient, base: string): Promise<boolean | undefined> {
+  try {
+    const repo = await client.get<{ is_template?: unknown }>(base);
+    return typeof repo?.is_template === "boolean" ? repo.is_template : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** main の直近のコミット（新しい順）を何件まで見るか */
