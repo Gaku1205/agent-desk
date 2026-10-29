@@ -14,6 +14,7 @@ import {
 import { buildTurnItems, type OperationKind } from "@/lib/turn";
 import { ShellProvider, useMenuState, type ShellState } from "./AppShell";
 import { DemoProvider, type DemoState } from "./DemoContext";
+import { KeyboardHelp } from "./KeyboardHelp";
 import styles from "./DemoShell.module.css";
 
 /** 「デモでは実際には動きません」を出しておく長さ */
@@ -106,6 +107,7 @@ export function DemoShell({
     <ShellProvider value={shell}>
       <DemoProvider value={demo}>
         {children}
+        <KeyboardHelp />
         {notice > 0 && (
           <p className={styles.notice} role="status" key={notice}>
             デモでは実際には動きません
