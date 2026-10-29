@@ -195,6 +195,52 @@ describe("buildTurnItems", () => {
     expect(items.map((item) => item.issue.number)).toEqual([2, 1, 3]);
   });
 
+  /** 公開失敗の Issue（PR #番号。公開が失敗した時刻を指定） */
+  function deployFailedIssue(number: number, failedAt: string) {
+    return {
+      issue: issue(number, { state: "closed", closedAt: failedAt }),
+      pull: pull(number + 100, number, { state: "closed", merged: true, mergedAt: failedAt }),
+      checks: {
+        checkRuns: [],
+        statuses: [{ context: "Vercel", state: "failure" as const, description: "", updatedAt: failedAt }],
+      },
+    };
+  }
+
+  it("公開失敗も強い色なので、待ちが長い未着手より上に並ぶ（強い色の行が静かな色の行の下に来ない）", () => {
+    const failed = deployFailedIssue(2, "2026-10-25T11:30:00Z");
+    const repoData = data({
+      // 未着手：作ったのが 8:00（公開失敗よりずっと待っている）
+      issues: [issue(1, { createdAt: "2026-10-25T08:00:00Z" }), failed.issue],
+      pulls: [failed.pull],
+      pullChecks: { [failed.pull.number]: failed.checks },
+    });
+    const items = buildTurnItems([ok("o", "r", repoData)], NOW);
+    expect(items.map((item) => item.status.stage)).toEqual(["deployFailed", "notStarted"]);
+  });
+
+  it("強い色の中（止まった・公開失敗）も、その下も、待ちが長い順", () => {
+    const failed = deployFailedIssue(2, "2026-10-25T10:00:00Z");
+    const repoData = data({
+      issues: [
+        // 止まった：11:00（公開失敗の 10:00 より新しい）
+        issue(1, { labels: ["ai:stuck"] }),
+        failed.issue,
+        // 未着手が2つ：古い方が先
+        issue(3, { createdAt: "2026-10-25T09:00:00Z" }),
+        issue(4, { createdAt: "2026-10-25T08:00:00Z" }),
+      ],
+      pulls: [failed.pull],
+      pullChecks: { [failed.pull.number]: failed.checks },
+      events: [
+        { event: "labeled", labelName: "ai:stuck", issueNumber: 1, createdAt: "2026-10-25T11:00:00Z" },
+      ],
+    });
+    const items = buildTurnItems([ok("o", "r", repoData)], NOW);
+    expect(items.map((item) => item.issue.number)).toEqual([2, 1, 4, 3]);
+    expect(items.map((item) => item.status.stage)).toEqual(["deployFailed", "stuck", "notStarted", "notStarted"]);
+  });
+
   it("複数のリポジトリをまとめて並べ、取れなかったリポジトリは飛ばす", () => {
     const a = data({ issues: [issue(1, { createdAt: "2026-10-25T08:00:00Z" })] });
     const b = data({ issues: [issue(1, { createdAt: "2026-10-25T07:00:00Z" })] });

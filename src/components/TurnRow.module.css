@@ -410,14 +410,9 @@
     height: 36px;
   }
 
+  /* 目盛りは幅いっぱいに伸ばさない（行の区切りの線と並んで縞にならないように）：ボタンと同じ行の右端に短く */
   .prog {
-    width: 100%;
-    margin-left: 0;
-  }
-
-  .prog > :first-child {
-    flex: 1 1 auto;
-    width: auto;
-    min-width: 0;
+    gap: 8px;
+    margin-left: auto;
   }
 }

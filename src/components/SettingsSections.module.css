@@ -1,38 +1,54 @@
-/* 設定画面（docs/design.md の「設定」）。保存の行とボタンは WatchedReposSetting・NotifySetting でも使う */
+/*
+ * 設定画面（docs/design.md の「設定」）。標準のフォーム部品を枠に並べず、中身の幅に寄せて、ランプ（光の点）と字で状態を言う。
+ * ランプ・保存の行・ボタンは WatchedReposSetting・NotifySetting・MotionSetting・Select でも使う
+ */
 
+.page {
+  display: grid;
+  gap: 28px;
+  max-width: 720px;
+}
+
+/* 見出し：大きさの差でアクセントにする */
 .h1 {
-  margin: 0 0 28px;
   color: var(--bone);
-  font-family: var(--disp);
-  font-size: 34px;
-  font-weight: 800;
-  font-variation-settings: "opsz" 96;
+  font-size: 56px;
+  font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1;
 }
 
-.grid {
-  display: grid;
-  gap: 40px clamp(40px, 5vw, 96px);
-  max-width: 720px;
-}
-
-/* 幅1180px以上：2列。左（リポジトリ・アニメーション）2 : 右（通知）3 で、通知の表が幅を使う */
+/* 幅1180px以上：左に大きい見出し（sticky）、右に節（最大720px）。広い画面でも節は広がらない */
 @media (min-width: 1180px) {
-  .grid {
-    grid-template-columns: minmax(340px, 2fr) minmax(0, 3fr);
+  .page {
+    grid-template-columns: auto minmax(0, clamp(640px, 34vw, 900px));
+    gap: clamp(48px, 6vw, 140px);
+    align-items: start;
+    justify-content: start;
     max-width: none;
+  }
+
+  .h1 {
+    position: sticky;
+    top: calc(var(--top-h) + 28px);
+    font-size: clamp(88px, 9vw, 200px);
   }
 }
 
-.column {
+.sections {
   display: grid;
-  align-content: start;
-  gap: 40px;
+  min-width: 0;
 }
 
-.notify {
+/* 節：箱で囲まず、上に髪の毛の線を引くだけ */
+.section {
   min-width: 0;
+  padding: 20px 0 44px;
+  border-top: 1px solid var(--hair);
+}
+
+.section:last-child {
+  padding-bottom: 0;
 }
 
 .title {
@@ -42,25 +58,58 @@
   font-weight: 500;
 }
 
+.notify {
+  min-width: 0;
+}
+
 .save {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
-  margin-top: 16px;
+  margin-top: 24px;
 }
 
+/* 塗りつぶしの主な操作（この画面ではリポジトリを保存・通知を保存の2つだけ） */
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 30px;
-  padding: 0 14px;
-  border-radius: 5px;
-  background: none;
-  box-shadow: inset 0 0 0 1px rgba(236, 232, 223, 0.16);
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 6px;
+  background: var(--bone);
+  color: var(--bg);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    transform 0.12s var(--ease),
+    background 0.12s,
+    opacity 0.12s;
+}
+
+.button:hover {
+  background: #f6f2e9;
+}
+
+.button:active {
+  transform: scale(0.96);
+}
+
+.button:disabled {
+  opacity: 0.7;
+}
+
+/* 文字だけの操作（追加） */
+.textButton {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 6px;
   color: var(--bone-2);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
   transition:
@@ -69,17 +118,17 @@
     color 0.12s;
 }
 
-.button:hover {
+.textButton:hover:not(:disabled) {
   background: var(--well);
   color: var(--bone);
 }
 
-.button:active {
+.textButton:active:not(:disabled) {
   transform: scale(0.96);
 }
 
-.button:disabled {
-  opacity: 0.6;
+.textButton:disabled {
+  opacity: 0.4;
 }
 
 .saved {
@@ -93,13 +142,103 @@
   word-break: auto-phrase;
 }
 
+/*
+ * ランプ＋字の押せる物（通知のオン・オフ、アニメーションの選択肢）。
+ * オン＝骨色で塗って光る、オフ＝輪だけ。アンバー（あなたの番の色）は使わない
+ */
+.toggle {
+  position: relative;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--mute);
+  font-size: 12.5px;
+  font-weight: 400;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform 0.12s var(--ease),
+    background 0.12s,
+    color 0.12s;
+}
+
+.toggle:hover {
+  background: var(--well);
+}
+
+.toggle:active {
+  transform: scale(0.94);
+}
+
+.toggle[data-on],
+.toggle[aria-checked="true"] {
+  color: var(--bone);
+  font-weight: 500;
+}
+
+.toggle[data-disabled] {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ランプ（8px）。押している間は縮み、離すと戻る */
+.lamp {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(236, 232, 223, 0.32);
+  transition:
+    background 0.12s,
+    box-shadow 0.12s,
+    transform 0.22s var(--ease);
+}
+
+.toggle:active .lamp {
+  transform: scale(0.7);
+}
+
+.toggle[data-on] .lamp,
+.toggle[aria-checked="true"] .lamp {
+  background: var(--bone);
+  box-shadow: 0 0 8px rgba(236, 232, 223, 0.55);
+}
+
+/* 見えなくした本物のチェックボックス（キーボードと読み上げのため、残す） */
+.native {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.toggle:has(.native:focus-visible),
+.toggle:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+}
+
 @media (max-width: 899px) {
   .h1 {
-    font-size: 30px;
+    font-size: 56px;
   }
 
   .button {
     height: 36px;
-    font-size: 13px;
+  }
+
+  .toggle {
+    height: 44px;
   }
 }

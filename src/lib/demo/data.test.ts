@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildRecentEvents } from "../events";
 import { countPipelineWork, buildPipelineRows } from "../pipeline";
 import { getIssueStatus, shouldShowIssue, type IssueStatus, type Stage } from "../status";
-import { buildTurnItems } from "../turn";
+import { countRunningPipelineRows } from "../runningPipeline";
+import { buildTurnItems, countTurnItems } from "../turn";
 import { buildDemoResults, DEMO_REPOS } from "./data";
 import { getDemoNow } from "./now";
 import { advancePlayback, isPlaybackDone, startPlayback } from "./playback";
@@ -72,6 +73,19 @@ describe("デモのサンプル", () => {
     const later = all.find((s) => s.pull?.title === "ボタンを押したときの色を変える");
     expect(later?.stage).toBe("deployed");
     expect(all.find((s) => s.stage === "deployFailed")).toBeDefined();
+  });
+
+  it("上端の帯の件数：「全部」と各リポジトリで、あなたの番と動いている件数が同じにならない", () => {
+    const results = buildDemoResults(NOW, startPlayback(NOW));
+    const turn = countTurnItems(buildTurnItems(results, NOW));
+    const running = countRunningPipelineRows(results, NOW);
+    expect(turn.total).not.toBe(running.total);
+    for (const { owner, repo } of DEMO_REPOS) {
+      const key = `${owner}/${repo}`.toLowerCase();
+      expect(turn.byRepo[key]).toBeGreaterThan(0);
+      expect(running.byRepo[key]).toBeGreaterThan(0);
+      expect(turn.byRepo[key]).not.toBe(running.byRepo[key]);
+    }
   });
 
   it("あなたの番・順番待ちの理由・並列動作・最近の出来事がある", () => {

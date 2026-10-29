@@ -259,6 +259,20 @@
   font-weight: 500;
 }
 
+/* 番号と短い説明（名札の無いスマホで出す）。PC（900px以上）では光の名札が同じ文言を出しているので隠す */
+.capHead {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: baseline;
+}
+
+@media (min-width: 900px) {
+  .capHead {
+    display: none;
+  }
+}
+
 .capId {
   flex: none;
   color: var(--mute);
