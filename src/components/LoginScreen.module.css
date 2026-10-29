@@ -32,6 +32,18 @@
   white-space: nowrap;
 }
 
+/*
+ * 縦長に近い画面（幅いっぱいが大きさを決めるとき）は、desk の左がほぼ agent- の g の真下に来て、
+ * g の下の出っぱりと d の上の出っぱりがくっついて1つの塊になる。行の高さを0.94にして、2行の間を空ける
+ * （高さの割り算も 1.62 → 1.88）。横長の画面は desk が右に寄るので重ならず、0.8のまま
+ */
+@media (max-aspect-ratio: 3/2) {
+  .mark {
+    font-size: min(calc((100vw - 2 * var(--gutter)) / 2.57), calc((100svh - 170px) / 1.88));
+    line-height: 0.94;
+  }
+}
+
 .mark > span:first-child {
   align-self: flex-start;
 }
