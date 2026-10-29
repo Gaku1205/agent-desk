@@ -34,7 +34,10 @@ export function TurnRow({ item, wait, onHover, onPress }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [hit, setHit] = useState<string | null>(null);
-  const [leaving, setLeaving] = useState(false);
+  // 操作が通った時点の段階とボタン。取り直しで変わったら（行が残るなら）元に戻す
+  const sig = `${status.stage}:${buttons.map((b) => b.label).join(",")}`;
+  const [leavingSig, setLeavingSig] = useState<string | null>(null);
+  const leaving = leavingSig === sig;
   const confirmRef = useRef<HTMLButtonElement>(null);
   const demo = useDemo();
 
@@ -47,6 +50,13 @@ export function TurnRow({ item, wait, onHover, onPress }: Props) {
     const timer = window.setTimeout(() => setHit(null), 220);
     return () => window.clearTimeout(timer);
   }, [hit]);
+
+  useEffect(() => {
+    if (leavingSig === null) return;
+    // 取り直しが古い内容のままでも、行が見えないまま残らないようにする
+    const timer = window.setTimeout(() => setLeavingSig(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [leavingSig]);
 
   function run(kind: OperationKind) {
     setError(null);
@@ -61,7 +71,7 @@ export function TurnRow({ item, wait, onHover, onPress }: Props) {
       const result = await runOperation({ kind, owner, repo, issueNumber: issue.number });
       setConfirming(false);
       if (!result.ok && !result.changed) setError(result.message);
-      else setLeaving(true);
+      else setLeavingSig(sig);
     });
   }
 

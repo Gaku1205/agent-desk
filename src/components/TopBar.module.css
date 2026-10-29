@@ -305,7 +305,10 @@
     padding: 18px var(--gutter) 24px;
     background: rgba(11, 12, 16, 0.72);
     transform: translateX(-100%);
-    transition: transform 0.18s var(--ease);
+    visibility: hidden;
+    transition:
+      transform 0.18s var(--ease),
+      visibility 0s linear 0.18s;
     -webkit-backdrop-filter: blur(26px);
     backdrop-filter: blur(26px);
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
@@ -322,6 +325,10 @@
 
   .sheet[data-open] .pane {
     transform: none;
+    visibility: visible;
+    transition:
+      transform 0.18s var(--ease),
+      visibility 0s;
   }
 
   .sheet .mark {
