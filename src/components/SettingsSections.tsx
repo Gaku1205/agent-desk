@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MotionSetting } from "./MotionSetting";
+import { Sheet } from "./Sheet";
 import { NotifySetting, type NotifyRepoRow } from "./NotifySetting";
 import styles from "./SettingsSections.module.css";
 import { WatchedReposSetting, type WatchedRepoRow } from "./WatchedReposSetting";
@@ -27,7 +28,8 @@ export function SettingsSections({ repoRows, repoOptions, editable, notifyRows }
   }
 
   return (
-    <main className={`content ${styles.settings}`}>
+    <Sheet>
+      <h1 className={styles.h1}>設定</h1>
       <section className={styles.section} aria-labelledby="settings-repos">
         <h2 id="settings-repos" className={styles.title}>
           監視するリポジトリ
@@ -51,6 +53,6 @@ export function SettingsSections({ repoRows, repoOptions, editable, notifyRows }
         </h2>
         <MotionSetting />
       </section>
-    </main>
+    </Sheet>
   );
 }

@@ -42,7 +42,7 @@ const STUCK_PREFIX = "⏸ 自動で進めるのを止めました：";
 const AUTO_FIX_MARK = "<!-- auto-fix -->";
 const NOT_FAILED_CONCLUSIONS = ["success", "skipped", "neutral"];
 
-type Draft = Omit<RecentEvent, "id"> & { key: string };
+type Draft = Omit<RecentEvent, "id"> & { key: string; short: string };
 
 function latest(times: (string | null)[]): string | null {
   const valid = times.filter((time): time is string => time !== null && time !== "");
@@ -71,6 +71,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
       tone: "operation",
       icon: "play",
       text: `${quoted}の実装を依頼しました`,
+      short: "実装を依頼",
       ref: issueRef,
     });
   }
@@ -84,6 +85,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
           tone: "human",
           icon: "check",
           text: "AIが実装を終えました。PRを作れます",
+          short: "実装が終わった · PRを作れます",
           ref: issueRef,
         });
       } else if (isImplementErrorComment(comment)) {
@@ -93,6 +95,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
           tone: "human",
           icon: "x",
           text: "AIがエラーで止まりました",
+          short: "AIがエラーで停止",
           ref: issueRef,
         });
       }
@@ -105,6 +108,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
         tone: "human",
         icon: "x",
         text: `自動で進めるのを止めました：${reason}`,
+        short: "止まった",
         ref: pullRef,
       });
     }
@@ -118,6 +122,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
     tone: "ai",
     icon: "pr",
     text: "PRができました",
+    short: "PRができた",
     ref: pullRef,
   });
 
@@ -132,6 +137,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
       tone: "ai",
       icon: "pr",
       text: `AIに修正を依頼しました（${Math.min(index + 1, MAX_AUTO_FIX)}/${MAX_AUTO_FIX}）`,
+      short: `修正を依頼 ${Math.min(index + 1, MAX_AUTO_FIX)}/${MAX_AUTO_FIX}`,
       ref: pullRef,
     });
   });
@@ -143,6 +149,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
       tone: "operation",
       icon: "eye",
       text: "レビューを依頼しました",
+      short: "レビュー依頼",
       ref: pullOnlyRef,
     });
   }
@@ -160,6 +167,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
           tone: "ai",
           icon: "check",
           text: `CIが通りました（${ci.passed}/${ci.total}）`,
+          short: `CI ${ci.passed}/${ci.total}`,
           ref: pullOnlyRef,
         });
       }
@@ -178,6 +186,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
           tone: "fail",
           icon: "x",
           text: `CIが失敗しました（${failed.map((check) => check.name).join("、")}）`,
+          short: `CI失敗（${failed.map((check) => check.name).join("、")}）`,
           ref: pullOnlyRef,
         });
       }
@@ -202,6 +211,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
           tone: "ai",
           icon: "eye",
           text: "レビューAIが確認を終えました",
+          short: "レビュー済",
           ref: pullOnlyRef,
         });
       }
@@ -220,6 +230,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
           tone: "deployed",
           icon: "up",
           text: `${quoted}が本番に公開されました`,
+          short: "本番に公開",
           ref: pullRef,
         });
       } else if (deploy.state === "failure" || deploy.state === "error") {
@@ -229,6 +240,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
           tone: "fail",
           icon: "x",
           text: `${quoted}の公開に失敗しました`,
+          short: "公開に失敗",
           ref: pullRef,
         });
       }
@@ -244,6 +256,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
       tone: auto ? "ai" : "operation",
       icon: "merge",
       text: auto ? `${quoted}を自動でマージしました` : `${quoted}をマージしました`,
+      short: auto ? "自動でマージ" : "マージ",
       ref: pullRef,
     });
   }
@@ -251,16 +264,66 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
   return drafts;
 }
 
-/** 1リポジトリぶんの出来事（期間で絞る前） */
-export function repoEvents(owner: string, repo: string, data: RepoData): RecentEvent[] {
-  const events: RecentEvent[] = [];
+/** 出来事が起きた Issue（Issue ごとにまとめるときの見出し） */
+export type EventIssue = {
+  owner: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+};
+
+/** Issue ごとにまとめた出来事の1つ（足あと）。`short` は1語の短い文言（docs/design.md の「出来事」） */
+export type TrailEvent = RecentEvent & { short: string; issue: EventIssue };
+
+/** 1リポジトリぶんの出来事（期間で絞る前）。Issue と短い文言つき */
+export function repoTrailEvents(owner: string, repo: string, data: RepoData): TrailEvent[] {
+  const events: TrailEvent[] = [];
   for (const issue of data.issues) {
     if (!shouldShowIssue(issue, data.pulls)) continue;
+    const issueRef: EventIssue = { owner, repo, number: issue.number, title: issue.title, url: issue.url };
     for (const { key, ...draft } of issueEvents(repo, issue, data)) {
-      events.push({ id: `${owner}/${repo}#${issue.number}:${key}`, ...draft });
+      events.push({ id: `${owner}/${repo}#${issue.number}:${key}`, ...draft, issue: issueRef });
     }
   }
   return events;
+}
+
+/** 1リポジトリぶんの出来事（期間で絞る前） */
+export function repoEvents(owner: string, repo: string, data: RepoData): RecentEvent[] {
+  return repoTrailEvents(owner, repo, data).map(({ id, at, tone, icon, text, ref }) => ({ id, at, tone, icon, text, ref }));
+}
+
+/** 直近3日に入る出来事か */
+function inWindow(at: string, now: Date): boolean {
+  const time = Date.parse(at);
+  return !Number.isNaN(time) && time >= now.getTime() - EVENT_WINDOW_DAYS * DAY_MS && time <= now.getTime();
+}
+
+/**
+ * 全リポジトリ（または1つ）の最近の出来事を、Issue と短い文言つきで返す（直近3日、新しい順、最大50件）。
+ * `buildRecentEvents` と同じ物を選ぶ
+ */
+export function buildTrailEvents(
+  results: RepoResult[],
+  now: Date,
+  filter?: { owner: string; repo: string },
+): TrailEvent[] {
+  return results
+    .flatMap((result) => {
+      if (!result.ok) return [];
+      if (
+        filter &&
+        (result.owner.toLowerCase() !== filter.owner.toLowerCase() ||
+          result.repo.toLowerCase() !== filter.repo.toLowerCase())
+      ) {
+        return [];
+      }
+      return repoTrailEvents(result.owner, result.repo, result.data);
+    })
+    .filter((event) => inWindow(event.at, now))
+    .sort((a, b) => b.at.localeCompare(a.at) || a.id.localeCompare(b.id))
+    .slice(0, EVENT_LIMIT);
 }
 
 /**

@@ -1,0 +1,19 @@
+/* 進み具合の目盛り（8本） */
+
+.ticks {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 3px;
+  width: 136px;
+}
+
+.tk {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(236, 232, 223, 0.1);
+  transition:
+    background 0.3s,
+    box-shadow 0.3s;
+}

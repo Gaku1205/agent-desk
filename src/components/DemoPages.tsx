@@ -1,52 +1,50 @@
 "use client";
 
 import { DEMO_REPO_OPTIONS, DEMO_REPOS } from "@/lib/demo/data";
-import { buildRecentEvents } from "@/lib/events";
+import { buildTrailEvents } from "@/lib/events";
+import { buildFlowNodes } from "@/lib/flow/nodes";
 import { parseNotifyEvents } from "@/lib/notifyEvents";
-import { buildPipelineRows } from "@/lib/pipeline";
-import { buildRunningPipelineRows } from "@/lib/runningPipeline";
-import { filterTurnItems } from "@/lib/turn";
-import { buildWaitingPipelineRows } from "@/lib/waitingPipeline";
+import { countTurnItems, filterTurnItems } from "@/lib/turn";
+import { Backdrop } from "./Backdrop";
 import { useDemoState } from "./DemoContext";
-import { EventSection } from "./EventSection";
-import { Header } from "./Header";
-import { PipelineTable } from "./PipelineTable";
-import { RunningPipelineSection } from "./RunningPipelineSection";
+import { Desk } from "./Desk";
 import { SettingsSections } from "./SettingsSections";
-import { TurnSection } from "./TurnSection";
-import { WaitingPipelineSection } from "./WaitingPipelineSection";
 
 /** デモのホーム：本物のホームと同じ部品に、サンプルのデータを渡す */
 export function DemoHome() {
   const { results, items, now } = useDemoState();
+  const counts = countTurnItems(items);
 
   return (
-    <>
-      <Header kind="home" />
-      <main className="content">
-        <TurnSection items={items} errors={[]} now={now} scope="all" />
-        <WaitingPipelineSection rows={buildWaitingPipelineRows(results, now)} />
-        <RunningPipelineSection rows={buildRunningPipelineRows(results, now)} />
-        <EventSection events={buildRecentEvents(results, now)} now={now} />
-      </main>
-    </>
+    <Desk
+      nodes={buildFlowNodes(results, now)}
+      items={items}
+      events={buildTrailEvents(results, now)}
+      now={now.toISOString()}
+      scope={{
+        kind: "all",
+        repos: DEMO_REPOS.map(({ owner, repo }) => ({ repo, count: counts.byRepo[`${owner}/${repo}`] ?? 0 })),
+      }}
+      errors={[]}
+      notices={[]}
+    />
   );
 }
 
 /** デモのリポジトリのページ */
 export function DemoRepo({ owner, repo }: { owner: string; repo: string }) {
   const { results, items, now } = useDemoState();
-  const result = results.find((r) => r.owner === owner && r.repo === repo);
-  const rows = result?.ok ? buildPipelineRows(result.data, now, `${owner}/${repo}`) : [];
 
   return (
-    <>
-      <Header kind="repo" owner={owner} repo={repo} githubLink={false} />
-      <main className="content">
-        <TurnSection items={filterTurnItems(items, owner, repo)} errors={[]} now={now} scope="repo" />
-        <PipelineTable rows={rows} repoName={repo} />
-      </main>
-    </>
+    <Desk
+      nodes={buildFlowNodes(results, now, { owner, repo })}
+      items={filterTurnItems(items, owner, repo)}
+      events={buildTrailEvents(results, now, { owner, repo })}
+      now={now.toISOString()}
+      scope={{ kind: "repo", owner, repo, githubUrl: null }}
+      errors={[]}
+      notices={[]}
+    />
   );
 }
 
@@ -56,7 +54,7 @@ const DEMO_REPO_NAMES = DEMO_REPOS.map(({ owner, repo }) => `${owner}/${repo}`);
 export function DemoSettings() {
   return (
     <>
-      <Header kind="settings" />
+      <Backdrop />
       <SettingsSections
         repoRows={DEMO_REPO_NAMES.map((name) => ({ name, pipeline: true }))}
         repoOptions={DEMO_REPO_OPTIONS}

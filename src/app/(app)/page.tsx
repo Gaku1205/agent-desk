@@ -1,33 +1,28 @@
-import { EventSection } from "@/components/EventSection";
-import { Header } from "@/components/Header";
-import { RunningPipelineSection } from "@/components/RunningPipelineSection";
-import { TurnSection } from "@/components/TurnSection";
-import { WaitingPipelineSection } from "@/components/WaitingPipelineSection";
-import { WatchdogNotices } from "@/components/WatchdogNotices";
-import { buildRecentEvents } from "@/lib/events";
-import { buildWatchdogNotices } from "@/lib/watchdogState";
+import { Desk } from "@/components/Desk";
+import { buildTrailEvents } from "@/lib/events";
+import { buildFlowNodes } from "@/lib/flow/nodes";
 import { loadTurns } from "@/lib/loadTurns";
-import { buildRunningPipelineRows } from "@/lib/runningPipeline";
-import { buildWaitingPipelineRows } from "@/lib/waitingPipeline";
+import { countTurnItems } from "@/lib/turn";
+import { loadWatchedRepos } from "@/lib/watchedRepos";
+import { buildWatchdogNotices } from "@/lib/watchdogState";
 
 export default async function Home() {
   const { results, items, now } = await loadTurns();
+  const { repos } = await loadWatchedRepos();
+  const counts = countTurnItems(items);
 
   return (
-    <>
-      <Header kind="home" />
-      <main className="content">
-        <WatchdogNotices notices={buildWatchdogNotices(results, now)} showRepo />
-        <TurnSection
-          items={items}
-          errors={results.filter((result) => !result.ok)}
-          now={now}
-          scope="all"
-        />
-        <WaitingPipelineSection rows={buildWaitingPipelineRows(results, now)} />
-        <RunningPipelineSection rows={buildRunningPipelineRows(results, now)} />
-        <EventSection events={buildRecentEvents(results, now)} now={now} />
-      </main>
-    </>
+    <Desk
+      nodes={buildFlowNodes(results, now)}
+      items={items}
+      events={buildTrailEvents(results, now)}
+      now={now.toISOString()}
+      scope={{
+        kind: "all",
+        repos: repos.map(({ owner, repo }) => ({ repo, count: counts.byRepo[`${owner}/${repo}`.toLowerCase()] ?? 0 })),
+      }}
+      errors={results.flatMap((result) => (result.ok ? [] : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }]))}
+      notices={buildWatchdogNotices(results, now)}
+    />
   );
 }

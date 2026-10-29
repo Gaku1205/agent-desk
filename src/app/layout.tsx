@@ -1,19 +1,28 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans_JP, JetBrains_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Geist, IBM_Plex_Sans_JP } from "next/font/google";
 import { MOTION_INIT_SCRIPT } from "@/lib/motion";
 import "./globals.css";
 
+/** 和文：IBM Plex Sans JP（docs/design.md の「文字」） */
 const plexSansJp = IBM_Plex_Sans_JP({
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "700"],
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-jp",
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  weight: ["400", "500"],
+/** 欧文・数字：Geist（可変） */
+const geist = Geist({
   subsets: ["latin"],
-  variable: "--font-mono",
+  variable: "--font-latin",
+  display: "swap",
+});
+
+/** 見出し・巨大な数字・ワードマーク：Bricolage Grotesque 800（opsz 96） */
+const bricolage = Bricolage_Grotesque({
+  subsets: ["latin"],
+  axes: ["opsz"],
+  variable: "--font-disp",
   display: "swap",
 });
 
@@ -29,7 +38,7 @@ export default function RootLayout({
   return (
     <html
       lang="ja"
-      className={`${plexSansJp.variable} ${jetbrainsMono.variable}`}
+      className={`${plexSansJp.variable} ${geist.variable} ${bricolage.variable}`}
       suppressHydrationWarning
     >
       <head>

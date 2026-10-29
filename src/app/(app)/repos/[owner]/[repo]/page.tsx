@@ -1,14 +1,12 @@
 import { notFound } from "next/navigation";
-import { Header } from "@/components/Header";
-import { PipelineTable } from "@/components/PipelineTable";
-import { TurnSection } from "@/components/TurnSection";
-import { WatchdogNotices } from "@/components/WatchdogNotices";
-import { buildWatchdogNotices } from "@/lib/watchdogState";
+import { Desk } from "@/components/Desk";
+import { buildTrailEvents } from "@/lib/events";
+import { buildFlowNodes } from "@/lib/flow/nodes";
 import { findWatchedRepo } from "@/lib/config";
 import { loadTurns } from "@/lib/loadTurns";
-import { buildPipelineRows } from "@/lib/pipeline";
 import { filterTurnItems } from "@/lib/turn";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
+import { buildWatchdogNotices } from "@/lib/watchdogState";
 
 export default async function RepoPage({
   params,
@@ -20,39 +18,27 @@ export default async function RepoPage({
   if (!watched) notFound();
 
   const { results, items, now } = await loadTurns();
-  const errors = results.filter(
-    (result) =>
-      !result.ok && result.owner === watched.owner && result.repo === watched.repo,
-  );
-
-  const repoResult = results.find(
-    (result) =>
-      result.ok &&
-      result.owner.toLowerCase() === watched.owner.toLowerCase() &&
-      result.repo.toLowerCase() === watched.repo.toLowerCase(),
-  );
-  const rows = repoResult?.ok ? buildPipelineRows(repoResult.data, now, `${repoResult.owner}/${repoResult.repo}`) : [];
+  const same = (o: string, r: string) =>
+    o.toLowerCase() === watched.owner.toLowerCase() && r.toLowerCase() === watched.repo.toLowerCase();
 
   return (
-    <>
-      <Header kind="repo" owner={watched.owner} repo={watched.repo} />
-      <main className="content">
-        <WatchdogNotices
-          notices={buildWatchdogNotices(results, now).filter(
-            (notice) =>
-              notice.owner.toLowerCase() === watched.owner.toLowerCase() &&
-              notice.repo.toLowerCase() === watched.repo.toLowerCase(),
-          )}
-          showRepo={false}
-        />
-        <TurnSection
-          items={filterTurnItems(items, watched.owner, watched.repo)}
-          errors={errors}
-          now={now}
-          scope="repo"
-        />
-        <PipelineTable rows={rows} repoName={watched.repo} />
-      </main>
-    </>
+    <Desk
+      nodes={buildFlowNodes(results, now, watched)}
+      items={filterTurnItems(items, watched.owner, watched.repo)}
+      events={buildTrailEvents(results, now, watched)}
+      now={now.toISOString()}
+      scope={{
+        kind: "repo",
+        owner: watched.owner,
+        repo: watched.repo,
+        githubUrl: `https://github.com/${watched.owner}/${watched.repo}`,
+      }}
+      errors={results.flatMap((result) =>
+        result.ok || !same(result.owner, result.repo)
+          ? []
+          : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }],
+      )}
+      notices={buildWatchdogNotices(results, now).filter((notice) => same(notice.owner, notice.repo))}
+    />
   );
 }

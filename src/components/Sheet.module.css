@@ -1,0 +1,17 @@
+/* 流れを置かないページの誌面 */
+
+.sheet {
+  position: relative;
+  z-index: 2;
+  min-height: calc(100svh - var(--top-h));
+  padding: 36px var(--gutter) 64px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 34px);
+  mask-image: linear-gradient(to bottom, transparent, #000 34px);
+}
+
+.narrow > * {
+  max-width: 720px;
+}

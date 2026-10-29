@@ -1,72 +1,84 @@
 /* 設定画面の「監視するリポジトリ」。保存の行とボタンは SettingsSections.module.css */
 
 .list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  display: grid;
 }
 
 .row {
   display: flex;
-  align-items: center;
   gap: 16px;
+  align-items: center;
   min-height: 40px;
-  border-bottom: 1px solid var(--line-soft);
+  border-top: 1px solid var(--hair-2);
+}
+
+.row:first-child {
+  border-top-color: transparent;
 }
 
 .name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  color: var(--text);
+  color: var(--bone);
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .pipeline {
-  color: var(--text-mute);
+  color: var(--mute);
   font-size: 12.5px;
   white-space: nowrap;
 }
 
 .pipeline[data-pipeline="yes"] {
-  color: var(--done);
+  color: var(--done-soft);
 }
 
 .remove {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--text-mute);
+  height: 30px;
+  padding: 0 6px;
+  border-radius: 5px;
+  color: var(--mute);
   font-size: 12.5px;
   white-space: nowrap;
-  cursor: pointer;
 }
 
 .remove:hover {
-  color: var(--text-sub);
+  color: var(--bone);
 }
 
 .add {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 12px;
+  align-items: center;
   margin-top: 16px;
 }
 
+/* 標準の選択欄をそのまま出さない：枠と矢印を自分で描く */
 .select {
   flex: 1;
   min-width: 0;
   max-width: 100%;
-  height: 34px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
+  height: 30px;
+  padding: 0 32px 0 10px;
+  border: 0;
+  border-radius: 5px;
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 3.5h6L5 7z' fill='%23A9A59C'/></svg>")
+      no-repeat right 10px center,
+    var(--well);
+  box-shadow: inset 0 0 0 1px rgba(236, 232, 223, 0.16);
+  color: var(--bone);
   font-size: 13px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.select:disabled {
+  opacity: 0.6;
 }
 
 @media (max-width: 899px) {
@@ -74,12 +86,8 @@
     min-height: 44px;
   }
 
-  .remove {
-    min-height: 44px;
-  }
-
+  .remove,
   .select {
     height: 44px;
-    border-radius: 8px;
   }
 }
