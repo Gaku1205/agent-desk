@@ -45,6 +45,9 @@
     --gutter: 16px;
     --giant: 128px;
     --flow-h: 96px;
+
+    /* 帯の下の行（凡例。折り返しても2行）の高さ。誌面の min-height から引く */
+    --foot-h: 44px;
   }
 }
 

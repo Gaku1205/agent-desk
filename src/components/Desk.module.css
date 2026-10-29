@@ -175,7 +175,7 @@
 @media (max-width: 899px) {
   .band {
     display: block;
-    min-height: calc(100svh - var(--top-h) - var(--flow-h));
+    min-height: calc(100svh - var(--top-h) - var(--flow-h) - var(--foot-h));
     padding-top: 18px;
   }
 
