@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getProgress, toneRgba } from "./progress";
+import { calmRgba, getProgress, toneRgba } from "./progress";
 import type { IssueStatus, Stage } from "./status";
 
 function status(overrides: Partial<IssueStatus>): IssueStatus {
@@ -145,7 +145,17 @@ describe("aria-label", () => {
 
 describe("toneRgba", () => {
   it("RGBに不透明度を付ける", () => {
-    expect(toneRgba("human", 0.5)).toBe("rgba(232,163,61,0.5)");
-    expect(toneRgba("queue", 1)).toBe("rgba(139,92,246,1)");
+    expect(toneRgba("human", 0.5)).toBe("rgba(245,167,58,0.5)");
+    expect(toneRgba("queue", 1)).toBe("rgba(155,124,245,1)");
+  });
+
+  it("5つの色は docs/design.md の「色」のとおり", () => {
+    expect(toneRgba("ai", 1)).toBe("rgba(91,141,255,1)");
+    expect(toneRgba("done", 1)).toBe("rgba(77,211,154,1)");
+    expect(toneRgba("fail", 1)).toBe("rgba(242,92,92,1)");
+  });
+
+  it("静かな色は --bone", () => {
+    expect(calmRgba(0.6)).toBe("rgba(236,232,223,0.6)");
   });
 });

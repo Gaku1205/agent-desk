@@ -8,6 +8,7 @@ import {
 } from "@/lib/flow/layout";
 import type { FlowNode, FlowWho } from "@/lib/flow/nodes";
 import { seededRandom, seedOf } from "@/lib/flow/random";
+import { squeezeTowardLabel } from "@/lib/flow/squeeze";
 
 /**
  * 流れの映像（docs/design.md の「映像」「流れ（PC）」「動き」）。
@@ -796,7 +797,9 @@ export class FlowEngine {
           if (!reduced) p.a += p.w * dt;
           const rr = p.r * sc * big * (1 + b.hl * 0.3);
           const jx = p.type === "still" ? Math.sin(t * 9 + p.ph) * 0.8 : 0;
-          const du = Math.cos(p.a) * rr + jx;
+          // 名札の側（光の右）へは張り出さない
+          const raw = Math.cos(p.a) * rr + jx;
+          const du = this.mobile ? raw : squeezeTowardLabel(raw);
           const dv = Math.sin(p.a) * rr * 0.62;
           [px, py] = this.toXY(b.pu + du, b.pv + dv);
           a = (who === "queue" ? 0.5 : 0.85) * (0.6 + 0.4 * Math.sin(t * 1.6 + p.ph));

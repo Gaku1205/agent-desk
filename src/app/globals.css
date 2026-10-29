@@ -17,6 +17,7 @@
   --you-soft: #ffc06a;
   --fail-soft: #ff8a8d;
   --done-soft: #7bdcae;
+  --fail-dim: rgba(255, 138, 141, 0.72);
   --hair: rgba(236, 232, 223, 0.09);
   --hair-2: rgba(236, 232, 223, 0.05);
   --well: rgba(236, 232, 223, 0.06);
