@@ -95,9 +95,14 @@
   will-change: transform;
 }
 
+/* 出していない名札（まとめた・入らなかった物）：消えるだけでなく、フォーカスも読み上げも止める（visibility は 0.4秒のフェードのあとで切り替える） */
 .node[data-off] {
+  visibility: hidden;
   opacity: 0;
   pointer-events: none;
+  transition:
+    opacity 0.4s var(--ease),
+    visibility 0s linear 0.4s;
 }
 
 .node[data-flip] {
@@ -270,15 +275,21 @@
     white-space: nowrap;
   }
 
+  /* 件数に色は付けない：失敗が1件あるだけで列の数が赤くならないように */
   .colCount {
-    color: var(--mute);
+    color: var(--bone-2);
     font-size: 11.5px;
   }
 
+  .colCount[data-zero] {
+    color: var(--mute);
+  }
+
+  /* 帯の下の行の一覧：画面の左端に貼りつけない */
   .caption {
     position: static;
     display: block;
-    padding: 4px 0 2px;
+    padding: 4px var(--gutter) 2px;
     white-space: normal;
   }
 

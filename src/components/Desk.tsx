@@ -46,6 +46,7 @@ const LEGEND: { who: keyof typeof WHO_CSS; label: string }[] = [
 export function Desk({ nodes, items, events, now, scope, errors, notices }: Props) {
   const engineRef = useRef<FlowEngine | null>(null);
   const bandRef = useRef<HTMLElement>(null);
+  const rowsRef = useRef<HTMLDivElement>(null);
   const giantRef = useRef<HTMLCanvasElement>(null);
   const ghostRef = useRef<HTMLSpanElement>(null);
   const count = items.length;
@@ -65,17 +66,24 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
 
   const hover = useCallback((key: string | null) => engineRef.current?.highlight(key), []);
   const press = useCallback((key: string) => engineRef.current?.kick(key), []);
+  // 流れの名札・スマホの帯の行を押したとき：押す列の、その Issue の行へ。
+  // 流れの名札も同じ data-key を持つので、探すのは押す列の中だけにする（名札に当たらないように）
   const pick = useCallback((key: string) => {
-    const row = document.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
-    if (!row || !row.closest(`.${styles.rows}`)) return;
+    const row = rowsRef.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
+    if (!row) return;
     row.scrollIntoView({ block: "center", behavior: motionReduced() ? "auto" : "smooth" });
-    row.querySelector<HTMLElement>("button, a")?.focus({ preventScroll: true });
+    // 最初のボタン。ボタンが無い行（パイプライン未設定の未着手など）は題名のリンク
+    (row.querySelector<HTMLElement>("[data-act]:not(:disabled)") ?? row.querySelector<HTMLElement>("a, button"))?.focus({
+      preventScroll: true,
+    });
+    row.setAttribute("data-picked", "");
+    window.setTimeout(() => row.removeAttribute("data-picked"), 1600);
   }, []);
 
   return (
     <>
       <FlowStage nodes={nodes} stage engineRef={engineRef} bandRef={bandRef} onPick={pick} />
-      <main className={styles.band} ref={bandRef}>
+      <main className={styles.band} ref={bandRef} id="main">
         <div className={styles.hero}>
           <div className={styles.giant} role="img" aria-label={`あなたの番 ${count}件`}>
             <canvas ref={giantRef} />
@@ -135,8 +143,8 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
             </ul>
           )}
         </div>
-        <section className={styles.turns} aria-labelledby="turn-title">
-          <div className={styles.rows}>
+        <section className={styles.turns} aria-labelledby="turn-title" data-skip-target="">
+          <div className={styles.rows} ref={rowsRef}>
             {items.length === 0 ? (
               <p className="empty">今はAIの番です。流れの上で光が進んでいます</p>
             ) : (

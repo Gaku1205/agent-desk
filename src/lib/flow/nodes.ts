@@ -61,11 +61,25 @@ export function flowLabel(row: PipelineRow): string {
   return row.description;
 }
 
-/** 流れの下に出す説明：理由があれば理由、無ければ「あなたの番」と同じ長い説明文 */
+/**
+ * 説明文から、名札の短い説明と同じ言い回しの塊を外す（docs/design.md の「流れ」の説明）。
+ * 説明文を「・」「。」で分けた塊のうち、短い説明（3文字以上）を含む物を出さない。
+ * `マージできます` ＋ `CI 4/4 通過・マージできます` → `CI 4/4 通過`。全部外れたら空文字
+ */
+export function dedupeCaption(label: string, text: string): string {
+  const short = label.trim();
+  if (short.length < 3) return text;
+  const clauses = text.match(/[^・。]+[・。]?/g) ?? [];
+  const kept = clauses.filter((clause) => !clause.replace(/[・。]$/, "").includes(short));
+  return kept.join("").replace(/^[・。]+|[・。]+$/g, "");
+}
+
+/** 流れの下に出す説明：理由があれば理由、無ければ「あなたの番」と同じ長い説明文（名札と同じ言い回しは外す） */
 export function flowCaption(row: PipelineRow, repo: string): string {
   if (row.queueReason) return row.queueReason;
   if (row.deployFailReason) return row.deployFailReason;
-  return describeStatus(row.status, { repo }).long;
+  const { long, short } = describeStatus(row.status, { repo });
+  return dedupeCaption(short, long);
 }
 
 function logUrlOf(status: IssueStatus, repo: string): string | null {

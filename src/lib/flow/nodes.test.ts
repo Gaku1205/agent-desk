@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildDemoResults } from "../demo/data";
 import { startPlayback } from "../demo/playback";
 import type { IssueStatus } from "../status";
-import { buildFlowNodes, compareFlowNodes, countByStage, whoOf } from "./nodes";
+import { buildFlowNodes, compareFlowNodes, countByStage, dedupeCaption, whoOf } from "./nodes";
 
 const NOW = new Date("2026-10-26T03:00:00Z");
 
@@ -19,6 +19,36 @@ describe("whoOf", () => {
     expect(of("mergeWaiting", "ai")).toBe("ai");
     expect(of("implementing", "ai")).toBe("ai");
     expect(of("deploying", "none")).toBe("ai");
+  });
+});
+
+describe("dedupeCaption", () => {
+  it("名札の短い説明と同じ言い回しの塊を外す", () => {
+    expect(dedupeCaption("マージできます", "CI 4/4 通過・マージできます")).toBe("CI 4/4 通過");
+    expect(dedupeCaption("レビューに回します", "CI 3/4 通過・レビューに回します")).toBe("CI 3/4 通過");
+    expect(dedupeCaption("自動でマージします", "CIもレビューもOK・自動でマージします")).toBe("CIもレビューもOK");
+    expect(dedupeCaption("CIが失敗しました", "CIが失敗しました。AIに直してもらいます")).toBe("AIに直してもらいます");
+    expect(dedupeCaption("保留中", "保留中です。準備ができたら「始める」を押してください")).toBe(
+      "準備ができたら「始める」を押してください",
+    );
+  });
+
+  it("まるごと同じなら空になる", () => {
+    expect(dedupeCaption("AIが実装中", "AIが実装中")).toBe("");
+    expect(dedupeCaption("CI 実行中 2/4", "CI 実行中 2/4")).toBe("");
+  });
+
+  it("重ならない説明はそのまま（句読点も変えない）", () => {
+    expect(dedupeCaption("止まっています", "AIが2回直してもCIが通りませんでした（test）。確認して、対応したら「再開」を押してください")).toBe(
+      "AIが2回直してもCIが通りませんでした（test）。確認して、対応したら「再開」を押してください",
+    );
+    expect(dedupeCaption("PRを作れます", "AIの作業が終わりました。PRを作るとCIが走ります")).toBe(
+      "AIの作業が終わりました。PRを作るとCIが走ります",
+    );
+  });
+
+  it("短すぎる短い説明（3文字未満）では外さない", () => {
+    expect(dedupeCaption("PR", "PRを作ります")).toBe("PRを作ります");
   });
 });
 
@@ -49,6 +79,18 @@ describe("buildFlowNodes", () => {
     expect(queued?.who).toBe("queue");
     expect(queued?.label).toBe("順番待ち · #17 の後");
     expect(queued?.caption).toContain("#17");
+  });
+
+  it("流れの説明は、名札と同じ言い回しを重ねない（マージできます＋CI 4/4 通過・マージできます）", () => {
+    const nodes = buildFlowNodes(results, NOW);
+    const mergeable = nodes.filter((n) => n.label === "マージできます");
+    expect(mergeable.length).toBeGreaterThan(0);
+    for (const node of mergeable) expect(node.caption).not.toContain("マージできます");
+    for (const node of nodes) {
+      if (node.label.length >= 3 && node.who !== "queue" && node.who !== "done") {
+        expect(node.caption.includes(node.label)).toBe(false);
+      }
+    }
   });
 
   it("止まった物は人間の番で、押す列にも出る", () => {

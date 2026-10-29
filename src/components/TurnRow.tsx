@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { runOperation } from "@/app/actions";
-import { mergeResultLines } from "@/lib/mergeLines";
+import { isMergeWeak, mergeResultLines } from "@/lib/mergeLines";
 import { getProgress } from "@/lib/progress";
 import { splitPhrases, turnKind } from "@/lib/turnKind";
 import type { OperationKind, TurnItem } from "@/lib/turn";
 import { useDemo } from "./DemoContext";
+import { SmartLink } from "./SmartLink";
 import { Ticks } from "./Ticks";
 import styles from "./TurnRow.module.css";
 import { useRowEffects } from "./useRowEffects";
@@ -82,7 +83,11 @@ export function TurnRow({ item, wait, onHover, onPress }: Props) {
     }
   }
 
-  const phrases = confirming && merge ? mergeResultLines(merge) : splitPhrases(item.description);
+  const lines = confirming && merge ? mergeResultLines(merge) : null;
+  const weak = merge ? isMergeWeak(merge) : false;
+  const phrases = lines ? [] : splitPhrases(item.description);
+  // 強い色は止まった（アンバー）・公開失敗（赤）の行だけ。ほかは静かな色
+  const calm = kind.tone === "calm";
 
   return (
     <article
@@ -108,30 +113,44 @@ export function TurnRow({ item, wait, onHover, onPress }: Props) {
         <span className={`${styles.wait} num`}>{wait}</span>
       </div>
       <h3 className={styles.title}>
-        <a href={issue.url} target="_blank" rel="noreferrer">
-          {issue.title}
-        </a>
+        <SmartLink href={issue.url}>{issue.title}</SmartLink>
       </h3>
-      <p className={styles.desc} data-lines={confirming && merge ? "" : undefined}>
-        {phrases.map((phrase, i) => (
-          <span className="ph" key={i}>
-            {phrase}
-          </span>
-        ))}
-      </p>
+      {lines ? (
+        <ul className={styles.lines} aria-label="マージの前の確認">
+          {lines.map((line) => (
+            <li key={line.name} data-tone={line.tone}>
+              <span className={styles.mark} aria-hidden="true">
+                {line.mark}
+              </span>
+              <span className={styles.lname}>{line.name}</span>
+              <span className={styles.lres}>{line.text}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className={styles.desc}>
+          {phrases.map((phrase, i) => (
+            <span className="ph" key={i}>
+              {phrase}
+            </span>
+          ))}
+        </p>
+      )}
       {error && (
         <p className={styles.error} role="alert">
           {error}
         </p>
       )}
       <div className={styles.foot}>
-        <div className={styles.acts}>
+        <div className={styles.acts} data-tone={kind.tone}>
           {confirming && merge ? (
             <>
               <button
                 ref={confirmRef}
                 type="button"
                 className={`${styles.act} ${styles.fill}`}
+                data-act=""
+                data-weak={weak ? "" : undefined}
                 disabled={pending}
                 onClick={() => run("merge")}
                 onKeyDown={(event) => {
@@ -144,6 +163,7 @@ export function TurnRow({ item, wait, onHover, onPress }: Props) {
               <button
                 type="button"
                 className={`${styles.act} ${styles.ghost}`}
+                data-act=""
                 disabled={pending}
                 onClick={() => setConfirming(false)}
               >
@@ -153,14 +173,15 @@ export function TurnRow({ item, wait, onHover, onPress }: Props) {
           ) : (
             buttons.map((button) =>
               button.type === "link" ? (
-                <a key={button.label} className={styles.act} href={button.href} target="_blank" rel="noreferrer">
+                <SmartLink key={button.label} className={styles.act} href={button.href} data-act="">
                   {button.label}
-                </a>
+                </SmartLink>
               ) : (
                 <button
                   key={button.kind}
                   type="button"
                   className={styles.act}
+                  data-act=""
                   data-hit={hit === button.kind ? "" : undefined}
                   disabled={pending}
                   onClick={() => (button.kind === "merge" ? setConfirming(true) : run(button.kind))}
@@ -177,8 +198,8 @@ export function TurnRow({ item, wait, onHover, onPress }: Props) {
           )}
         </div>
         <div className={styles.prog}>
-          <Ticks progress={progress} />
-          <span className={styles.stage} data-tone={progress.tone}>
+          <Ticks progress={progress} calm={calm} />
+          <span className={styles.stage} data-tone={calm ? "calm" : progress.tone}>
             {progress.currentName}
           </span>
         </div>

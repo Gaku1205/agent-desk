@@ -9,6 +9,7 @@ import {
   type RefObject,
 } from "react";
 import { stripColumns } from "@/lib/flow/layout";
+import { isNavKey, nextByArrow, pickTabStop, type NavBox } from "@/lib/flow/navigate";
 import { countByStage, type FlowNode } from "@/lib/flow/nodes";
 import { isMotionReduced } from "@/lib/motion";
 import { PROGRESS_STAGE_NAMES } from "@/lib/progress";
@@ -31,6 +32,38 @@ function isMobile(): boolean {
 }
 
 type Caption = { key: string; pinned: boolean } | null;
+
+/**
+ * 名札（または帯の列）の入れ物の中で、Tab で止まる物を1つにする（ほかは tabindex=-1）。
+ * 見えている物（`data-off` でない）の中から、最後にフォーカスした物か、無ければ先頭の物
+ */
+function syncTabStop(root: HTMLElement | null, keyOf: (el: HTMLElement) => string, preferred: string | null) {
+  if (!root) return;
+  const els = [...root.querySelectorAll<HTMLElement>("button")];
+  const keys = els.map(keyOf);
+  const visible = new Set(els.filter((el) => !el.hasAttribute("data-off")).map(keyOf));
+  const stop = pickTabStop(keys, visible, preferred);
+  for (const el of els) el.tabIndex = keyOf(el) === stop ? 0 : -1;
+}
+
+/** 矢印キー・Home・End で、見えている物の中を動く（動いたら true） */
+function arrowMove(root: HTMLElement, event: React.KeyboardEvent<HTMLElement>, keyOf: (el: HTMLElement) => string): void {
+  if (!isNavKey(event.key) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  const from = event.target instanceof Element ? event.target.closest<HTMLElement>("button") : null;
+  if (!from || !root.contains(from)) return;
+  const els = [...root.querySelectorAll<HTMLElement>("button")].filter((el) => !el.hasAttribute("data-off"));
+  const boxes: NavBox[] = els.map((el) => {
+    const r = el.getBoundingClientRect();
+    return { key: keyOf(el), x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  event.preventDefault();
+  const next = nextByArrow(boxes, keyOf(from), event.key);
+  if (next === null) return;
+  els.find((el) => keyOf(el) === next)?.focus();
+}
+
+const nodeKeyOf = (el: HTMLElement): string => el.dataset.key ?? "";
+const colKeyOf = (el: HTMLElement): string => el.dataset.at ?? "";
 
 type Props = {
   nodes: FlowNode[];
@@ -57,6 +90,9 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
   const [caption, setCaption] = useState<Caption>(null);
   const [stripOpen, setStripOpen] = useState<number | null>(null);
   const firstRef = useRef(true);
+  // Tab で止まる物（最後にフォーカスした名札・列）
+  const nodeStopRef = useRef<string | null>(null);
+  const colStopRef = useRef<string | null>(null);
 
   useEffect(() => {
     const river = riverRef.current;
@@ -91,6 +127,22 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
     engineRef.current?.setNodes(nodes, !firstRef.current);
     firstRef.current = false;
   }, [nodes, engineRef]);
+
+  // 名札は全部で1つの停止点。エンジンが名札を出し入れ（data-off）するたびに、見えている物から選び直す
+  useEffect(() => {
+    const root = nodesRef.current;
+    if (!root) return;
+    const sync = () => syncTabStop(root, nodeKeyOf, nodeStopRef.current);
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-off"] });
+    return () => observer.disconnect();
+  }, [nodes, stage]);
+
+  // スマホの帯の8つの列も、全部で1つの停止点
+  useEffect(() => {
+    syncTabStop(stripRef.current, colKeyOf, colStopRef.current);
+  }, [nodes, stage]);
 
   const register = useCallback(
     (key: string) => (el: HTMLElement | null) => {
@@ -140,7 +192,13 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
               </span>
             ))}
           </div>
-          <div ref={stripRef} className={styles.strip} role="group" aria-label="段階ごとの件数">
+          <div
+            ref={stripRef}
+            className={styles.strip}
+            role="group"
+            aria-label="段階ごとの件数（左右の矢印キーで移動）"
+            onKeyDown={(event) => stripRef.current && arrowMove(stripRef.current, event, colKeyOf)}
+          >
             {columns.map((column) => (
               <button
                 key={column.at}
@@ -149,6 +207,11 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                 data-at={column.at}
                 aria-expanded={stripOpen === column.at}
                 aria-label={`${PROGRESS_STAGE_NAMES[column.at]} ${column.count}件`}
+                tabIndex={-1}
+                onFocus={() => {
+                  colStopRef.current = String(column.at);
+                  syncTabStop(stripRef.current, colKeyOf, colStopRef.current);
+                }}
                 onClick={() => {
                   const next = stripOpen === column.at ? null : column.at;
                   setStripOpen(next);
@@ -157,13 +220,20 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                 }}
               >
                 <span className={styles.colName}>{PROGRESS_STAGE_NAMES[column.at]}</span>
-                <span className={`${styles.colCount} num`} style={{ color: column.lead ? WHO_CSS[column.lead] : undefined }}>
+                <span className={`${styles.colCount} num`} data-zero={column.count === 0 ? "" : undefined}>
                   {column.count || "·"}
                 </span>
               </button>
             ))}
           </div>
-          <div ref={nodesRef} className={styles.nodes} data-multi={multiRepo ? "" : undefined}>
+          <div
+            ref={nodesRef}
+            className={styles.nodes}
+            data-multi={multiRepo ? "" : undefined}
+            role="group"
+            aria-label="Issueの名札（矢印キーで移動）"
+            onKeyDown={(event) => nodesRef.current && arrowMove(nodesRef.current, event, nodeKeyOf)}
+          >
             {nodes.map((node) => (
               <button
                 key={node.key}
@@ -172,11 +242,16 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                 className={styles.node}
                 data-key={node.key}
                 data-off=""
+                tabIndex={-1}
                 style={{ "--c": WHO_CSS[node.who] } as React.CSSProperties}
                 aria-label={`${node.repo}#${node.number} ${node.title}。${node.label}`}
                 onMouseEnter={() => show(node.key, false)}
                 onMouseLeave={hide}
-                onFocus={() => show(node.key, false)}
+                onFocus={() => {
+                  nodeStopRef.current = node.key;
+                  syncTabStop(nodesRef.current, nodeKeyOf, node.key);
+                  show(node.key, false);
+                }}
                 onBlur={hide}
                 onClick={() => {
                   show(node.key, true);
@@ -202,11 +277,16 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                 className={styles.node}
                 data-key="cluster:deployed"
                 data-off=""
+                tabIndex={-1}
                 style={{ "--c": WHO_CSS.done } as React.CSSProperties}
                 aria-label={`公開済み ${dones.length}件`}
                 onMouseEnter={() => show("cluster:deployed", false)}
                 onMouseLeave={hide}
-                onFocus={() => show("cluster:deployed", false)}
+                onFocus={() => {
+                  nodeStopRef.current = "cluster:deployed";
+                  syncTabStop(nodesRef.current, nodeKeyOf, "cluster:deployed");
+                  show("cluster:deployed", false);
+                }}
                 onBlur={hide}
                 onClick={() => show("cluster:deployed", true)}
               >

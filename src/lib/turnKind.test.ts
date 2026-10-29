@@ -4,11 +4,17 @@ import { splitPhrases, turnKind } from "./turnKind";
 describe("turnKind", () => {
   it("段階ごとの種類の札", () => {
     expect(turnKind({ stage: "stuck" })).toEqual({ label: "止まった", tone: "human" });
-    expect(turnKind({ stage: "skipped" }).label).toBe("保留");
-    expect(turnKind({ stage: "notStarted" }).label).toBe("未着手");
-    expect(turnKind({ stage: "prWaiting" }).label).toBe("PR作成待ち");
-    expect(turnKind({ stage: "mergeWaiting" }).label).toBe("マージ待ち");
+    expect(turnKind({ stage: "skipped" })).toEqual({ label: "保留", tone: "calm" });
+    expect(turnKind({ stage: "notStarted" })).toEqual({ label: "未着手", tone: "calm" });
+    expect(turnKind({ stage: "prWaiting" })).toEqual({ label: "PR作成待ち", tone: "calm" });
+    expect(turnKind({ stage: "mergeWaiting" })).toEqual({ label: "マージ待ち", tone: "calm" });
     expect(turnKind({ stage: "deployFailed" })).toEqual({ label: "公開失敗", tone: "fail" });
+  });
+
+  it("強い色（human・fail）は止まった・公開失敗だけ", () => {
+    const stages = ["stuck", "skipped", "notStarted", "prWaiting", "mergeWaiting", "deployFailed"] as const;
+    const strong = stages.filter((stage) => turnKind({ stage }).tone !== "calm");
+    expect(strong).toEqual(["stuck", "deployFailed"]);
   });
 });
 

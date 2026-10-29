@@ -29,13 +29,50 @@ type Props = {
   extraLinks?: ReactNode;
 };
 
-/** 行の右端の2つの件数：あなたの番（アンバー）→ 動いている（青）。0 でも出す（上端の帯は全部の数が並ぶ） */
+/**
+ * 行の右端の2つの件数：あなたの番（アンバーの点）→ 動いている（青の点）。0 でも出す（上端の帯は全部の数が並ぶ）。
+ * 数だけが並んで何の数か分からないので、誌面の左の凡例と同じ色の点を前に付ける（意味は title と読み上げでも言う）
+ */
 function Counts({ turn, running }: { turn: number; running: number }) {
+  const text = `あなたの番 ${turn}件、動いている ${running}件`;
   return (
-    <i className={`${styles.counts} num`} aria-label={`あなたの番 ${turn}件、動いている ${running}件`}>
-      <b className={styles.countTurn}>{turn}</b>
-      <b className={styles.countRunning}>{running}</b>
+    <i className={`${styles.counts} num`} aria-label={text} title={text}>
+      <b className={styles.countTurn} aria-hidden="true">
+        {turn}
+      </b>
+      <b className={styles.countRunning} aria-hidden="true">
+        {running}
+      </b>
     </i>
+  );
+}
+
+/** メニューの凡例：2つの点が何の数か（点つき） */
+function CountsKey() {
+  return (
+    <span className={styles.key} aria-hidden="true">
+      <span className={styles.keyTurn}>あなたの番</span>
+      <span className={styles.keyRunning}>動いている</span>
+    </span>
+  );
+}
+
+/** 帯の最初の Tab：押す列の最初のボタンへ移る（無ければ本文の最初の操作へ）。フォーカスしたときだけ見える */
+function SkipLink() {
+  function skip(event: React.MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    const target =
+      document.querySelector<HTMLElement>("[data-skip-target] [data-act]:not(:disabled)") ??
+      document.querySelector<HTMLElement>("[data-skip-target] a, [data-skip-target] button") ??
+      document.querySelector<HTMLElement>("main a, main button, main input, main select");
+    if (!target) return;
+    target.scrollIntoView({ block: "center" });
+    target.focus({ preventScroll: true });
+  }
+  return (
+    <a href="#main" className={styles.skip} onClick={skip}>
+      本文へ移る
+    </a>
   );
 }
 
@@ -146,6 +183,7 @@ export function TopBar(props: Props) {
   return (
     <>
       <header className={styles.top}>
+        <SkipLink />
         <button
           type="button"
           className={styles.menuBtn}
@@ -204,7 +242,10 @@ function MenuSheet(props: Props) {
       <div className={styles.scrim} onClick={closeMenu} aria-hidden="true" />
       <div className={styles.pane} role="dialog" aria-label="メニュー" ref={paneRef}>
         <span className={styles.mark}>agent-desk</span>
-        <span className={styles.lbl}>リポジトリ</span>
+        <span className={`${styles.lbl} ${styles.lblRow}`}>
+          リポジトリ
+          <CountsKey />
+        </span>
         <RepoTabs {...props} onPick={closeMenu} />
         <span className={styles.lbl}>ほか</span>
         <Link href={`${props.basePath ?? ""}/settings`} className={styles.lnk} onClick={closeMenu}>

@@ -130,7 +130,7 @@ export function WatchedReposSetting({ initialRows, options, editable, onListChan
               disabled={saving}
               aria-busy={saving}
             >
-              {saving ? "保存中…" : "保存"}
+              {saving ? "保存中…" : "リポジトリを保存"}
             </button>
             {status.kind === "saved" && (
               <span className={settingsStyles.saved} role="status">
