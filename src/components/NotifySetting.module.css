@@ -12,6 +12,14 @@
   width: max-content;
   min-width: 100%;
   border-collapse: collapse;
+  table-layout: auto;
+}
+
+/* 広い画面では表が列の幅いっぱいに広がり、リポジトリの列が均等に並ぶ */
+@media (min-width: 1180px) {
+  .table {
+    width: 100%;
+  }
 }
 
 .table th,

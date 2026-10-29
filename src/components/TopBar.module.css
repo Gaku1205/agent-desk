@@ -9,12 +9,12 @@
   align-items: center;
   height: var(--top-h);
   padding: 0 var(--gutter);
-  background: linear-gradient(rgba(11, 12, 16, 0.92) 40%, rgba(11, 12, 16, 0.55));
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  /* 下の端は消す（硬い境目を作らない） */
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 10px), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 10px), transparent);
+  /* 誌面と同じすりガラス。下の端は消す（硬い線を作らない）。スクロールした中身は帯の後ろに隠れる */
+  background: rgba(11, 12, 16, 0.86);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), transparent);
 }
 
 .mark {

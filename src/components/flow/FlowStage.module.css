@@ -151,6 +151,19 @@
   display: none;
 }
 
+/* 1行目の頭のリポジトリ名：2つ以上のリポジトリを出していて、2行目にリポジトリ名が無い出し方のときだけ */
+.rpc {
+  display: none;
+  flex: none;
+  color: var(--mute);
+  font-size: 0.9em;
+}
+
+.nodes[data-multi] .node[data-variant="noRepo"] .rpc,
+.nodes[data-multi] .node[data-variant="compact"] .rpc {
+  display: inline;
+}
+
 .node:hover .t,
 .node:focus-visible .t {
   color: var(--bone);

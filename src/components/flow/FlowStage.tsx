@@ -113,6 +113,7 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
   }, [caption]);
 
   const counts = countByStage(nodes);
+  const multiRepo = new Set(nodes.map((n) => `${n.owner}/${n.repo}`)).size > 1;
   const dones = nodes.filter((n) => n.who === "done");
   const current = caption ? (caption.key === "cluster:deployed" ? clusterOf(dones) : nodes.find((n) => n.key === caption.key)) : null;
   const columns = stripColumns(nodes);
@@ -162,7 +163,7 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
               </button>
             ))}
           </div>
-          <div ref={nodesRef} className={styles.nodes}>
+          <div ref={nodesRef} className={styles.nodes} data-multi={multiRepo ? "" : undefined}>
             {nodes.map((node) => (
               <button
                 key={node.key}
@@ -183,6 +184,7 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                 }}
               >
                 <span className={styles.l1}>
+                  <span className={styles.rpc}>{node.repo}</span>
                   <span className={`${styles.id} num`}>#{node.number}</span>
                   <span className={styles.st}>{node.label}</span>
                 </span>
@@ -269,6 +271,7 @@ function clusterOf(dones: FlowNode[]): FlowNode | null {
 /** スマホの帯で列を押したとき：その段階の Issue を1行ずつ */
 function StripCaption({ nodes, onPick }: { nodes: FlowNode[]; onPick?: (key: string) => void }) {
   if (nodes.length === 0) return <span className={styles.capText}>この段階の作業はありません</span>;
+  const multi = new Set(nodes.map((n) => `${n.owner}/${n.repo}`)).size > 1;
   return (
     <span className={styles.stripList}>
       {nodes.map((node) => (
@@ -279,7 +282,9 @@ function StripCaption({ nodes, onPick }: { nodes: FlowNode[]; onPick?: (key: str
           style={{ "--c": WHO_CSS[node.who] } as React.CSSProperties}
           onClick={() => onPick?.(node.key)}
         >
-          <span className={`${styles.id} num`}>#{node.number}</span>
+          <span className={`${styles.id} num`}>
+            {multi ? `${node.repo} ` : ""}#{node.number}
+          </span>
           <b>{node.label}</b>
           <span className={styles.stripTitle}>{node.title}</span>
         </button>

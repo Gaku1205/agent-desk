@@ -11,8 +11,28 @@
   line-height: 1;
 }
 
-.section + .section {
-  margin-top: 40px;
+.grid {
+  display: grid;
+  gap: 40px clamp(40px, 5vw, 96px);
+  max-width: 720px;
+}
+
+/* 幅1180px以上：2列。左（リポジトリ・アニメーション）2 : 右（通知）3 で、通知の表が幅を使う */
+@media (min-width: 1180px) {
+  .grid {
+    grid-template-columns: minmax(340px, 2fr) minmax(0, 3fr);
+    max-width: none;
+  }
+}
+
+.column {
+  display: grid;
+  align-content: start;
+  gap: 40px;
+}
+
+.notify {
+  min-width: 0;
 }
 
 .title {

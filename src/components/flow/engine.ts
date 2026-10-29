@@ -173,6 +173,8 @@ export class FlowEngine {
   private scale = 1;
   private labelFs = 12;
   private labelFamily = "sans-serif";
+  /** 流れに2つ以上のリポジトリの Issue がある（名札にリポジトリ名が要る） */
+  private multiRepo = false;
   private giantFamily = "sans-serif";
   private bandTop = Infinity;
   private riverRand = seededRandom(7);
@@ -237,6 +239,7 @@ export class FlowEngine {
   /** 流れに出す Issue を入れ替える。animate なら、段階が変わった光が前の位置から流れて移る */
   setNodes(nodes: FlowNode[], animate: boolean) {
     this.nodes = nodes;
+    this.multiRepo = new Set(nodes.map((n) => `${n.owner}/${n.repo}`)).size > 1;
     const keys = new Set(nodes.map((n) => n.key));
     keys.add(CLUSTER_KEY);
     for (const key of this.bodies.keys()) if (!keys.has(key)) this.bodies.delete(key);
@@ -340,7 +343,12 @@ export class FlowEngine {
     if (!m) return { line1: 0, line2: 0 };
     const fs = this.labelFs;
     m.font = `500 ${fs}px ${this.labelFamily}`;
-    const line1 = m.measureText((node.key === CLUSTER_KEY ? "" : `#${node.number} `) + node.label).width;
+    // リポジトリが2つ以上あるとき、2行目にリポジトリ名が無い出し方（noRepo・compact）では1行目の頭に短いリポジトリ名を付ける
+    // 部品の間は CSS の gap（0.5em）なので、同じ幅の空白（U+2002）で測る
+    const gap = "\u2002";
+    const prefix =
+      node.key === CLUSTER_KEY ? "" : `${this.multiRepo && variant !== "full" ? `${node.repo}${gap}` : ""}#${node.number}${gap}`;
+    const line1 = m.measureText(prefix + node.label).width;
     if (variant === "compact") return { line1, line2: 0 };
     m.font = `400 ${fs * 0.96}px ${this.labelFamily}`;
     const line2 = m.measureText((variant === "full" ? `${node.repo} ` : "") + node.title).width;

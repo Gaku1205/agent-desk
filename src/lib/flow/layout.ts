@@ -73,6 +73,8 @@ const MAX_LANE_HEIGHT = 72;
 const CLUSTER_MIN = 2;
 /** 名札だけ左へ出す物がこれより多いときは、公開済みをまとめる方を選ぶ */
 const MAX_AWKWARD = 4;
+/** 右端に入らない名札を縮めて切ってよい最小の幅（文字数） */
+const SHRINK_MIN_CHARS = 18;
 
 /** 名札の最小のレーンの高さ（2行ぶん） */
 export function minLaneHeight(fontSize: number): number {
@@ -145,7 +147,7 @@ function attempt(
       const limit = k === 7 ? width : width - zone;
       if (x + LABEL_GAP + w > limit) {
         const room = limit - x - LABEL_GAP;
-        if (room >= fontSize * 22 + 10 && node.who !== "done") {
+        if (room >= fontSize * SHRINK_MIN_CHARS + 10 && node.who !== "done") {
           // 読める幅が残っていれば、縮めて切る
           const shrunk = chooseVariant(node, room, measure);
           w = shrunk.width;

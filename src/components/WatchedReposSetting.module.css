@@ -57,37 +57,12 @@
   margin-top: 16px;
 }
 
-/* 標準の選択欄をそのまま出さない：枠と矢印を自分で描く */
-.select {
-  flex: 1;
-  min-width: 0;
-  max-width: 100%;
-  height: 30px;
-  padding: 0 32px 0 10px;
-  border: 0;
-  border-radius: 5px;
-  background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 3.5h6L5 7z' fill='%23A9A59C'/></svg>")
-      no-repeat right 10px center,
-    var(--well);
-  box-shadow: inset 0 0 0 1px rgba(236, 232, 223, 0.16);
-  color: var(--bone);
-  font-size: 13px;
-  appearance: none;
-  -webkit-appearance: none;
-}
-
-.select:disabled {
-  opacity: 0.6;
-}
-
 @media (max-width: 899px) {
   .row {
     min-height: 44px;
   }
 
-  .remove,
-  .select {
+  .remove {
     height: 44px;
   }
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { checkPipeline, saveWatchedRepos } from "@/app/(app)/settings/actions";
 import { useDemo } from "./DemoContext";
+import { Select } from "./Select";
 import settingsStyles from "./SettingsSections.module.css";
 import styles from "./WatchedReposSetting.module.css";
 
@@ -81,7 +82,7 @@ export function WatchedReposSetting({ initialRows, options, editable, onListChan
       <ul className={styles.list}>
         {rows.map((row) => (
           <li key={row.name} className={styles.row}>
-            <span className={`${styles.name} mono`}>{row.name}</span>
+            <span className={styles.name}>{row.name}</span>
             {row.pipeline !== null && (
               <span className={styles.pipeline} data-pipeline={row.pipeline ? "yes" : "no"}>
                 {row.pipeline ? "パイプラインあり" : "パイプラインなし"}
@@ -104,19 +105,13 @@ export function WatchedReposSetting({ initialRows, options, editable, onListChan
       {editable && (
         <>
           <div className={styles.add}>
-            <select
-              className={`${styles.select} mono`}
-              aria-label="追加するリポジトリ"
+            <Select
+              label="追加するリポジトリ"
+              options={choices}
               value={current}
-              onChange={(event) => setSelected(event.target.value)}
-              disabled={saving || choices.length === 0}
-            >
-              {choices.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
+              onChange={setSelected}
+              disabled={saving}
+            />
             <button
               type="button"
               className={settingsStyles.button}
