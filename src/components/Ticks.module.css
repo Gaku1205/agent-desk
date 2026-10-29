@@ -8,6 +8,14 @@
   width: 136px;
 }
 
+/* スマホ：短くして、行の区切りの線と縞にならないようにする */
+@media (max-width: 899px) {
+  .ticks {
+    gap: 2px;
+    width: 72px;
+  }
+}
+
 .tk {
   display: block;
   height: 3px;

@@ -145,17 +145,31 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
                   <span className={styles.name}>{NOTIFY_EVENT_LABELS[kind].name}</span>
                   <span className={styles.desc}>{NOTIFY_EVENT_LABELS[kind].description}</span>
                 </th>
-                {rows.map((row) => (
-                  <td key={row.name} className={styles.cell}>
-                    <input
-                      type="checkbox"
-                      checked={(current[row.name] ?? []).includes(kind)}
-                      onChange={() => toggle(row.name, kind)}
-                      disabled={!row.pipeline || saving}
-                      aria-label={`${NOTIFY_EVENT_LABELS[kind].name}（${row.name}）`}
-                    />
-                  </td>
-                ))}
+                {rows.map((row) => {
+                  const on = (current[row.name] ?? []).includes(kind);
+                  const disabled = !row.pipeline || saving;
+                  return (
+                    <td key={row.name} className={styles.cell}>
+                      {/* 標準のチェックボックスは見えなくして残し（キーボード・読み上げ）、ランプと字を描く */}
+                      <label
+                        className={settingsStyles.toggle}
+                        data-on={on ? "" : undefined}
+                        data-disabled={disabled ? "" : undefined}
+                      >
+                        <input
+                          type="checkbox"
+                          className={settingsStyles.native}
+                          checked={on}
+                          onChange={() => toggle(row.name, kind)}
+                          disabled={disabled}
+                          aria-label={`${NOTIFY_EVENT_LABELS[kind].name}（${row.name}）`}
+                        />
+                        <span className={settingsStyles.lamp} aria-hidden="true" />
+                        <span aria-hidden="true">{on ? "オン" : "オフ"}</span>
+                      </label>
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

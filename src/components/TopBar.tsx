@@ -30,17 +30,20 @@ type Props = {
 };
 
 /**
- * 行の右端の2つの件数：あなたの番（アンバーの点）→ 動いている（青の点）。0 でも出す（上端の帯は全部の数が並ぶ）。
- * 数だけが並んで何の数か分からないので、誌面の左の凡例と同じ色の点を前に付ける（意味は title と読み上げでも言う）
+ * 札の右端の2つの件数：あなたの番（アンバーの点）→ 動いている（青の点）。0 でも出す（上端の帯は全部の数が並ぶ）。
+ * 数だけが並んで何の数か分からない（同じ数だとバグに見える）ので、誌面の左の凡例と同じ色の点を前に付け、
+ * 今いるページの札（labeled）だけは短い名札（あなたの番・AI）も付ける。意味は title と読み上げでも言う
  */
-function Counts({ turn, running }: { turn: number; running: number }) {
-  const text = `あなたの番 ${turn}件、動いている ${running}件`;
+function Counts({ turn, running, labeled }: { turn: number; running: number; labeled: boolean }) {
+  const text = `あなたの番 ${turn}件、AIが動いている ${running}件`;
   return (
-    <i className={`${styles.counts} num`} aria-label={text} title={text}>
+    <i className={`${styles.counts} num`} aria-label={text} title={text} data-labeled={labeled ? "" : undefined}>
       <b className={styles.countTurn} aria-hidden="true">
+        {labeled && <span className={styles.countName}>あなたの番</span>}
         {turn}
       </b>
       <b className={styles.countRunning} aria-hidden="true">
+        {labeled && <span className={styles.countName}>AI</span>}
         {running}
       </b>
     </i>
@@ -52,7 +55,7 @@ function CountsKey() {
   return (
     <span className={styles.key} aria-hidden="true">
       <span className={styles.keyTurn}>あなたの番</span>
-      <span className={styles.keyRunning}>動いている</span>
+      <span className={styles.keyRunning}>AI</span>
     </span>
   );
 }
@@ -96,7 +99,7 @@ export function RepoTabs({
         onClick={onPick}
       >
         <span>全部</span>
-        <Counts turn={counts.total} running={runningCounts.total} />
+        <Counts turn={counts.total} running={runningCounts.total} labeled={isCurrent(home)} />
       </Link>
       {repos.map(({ owner, repo }) => {
         const href = `${basePath}/repos/${owner}/${repo}`;
@@ -111,7 +114,11 @@ export function RepoTabs({
             onClick={onPick}
           >
             <span className={styles.tabName}>{repo}</span>
-            <Counts turn={counts.byRepo[key] ?? 0} running={runningCounts.byRepo[key] ?? 0} />
+            <Counts
+              turn={counts.byRepo[key] ?? 0}
+              running={runningCounts.byRepo[key] ?? 0}
+              labeled={isCurrent(href)}
+            />
           </Link>
         );
       })}

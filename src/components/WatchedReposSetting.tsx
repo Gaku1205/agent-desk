@@ -114,7 +114,7 @@ export function WatchedReposSetting({ initialRows, options, editable, onListChan
             />
             <button
               type="button"
-              className={settingsStyles.button}
+              className={settingsStyles.textButton}
               onClick={add}
               disabled={saving || !current}
             >

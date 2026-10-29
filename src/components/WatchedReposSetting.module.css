@@ -8,7 +8,7 @@
   display: flex;
   gap: 16px;
   align-items: center;
-  min-height: 40px;
+  min-height: 44px;
   border-top: 1px solid var(--hair-2);
 }
 
@@ -21,7 +21,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--bone);
-  font-size: 13px;
+  font-size: 13.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -52,7 +52,7 @@
 .add {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
   margin-top: 16px;
 }

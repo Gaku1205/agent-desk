@@ -91,6 +91,20 @@
   content: "";
 }
 
+/* 今いる札の短い名札（あなたの番・AI）。数は点と同じ色、名札は薄く。幅が詰まるときは出さない（点の色と title で言う） */
+.countName {
+  color: var(--mute);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+@media (max-width: 1023px) {
+  .countName {
+    display: none;
+  }
+}
+
 .countTurn,
 .keyTurn {
   color: var(--you);

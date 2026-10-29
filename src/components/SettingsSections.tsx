@@ -29,10 +29,10 @@ export function SettingsSections({ repoRows, repoOptions, editable, notifyRows }
 
   return (
     <Sheet narrow={false}>
-      <h1 className={styles.h1}>設定</h1>
-      {/* 広い画面では2列：左にリポジトリとアニメーション、右に通知の表（幅いっぱい） */}
-      <div className={styles.grid}>
-        <div className={styles.column}>
+      {/* 広い画面では左に大きい見出し、右に節（最大720px）。節は箱で囲まず、上の髪の毛の線で区切る */}
+      <div className={styles.page}>
+        <h1 className={styles.h1}>設定</h1>
+        <div className={styles.sections}>
           <section className={styles.section} aria-labelledby="settings-repos">
             <h2 id="settings-repos" className={styles.title}>
               監視するリポジトリ
@@ -44,6 +44,12 @@ export function SettingsSections({ repoRows, repoOptions, editable, notifyRows }
               onListChange={handleListChange}
             />
           </section>
+          <section className={`${styles.section} ${styles.notify}`} aria-labelledby="settings-notify">
+            <h2 id="settings-notify" className={styles.title}>
+              通知
+            </h2>
+            <NotifySetting rows={shownNotifyRows} />
+          </section>
           <section className={styles.section} aria-labelledby="settings-motion">
             <h2 id="settings-motion" className={styles.title}>
               アニメーション
@@ -51,12 +57,6 @@ export function SettingsSections({ repoRows, repoOptions, editable, notifyRows }
             <MotionSetting />
           </section>
         </div>
-        <section className={`${styles.section} ${styles.notify}`} aria-labelledby="settings-notify">
-          <h2 id="settings-notify" className={styles.title}>
-            通知
-          </h2>
-          <NotifySetting rows={shownNotifyRows} />
-        </section>
       </div>
     </Sheet>
   );

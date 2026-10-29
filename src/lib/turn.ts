@@ -11,6 +11,7 @@ import {
   shouldShowIssue,
   type IssueStatus,
 } from "./status";
+import { turnKind } from "./turnKind";
 
 /** 「あなたの番」で押せる操作（サーバー側で実行する物） */
 export type OperationKind = "plan" | "implement" | "resume" | "start" | "createPull" | "requestReview" | "merge";
@@ -196,11 +197,19 @@ export function waitingSince(issue: IssueData, status: IssueStatus, data: RepoDa
   return since ?? (pull ? latest([issue.updatedAt, pull.updatedAt]) : null) ?? issue.updatedAt;
 }
 
-/** 止まった物がいちばん上、あとは待ちが長い（人間の番になったのが古い）順 */
+/** 強い色の行（止まった・公開失敗。種類の札と同じ判定）か */
+export function isUrgentTurn(item: Pick<TurnItem, "status">): boolean {
+  return turnKind(item.status).tone !== "calm";
+}
+
+/**
+ * 強い色の物（止まった・公開失敗）がいちばん上、その中も、その下も、待ちが長い（人間の番になったのが古い）順。
+ * 強い色と並び順が食い違わないようにする（強い色の行が、静かな色の行の下に来ない）
+ */
 export function compareTurnItems(a: TurnItem, b: TurnItem): number {
-  const stuckA = a.status.stage === "stuck" ? 0 : 1;
-  const stuckB = b.status.stage === "stuck" ? 0 : 1;
-  if (stuckA !== stuckB) return stuckA - stuckB;
+  const urgentA = isUrgentTurn(a) ? 0 : 1;
+  const urgentB = isUrgentTurn(b) ? 0 : 1;
+  if (urgentA !== urgentB) return urgentA - urgentB;
   const byTime = a.waitingSince.localeCompare(b.waitingSince);
   if (byTime !== 0) return byTime;
   const byRepo = `${a.owner}/${a.repo}`.localeCompare(`${b.owner}/${b.repo}`);
