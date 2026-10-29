@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>agent-desk</title>
+<!--
+  案D「流れ × 誌面」── 設計表（案A「流れ」と案B「誌面」の組み合わせ）
+
+  体験の核
+    夜の地を左から右へ流れる光の粒の中に、自分の Issue が段階ごとに浮かんでいて、
+    その同じ流れが左下の極太の数字の中も通り抜けている。
+    ボタンを押すと、その Issue の光が次の段階へ跳ねて流れに戻り、数字が1つ転がって減る。
+
+  組み合わせ方（何をどこに置くか）
+    上 ≈ 45%  … 案A の流れ。段階の目盛り（端）、Issue の光の粒、色で状態、霧。
+                 「動いている」「待っている」の一覧はここが兼ねる（案Bの表は置かない）
+    下（すりガラス、端は消す）… 案B の誌面。
+                 [巨大な数字 ＋ 小さい「件」] | [押す列：種類の名札・題名・理由・ボタン・目盛り] | [出来事：Issue ごとにまとめた列]
+    生きている映像は1系統：画面の川の粒が、巨大な数字の中も同じ向き・同じ速さで通る（数字は流れを見る窓）。
+    脈打ち・尾は減らす（AI の番の体だけ、進む向きに短い尾）。毎日見て疲れない量にする
+
+  直した所
+    A：1024〜1440px で題名が「…」で切れる → 名札を 2〜3 列ぶん横に伸ばし、隣の列と行（レーン）が被らないよう詰める。
+       それでも入らないときだけ、公開済みを1つの光にまとめる。大画面では文字と光を幅に応じて大きく（11.5→15px、光 ×1.5）
+    B：驚きが控えめ → 画面の上半分が流れ。数字の中も流れ。 1280〜1440 で普通のリスト → 一覧は流れに置き換え、下は押す列と出来事だけ
+    スマホ：流れは縦（A）。下は数字・押す列・出来事（B）。出来事は日ごとのタブで畳む
+
+  構図（PC ≥1180）                                                   構図（900〜1179）             構図（スマホ）
+  ┌────────────────────────────────────────────────────────┐   ┌──────────────────────┐   ┌────────────┐
+  │ agent-desk  全部 8 10  todo-app  landing-page   デモ 再生 同期 設定│   │ 同上                  │   │ ≡ agent-desk ▶│
+  │ 清書 6 ┆ 実装 2 ┆ PR 2 ┆ CI 3 ┆ ﾚﾋﾞｭｰ 1 ┆ 修正 2 ┆ ﾏｰｼﾞ 4 ┆ 公開 6 ● ● ● │   │ 清書 … 公開            │   │清書 ● ● ● ●  │ 流れは上→下
+  │  ◉ #31 保留中 題名            ◉ #23 止まっています 題名    ◎ #12 … │   │  ◉     ◉   ●    ◎     │   │実装 ●        │
+  │  ◉ #13 …      ●→ #16 …                  ●→ #17 …   ◉ #22 … ◎ #11 │   │  ●→   ●→   ◉    ◎     │   │PR   ◉ ◉      │
+  │  ●  #24 …          ◉ #7 …    ×  #18 …      ●→ #2 …  ●  #5 …  ◎ … │   │                        │   │…            │
+  │ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ すりガラス（端は消える） ─ ─ ─ ─ ─ ─ ─ ─ │   ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤   ├ ─ ─ ─ ─ ─ ─┤
+  │  8 件      │ 止まった todo-app#23 PR #38       46分 │ 出来事  今日 16 │   │  8 件 │ 止まった …      │   │ 8 件 あなたの番│
+  │ あなたの番 │ 通知の音を設定で変えられるようにする       │ landing-page#8 │   │ あなた │ 題名           │   │ 止まった …    │
+  │ 待ちが長い順│ AIが2回直しても…  [再開] ログを開く ━━━ 修正│  11:15 PR … │   │ の番  │ [再開]         │   │ 題名 [再開]   │
+  │ todo-app 5│ PR作成待ち landing-page#6          1日 │ landing-page#4 │   │       │ …              │   │ …           │
+  │           │ 英語のページを足す      [PRを作る] ━━ PR │  …           │   │ 出来事（横いっぱい）      │   │ 出来事 今日 昨日│
+  └────────────────────────────────────────────────────────┘   └──────────────────────┘   └────────────┘
+  ◉ = あなたの番（アンバー、大きく静かに光る）  ●→ = AIの番（青、進む向きに短い尾）
+  ◎ = 待機（紫、ゆっくり回る）  × = 失敗（赤、じっと）  ◎ = 公開済み（緑、右端へ抜けて消える）
+  列や帯は線で区切らず余白で区切る。板で画面を分けない：映像は端まで、文字の後ろだけ blur、その端は mask で消す
+
+  色
+    --bg     #0B0C10  夜（少し青い）        --bone   #ECE8DF  文字      --bone-2 #A9A59C  説明    --mute #6B6963  補足・名札
+    --you    #F5A73A  あなたの番（アンバー。巨大な数字の光も）   --ai #5B8DFF  AIの番（信号の青）
+    --q      #9B7CF5  待機     --fail #F25C5C  失敗     --done #4DD39A  公開済み
+  文字
+    見出し・巨大な数字・ワードマーク：Bricolage Grotesque 800（opsz 96、字間 -0.06em）
+    本文：IBM Plex Sans JP（和文）＋ Geist（欧文・数字、tabular-nums）
+    段：巨大 120〜320px ／ 単位「件」30px ／ 題名 16px ／ 本文 13.5px ／ 小 12px ／ 流れの名札 11.5〜15px（幅で変える）
+  動き
+    川：24px/s ＋ curl ノイズ。数字の中の粒も同じ向き・同じ速さ。体の粒の公転 0.3〜0.6 rad/s。AIの番だけ短い尾
+    体の移動：ばね k=140 c=20（段階が進むと前の位置から流れて移る）
+    押す → 100ms 以内：ボタンが縮む(.96) → 行が畳まれる(360ms, cubic-bezier(.2,.8,.2,1)) → 数字が転がる(460ms)。体が次の段階へ跳ねて粒が12個噴く
+    再生 ▶ → 4秒ごとに todo-app#24 の段階が1つ進む
+    prefers-reduced-motion：川と粒は止まる。ばね・畳み・転がりは無し（即時）
+-->
+<!-- 下書き（見本）。本番のコードではない。本番は next/font で読むが、ここでは Google Fonts から読む -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Geist:wght@400..700&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#0B0C10; --bone:#ECE8DF; --bone-2:#A9A59C; --mute:#6B6963;
+  --you:#F5A73A; --ai:#5B8DFF; --q:#9B7CF5; --fail:#F25C5C; --done:#4DD39A;
+  --hair:rgba(236,232,223,.09); --hair-2:rgba(236,232,223,.05); --well:rgba(236,232,223,.06);
+  --glass:rgba(11,12,16,.62);
+  --jp:"Geist","IBM Plex Sans JP",system-ui,sans-serif;
+  --num:"Geist","IBM Plex Sans JP",sans-serif;
+  --disp:"Bricolage Grotesque","Geist",sans-serif;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --gutter:clamp(20px,2.2vw,40px);
+  --flowH:clamp(300px,45svh,660px);
+  --nfs:clamp(11.5px,.23vw + 9.2px,15px);
+  --giant:clamp(160px,13vw,340px);
+}
+@media (max-width:1299px){:root{--flowH:clamp(300px,50svh,560px)}}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg);color:var(--bone);font-family:var(--jp);font-size:13.5px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+body{background:var(--bg);min-height:100svh;word-break:auto-phrase;overflow-wrap:anywhere;overflow-x:hidden;font-feature-settings:"palt"}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+a{color:inherit;text-decoration:none}
+ol,ul{list-style:none}
+:focus-visible{outline:none;box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px var(--bone);border-radius:4px}
+.num,time,.id,.wait,.sync{font-family:var(--num);font-variant-numeric:tabular-nums}
+.ph{display:inline-block;margin-right:.2em}
+
+/* ───────── 映像（画面の端まで） ───────── */
+canvas.layer{position:fixed;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+#fog{z-index:0;opacity:.9}
+#river{z-index:3}
+
+.app{position:relative;z-index:1;min-height:100svh}
+
+/* ───────── 上端の帯 ───────── */
+.top{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:20px;padding:0 var(--gutter);height:52px;
+  background:linear-gradient(var(--bg) 30%,rgba(11,12,16,0))}
+.mark{font-family:var(--disp);font-weight:800;font-size:19px;letter-spacing:-.045em;font-variation-settings:"opsz" 96;white-space:nowrap}
+.repos{display:flex;gap:2px;min-width:0}
+.tab{height:30px;padding:0 10px;border-radius:6px;color:var(--mute);display:flex;align-items:center;gap:7px;white-space:nowrap;font-weight:500;font-size:13px;transition:color .15s var(--ease),background .15s var(--ease)}
+.tab:hover{color:var(--bone-2);background:var(--hair-2)}
+.tab[aria-pressed="true"]{color:var(--bone);background:var(--well)}
+.tab i{font-style:normal;font-family:var(--num);font-variant-numeric:tabular-nums;font-size:12px;display:inline-flex;gap:5px;font-weight:500}
+.tab i b{font-weight:500;color:var(--you)}.tab i b+b{color:var(--ai)}
+.top .right{margin-left:auto;display:flex;align-items:center;gap:16px;white-space:nowrap}
+.demo{display:flex;align-items:center;gap:8px;color:var(--bone-2);font-size:12.5px}
+.demo::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--q);box-shadow:0 0 10px var(--q)}
+.play{height:30px;padding:0 12px;border-radius:6px;font-size:12.5px;font-weight:500;color:var(--bone);background:rgba(236,232,223,.09);transition:background .15s,transform .08s var(--ease)}
+.play:hover{background:rgba(236,232,223,.15)}.play:active{transform:scale(.96)}
+.sync{font-size:12px;color:var(--mute);display:flex;align-items:center;gap:7px}
+.sync::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--ai)}
+.gear{color:var(--mute);display:flex;align-items:center;gap:6px;font-size:12.5px;height:30px;padding:0 6px;border-radius:6px}
+.gear:hover{color:var(--bone)}
+.menu-btn{display:none;width:44px;height:44px;margin-left:-10px;align-items:center;justify-content:center;border-radius:8px}
+
+/* ───────── 流れ ───────── */
+.flow{position:relative;height:var(--flowH);overflow:hidden}
+#nodes{font-size:var(--nfs)}
+.stages{position:absolute;left:0;right:0;top:0;padding:4px var(--gutter) 0;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));align-items:end;font-size:12px;color:var(--bone-2)}
+.stages span{padding-left:26px;display:flex;gap:6px;align-items:baseline;white-space:nowrap;position:relative}
+.stages span::before{content:"";position:absolute;left:26px;bottom:-9px;width:1px;height:7px;background:var(--mute);opacity:.6}
+.stages i{font-style:normal;font-family:var(--num);font-variant-numeric:tabular-nums;font-size:11.5px;color:var(--mute)}
+.caption{position:absolute;left:var(--gutter);right:var(--gutter);bottom:10px;z-index:5;font-size:12.5px;color:var(--bone-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity .2s;pointer-events:none}
+.caption.on{opacity:1}
+.caption b{font-weight:500;color:var(--c,var(--bone))}
+.caption .id{color:var(--mute);margin-right:8px}
+.legend{grid-column:1/-1;display:flex;flex-direction:column;gap:7px;margin-top:22px;font-size:12px;color:var(--mute);white-space:nowrap}
+.legend span{display:flex;align-items:center;gap:8px}
+.legend span::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c)}
+
+.node{position:absolute;left:0;top:0;z-index:4;display:block;text-align:left;width:var(--w,120px);padding:2px 4px;border-radius:5px;
+  transform:translate(var(--x),var(--y));will-change:transform;color:var(--bone-2);line-height:1.25;font-size:var(--nfs);transition:opacity .4s var(--ease)}
+.node .l1{display:flex;gap:.5em;align-items:baseline;white-space:nowrap;overflow:hidden}
+.node .id{flex:none;font-size:.92em;color:var(--mute)}
+.node .st{min-width:0;color:var(--c);overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.node .t{display:block;font-size:.96em;color:var(--bone-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.node.flip{text-align:right}.node.flip .l1{justify-content:flex-end}
+.node .rp{font-family:var(--num);font-size:.9em;color:var(--mute);margin-right:.5em}
+.node.no-repo .rp{display:none}
+.node.no-title .t{display:none}
+.node:hover .t,.node:focus-visible .t{color:var(--bone)}
+.node.off{opacity:0;pointer-events:none}
+.m-stages{display:none}
+
+/* ───────── 誌面（すりガラス、端は消す） ───────── */
+.band{position:relative;z-index:2;padding:28px var(--gutter) 48px;min-height:calc(100svh - 52px - var(--flowH));
+  background:var(--glass);backdrop-filter:blur(22px) saturate(1.2);-webkit-backdrop-filter:blur(22px) saturate(1.2);
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 34px);mask-image:linear-gradient(to bottom,transparent,#000 34px);
+  display:grid;gap:0 clamp(28px,3vw,64px)}
+@media (min-width:1180px){.band{grid-template-columns:auto minmax(0,1fr) minmax(300px,31%)}}
+@media (min-width:900px) and (max-width:1179px){.band{grid-template-columns:auto minmax(0,1fr)}.events{grid-column:1/-1;padding-top:34px}}
+
+/* 巨大な数字 */
+.hero{display:grid;grid-template-columns:auto auto;align-items:end;column-gap:6px;row-gap:8px;align-content:start;padding-top:2px}
+.giant{position:relative;display:block;line-height:0;font-size:var(--giant);grid-row:1}
+.giant canvas{display:block}
+.giant .ghost{position:absolute;inset:0;font:800 1em/1 var(--disp);font-variation-settings:"opsz" 96;letter-spacing:-.06em;color:transparent;pointer-events:none}
+.unit{grid-row:1;align-self:end;font:800 30px/1 var(--disp);letter-spacing:-.04em;color:var(--you);opacity:.8;padding-bottom:.12em}
+.hero h1{grid-column:1/-1;font:500 16px/1.2 var(--jp);color:var(--bone);white-space:nowrap}
+.hero h1 small{display:block;font:400 12.5px/1.3 var(--jp);color:var(--mute);margin-top:3px}
+.hero .split{grid-column:1/-1;font-size:12.5px;color:var(--bone-2);white-space:nowrap}
+.hero .split b{font-weight:500;color:var(--bone);font-family:var(--num);font-variant-numeric:tabular-nums}
+
+/* 押す列 */
+.turns{container-type:inline-size;min-width:0}
+.rows{display:grid;grid-template-columns:minmax(0,1fr);column-gap:48px}
+@container (min-width:1120px){.rows{grid-template-columns:1fr 1fr}}
+.row{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:5px;padding:14px 0 16px;border-top:1px solid var(--hair);transition:background .5s var(--ease)}
+.rows>.row:first-child{border-top-color:transparent}
+.row.flash{background:rgba(245,167,58,.12);transition:none}
+.r-head{display:flex;align-items:baseline;gap:10px;min-width:0}
+.kind{font-size:12.5px;font-weight:500;color:var(--you);white-space:nowrap}
+.kind.f{color:var(--fail)}
+.row .id{font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.wait{margin-left:auto;font-size:12px;color:var(--mute);white-space:nowrap}
+.r-title{font:500 16px/1.4 var(--jp);color:var(--bone);letter-spacing:-.005em}
+.r-desc{font-size:13px;color:var(--bone-2);line-height:1.55}
+.r-foot{display:flex;align-items:center;gap:14px;margin-top:8px;flex-wrap:wrap}
+.acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.act{height:30px;padding:0 13px;border-radius:5px;font-size:12.5px;font-weight:500;white-space:nowrap;color:var(--you);background:rgba(245,167,58,.09);box-shadow:inset 0 0 0 1px rgba(245,167,58,.4);
+  transition:transform .12s var(--ease),background .12s,color .12s}
+.act:hover{background:rgba(245,167,58,.18)}
+.act:active,.act.hit{transform:scale(.96);background:var(--you);color:var(--bg)}
+.act.fill{background:var(--you);color:#1a1206;box-shadow:none}
+.act.fill:hover{background:#ffb95a}
+.act.ghost{color:var(--bone-2);background:none;box-shadow:inset 0 0 0 1px rgba(236,232,223,.16)}
+.act.ghost:hover{background:var(--well)}
+.act.link{box-shadow:none;background:none;color:var(--bone-2);padding:0 6px}
+.act.link:hover{color:var(--bone)}
+.act:focus-visible{box-shadow:inset 0 0 0 1px rgba(245,167,58,.8),0 0 0 2px var(--bg),0 0 0 3.5px var(--bone)}
+.prog{margin-left:auto;display:flex;align-items:center;gap:10px;min-width:0}
+.ticks{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;width:136px;flex:none}
+.tk{height:3px;border-radius:2px;background:rgba(236,232,223,.1);transition:background .3s,box-shadow .3s}
+.stage{font-size:12px;color:var(--bone-2);white-space:nowrap;font-weight:500}
+.stage.f{color:var(--fail)}
+.empty{color:var(--mute);font-size:13px;padding:14px 0 24px}
+
+/* 出来事：Issue ごとにまとめた足あと */
+.events{min-width:0}
+.events h2{display:flex;align-items:baseline;gap:12px;margin:0 0 8px;font:500 15px/1 var(--jp);color:var(--bone)}
+.events h2 .hint{margin-left:auto;font-size:12px;color:var(--mute);font-weight:400;white-space:nowrap}
+.days{display:flex;gap:2px;margin:0 0 6px}
+.day{height:28px;padding:0 10px;border-radius:6px;font-size:12.5px;color:var(--bone-2);font-weight:500;transition:background .12s,color .12s;white-space:nowrap}
+.day:hover{color:var(--bone)}
+.day[aria-selected="true"]{background:var(--well);color:var(--bone)}
+.day i{font-style:normal;margin-left:6px;color:var(--mute);font-weight:400;font-family:var(--num)}
+.ev-g{padding:10px 0 11px;border-top:1px solid var(--hair-2)}
+.ev-g:first-child{border-top-color:transparent}
+.ev-g.new{animation:evin .5s var(--ease)}
+@keyframes evin{from{opacity:0;transform:translateY(-6px)}}
+.ev-h{display:flex;align-items:baseline;gap:8px;min-width:0}
+.ev-h .id{flex:none;font-size:12px;color:var(--mute)}
+.ev-h .ttl{font-size:13px;color:var(--bone);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.trail{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px}
+.trail li{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--bone-2);white-space:nowrap}
+.trail time{font-size:11.5px;color:var(--mute)}
+.trail i{width:6px;height:6px;border-radius:50%;background:var(--bone-2);flex:none}
+.trail .y i{background:var(--you)} .trail .a i{background:var(--ai)} .trail .d i{background:var(--done)} .trail .f i{background:var(--fail)} .trail .o i{background:var(--mute)}
+.trail .f{color:#FF8A8D} .trail .d{color:#7BDCAE} .trail .y{color:#FFC06A}
+.more{margin-top:8px;font-size:12.5px;color:var(--bone-2);display:inline-flex;align-items:center;gap:6px;height:30px}
+.more:hover{color:var(--bone)}
+.more svg{width:10px;height:10px;transition:transform .15s}
+.more[aria-expanded="true"] svg{transform:rotate(180deg)}
+
+/* 知らせ */
+.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,10px);z-index:20;background:rgba(20,21,27,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  color:var(--bone);font-size:12.5px;padding:8px 14px;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .15s,transform .2s var(--ease);white-space:nowrap}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ───────── スマホ（幅900px未満）：流れは縦、名札は左端 ───────── */
+.sheet{display:none}
+@media (max-width:899px){
+  :root{--gutter:16px;--giant:128px}
+  .top{position:fixed;top:0;left:0;right:0;z-index:6;gap:12px}
+  .menu-btn{display:flex}
+  .top .repos,.top .sync,.top .gear,.top .demo{display:none}
+  .stages,.edge{display:none}
+  .flow{height:calc(56svh - 52px);position:fixed;top:52px;left:0;right:0;z-index:1}
+  .m-stages{display:grid;position:absolute;left:0;top:0;bottom:0;width:86px;padding:6px 0 26px var(--gutter);font-size:11.5px;color:var(--bone-2)}
+  .m-stages span{display:flex;align-items:center;gap:5px;white-space:nowrap;position:relative}
+  .m-stages i{font-style:normal;font-family:var(--num);font-size:11px;color:var(--mute)}
+  .node{width:auto;padding:2px 4px;font-size:12px}
+  .node .st,.node .t{display:none}
+  .node .id{color:var(--c);font-size:12px}
+  .band{margin-top:56svh;padding-top:26px;z-index:4;display:block;min-height:calc(44svh)}
+  .hero{grid-template-columns:auto auto minmax(0,1fr);column-gap:10px;padding-bottom:6px}
+  .giant{grid-row:1;grid-column:1}
+  .unit{font-size:26px;grid-column:2}
+  .hero h1{grid-column:3;grid-row:1;align-self:end;padding-bottom:.4em;margin-left:4px}
+  .hero .split{grid-column:1/-1}
+  .legend{flex-direction:row;flex-wrap:wrap;gap:6px 14px;margin-top:10px}
+  .rows{grid-template-columns:1fr}
+  .row{padding:14px 0 16px}
+  .r-title{font-size:15.5px}
+  .act{height:36px;padding:0 14px;font-size:13px}
+  .prog{margin-left:0;width:100%}
+  .ticks{flex:1 1 auto;width:auto;min-width:0}
+  .events{padding-top:30px}
+  /* メニュー */
+  .sheet{display:block;position:fixed;inset:0;z-index:30;pointer-events:none}
+  .sheet .scrim{position:absolute;inset:0;background:rgba(4,4,6,.6);opacity:0;transition:opacity .2s}
+  .sheet .pane{position:absolute;left:0;top:0;bottom:0;width:min(300px,86vw);background:rgba(11,12,16,.72);backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px);
+    padding:18px var(--gutter) 24px;transform:translateX(-100%);transition:transform .18s var(--ease);display:flex;flex-direction:column;gap:6px;
+    -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 20px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 20px),transparent)}
+  .sheet.open{pointer-events:auto}.sheet.open .scrim{opacity:1}.sheet.open .pane{transform:none}
+  .sheet .mark{margin-bottom:14px}
+  .sheet .repos{flex-direction:column;align-items:stretch;gap:2px}
+  .sheet .tab{height:44px;justify-content:space-between;padding:0 12px;font-size:14px}
+  .sheet .lbl{font-size:11.5px;color:var(--mute);margin:12px 12px 4px}
+  .sheet .lnk{height:44px;display:flex;align-items:center;padding:0 12px;border-radius:6px;color:var(--bone-2);gap:8px}
+  .sheet .foot{margin-top:auto;display:grid;gap:10px;font-size:12px;color:var(--mute);padding:0 12px}
+  .sheet .demo{font-size:12.5px}
+}
+@media (max-width:420px){.hero h1 small{display:block}}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<canvas id="fog" class="layer" aria-hidden="true"></canvas>
+<canvas id="river" class="layer" aria-hidden="true"></canvas>
+
+<div class="app">
+  <header class="top">
+    <button class="menu-btn" aria-label="メニュー" aria-expanded="false" id="menuBtn"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 5h14M2 9h14M2 13h14"/></svg></button>
+    <div class="mark">agent-desk</div>
+    <nav class="repos" aria-label="リポジトリ" id="repoNav"></nav>
+    <div class="right">
+      <span class="demo">デモ（サンプルのデータ）</span>
+      <button class="play" id="playBtn">再生 ▶</button>
+      <span class="sync num">同期 <span id="syncT"></span></span>
+      <a class="gear" href="#settings" id="gear"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>設定</a>
+    </div>
+  </header>
+
+  <section class="flow" id="flow" aria-label="パイプラインの流れ">
+    <div class="stages" id="stages" aria-hidden="true"></div>
+    <div class="caption" id="caption" aria-live="polite"></div>
+    <div class="m-stages" id="mStages" aria-hidden="true"></div>
+    <div id="nodes"></div>
+  </section>
+
+  <main class="band">
+    <div class="hero">
+      <div class="giant" id="giant" role="img" aria-label="あなたの番 8件"><canvas id="cv"></canvas><span class="ghost" id="ghost" aria-hidden="true">8</span></div>
+      <span class="unit" aria-hidden="true">件</span>
+      <h1 id="turnH">あなたの番<small id="order">待ちが長い順</small></h1>
+      <p class="split" id="split"></p>
+      <div class="legend" aria-hidden="true">
+        <span style="--c:var(--you)">あなたの番</span><span style="--c:var(--ai)">AIの番</span><span style="--c:var(--q)">待機</span><span style="--c:var(--fail)">失敗</span><span style="--c:var(--done)">公開済み</span>
+      </div>
+    </div>
+    <section class="turns" aria-labelledby="turnH">
+      <div class="rows" id="rows"></div>
+    </section>
+    <aside class="events" aria-labelledby="evH">
+      <h2 id="evH">出来事<span class="hint">直近3日</span></h2>
+      <div class="days" role="tablist" id="days"></div>
+      <div id="evList"></div>
+    </aside>
+  </main>
+</div>
+
+<div class="sheet" id="sheet" aria-hidden="true">
+  <div class="scrim" id="scrim"></div>
+  <div class="pane" role="dialog" aria-label="メニュー">
+    <div class="mark">agent-desk</div>
+    <div class="lbl">リポジトリ</div>
+    <nav class="repos" aria-label="リポジトリ" id="repoNavM"></nav>
+    <div class="lbl">ほか</div>
+    <a class="lnk" href="#settings">設定</a>
+    <a class="lnk" href="#github">GitHubで見る ↗</a>
+    <a class="lnk" href="#login">ログイン</a>
+    <div class="foot"><span class="demo">デモ（サンプルのデータ）</span><span class="sync num">同期 <span id="syncT2"></span></span></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isMobile = () => innerWidth < 900;
+const NOW = Date.now();
+const STAGES = ['清書','実装','PR','CI','レビュー','修正','マージ','公開'];
+const COL = {human:[245,167,58], ai:[91,141,255], queue:[155,124,245], fail:[242,92,92], done:[77,211,154]};
+const CSSC = {human:'var(--you)', ai:'var(--ai)', queue:'var(--q)', fail:'var(--fail)', done:'var(--done)'};
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ───── データ（agent-desk/src/lib/demo/data.ts から） ─────
+   at: 段階 0..7  who: human/ai/queue/fail/done  st: 流れの名札の短い説明
+   kind: 押す列の種類  desc: 理由（文ごと）  wait: 待ち分  acts: ボタン  skip: 通っていない段階（目盛り）*/
+const ISSUES = [
+ {r:'todo-app',n:24,t:'期限が近いタスクを一覧の上に出す',at:0,who:'ai',st:'清書中',play:true},
+ {r:'todo-app',n:23,pr:38,t:'通知の音を設定で変えられるようにする',at:5,who:'human',stuck:true,kind:'止まった',st:'止まっています',wait:46,desc:['AIが2回直してもCIが通りませんでした（test）。','確認して、対応したら「再開」を押してください'],acts:['再開'],log:true},
+ {r:'todo-app',n:25,t:'タスクの色分けをカテゴリごとに変えられるようにする',at:1,who:'queue',st:'やり直し待ち 2/10',why:'使用量の上限に達しました。時間をおいて自動でやり直します'},
+ {r:'todo-app',n:22,pr:37,t:'完了したタスクをまとめて消せるようにする',at:6,who:'human',kind:'マージ待ち',st:'マージできます',wait:21,desc:['CI 4/4 通過・レビュー指摘なし・マージできます'],acts:['マージ…'],skip:[5]},
+ {r:'todo-app',n:21,pr:36,t:'書き出しをCSVにも対応する',at:6,who:'human',kind:'マージ待ち',st:'マージできます',wait:24*60+40,desc:['CI 4/4 通過・まだレビューしていません'],acts:['マージ…','レビューを依頼'],skip:[0,5]},
+ {r:'todo-app',n:20,t:'タスクの検索に絞り込みを足す',at:4,who:'ai',st:'レビューAIが確認中'},
+ {r:'todo-app',n:19,t:'期限の表示を「あと2日」の形にする',at:3,who:'ai',st:'CI 実行中 2/4',skip:[0]},
+ {r:'todo-app',n:18,t:'繰り返しのタスクを作れるようにする',at:3,who:'fail',st:'CIが失敗しました',why:'CIが失敗しました（test）。AIが直します'},
+ {r:'todo-app',n:17,t:'タスクの並べ替えをドラッグでできるようにする',at:5,who:'ai',st:'AIが修正中 1/2',why:'レビューの指摘を直しています（1/2回目）'},
+ {r:'todo-app',n:16,t:'タスクにメモ欄を付ける',at:1,who:'ai',st:'AIが実装中'},
+ {r:'todo-app',n:15,t:'タスクの一覧を週ごとに分ける',at:0,who:'queue',st:'順番待ち · #17 の後',why:'#17（ドラッグで並べ替え）と同じ一覧の部品を変えるので、#17 が終わってから始めます'},
+ {r:'todo-app',n:14,t:'並べ替えた順番を保存する',at:0,who:'queue',st:'順番待ち · #17 の後',why:'#17 の並べ替えができてから、その順番を保存する作業なので順番待ちにします'},
+ {r:'todo-app',n:31,t:'タスクをカレンダーに表示する',at:0,who:'human',kind:'保留',st:'保留中',wait:3*60,desc:['保留中です。','準備ができたら「始める」を押してください'],acts:['始める'],skip:[0]},
+ {r:'todo-app',n:13,t:'タスクに色のラベルを付けられるようにする',at:0,who:'human',kind:'未着手',st:'まだ頼んでいません',wait:2*60+15,desc:['まだ誰にも頼んでいません'],acts:['おまかせ','実装を依頼'],skip:[0]},
+ {r:'todo-app',n:12,t:'タスクの追加をEnterキーでできるようにする',at:7,who:'done',st:'公開済み'},
+ {r:'todo-app',n:11,t:'空のときに「タスクはありません」と出す',at:7,who:'done',st:'公開済み'},
+ {r:'todo-app',n:10,t:'期限を過ぎたタスクを赤くする',at:7,who:'done',st:'公開済み'},
+ {r:'landing-page',n:9,pr:15,t:'トップの画像を軽くする',at:7,who:'fail',human:true,kind:'公開失敗',st:'公開に失敗しました',wait:34,desc:['公開に失敗しました。','利用上限に達しました。あと24時間で再開します'],acts:['確認する'],skip:[5]},
+ {r:'landing-page',n:26,t:'ボタンを押したときの色を変える',at:7,who:'done',st:'公開済み'},
+ {r:'landing-page',n:8,t:'お問い合わせフォームに確認の画面を足す',at:7,who:'ai',st:'本番に公開中',skip:[0,5]},
+ {r:'landing-page',n:7,t:'料金表を3列にする',at:2,who:'human',kind:'PR作成待ち',st:'PRを作れます',wait:16,desc:['AIの作業が終わりました。','PRを作るとCIが走ります'],acts:['PRを作る'],skip:[0]},
+ {r:'landing-page',n:6,t:'英語のページを足す',at:2,who:'human',kind:'PR作成待ち',st:'AIがエラーで停止',wait:28*60+20,desc:['AIがエラーで止まりました。','結果を確認してPRを作ってください'],acts:['PRを作る']},
+ {r:'landing-page',n:5,t:'フッターのリンクを整理する',at:6,who:'ai',st:'レビューに回します',why:'CI 4/4 通過・レビューに回します',skip:[0,5]},
+ {r:'landing-page',n:4,t:'ページの読み込みを速くする',at:6,who:'ai',st:'自動でマージします',why:'CIもレビューもOK・自動でマージします',skip:[5]},
+ {r:'landing-page',n:3,t:'よくある質問のページを作る',at:0,who:'ai',st:'清書中'},
+ {r:'landing-page',n:2,t:'スマホでメニューが開かないのを直す',at:5,who:'ai',st:'修正を確認中',why:'直した結果を確認中（CI 3/4）',skip:[0]},
+];
+ISSUES.forEach(i => { i.key = i.r+'#'+i.n; i.desc = i.desc || []; i.acts = i.acts || []; i.skip = i.skip || []; });
+
+/* 出来事：Issue ごとにまとめる。[時刻, 文言, 種類]  種類 y=人間の番 a=AIが動いた d=公開 f=失敗 o=あなたの操作
+   時刻は「今」からの分で持つ（基準 12:01 を今に置き換える）。d = 何日前 */
+const T = (hm, d=0) => { const [h,m] = hm.split(':').map(Number); return 721 - (h*60+m) + d*1440; };
+const EVENTS = [
+ {r:'landing-page',n:8,t:[[T('11:15'),'PRができた','a'],[T('11:40'),'CI 4/4','a'],[T('11:52'),'レビュー済','a'],[T('11:59'),'マージ','o'],[T('12:00'),'公開中','a']]},
+ {r:'landing-page',n:4,t:[[T('11:20'),'PRができた','a'],[T('11:45'),'CI 4/4','a'],[T('11:46'),'レビュー依頼','o'],[T('11:59'),'レビュー済','a']]},
+ {r:'landing-page',n:5,t:[[T('11:50'),'PRができた','a'],[T('11:59'),'CI 4/4','a']]},
+ {r:'todo-app',n:19,t:[[T('11:21'),'実装を依頼','o'],[T('11:57'),'PRができた','a']]},
+ {r:'todo-app',n:20,t:[[T('10:55'),'実装を依頼','o'],[T('11:30'),'PRができた','a'],[T('11:56'),'CI 4/4','a'],[T('11:56'),'レビュー依頼','o']]},
+ {r:'todo-app',n:18,t:[[T('11:40'),'PRができた','a'],[T('11:54'),'CI失敗（test）','f']]},
+ {r:'todo-app',n:16,t:[[T('11:51'),'実装を依頼','o']]},
+ {r:'todo-app',n:17,t:[[T('11:00'),'PRができた','a'],[T('11:20'),'CI 4/4','a'],[T('11:21'),'レビュー依頼','o'],[T('11:47'),'レビュー済','a'],[T('11:48'),'修正を依頼 1/2','a']]},
+ {r:'landing-page',n:7,t:[[T('11:15'),'実装を依頼','o'],[T('11:44'),'実装が終わった・PRを作れます','y']]},
+ {r:'landing-page',n:2,t:[[T('10:30'),'PRができた','a'],[T('11:10'),'CI失敗（build）','f'],[T('11:40'),'修正を依頼 1/2','a']]},
+ {r:'todo-app',n:22,t:[[T('11:28'),'CI 4/4','a'],[T('11:29'),'レビュー依頼','o'],[T('11:30'),'レビュー済・指摘なし','a']]},
+ {r:'landing-page',n:9,t:[[T('10:00'),'PRができた','a'],[T('10:50'),'CI 4/4','a'],[T('11:00'),'レビュー済','a'],[T('11:22'),'マージ','o'],[T('11:26'),'公開に失敗','f']]},
+ {r:'todo-app',n:23,t:[[T('09:50'),'修正を依頼 2/2','a'],[T('11:12'),'CI失敗（test）','f'],[T('11:14'),'止まった','y']]},
+ {r:'landing-page',n:26,t:[[T('10:40'),'PRができた','a'],[T('10:55'),'CI 4/4','a'],[T('11:05'),'レビュー済','a'],[T('11:10'),'マージ','o'],[T('11:12'),'公開に失敗','f'],[T('11:20'),'あとの公開で解決','d']]},
+ {r:'todo-app',n:25,t:[[T('10:35'),'実装を依頼','o'],[T('11:49'),'やり直し待ち 2/10','o']]},
+ {r:'todo-app',n:12,t:[[T('09:40'),'レビュー済','a'],[T('10:00'),'マージ','o'],[T('10:08'),'本番に公開','d']]},
+ {r:'todo-app',n:21,t:[[T('10:10',1),'PRができた','a'],[T('10:30',1),'CI 4/4','a']]},
+ {r:'landing-page',n:6,t:[[T('07:40',1),'実装を依頼','o'],[T('08:20',1),'AIがエラーで止まった','y']]},
+ {r:'todo-app',n:11,t:[[T('04:30',1),'修正を依頼 1/2','a'],[T('05:00',1),'レビュー済','a'],[T('05:10',1),'マージ','o'],[T('05:12',1),'本番に公開','d']]},
+ {r:'todo-app',n:10,t:[[T('15:40',1),'PRができた','a'],[T('16:10',1),'CI 4/4','a'],[T('16:20',1),'レビュー済','a'],[T('16:30',1),'マージ','o'],[T('16:33',1),'本番に公開','d']]},
+ {r:'todo-app',n:9,title:'タスクの名前を編集できるようにする',t:[[T('09:00',2),'PRができた','a'],[T('09:30',2),'CI 4/4','a'],[T('09:40',2),'修正を依頼 1/2','a'],[T('10:20',2),'レビュー済','a'],[T('10:30',2),'マージ','o'],[T('10:33',2),'本番に公開','d']]},
+ {r:'landing-page',n:1,title:'ヘッダーのロゴを差し替える',t:[[T('08:00',2),'PRができた','a'],[T('08:30',2),'CI 4/4','a'],[T('08:40',2),'レビュー済','a'],[T('08:50',2),'マージ','o'],[T('08:53',2),'本番に公開','d']]},
+];
+EVENTS.forEach(g => { g.key = g.r+'#'+g.n; g.title = g.title || ISSUES.find(i => i.key===g.key)?.t || ''; });
+
+const pad2 = n => String(n).padStart(2,'0');
+const hhmm = d => pad2(d.getHours())+':'+pad2(d.getMinutes());
+const agoText = m => m < 60 ? m+'分' : m < 24*60 ? Math.floor(m/60)+'時間' : Math.floor(m/1440)+'日';
+const dayOf = m => Math.round((new Date(NOW - m*60000).setHours(0,0,0,0) - new Date(NOW).setHours(0,0,0,0)) / 86400000);
+const dayName = d => d===0 ? '今日' : d===-1 ? '昨日' : (() => { const dt = new Date(NOW + d*86400000); return (dt.getMonth()+1)+'月'+dt.getDate()+'日'; })();
+{ const d = new Date(NOW); $('#syncT').textContent = hhmm(d)+':'+pad2(d.getSeconds()); $('#syncT2').textContent = $('#syncT').textContent; }
+
+/* ───── 状態 ───── */
+let repoFilter = 'all';
+const visible = i => repoFilter === 'all' || i.r === repoFilter;
+const isHuman = i => i.who==='human' || i.human;
+const humans = () => ISSUES.filter(i => isHuman(i) && visible(i));
+
+/* ───── リポジトリ切り替え ───── */
+function renderRepos(){
+  const defs = [['all','全部'],['todo-app','todo-app'],['landing-page','landing-page']];
+  for (const nav of [$('#repoNav'), $('#repoNavM')]) {
+    nav.innerHTML = '';
+    for (const [k,label] of defs) {
+      const h = ISSUES.filter(i => isHuman(i) && (k==='all'||i.r===k)).length;
+      const a = ISSUES.filter(i => i.who==='ai' && (k==='all'||i.r===k)).length;
+      const b = document.createElement('button'); b.className = 'tab';
+      b.setAttribute('aria-pressed', String(repoFilter===k));
+      b.innerHTML = `<span>${label}</span><i aria-label="あなたの番 ${h}件、動いている ${a}件"><b>${h}</b><b>${a}</b></i>`;
+      b.onclick = () => { repoFilter = k; renderRepos(); renderTurn(); renderEvents(); layout(true); closeMenu(); };
+      nav.appendChild(b);
+    }
+  }
+}
+
+/* ───── 目盛り（進み具合のバー） ───── */
+function ticks(i){
+  const rgb = COL[i.who==='human' ? 'human' : i.who==='fail' ? 'fail' : 'ai'].join(',');
+  let h = '';
+  for (let k=0;k<8;k++) {
+    let st = '';
+    if (k <= i.at) { const a = i.at===0 ? 1 : (0.3+0.7*k/i.at).toFixed(2);
+      st = i.skip.includes(k) ? `box-shadow:inset 0 0 0 1px rgba(${rgb},${a});background:transparent` : `background:rgba(${rgb},${a})`; }
+    h += `<i class="tk" style="${st}"></i>`;
+  }
+  return `<div class="ticks" role="img" aria-label="進み具合 ${i.at+1}/8・${STAGES[i.at]}">${h}</div>`;
+}
+
+/* ───── あなたの番（押す列） ───── */
+function renderTurn(){
+  const list = humans().sort((a,b) => (b.stuck?1:0) - (a.stuck?1:0) || b.wait - a.wait);
+  const n = list.length;
+  giant.set(n);
+  $('#giant').setAttribute('aria-label', `あなたの番 ${n}件`);
+  $('#order').textContent = n ? '待ちが長い順' : '今はAIの番です';
+  const c1 = ISSUES.filter(i => isHuman(i) && i.r==='todo-app').length, c2 = ISSUES.filter(i => isHuman(i) && i.r==='landing-page').length;
+  $('#split').innerHTML = repoFilter==='all' ? `todo-app <b>${c1}</b>　landing-page <b>${c2}</b>` : `${repoFilter} だけ`;
+  const box = $('#rows'); box.innerHTML = '';
+  if (!n) { box.innerHTML = '<div class="empty">今はAIの番です。流れの上で光が進んでいます</div>'; return; }
+  for (const i of list) {
+    const row = document.createElement('article');
+    row.className = 'row'; row.dataset.key = i.key;
+    const fail = i.who==='fail';
+    row.innerHTML = `
+      <div class="r-head"><span class="kind${fail?' f':''}">${i.kind}</span><span class="id">${i.r}#${i.n}${i.pr?`　PR #${i.pr}`:''}</span><span class="wait">${agoText(i.wait)}</span></div>
+      <h3 class="r-title">${esc(i.t)}</h3>
+      <p class="r-desc">${i.desc.map(s => `<span class="ph">${esc(s)}</span>`).join('')}</p>
+      <div class="r-foot"><div class="acts"></div><div class="prog">${ticks(i)}<span class="stage${fail?' f':''}">${STAGES[i.at]}</span></div></div>`;
+    const acts = row.querySelector('.acts');
+    for (const a of i.acts) {
+      const b = document.createElement('button'); b.className = 'act'; b.textContent = a; b.type = 'button';
+      b.onclick = () => press(i, b, row, a);
+      acts.appendChild(b);
+    }
+    if (i.log) { const l = document.createElement('button'); l.className = 'act link'; l.textContent = 'ログを開く ↗'; l.onclick = () => toast('デモではログは開きません'); acts.appendChild(l); }
+    row.addEventListener('mouseenter', () => highlight(i.key));
+    row.addEventListener('mouseleave', () => highlight(null));
+    row.addEventListener('focusin', () => highlight(i.key));
+    row.addEventListener('focusout', () => highlight(null));
+    box.appendChild(row);
+  }
+}
+/* ボタンを押したあと、その Issue が流れのどこへ行くか */
+const NEXT = {
+  '再開':        i => ({who:'ai', st:'AIが直しています', why:'再開しました。AIがもう一度直します'}),
+  'PRを作る':    i => ({who:'ai', at:3, st:'CI 実行中 0/4', skip:i.skip}),
+  'レビューを依頼': i => ({who:'ai', at:4, st:'レビューAIが確認中'}),
+  'マージ':      i => ({who:'ai', at:7, st:'本番に公開中'}),
+  '始める':      i => ({who:'ai', at:0, st:'清書中'}),
+  'おまかせ':    i => ({who:'ai', at:0, st:'清書中'}),
+  '実装を依頼':  i => ({who:'ai', at:1, st:'AIが実装中'}),
+};
+function press(i, btn, row, label){
+  if (label === 'マージ…') {           // 確認は、その場でボタンの列に出す（ダイアログを開かない）
+    const acts = btn.parentElement; acts.innerHTML = '';
+    const ok = document.createElement('button'); ok.className = 'act fill'; ok.textContent = 'マージする';
+    const no = document.createElement('button'); no.className = 'act ghost'; no.textContent = 'やめる';
+    ok.onclick = () => fire(i, ok, row, 'マージ');
+    no.onclick = () => renderTurn();
+    acts.append(ok, no); ok.focus();
+    row.addEventListener('keydown', e => { if (e.key==='Escape') renderTurn(); }, {once:true});
+    return;
+  }
+  fire(i, btn, row, label);
+}
+function fire(i, btn, row, label){
+  btn.classList.add('hit');
+  toast(`${label}：デモでは実際には動きません`);
+  const next = NEXT[label];
+  if (!next) { setTimeout(() => btn.classList.remove('hit'), 160); return; }
+  // 出来事に足あとを足す
+  addTrail(i, label, 'o');
+  // 流れ：光が次の段階へ跳ねて、AIの番の色に変わる
+  Object.assign(i, {human:false, kind:null, acts:[], desc:[]}, next(i));
+  kick(i.key); renderRepos(); layout(true);
+  // 押す列：行が畳まれ、数字が転がる
+  const done = () => renderTurn();
+  if (RM) { done(); return; }
+  const h = row.getBoundingClientRect().height;
+  row.style.height = h+'px'; row.style.overflow = 'hidden';
+  row.style.transition = 'height .36s cubic-bezier(.2,.8,.2,1),opacity .28s,padding .36s cubic-bezier(.2,.8,.2,1)';
+  requestAnimationFrame(() => { row.style.height = '0px'; row.style.opacity = '0'; row.style.paddingTop = '0'; row.style.paddingBottom = '0'; });
+  setTimeout(done, 370);
+}
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2000); }
+
+/* ───── 出来事（Issue ごと） ───── */
+let day = 0, evOpen = false;
+function addTrail(i, text, kind){
+  let g = EVENTS.find(g => g.key===i.key);
+  if (!g) { g = {r:i.r, n:i.n, key:i.key, title:i.t, t:[]}; EVENTS.unshift(g); }
+  else { EVENTS.splice(EVENTS.indexOf(g),1); EVENTS.unshift(g); }
+  g.t.push([0, text, kind]); g.fresh = true;
+  day = 0; renderEvents();
+}
+function renderEvents(){
+  const inDay = g => g.t.some(([m]) => dayOf(m)===day);
+  const days = [...new Set(EVENTS.flatMap(g => g.t.map(([m]) => dayOf(m))))].sort((a,b) => b-a).slice(0,3);
+  if (!days.includes(day)) day = days[0];
+  $('#days').innerHTML = days.map(d => `<button class="day" role="tab" aria-selected="${day===d}" data-d="${d}">${dayName(d)}<i>${EVENTS.filter(g => visible(g) && g.t.some(([m]) => dayOf(m)===d)).length}</i></button>`).join('');
+  $('#days').querySelectorAll('.day').forEach(b => b.onclick = () => { day = Number(b.dataset.d); evOpen = false; renderEvents(); });
+  const all = EVENTS.filter(g => visible(g) && inDay(g));
+  const LIM = innerWidth >= 1500 ? 10 : innerWidth >= 900 ? 6 : 5;
+  const list = evOpen ? all : all.slice(0, LIM);
+  const rest = all.length - list.length;
+  $('#evList').innerHTML = list.map(g => `
+    <article class="ev-g${g.fresh?' new':''}">
+      <div class="ev-h"><span class="id">${g.r}#${g.n}</span><span class="ttl">${esc(g.title)}</span></div>
+      <ul class="trail">${g.t.filter(([m]) => dayOf(m)===day).map(([m,s,k]) => `<li class="${k}"><time>${hhmm(new Date(NOW - m*60000))}</time><i></i>${esc(s)}</li>`).join('')}</ul>
+    </article>`).join('')
+    + (all.length > LIM ? `<button class="more" id="more" aria-expanded="${evOpen}">${evOpen ? 'たたむ' : `残り${rest}件を見る`}<svg viewBox="0 0 10 10"><path d="M1.5 3.5 5 7l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>` : '')
+    + (all.length ? '' : '<p class="empty">この日の出来事はありません</p>');
+  EVENTS.forEach(g => g.fresh = false);
+  const m = $('#more'); if (m) m.onclick = () => { evOpen = !evOpen; renderEvents(); };
+}
+
+/* ───── 流れ：レイアウト（レーンに詰める） ───── */
+const flowEl = $('#flow'), nodesEl = $('#nodes');
+const bodies = new Map(); // key -> {i, u,v (目標), pu,pv (今), vu,vv, el, parts[]}
+let flowRect = {x:0,y:0,w:0,h:0,ox:0,oy:0}, colW = 0, mobile = false, labelW = 120, labelFs = 12, cluster = null;
+const G = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gutter')) || 20;
+const nodeFs = () => parseFloat(getComputedStyle(nodesEl).fontSize) || parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nfs')) || 12;
+
+function packLanes(groups, span, titleW){ // 名札の横の範囲（px）が重なる物どうしは、別のレーンに置く
+  const placed = []; const laneOf = new Map(), labelOf = new Map(); let count = 0;
+  const right = flowRect.x + flowRect.w, fullW = span*colW - 46, withRepo = fullW >= 33*labelFs;
+  groups.forEach((g,k) => g.forEach(i => {
+    let gx = flowRect.x + k*colW + 26;
+    const need = Math.min(fullW, labelNeed(i, labelFs, withRepo));   // 文字の実際の幅（入らなければ fullW で「…」）
+    let w = need, flip = false;
+    if (gx + 18 + need > right) { flip = true; gx = right - 26; }   // 右端に入らない物は、光を右端に置いて名札を左へ伸ばす
+    const x0 = flip ? gx - 19 - w : gx - 12, x1 = flip ? gx + 12 : gx + 18 + w;
+    let L = 0; while (placed.some(p => p.lane===L && p.x0 < x1 + 6 && p.x1 > x0 - 6)) L++;
+    placed.push({x0, x1, lane:L}); laneOf.set(i.key, L); labelOf.set(i.key, {flip, w, gx}); count = Math.max(count, L+1);
+  }));
+  return {count, laneOf, labelOf};
+}
+const meas = document.createElement('canvas').getContext('2d');
+function labelNeed(i, fs, withRepo){
+  meas.font = `500 ${fs}px Geist, "IBM Plex Sans JP", sans-serif`;
+  const l1 = meas.measureText((i.cluster ? '' : '#'+i.n+' ') + i.st).width;
+  meas.font = `400 ${fs*.96}px Geist, "IBM Plex Sans JP", sans-serif`;
+  const l2 = meas.measureText((withRepo && i.r ? i.r+' ' : '') + i.t).width;
+  return Math.ceil(Math.max(l1, l2)) + 12;
+}
+function layout(animate){
+  mobile = isMobile();
+  const r = flowEl.getBoundingClientRect(); const sy = mobile ? 0 : scrollY; const g = G();
+  flowRect = mobile ? {x: 88, y: r.top+sy, w: innerWidth - 88 - 12, h: r.height, ox: 0, oy: r.top+sy}
+                    : {x: g, y: r.top+sy, w: innerWidth - 2*g, h: r.height, ox: 0, oy: r.top+sy};
+  colW = flowRect.w / 8;
+  // 段階の名札
+  const counts = Array(8).fill(0);
+  ISSUES.forEach(i => { if (visible(i)) counts[i.at]++; });
+  $('#stages').innerHTML = STAGES.map((s,k) => `<span>${s}<i>${counts[k]||''}</i></span>`).join('');
+  $('#mStages').innerHTML = STAGES.map((s,k) => `<span>${s}<i>${counts[k]||''}</i></span>`).join('');
+  const order = {human:0, fail:1, ai:2, queue:3, done:4};
+  const vis = ISSUES.filter(visible).sort((a,b) => order[a.who]-order[b.who] || b.n-a.n);
+  const groupsOf = list => { const gs = Array.from({length:8}, () => []); list.forEach(i => gs[i.at].push(i)); return gs; };
+  if (!mobile) {
+    const fs = nodeFs(); labelFs = fs;
+    const top = flowRect.y + 30, bandH = flowRect.h - 48;
+    const minLH = fs*2.5 + 4;
+    const titleW = 22*fs + 10, fullW = 33*fs;
+    const dones = vis.filter(i => i.who==='done');
+    const cands = [];
+    for (let span = 3; span >= 1; span--) for (const cl of [false, true]) {
+      if (cl && dones.length < 2) continue;
+      const list = cl ? vis.filter(i => i.who!=='done').concat([clusterNode(dones)]) : vis;
+      const groups = groupsOf(list); const res = packLanes(groups, span, titleW);
+      if (res.count*minLH <= bandH || (span===1 && (cl || dones.length < 2))) cands.push({span, cl, groups, res, list, labelW: span*colW - 46});
+      if (res.count*minLH <= bandH && !cl) break;
+    }
+    const fit = cands.filter(c => c.labelW >= titleW);
+    const pick = fit.find(c => !c.cl) || fit[0] || cands.find(c => !c.cl) || cands[0];
+    const {span, groups, res, cl, list} = pick;
+    const useCluster = cl && list.some(i => i.cluster);
+    cluster = useCluster ? list.find(i => i.cluster) : null;
+    const LH = Math.max(minLH, Math.min(68, bandH / res.count));
+    const y0 = top + Math.max(0, (bandH - res.count*LH)/2);
+    labelW = pick.labelW;
+    groups.forEach((gr,k) => gr.forEach(i => {
+      const lab = res.labelOf.get(i.key);
+      place(i, lab.gx, y0 + res.laneOf.get(i.key)*LH + LH/2, animate);
+      const b = bodies.get(i.key); b.flip = lab.flip; b.w = lab.w;
+    }));
+    for (const [key,b] of bodies) {
+      const on = (useCluster ? list.includes(b.i) : visible(b.i)) && !(useCluster && b.i.who==='done' && !b.i.cluster) && !(!useCluster && b.i.cluster);
+      b.el.classList.toggle('off', !on); b.on = on;
+      b.el.classList.toggle('no-repo', labelW < fullW); b.el.classList.toggle('flip', !!b.flip);
+      b.el.style.setProperty('--w', (b.w||labelW) + 'px');
+    }
+  } else {
+    cluster = null;
+    const groups = groupsOf(vis);
+    const top = flowRect.y + 6, rowH = (flowRect.h - 30) / 8;
+    for (let k=0;k<8;k++) {
+      const gr = groups[k], avail = flowRect.w - 10, slot = Math.min(64, Math.max(44, avail / Math.max(gr.length,1)));
+      gr.forEach((i, idx) => place(i, top + k*rowH + rowH/2, flowRect.x + 8 + idx*slot, animate));
+    }
+    for (const b of bodies.values()) { const on = visible(b.i) && !b.i.cluster; b.el.classList.toggle('off', !on); b.on = on; }
+  }
+}
+let clusterCache = null;
+function clusterNode(dones){ // 公開済みを1つの光にまとめる（名札が入らない幅のときだけ）
+  const first = dones[0];
+  if (!clusterCache) clusterCache = {r:'', n:0, key:'cluster', cluster:true, who:'done', at:7, acts:[], desc:[], skip:[]};
+  Object.assign(clusterCache, {st:`公開済み ${dones.length}件`, t:`${first.t} ほか`, why:dones.map(d => `#${d.n}`).join(' '), count:dones.length});
+  return clusterCache;
+}
+function place(i, u, v, animate){ // u: 流れに沿った位置（PCは x、スマホは y）、v: 横切る位置。座標は文書の座標
+  let b = bodies.get(i.key);
+  if (!b) { b = makeBody(i); bodies.set(i.key, b); }
+  b.u = u; b.v = v;
+  if (!animate || RM || b.fresh) { b.pu = u; b.pv = v; b.vu = b.vv = 0; b.fresh = false; }
+  b.i = i;
+  b.el.style.setProperty('--c', CSSC[i.who]);
+  b.el.querySelector('.st').textContent = i.st;
+  b.el.querySelector('.tt').textContent = i.t;
+  b.el.querySelector('.id').textContent = i.cluster ? '' : '#'+i.n;
+  b.el.querySelector('.rp').textContent = i.r;
+}
+function makeBody(i){
+  const el = document.createElement('button'); el.type = 'button';
+  el.className = 'node'; el.dataset.key = i.key;
+  el.innerHTML = `<span class="l1"><span class="id"></span><span class="st"></span></span><span class="t"><span class="rp"></span><span class="tt"></span></span>`;
+  el.setAttribute('aria-label', `${i.r}#${i.n} ${i.t}。${i.st}`);
+  el.addEventListener('click', () => { showCaption(i, true); const row = document.querySelector(`.row[data-key="${i.key}"]`); if (row) { row.scrollIntoView({block:'center', behavior: RM?'auto':'smooth'}); row.querySelector('.act')?.focus({preventScroll:true}); } });
+  el.addEventListener('mouseenter', () => showCaption(i)); el.addEventListener('focus', () => showCaption(i));
+  el.addEventListener('mouseleave', () => hideCaption(i)); el.addEventListener('blur', () => hideCaption(i));
+  nodesEl.appendChild(el);
+  const b = {i, u:0, v:0, pu:0, pv:0, vu:0, vv:0, el, parts:[], hl:0, hlT:0, lastX:NaN, lastY:NaN, fresh:true, on:true};
+  seedParts(b);
+  return b;
+}
+let capPin = null;
+function showCaption(i, pin){
+  const c = $('#caption'); if (pin) capPin = i.key;
+  c.style.setProperty('--c', CSSC[i.who]);
+  c.innerHTML = `<span class="id">${i.cluster ? '' : i.r+'#'+i.n}</span><b>${esc(i.st)}</b>　${esc(i.why || (i.desc && i.desc.join('')) || i.t)}`;
+  c.classList.add('on');
+}
+function hideCaption(i){ if (capPin) return; $('#caption').classList.remove('on'); }
+document.addEventListener('click', e => { if (!e.target.closest('.node')) { capPin = null; $('#caption').classList.remove('on'); } });
+function highlight(key){ for (const b of bodies.values()) b.hlT = (b.i.key === key) ? 1 : 0; }
+function kick(key){ const b = bodies.get(key); if (!b) return; b.vu += 160; for (let k=0;k<12;k++) b.parts.push(mkPart(b, 'comet', true)); }
+
+/* ───── 粒 ───── */
+function mkPart(b, type, spawn){
+  const p = {type, a: Math.random()*Math.PI*2, r: 0, w: 0, ph: Math.random()*Math.PI*2, p: spawn ? 0 : Math.random(), s: .7 + Math.random()*.9, off: (Math.random()-.5), spawned: !!spawn};
+  if (type==='orbit') { p.r = 5 + Math.random()*9; p.w = (.3 + Math.random()*.4) * (Math.random()<.5?1:-1); }
+  if (type==='comet') { p.len = 34 + Math.random()*20; p.sp = .6 + Math.random()*.5; }
+  if (type==='exit') { p.sp = .22 + Math.random()*.16; }
+  if (type==='wide') { p.r = 10 + Math.random()*10; p.w = (.12 + Math.random()*.15) * (Math.random()<.5?1:-1); }
+  if (type==='still') { p.r = 4 + Math.random()*8; }
+  return p;
+}
+function seedParts(b){
+  const who = b.i.who; b.parts = [];
+  const n = b.i.cluster ? 2.2 : 1;
+  const mix = who==='ai' ? ['orbit',12,'comet',12] : who==='human' ? ['orbit',26] : who==='queue' ? ['wide',16] : who==='fail' ? ['still',16] : ['orbit',Math.round(8*n),'exit',Math.round(12*n)];
+  for (let k=0;k<mix.length;k+=2) for (let m=0;m<mix[k+1];m++) b.parts.push(mkPart(b, mix[k]));
+  b.seededFor = who + (b.i.cluster ? b.i.count : '');
+}
+
+const fog = $('#fog'), river = $('#river');
+const fctx = fog.getContext('2d'), rctx = river.getContext('2d');
+let W=0, H=0, DPR=1, sprites = {};
+function makeSprite(rgb, size, soft){
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d'); const grd = g.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
+  grd.addColorStop(0, `rgba(${rgb},1)`); grd.addColorStop(soft ? .25 : .55, `rgba(${rgb},${soft?.5:.9})`); grd.addColorStop(1, `rgba(${rgb},0)`);
+  g.fillStyle = grd; g.fillRect(0,0,size,size); return c;
+}
+function resize(){
+  DPR = Math.min(devicePixelRatio || 1, 1.5);
+  W = innerWidth; H = innerHeight;
+  river.width = W*DPR; river.height = H*DPR; rctx.setTransform(DPR,0,0,DPR,0,0);
+  fog.width = Math.ceil(W/4); fog.height = Math.ceil(H/4);
+  for (const k in COL) { sprites[k] = makeSprite(COL[k].join(','), 16, false); sprites[k+'_glow'] = makeSprite(COL[k].join(','), 64, true); }
+  sprites.river = makeSprite('150,165,205', 12, false);
+  sprites.amber = makeSprite('255,196,96', 12, false);
+  layout(false);
+  seedRiver();
+}
+// 川（背景の流れ）
+let riverParts = [];
+const RIVER_SPEED = 24, RIVER_AMP = 12;
+function seedRiver(){
+  const n = mobile ? 220 : Math.round(Math.min(900, W*H/1800));
+  riverParts = [];
+  for (let k=0;k<n;k++) riverParts.push({x: Math.random()*W, y: Math.random()*H, s: .5+Math.random()*1.2, ph: Math.random()*6.28, sp: .6+Math.random()*.8});
+}
+// ノイズ（curl 用）
+function hsh(ix, iy){ let n = (ix*374761393 + iy*668265263) | 0; n = Math.imul(n ^ (n>>>13), 1274126177); return ((n ^ (n>>>16)) & 0xffff) / 0xffff; }
+function vnoise(x, y){ const ix=Math.floor(x), iy=Math.floor(y), fx=x-ix, fy=y-iy, u=fx*fx*(3-2*fx), v=fy*fy*(3-2*fy);
+  const a=hsh(ix,iy), b=hsh(ix+1,iy), c=hsh(ix,iy+1), d=hsh(ix+1,iy+1); return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v; }
+function curl(x, y, t){ const s = 1/260, e = 2; const n = (px,py) => vnoise(px*s + t*.03, py*s + t*.02) + .5*vnoise(px*s*2.1 + 7 - t*.02, py*s*2.1 + 3);
+  const dx = (n(x+e,y) - n(x-e,y)) / (2*e), dy = (n(x,y+e) - n(x,y-e)) / (2*e); return [dy, -dx]; }
+function flowStep(p, dt, t){ // 川の粒を1歩進める（画面の座標）。数字の中の粒も同じ式を使う
+  const c = curl(p.x, p.y, t);
+  if (!mobile) { p.x += (RIVER_SPEED*p.sp + c[0]*RIVER_AMP*12)*dt; p.y += c[1]*RIVER_AMP*12*dt; }
+  else { p.y += (RIVER_SPEED*p.sp + c[1]*RIVER_AMP*12)*dt; p.x += c[0]*RIVER_AMP*12*dt; }
+}
+
+// 文書座標 → 画面座標
+const toXY = (u, v) => mobile ? [v, u] : [u, v - scrollY];
+const bandEl = $('.band');
+let bandTop = Infinity;
+let last = performance.now(), t = 0;
+function frame(now){
+  const dt = Math.min(.05, (now - last)/1000); last = now; if (!RM) t += dt;
+  if (W !== innerWidth || H !== innerHeight) { resize(); renderEvents(); }
+  bandTop = bandEl.getBoundingClientRect().top + 30;
+  rctx.clearRect(0,0,W,H);
+  // 川
+  rctx.globalCompositeOperation = 'lighter';
+  for (const p of riverParts) {
+    if (!RM) {
+      flowStep(p, dt, t);
+      if (!mobile) { if (p.x > W+6) { p.x = -6; p.y = Math.random()*H; } if (p.y<-6) p.y=H+6; if (p.y>H+6) p.y=-6; }
+      else { if (p.y > H+6) { p.y = -6; p.x = Math.random()*W; } if (p.x<-6) p.x=W+6; if (p.x>W+6) p.x=-6; }
+    }
+    const tw = .55 + .45*Math.sin(t*1.1 + p.ph);
+    let a = .15 * tw;
+    if (p.y > bandTop) a *= .3;
+    rctx.globalAlpha = a; const sz = 4*p.s; rctx.drawImage(sprites.river, p.x - sz/2, p.y - sz/2, sz, sz);
+  }
+  // 体
+  const sc = mobile ? 1 : Math.min(1.5, Math.max(.9, colW/190));
+  for (const b of bodies.values()) {
+    if (!b.on) continue;
+    const who = b.i.who, seedKey = who + (b.i.cluster ? b.i.count : '');
+    if (b.seededFor !== seedKey) seedParts(b);
+    // ばね
+    if (!RM) { const k=140, c=20; b.vu += (k*(b.u-b.pu) - c*b.vu)*dt; b.vv += (k*(b.v-b.pv) - c*b.vv)*dt; b.pu += b.vu*dt; b.pv += b.vv*dt; }
+    else { b.pu = b.u; b.pv = b.v; }
+    b.hl += (b.hlT - b.hl) * Math.min(1, dt*10);
+    const [x, y] = toXY(b.pu, b.pv);
+    // 名札を追従（流れの中の座標）
+    const lx = (mobile ? x + 9 : b.flip ? x - 19 - b.w : x + 18) - flowRect.ox, ly = (mobile ? y - 10 : y - labelFs*.65 - 3 + scrollY) - flowRect.oy;
+    if (!(Math.abs(lx - b.lastX) <= .05 && Math.abs(ly - b.lastY) <= .05)) { b.el.style.setProperty('--x', lx+'px'); b.el.style.setProperty('--y', ly+'px'); b.lastX = lx; b.lastY = ly; }
+    const dim = y > bandTop ? .3 : 1;
+    const big = b.i.cluster ? 1.3 : 1;
+    // 光
+    let g = who==='human' ? .5 : who==='ai' ? .3 : who==='queue' ? .18 : who==='fail' ? .3 : .22;
+    g = (g + b.hl*.35) * dim;
+    let gr = (who==='human' ? 24 : who==='queue' ? 24 : 18) * sc * big; gr += b.hl*10;
+    rctx.globalAlpha = g; rctx.drawImage(sprites[who+'_glow'], x-gr, y-gr, gr*2, gr*2);
+    // 芯（公開済みのまとまりは、件数ぶんの小さな芯が寄り添う）
+    rctx.globalAlpha = (who==='queue' ? .7 : 1) * dim; const cs = (who==='human' ? 7.5 : 6) * sc * big;
+    if (b.i.cluster) { for (let c=0;c<b.i.count;c++) { const an = c*2.4 + .6, rr = (6 + c*3.2)*sc; rctx.drawImage(sprites[who], x+Math.cos(an)*rr-3, y+Math.sin(an)*rr*.7-3, 6, 6); } }
+    else rctx.drawImage(sprites[who], x-cs/2, y-cs/2, cs, cs);
+    // 粒
+    for (let k = b.parts.length-1; k >= 0; k--) {
+      const p = b.parts[k]; let px, py, a;
+      if (p.type==='orbit' || p.type==='wide' || p.type==='still') {
+        if (!RM) p.a += p.w*dt;
+        const rr = p.r * sc * big * (1 + b.hl*.3);
+        const jx = p.type==='still' ? Math.sin(t*9+p.ph)*.8 : 0;
+        const du = Math.cos(p.a)*rr + jx, dv = Math.sin(p.a)*rr*.62;
+        [px, py] = toXY(b.pu + du, b.pv + dv); a = (who==='queue' ? .5 : .85) * (.6 + .4*Math.sin(t*1.6+p.ph));
+      } else if (p.type==='comet') {
+        if (!RM) p.p += dt*p.sp; if (p.p >= 1) { if (p.spawned) { b.parts.splice(k,1); continue; } p.p = 0; p.off = Math.random()-.5; }
+        const du = p.p*p.len*(mobile?.65:1), dv = p.off*14*(1-p.p) + Math.sin(p.p*6+p.ph)*2;
+        [px, py] = toXY(b.pu + du, b.pv + dv); a = (1-p.p)*.9;
+      } else { // exit：右端（下端）へ抜けて消える
+        if (!RM) p.p += dt*p.sp; if (p.p >= 1) { p.p = 0; p.off = Math.random()-.5; }
+        const edge = mobile ? (H - b.pu) : (W - b.pu);
+        const du = p.p*p.p*edge, dv = p.off*18*big + Math.sin(p.p*8+p.ph)*3;
+        [px, py] = toXY(b.pu + du, b.pv + dv); a = (1-p.p)*.55;
+      }
+      if (py > bandTop) a *= .3;
+      rctx.globalAlpha = Math.max(0, a); const sz = 3*p.s*Math.min(1.3, sc); rctx.drawImage(sprites[who], px-sz/2, py-sz/2, sz, sz);
+    }
+  }
+  rctx.globalAlpha = 1; rctx.globalCompositeOperation = 'source-over';
+  drawFog();
+  giant.draw(now, dt);
+  requestAnimationFrame(frame);
+}
+// 霧（低解像度で描いて引き伸ばす。すりガラスがこれをぼかす）
+let fogT = 0;
+function drawFog(){
+  fogT++; if (fogT % 3 !== 1 && fogT > 2) return;
+  const w = fog.width, h = fog.height; fctx.clearRect(0,0,w,h);
+  fctx.globalCompositeOperation = 'lighter';
+  const blobs = [[.14,.42,'human',.2],[.55,.3,'ai',.18],[.9,.4,'done',.13],[.36,.7,'ai',.12],[.72,.74,'queue',.1]];
+  for (const [bx,by,c,al] of blobs) {
+    const x = (bx + .04*Math.sin(t*.09 + bx*9))*w, y = (by + .05*Math.cos(t*.07 + by*7))*h, r = Math.max(w,h)*.36;
+    const g = fctx.createRadialGradient(x,y,0,x,y,r); g.addColorStop(0, `rgba(${COL[c].join(',')},${al})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+    fctx.fillStyle = g; fctx.fillRect(0,0,w,h);
+  }
+  fctx.globalCompositeOperation = 'source-over';
+}
+
+/* ───── 巨大な数字：流れを見る窓（川の粒が、同じ向き・同じ速さで数字の中を通る） ───── */
+const giant = (() => {
+  const el = $('#giant'), cv = $('#cv'), ghost = $('#ghost'), ctx = cv.getContext('2d');
+  const field = document.createElement('canvas'), fc = field.getContext('2d');
+  const tmp = document.createElement('canvas'), tc = tmp.getContext('2d');
+  let value = 8, prev = null, roll = 1, rollT0 = 0, GW = 0, GH = 0, dpr = 1, fs = 0, ready = false, metrics = null, local = [];
+  const font = () => `800 ${fs}px "Bricolage Grotesque"`;
+  function layout(){
+    fs = parseFloat(getComputedStyle(el).fontSize);
+    ghost.textContent = String(value);
+    ctx.font = font();
+    const m = ctx.measureText(String(Math.max(value, prev ?? 0)));
+    const asc = m.actualBoundingBoxAscent, des = m.actualBoundingBoxDescent;
+    GW = Math.ceil(m.width - fs*0.06*(String(value).length-1)) + 4; GH = Math.ceil(asc+des) + 8;
+    metrics = {asc, left: m.actualBoundingBoxLeft};
+    dpr = Math.min(devicePixelRatio || 1, 2);
+    el.style.width = GW+'px'; el.style.height = GH+'px';
+    for (const c of [cv, field, tmp]) { c.width = Math.round(GW*dpr); c.height = Math.round(GH*dpr); c.style.width = GW+'px'; c.style.height = GH+'px'; }
+    const n = Math.round(GW*GH/300); local = [];
+    for (let k=0;k<n;k++) local.push({x: Math.random()*GW, y: Math.random()*GH, s: .6+Math.random()*1.2, ph: Math.random()*6.28, sp: .6+Math.random()*.8});
+  }
+  function drawField(now, dt, rect){
+    const tt = RM ? 12 : t;
+    fc.setTransform(dpr,0,0,dpr,0,0);
+    fc.globalCompositeOperation = 'source-over'; fc.fillStyle = '#2A1804'; fc.fillRect(0,0,GW,GH);
+    fc.globalCompositeOperation = 'lighter';
+    // 土台の光（ゆっくり漂う2つ）
+    const blobs = [['255,176,64',.9,.21,0],['255,118,34',.7,.16,2.1]];
+    blobs.forEach(([c,a,sp,ph],i) => {
+      const x = GW*(.5+.5*Math.sin(tt*sp+ph)), y = GH*(.5+.55*Math.cos(tt*sp*.8+ph*1.7)), r = Math.max(GW,GH)*(.6+.1*Math.sin(tt*.3+i));
+      const g = fc.createRadialGradient(x,y,0,x,y,r); g.addColorStop(0,`rgba(${c},${a})`); g.addColorStop(1,`rgba(${c},0)`);
+      fc.fillStyle = g; fc.fillRect(0,0,GW,GH);
+    });
+    // 数字の中の粒：画面の川と同じ式で動く
+    for (const p of local) {
+      if (!RM) {
+        const q = {x: rect.left + p.x, y: rect.top + p.y, sp: p.sp}; flowStep(q, dt, t); p.x = q.x - rect.left; p.y = q.y - rect.top;
+        if (!mobile) { if (p.x > GW+4) { p.x = -4; p.y = Math.random()*GH; } if (p.y<-4) p.y=GH+4; if (p.y>GH+4) p.y=-4; }
+        else { if (p.y > GH+4) { p.y = -4; p.x = Math.random()*GW; } if (p.x<-4) p.x=GW+4; if (p.x>GW+4) p.x=-4; }
+      }
+      const tw = .55 + .45*Math.sin(tt*1.1 + p.ph);
+      fc.globalAlpha = .55*tw; const sz = 7*p.s; fc.drawImage(sprites.amber, p.x - sz/2, p.y - sz/2, sz, sz);
+    }
+    // 画面の川の粒で、数字を通っている物はそのまま明るく
+    for (const p of riverParts) {
+      const x = p.x - rect.left, y = p.y - rect.top; if (x < -4 || y < -4 || x > GW+4 || y > GH+4) continue;
+      fc.globalAlpha = .8; const sz = 9*p.s; fc.drawImage(sprites.amber, x - sz/2, y - sz/2, sz, sz);
+    }
+    fc.globalAlpha = 1; fc.globalCompositeOperation = 'source-over';
+  }
+  function glyph(text, dy, alpha){
+    tc.setTransform(1,0,0,1,0,0); tc.globalCompositeOperation = 'source-over'; tc.clearRect(0,0,tmp.width,tmp.height);
+    tc.save(); tc.scale(dpr,dpr); tc.font = font(); tc.textBaseline = 'alphabetic'; tc.letterSpacing = `${-0.06*fs}px`;
+    tc.fillStyle = '#fff'; tc.fillText(text, metrics.left+2, metrics.asc+4+dy); tc.restore();
+    tc.globalCompositeOperation = 'source-in'; tc.drawImage(field,0,0);
+    ctx.globalAlpha = alpha; ctx.drawImage(tmp,0,0); ctx.globalAlpha = 1;
+  }
+  const ease = x => 1-Math.pow(1-x,3);
+  let still = false;
+  function draw(now, dt){
+    if (!metrics || !ready) return;
+    if (roll < 1) roll = Math.min(1, (now-rollT0)/460);
+    if (RM && still && roll >= 1) return;
+    const rect = cv.getBoundingClientRect();
+    drawField(now, dt, rect);
+    ctx.clearRect(0,0,cv.width,cv.height);
+    if (roll < 1) { const p = ease(roll); glyph(String(prev), -GH*.9*p, 1-p); glyph(String(value), GH*.9*(1-p), p); }
+    else glyph(String(value), 0, 1);
+    if (RM) still = true;
+  }
+  function set(n){
+    if (!ready) { value = n; return; }
+    if (n === value) return;
+    prev = value; value = n; still = false;
+    if (RM) { roll = 1; layout(); return; }
+    roll = 0; rollT0 = performance.now(); layout();
+  }
+  document.fonts.load('800 100px "Bricolage Grotesque"').then(() => { ready = true; layout(); });
+  addEventListener('resize', () => { if (ready) layout(); });
+  return {set, draw};
+})();
+
+/* ───── 再生 ───── */
+const STEPS = [
+ {at:0,who:'ai',st:'清書中'},
+ {at:1,who:'ai',st:'AIが実装中',ev:['実装を依頼','o']},
+ {at:2,who:'human',st:'PRを作れます',kind:'PR作成待ち',wait:0,desc:['AIの作業が終わりました。','PRを作るとCIが走ります'],acts:['PRを作る'],ev:['実装が終わった・PRを作れます','y']},
+ {at:3,who:'ai',st:'CI 実行中 1/4',ev:['PRができた','a']},
+ {at:4,who:'ai',st:'レビューAIが確認中',ev:['CI 4/4','a']},
+ {at:5,who:'ai',st:'AIが修正中 1/2',why:'レビューの指摘を直しています（1/2回目）',ev:['修正を依頼 1/2','a']},
+ {at:5,who:'ai',st:'修正を確認中',why:'直した結果を確認中（CI 2/4）'},
+ {at:6,who:'ai',st:'自動でマージします',ev:['レビュー済・指摘なし','a']},
+ {at:7,who:'ai',st:'本番に公開中',ev:['マージ','o']},
+ {at:7,who:'done',st:'公開済み',ev:['本番に公開','d']},
+];
+let playI = 0, playTimer = null;
+const playBtn = $('#playBtn');
+function applyStep(idx){
+  const s = STEPS[idx], i = ISSUES.find(x => x.play);
+  Object.assign(i, {at:s.at, who:s.who, st:s.st, why:s.why||'', acts:s.acts||[], desc:s.desc||[], kind:s.kind||null, wait:s.wait??i.wait, human:false});
+  if (s.ev) addTrail(i, s.ev[0], s.ev[1]);
+  renderRepos(); renderTurn(); layout(true);
+  const b = bodies.get(i.key); if (b) b.vu -= 60;
+}
+playBtn.onclick = () => {
+  if (playTimer) return;
+  if (playI >= STEPS.length-1) { playI = 0; applyStep(0); }
+  playBtn.textContent = '再生中…';
+  playTimer = setInterval(() => {
+    playI++; applyStep(playI);
+    if (playI >= STEPS.length-1) { clearInterval(playTimer); playTimer = null; playBtn.textContent = 'もう一度 ↺'; }
+  }, 4000);
+};
+$('#gear').onclick = e => { e.preventDefault(); toast('設定（デモでは開きません）'); };
+
+/* ───── メニュー（スマホ） ───── */
+const sheet = $('#sheet'), menuBtn = $('#menuBtn');
+function openMenu(){ sheet.classList.add('open'); sheet.setAttribute('aria-hidden','false'); menuBtn.setAttribute('aria-expanded','true'); sheet.querySelector('button, a').focus(); }
+function closeMenu(){ if (!sheet.classList.contains('open')) return; sheet.classList.remove('open'); sheet.setAttribute('aria-hidden','true'); menuBtn.setAttribute('aria-expanded','false'); menuBtn.focus(); }
+menuBtn.onclick = openMenu; $('#scrim').onclick = closeMenu;
+document.addEventListener('keydown', e => { if (e.key==='Escape') closeMenu(); });
+window.__openMenu = openMenu;
+
+/* ───── 起動 ───── */
+renderRepos(); renderTurn(); renderEvents();
+resize(); addEventListener('resize', () => { resize(); renderEvents(); });
+requestAnimationFrame(now => { last = now; frame(now); });
+document.fonts?.ready.then(() => layout(false));
+})();
+</script>
+</body>
+</html>

@@ -71,6 +71,8 @@ export const LABEL_PADDING = 12;
 const MAX_LANE_HEIGHT = 72;
 /** 公開済みをまとめるのは、この数以上あるとき */
 const CLUSTER_MIN = 2;
+/** 名札だけ左へ出す物がこれより多いときは、公開済みをまとめる方を選ぶ */
+const MAX_AWKWARD = 4;
 
 /** 名札の最小のレーンの高さ（2行ぶん） */
 export function minLaneHeight(fontSize: number): number {
@@ -148,12 +150,12 @@ function attempt(
           const shrunk = chooseVariant(node, room, measure);
           w = shrunk.width;
           variant = shrunk.variant;
-        } else if (k === 7) {
-          // 公開の列：光を右端に置いて、名札を左へ
+        } else if (k === 7 || zone === 0) {
+          // 公開の列（か、右端に公開済みを積まないとき）：光を右端に置いて、名札を左へ
           flip = true;
           x = width - DOT_OFFSET;
         } else {
-          // それ以外の列：光はそのまま、名札だけ左へ
+          // それ以外の列：光はそのまま、名札だけ左へ（右端の帯に入れない）
           flip = true;
         }
       }
@@ -261,7 +263,15 @@ export function layoutFlow(input: LayoutInput): FlowLayout {
   const others = nodes.filter((n) => n.who !== "done");
   const canCluster = dones.length >= CLUSTER_MIN;
 
-  type Candidate = { span: number; clustered: boolean; placed: PlacedNode[]; laneHeight: number; ok: boolean };
+  type Candidate = {
+    span: number;
+    clustered: boolean;
+    placed: PlacedNode[];
+    laneHeight: number;
+    ok: boolean;
+    /** 光はそのままで名札だけ左へ出した数（多いと列が読みにくい） */
+    awkward: number;
+  };
   const candidates: Candidate[] = [];
   for (const span of [3, 2, 1]) {
     for (const clustered of [false, true]) {
@@ -285,14 +295,18 @@ export function layoutFlow(input: LayoutInput): FlowLayout {
         if (stacked) all = [...placed, ...stacked];
         else ok = false;
       }
-      candidates.push({ span, clustered, placed: all, laneHeight, ok });
+      const awkward = placed.filter((p) => p.flip && p.x !== width - DOT_OFFSET).length;
+      candidates.push({ span, clustered, placed: all, laneHeight, ok, awkward });
     }
   }
   // 題名が読める幅（22文字ぶん）があれば、まとめない方を選ぶ。無ければ、入る中でいちばん広い物
   const readable = (c: Candidate) => c.span * columnWidth - DOT_OFFSET - LABEL_GAP - 2 >= fontSize * 22 + 10;
+  // 名札だけ左へ出した物が5つ以上あると列が読みにくいので、そのときは公開済みをまとめる方を選ぶ
+  const tidy = (c: Candidate) => c.awkward <= MAX_AWKWARD;
   const fitting = candidates.filter((c) => c.ok);
   const pick =
-    fitting.find((c) => !c.clustered && readable(c)) ??
+    fitting.find((c) => !c.clustered && readable(c) && tidy(c)) ??
+    fitting.find((c) => readable(c) && tidy(c)) ??
     fitting.find((c) => readable(c)) ??
     fitting.find((c) => !c.clustered) ??
     fitting[0] ??

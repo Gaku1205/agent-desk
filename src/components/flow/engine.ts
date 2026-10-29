@@ -708,7 +708,7 @@ export class FlowEngine {
     }
     rctx.globalAlpha = 1;
     rctx.globalCompositeOperation = "source-over";
-    this.drawFog();
+    this.drawFog(reduced);
     this.drawGiant(now, dt, reduced);
   }
 
@@ -725,9 +725,10 @@ export class FlowEngine {
   }
 
   /** 霧：低解像度で描いて引き伸ばす（すりガラスがこれをぼかす） */
-  private drawFog() {
+  private drawFog(reduced: boolean) {
     this.fogT++;
-    if (this.fogT % 3 !== 1 && this.fogT > 2) return;
+    // 動いているときは3フレームに1回でよい（ゆっくり漂うだけ）。止めているときは描くたびに
+    if (!reduced && this.fogT % 3 !== 1 && this.fogT > 2) return;
     const { fctx, t } = this;
     const w = this.el.fog.width;
     const h = this.el.fog.height;
