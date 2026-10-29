@@ -9,7 +9,8 @@ export default defineConfig({
   outputDir: "./test-results",
   reporter: "list",
   expect: {
-    toHaveScreenshot: { maxDiffPixelRatio: 0.01 },
+    // 画面の1%（約1万画素）まで違っても通すと、名札の文字を足すような小さい変更が通るので、数百画素以下にする
+    toHaveScreenshot: { maxDiffPixels: 100 },
   },
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
