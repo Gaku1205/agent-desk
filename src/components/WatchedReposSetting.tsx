@@ -19,12 +19,14 @@ type Props = {
   options: string[];
   /** `SETTINGS_REPO` が無ければ false（見るだけ） */
   editable: boolean;
+  /** 一覧が変わるたびに、いまのリポジトリ名（`owner/repo`）を知らせる */
+  onListChange?: (names: string[]) => void;
 };
 
 type Status = { kind: "idle" } | { kind: "saved" } | { kind: "error"; message: string };
 
 /** 設定画面の「監視するリポジトリ」。保存はサーバー側（Server Action）で行う */
-export function WatchedReposSetting({ initialRows, options, editable }: Props) {
+export function WatchedReposSetting({ initialRows, options, editable, onListChange }: Props) {
   const [rows, setRows] = useState(initialRows);
   const [selected, setSelected] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
@@ -42,7 +44,9 @@ export function WatchedReposSetting({ initialRows, options, editable }: Props) {
   const current = choices.includes(selected) ? selected : (choices[0] ?? "");
 
   function remove(name: string) {
-    setRows((prev) => prev.filter((row) => row.name !== name));
+    const next = rows.filter((row) => row.name !== name);
+    setRows(next);
+    onListChange?.(next.map((row) => row.name));
     setStatus({ kind: "idle" });
   }
 
@@ -50,6 +54,7 @@ export function WatchedReposSetting({ initialRows, options, editable }: Props) {
     if (!current) return;
     const name = current;
     setRows((prev) => [...prev, { name, pipeline: null }]);
+    onListChange?.([...rows.map((row) => row.name), name]);
     setSelected("");
     setStatus({ kind: "idle" });
     // デモでは GitHub に問い合わせない

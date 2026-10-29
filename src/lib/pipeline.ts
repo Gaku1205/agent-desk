@@ -133,5 +133,7 @@ export function showMoreDeployed(deployedShown: number, deployedTotal: number): 
 export function deployedMoreLabel(view: PipelineView): string | null {
   if (view.deployedRemaining === 0) return null;
   if (view.deployedShown === 0) return `公開済みを表示（${view.deployedTotal}件）`;
+  // 残りが1ページ分以下なら「さらに5件」は嘘になるので、残りの件数をそのまま言う
+  if (view.deployedRemaining <= DEPLOYED_PAGE_SIZE) return `残り${view.deployedRemaining}件を表示`;
   return `さらに${DEPLOYED_PAGE_SIZE}件表示（残り${view.deployedRemaining}件）`;
 }

@@ -116,6 +116,14 @@
   opacity: 0.7;
 }
 
+/* マウスの無い端末ではキーを押せないので、キーの表示を出さない */
+@media (hover: none) {
+  .cancel kbd,
+  .confirm kbd {
+    display: none;
+  }
+}
+
 @media (max-width: 899px) {
   .cancel,
   .confirm {
