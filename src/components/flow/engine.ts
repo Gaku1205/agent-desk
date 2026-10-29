@@ -325,6 +325,9 @@ export class FlowEngine {
   private gRand = seededRandom(11);
   private onScroll = () => {
     this.dirty = true;
+    // 流れが画面の外で止まっていても、スクロールのたびに1回だけ描き直す
+    // （止めた瞬間の1枚が残り、灯った粒が本文の上に居座らないように）
+    if (!this.flowVisible) this.wake();
   };
   private onResize = () => {
     this.resize();
