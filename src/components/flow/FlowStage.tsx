@@ -291,10 +291,13 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                 <StripCaption nodes={nodes.filter((n) => n.at === stripOpen)} onPick={onPick} />
               ) : current ? (
                 <>
-                  <span className={`${styles.capId} num`}>
-                    {current.repo}#{current.number}
+                  {/* 番号と短い説明：PC では光の名札がすでに出しているので隠す（同じ文言を2回出さない）。名札の無いスマホでは出す */}
+                  <span className={styles.capHead}>
+                    <span className={`${styles.capId} num`}>
+                      {current.repo}#{current.number}
+                    </span>
+                    <b>{current.label}</b>
                   </span>
-                  <b>{current.label}</b>
                   <span className={styles.capText}>{current.caption}</span>
                   {current.logUrl && (
                     <a className={styles.capLink} href={current.logUrl} target="_blank" rel="noreferrer">

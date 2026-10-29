@@ -9,6 +9,7 @@ import {
   writeMotion,
   type MotionSetting as Motion,
 } from "@/lib/motion";
+import settingsStyles from "./SettingsSections.module.css";
 import styles from "./MotionSetting.module.css";
 
 const listeners = new Set<() => void>();
@@ -44,16 +45,17 @@ export function MotionSetting() {
   const current = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   return (
-    <div className={styles.segmented} role="radiogroup" aria-label="アニメーション">
+    <div className={styles.choices} role="radiogroup" aria-label="アニメーション">
       {MOTION_OPTIONS.map(({ value, label }) => (
         <button
           key={value}
           type="button"
           role="radio"
           aria-checked={current === value}
-          className={styles.option}
+          className={settingsStyles.toggle}
           onClick={() => choose(value)}
         >
+          <span className={settingsStyles.lamp} aria-hidden="true" />
           {label}
         </button>
       ))}

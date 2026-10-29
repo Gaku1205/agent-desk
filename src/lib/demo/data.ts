@@ -420,6 +420,13 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
     planned: true,
   });
   addLabeled(ctx, 16, "ai:implement", ago(ctx, 9));
+  // もう1件：AIの番の数を「あなたの番」の数とずらす（上端の帯で同じ数が並んでバグに見えないように）
+  addIssue(ctx, 41, "ダークモードに切り替えられるようにする", {
+    createdAt: ago(ctx, 8),
+    labels: ["ai:implement"],
+    planned: true,
+  });
+  addLabeled(ctx, 41, "ai:implement", ago(ctx, 5));
 
   // 順番待ち（理由つき）
   addIssue(ctx, 15, "タスクの一覧を週ごとに分ける", {
@@ -549,6 +556,10 @@ function landingPage(base: Date): RepoData {
 
   // 企画中
   addIssue(ctx, 3, "よくある質問のページを作る", { createdAt: ago(ctx, 1), labels: ["ai:plan"] });
+
+  // AI作業中（上端の帯の件数が、あなたの番の数と同じにならないように）
+  addIssue(ctx, 16, "お知らせの帯を足す", { createdAt: ago(ctx, 12), labels: ["ai:implement"], planned: true });
+  addLabeled(ctx, 16, "ai:implement", ago(ctx, 6));
 
   // 修正の確認中（CIの失敗を直して、CIをやり直している）
   const verifying = addIssue(ctx, 2, "スマホでメニューが開かないのを直す", {
