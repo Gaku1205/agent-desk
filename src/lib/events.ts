@@ -4,6 +4,7 @@ import {
   ciState,
   DEFAULT_STUCK_REASON,
   findLinkedPull,
+  getIssueStatus,
   hasFinishedReviewCheck,
   isClaudeReviewCheck,
   isImplementDoneComment,
@@ -12,6 +13,7 @@ import {
   MAX_AUTO_FIX,
   shouldShowIssue,
   stuckReason,
+  type Stage,
 } from "./status";
 
 /** 出来事の種類（四角の背景とアイコンの色、docs/design.md の「最近の出来事」） */
@@ -271,17 +273,20 @@ export type EventIssue = {
   number: number;
   title: string;
   url: string;
+  /** 今の段階（公開済みの Issue を隠すのに使う） */
+  stage: Stage;
 };
 
 /** Issue ごとにまとめた出来事の1つ（足あと）。`short` は1語の短い文言（docs/design.md の「出来事」） */
 export type TrailEvent = RecentEvent & { short: string; issue: EventIssue };
 
 /** 1リポジトリぶんの出来事（期間で絞る前）。Issue と短い文言つき */
-export function repoTrailEvents(owner: string, repo: string, data: RepoData): TrailEvent[] {
+export function repoTrailEvents(owner: string, repo: string, data: RepoData, now: Date): TrailEvent[] {
   const events: TrailEvent[] = [];
   for (const issue of data.issues) {
     if (!shouldShowIssue(issue, data.pulls)) continue;
-    const issueRef: EventIssue = { owner, repo, number: issue.number, title: issue.title, url: issue.url };
+    const stage = getIssueStatus(issue, data, now).stage;
+    const issueRef: EventIssue = { owner, repo, number: issue.number, title: issue.title, url: issue.url, stage };
     for (const { key, ...draft } of issueEvents(repo, issue, data)) {
       events.push({ id: `${owner}/${repo}#${issue.number}:${key}`, ...draft, issue: issueRef });
     }
@@ -290,8 +295,8 @@ export function repoTrailEvents(owner: string, repo: string, data: RepoData): Tr
 }
 
 /** 1リポジトリぶんの出来事（期間で絞る前） */
-export function repoEvents(owner: string, repo: string, data: RepoData): RecentEvent[] {
-  return repoTrailEvents(owner, repo, data).map(({ id, at, tone, icon, text, ref }) => ({ id, at, tone, icon, text, ref }));
+export function repoEvents(owner: string, repo: string, data: RepoData, now: Date): RecentEvent[] {
+  return repoTrailEvents(owner, repo, data, now).map(({ id, at, tone, icon, text, ref }) => ({ id, at, tone, icon, text, ref }));
 }
 
 /** 直近3日に入る出来事か */
@@ -319,7 +324,7 @@ export function buildTrailEvents(
       ) {
         return [];
       }
-      return repoTrailEvents(result.owner, result.repo, result.data);
+      return repoTrailEvents(result.owner, result.repo, result.data, now);
     })
     .filter((event) => inWindow(event.at, now))
     .sort((a, b) => b.at.localeCompare(a.at) || a.id.localeCompare(b.id))
@@ -333,7 +338,7 @@ export function buildTrailEvents(
 export function buildRecentEvents(results: RepoResult[], now: Date): RecentEvent[] {
   const since = now.getTime() - EVENT_WINDOW_DAYS * DAY_MS;
   return results
-    .flatMap((result) => (result.ok ? repoEvents(result.owner, result.repo, result.data) : []))
+    .flatMap((result) => (result.ok ? repoEvents(result.owner, result.repo, result.data, now) : []))
     .filter((event) => {
       const time = Date.parse(event.at);
       return !Number.isNaN(time) && time >= since && time <= now.getTime();
