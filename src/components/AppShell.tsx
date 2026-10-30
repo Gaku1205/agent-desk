@@ -58,6 +58,23 @@ export function useMenuState(): Pick<ShellState, "menuOpen" | "openMenu" | "clos
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [menuOpen]);
 
+  // 開いている間：メニューの外（帯・ページの中身）を inert にして Tab で裏へ出さず、body のスクロールを止める
+  useEffect(() => {
+    if (!menuOpen) return;
+    const sheet = document.getElementById("menu-sheet");
+    const outside = Array.from(sheet?.parentElement?.children ?? []).filter(
+      (el) => el !== sheet && !el.hasAttribute("inert"),
+    );
+    outside.forEach((el) => el.setAttribute("inert", ""));
+    const { body } = document;
+    const overflow = body.style.overflow;
+    body.style.overflow = "hidden";
+    return () => {
+      outside.forEach((el) => el.removeAttribute("inert"));
+      body.style.overflow = overflow;
+    };
+  }, [menuOpen]);
+
   return { menuOpen, openMenu, closeMenu };
 }
 
