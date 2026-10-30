@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type Ref } from "react";
 import styles from "./Select.module.css";
 
 type Props = {
@@ -10,13 +10,17 @@ type Props = {
   disabled?: boolean;
   /** 読み上げ用の名前 */
   label: string;
+  /** 選べる物が無いときに出す字 */
+  emptyText?: string;
+  /** 閉じているときの押せる箱（フォーカスを移すため） */
+  buttonRef?: Ref<HTMLButtonElement>;
 };
 
 /**
  * 選択欄（標準の `<select>` は使わない。docs/design.md の「設定」）。
  * 押す・Enter・Space・↓ で開き、↑↓ で動かし、Enter で選ぶ、Esc で閉じる。外を押しても閉じる
  */
-export function Select({ options, value, onChange, disabled, label }: Props) {
+export function Select({ options, value, onChange, disabled, label, emptyText, buttonRef }: Props) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(() => Math.max(0, options.indexOf(value)));
   const rootRef = useRef<HTMLDivElement>(null);
@@ -96,6 +100,7 @@ export function Select({ options, value, onChange, disabled, label }: Props) {
     <div className={styles.root} ref={rootRef}>
       <button
         type="button"
+        ref={buttonRef}
         className={styles.button}
         role="combobox"
         aria-label={label}
@@ -107,7 +112,7 @@ export function Select({ options, value, onChange, disabled, label }: Props) {
         onClick={() => (open ? setOpen(false) : show())}
         onKeyDown={onKeyDown}
       >
-        <span className={styles.value}>{value || "（選べる物がありません）"}</span>
+        <span className={styles.value}>{value || emptyText || "（選べる物がありません）"}</span>
         <span className={styles.caret} aria-hidden="true">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
             <path d="M2 3.5h6L5 7z" />
