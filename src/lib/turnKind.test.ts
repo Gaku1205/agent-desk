@@ -11,6 +11,12 @@ describe("turnKind", () => {
     expect(turnKind({ stage: "deployFailed" })).toEqual({ label: "公開失敗", tone: "fail" });
   });
 
+  it("猶予の間（パイプラインが自動で進める）は「PRを作成中」「受付中」", () => {
+    expect(turnKind({ stage: "prWaiting", grace: "creatingPull" })).toEqual({ label: "PRを作成中", tone: "calm" });
+    expect(turnKind({ stage: "notStarted", grace: "intake" })).toEqual({ label: "受付中", tone: "calm" });
+    expect(turnKind({ stage: "prWaiting", grace: null })).toEqual({ label: "PR作成待ち", tone: "calm" });
+  });
+
   it("強い色（human・fail）は止まった・公開失敗だけ", () => {
     const stages = ["stuck", "skipped", "notStarted", "prWaiting", "mergeWaiting", "deployFailed"] as const;
     const strong = stages.filter((stage) => turnKind({ stage }).tone !== "calm");

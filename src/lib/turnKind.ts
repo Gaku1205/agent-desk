@@ -6,7 +6,10 @@ import type { IssueStatus } from "./status";
  */
 export type TurnKind = { label: string; tone: "human" | "fail" | "calm" };
 
-export function turnKind(status: Pick<IssueStatus, "stage">): TurnKind {
+export function turnKind(status: Pick<IssueStatus, "stage"> & Partial<Pick<IssueStatus, "grace">>): TurnKind {
+  // パイプラインが自動で進める間（猶予）は人間の番ではない。押す列には出ないが、札の文言は決めておく
+  if (status.grace === "creatingPull") return { label: "PRを作成中", tone: "calm" };
+  if (status.grace === "intake") return { label: "受付中", tone: "calm" };
   switch (status.stage) {
     case "stuck":
       return { label: "止まった", tone: "human" };

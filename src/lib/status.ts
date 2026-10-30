@@ -1,3 +1,5 @@
+import { isFactoryIssue } from "./factoryIssue";
+import type { PipelineState } from "./pipelineState";
 import { isCountedDeploySuccess, isDeployStatus, isFailedState, latestPerContext } from "./deployStatus";
 import { holdRequestText, humanRequestReason } from "./humanRequest";
 import type { CheckRunData, CommentData, CommitStatusData, IssueData, PullChecks, PullData } from "./github/types";
@@ -72,7 +74,15 @@ export type IssueStatus = {
   fixCount: number;
   /** 直したあとの、CIかレビューの確認中 */
   verifyingFix: boolean;
+  /**
+   * パイプラインが自動で進める間の猶予（誰の番は「AI」）。`creatingPull`＝PR作成待ちの15分、
+   * `intake`＝未着手の10分。猶予でなければ null
+   */
+  grace: Grace | null;
 };
+
+/** パイプラインが自動で進める間の猶予の種類 */
+export type Grace = "creatingPull" | "intake";
 
 export type StatusInput = {
   pulls: PullData[];
@@ -83,6 +93,10 @@ export type StatusInput = {
   mainDeployedByContext?: Record<string, string>;
   /** 公開が無いリポジトリか（`hasNoDeploys` の結果）。渡さなければ pulls と pullChecks から求める */
   noDeploys?: boolean;
+  /** パイプラインが動いているか。`running` のときだけ猶予（`grace`）を使う。無ければ（テストなど）使わない */
+  pipeline?: PipelineState;
+  /** テンプレートリポジトリか（「新サービス：」のIssueには未着手の猶予を使わない） */
+  isTemplate?: boolean;
 };
 
 export const LABEL = {
@@ -100,6 +114,10 @@ const CLAUDE_BOT = "claude[bot]";
 const GITHUB_ACTIONS_APP = "github-actions";
 /** 公開ステータスが無いまま、これだけたったら「公開済み（状況は不明）」にする */
 export const DEPLOY_UNKNOWN_AFTER_MS = 30 * 60 * 1000;
+/** 実装AIの完了コメントから、パイプラインが自動でPRを作るのを待つ間（この間は誰の番も「AI」） */
+export const PULL_GRACE_MS = 15 * 60 * 1000;
+/** Issueを作ってから、パイプラインの受付が `ai:` ラベルを付けるのを待つ間（この間は誰の番も「AI」） */
+export const INTAKE_GRACE_MS = 10 * 60 * 1000;
 /** パイプラインの修正依頼コメントの印と、依頼時の先頭コミット（scripts/pipeline-lib.sh） */
 const AUTO_FIX_MARK = "<!-- auto-fix -->";
 const AUTO_FIX_SHA_PATTERN = /<!--\s*auto-fix-sha:\s*([0-9a-f]+)\s*-->/;
@@ -199,21 +217,37 @@ export function isImplementErrorComment(comment: CommentData): boolean {
   return comment.author === CLAUDE_BOT && comment.body.includes("Claude encountered an error");
 }
 
+/** 実装AIの最後の結果のコメント（完了／エラー。まだ無ければ null） */
+function lastImplementComment(comments: CommentData[], issueNumber: number): CommentData | null {
+  return (
+    comments
+      .filter(
+        (comment) =>
+          comment.issueNumber === issueNumber &&
+          (isImplementDoneComment(comment) || isImplementErrorComment(comment)),
+      )
+      .sort(byCreatedAt)
+      .at(-1) ?? null
+  );
+}
+
 /** 実装AIの最後の結果（完了／エラー／まだ無い） */
 export function implementResult(
   comments: CommentData[],
   issueNumber: number,
 ): "done" | "error" | null {
-  const last = comments
-    .filter(
-      (comment) =>
-        comment.issueNumber === issueNumber &&
-        (isImplementDoneComment(comment) || isImplementErrorComment(comment)),
-    )
-    .sort(byCreatedAt)
-    .at(-1);
+  const last = lastImplementComment(comments, issueNumber);
   if (!last) return null;
   return isImplementDoneComment(last) ? "done" : "error";
+}
+
+/**
+ * `since` から `graceMs` の間か（ちょうど `graceMs` たったら猶予は終わり）。
+ * 時刻が読めないときは false（今までどおり人間の番）
+ */
+export function isWithinGrace(since: string, now: Date, graceMs: number): boolean {
+  const time = Date.parse(since);
+  return !Number.isNaN(time) && now.getTime() - time < graceMs;
 }
 
 /** Claude Reviewのチェック（`claude-review.yml` のジョブ `review`） */
@@ -489,6 +523,7 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
     fixCount: fixes,
     verifyingFix:
       pushedFix && (stage === "reviewing" || stage === "ciRunning" || stage === "ciFailed"),
+    grace: null,
     ...extra,
   });
 
@@ -516,13 +551,27 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
     return result(ci.state === "failed" ? "ciFailed" : "ciRunning");
   }
 
-  const implement = implementResult(input.comments, issue.number);
-  if (implement) return result("prWaiting", { implementError: implement === "error" });
+  const graceApplies = input.pipeline === "running";
+  const implement = lastImplementComment(input.comments, issue.number);
+  if (implement) {
+    const implementError = isImplementErrorComment(implement);
+    const creatingPull =
+      graceApplies && !implementError && isWithinGrace(implement.createdAt, now, PULL_GRACE_MS);
+    return result("prWaiting", {
+      implementError,
+      ...(creatingPull ? { turn: "ai", grace: "creatingPull" } : {}),
+    });
+  }
   if (issue.labels.includes(LABEL.implement)) return result("implementing");
   if (issue.labels.includes(LABEL.plan)) return result("planning");
   if (issue.labels.includes(LABEL.queue)) return result("queued");
   if (issue.state === "open" && issue.labels.includes(LABEL.skip)) return result("skipped");
-  return result("notStarted");
+  const intake =
+    graceApplies &&
+    issue.state === "open" &&
+    !isFactoryIssue(issue.title, input.isTemplate, issue.state) &&
+    isWithinGrace(issue.createdAt, now, INTAKE_GRACE_MS);
+  return result("notStarted", intake ? { turn: "ai", grace: "intake" } : {});
 }
 
 /** Issueの段階と誰の番を決める（docs/spec.md の表を上から順に評価） */
@@ -544,6 +593,7 @@ export function getIssueStatus(issue: IssueData, input: StatusInput, now: Date):
       ...normal,
       stage: "stuck",
       turn: "human",
+      grace: null,
       stageBeforeStuck: base.stage,
       stuckReason:
         stuckReasonFor(input.comments, issue.number, base.pull?.number ?? null) ??
@@ -556,6 +606,7 @@ export function getIssueStatus(issue: IssueData, input: StatusInput, now: Date):
       ...normal,
       stage: "retrying",
       turn: TURN_BY_STAGE.retrying,
+      grace: null,
       stageBeforeRetry: base.stage,
       retry: retryRecord(input.comments, numbers),
     };

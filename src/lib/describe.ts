@@ -68,6 +68,9 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
       };
     }
     case "notStarted":
+      if (status.grace === "intake") {
+        return { long: "パイプラインの受付が、企画に回すか決めています", short: "受付中" };
+      }
       return { long: "まだ誰にも頼んでいません", short: "まだ頼んでいません" };
     case "queued":
       return { long: "前の作業が終わったら自動で始まります", short: "順番待ち" };
@@ -78,6 +81,9 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
     case "implementing":
       return { long: "AIが実装中", short: "AIが実装中" };
     case "prWaiting":
+      if (status.grace === "creatingPull") {
+        return { long: "AIの作業が終わりました。パイプラインがPRを作っています", short: "PRを作成中" };
+      }
       return status.implementError
         ? {
             long: "AIがエラーで止まりました。結果を確認してPRを作ってください",
@@ -137,7 +143,7 @@ export function statusIconSpec(status: IssueStatus): IconSpec {
     case "stuck":
       return spec("cross", "human");
     case "notStarted":
-      return spec("dashed", "human");
+      return status.grace === "intake" ? spec("half", "ai") : spec("dashed", "human");
     case "queued":
     case "retrying":
       return spec("dashed", "idle");
@@ -152,7 +158,7 @@ export function statusIconSpec(status: IssueStatus): IconSpec {
     case "implementing":
       return { shape: "half", tone: "ai", spinning: true };
     case "prWaiting":
-      return spec("half", "human");
+      return spec("half", status.grace === "creatingPull" ? "ai" : "human");
     case "ciFailed":
     case "deployFailed":
       return spec("cross", "fail");

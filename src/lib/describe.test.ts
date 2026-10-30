@@ -19,6 +19,7 @@ function status(overrides: Partial<IssueStatus>): IssueStatus {
     planned: false,
     fixCount: 0,
     verifyingFix: false,
+    grace: null,
     ...overrides,
   };
 }
@@ -55,6 +56,18 @@ describe("describeStatus", () => {
       "保留中",
     ],
     ["未着手", { stage: "notStarted" }, "まだ誰にも頼んでいません", "まだ頼んでいません"],
+    [
+      "未着手（受付中）",
+      { stage: "notStarted", turn: "ai", grace: "intake" },
+      "パイプラインの受付が、企画に回すか決めています",
+      "受付中",
+    ],
+    [
+      "PR作成待ち（PRを作成中）",
+      { stage: "prWaiting", turn: "ai", grace: "creatingPull" },
+      "AIの作業が終わりました。パイプラインがPRを作っています",
+      "PRを作成中",
+    ],
     [
       "順番待ち",
       { stage: "queued", turn: "none" },

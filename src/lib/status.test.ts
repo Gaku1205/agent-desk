@@ -858,3 +858,98 @@ describe("getIssueStatus：修正中・修正の確認中・清書した・修�
     expect(status.stageBeforeStuck).toBe("fixing");
   });
 });
+
+describe("getIssueStatus：パイプラインが自動で進める間の猶予", () => {
+  const MIN = 60 * 1000;
+  const ago = (minutes: number, extraMs = 0) => new Date(NOW.getTime() - minutes * MIN - extraMs).toISOString();
+  const running = (comments: CommentData[]): StatusInput => ({ ...input([], {}, comments), pipeline: "running" });
+  const done = (createdAt: string) => comment({ body: "**Claude finished @Gaku1205's task in 5m**", createdAt });
+
+  it("PR作成待ち：完了コメントから15分未満は AI の番（PRを作成中）", () => {
+    const status = getIssueStatus(issue({ labels: ["ai:implement"] }), running([done(ago(14, 59_000))]), NOW);
+    expect(status.stage).toBe("prWaiting");
+    expect(status.turn).toBe("ai");
+    expect(status.grace).toBe("creatingPull");
+  });
+
+  it("PR作成待ち：ちょうど15分で人間の番に戻る", () => {
+    const status = getIssueStatus(issue({ labels: ["ai:implement"] }), running([done(ago(15))]), NOW);
+    expect(status.turn).toBe("human");
+    expect(status.grace).toBeNull();
+  });
+
+  it("PR作成待ち：15分たてば人間の番", () => {
+    const status = getIssueStatus(issue({ labels: ["ai:implement"] }), running([done(ago(40))]), NOW);
+    expect(status.turn).toBe("human");
+    expect(status.grace).toBeNull();
+  });
+
+  it("PR作成待ち：実装AIがエラーで止まったときは猶予なし", () => {
+    const error = comment({ body: "**Claude encountered an error after 3m**", createdAt: ago(1) });
+    const status = getIssueStatus(issue({ labels: ["ai:implement"] }), running([error]), NOW);
+    expect(status.implementError).toBe(true);
+    expect(status.turn).toBe("human");
+    expect(status.grace).toBeNull();
+  });
+
+  it("PR作成待ち：完了コメントの時刻が読めないときは人間の番", () => {
+    const status = getIssueStatus(issue({ labels: ["ai:implement"] }), running([done("not-a-date")]), NOW);
+    expect(status.turn).toBe("human");
+    expect(status.grace).toBeNull();
+  });
+
+  it("PR作成待ち：パイプラインが動いていない・分からない・渡されないときは猶予なし", () => {
+    for (const pipeline of ["notConfigured", "unknown", undefined] as const) {
+      const status = getIssueStatus(
+        issue({ labels: ["ai:implement"] }),
+        { ...input([], {}, [done(ago(1))]), pipeline },
+        NOW,
+      );
+      expect(status.turn).toBe("human");
+      expect(status.grace).toBeNull();
+    }
+  });
+
+  it("未着手：作ってから10分未満は AI の番（受付中）", () => {
+    const status = getIssueStatus(issue({ createdAt: ago(9, 59_000) }), running([]), NOW);
+    expect(status.stage).toBe("notStarted");
+    expect(status.turn).toBe("ai");
+    expect(status.grace).toBe("intake");
+  });
+
+  it("未着手：ちょうど10分で人間の番に戻る", () => {
+    const status = getIssueStatus(issue({ createdAt: ago(10) }), running([]), NOW);
+    expect(status.turn).toBe("human");
+    expect(status.grace).toBeNull();
+  });
+
+  it("未着手：パイプラインが動いていない・分からないときは猶予なし", () => {
+    for (const pipeline of ["notConfigured", "unknown", undefined] as const) {
+      const status = getIssueStatus(issue({ createdAt: ago(1) }), { ...input(), pipeline }, NOW);
+      expect(status.turn).toBe("human");
+      expect(status.grace).toBeNull();
+    }
+  });
+
+  it("未着手：テンプレートの「新サービス：」のIssueは猶予にしない", () => {
+    const status = getIssueStatus(
+      issue({ title: "新サービス：メモ帳", createdAt: ago(1) }),
+      { ...running([]), isTemplate: true },
+      NOW,
+    );
+    expect(status.turn).toBe("human");
+    expect(status.grace).toBeNull();
+  });
+
+  it("ラベルが付いたIssueや止まった物には猶予を付けない", () => {
+    const planning = getIssueStatus(issue({ labels: ["ai:plan"], createdAt: ago(1) }), running([]), NOW);
+    expect(planning.grace).toBeNull();
+    const stuck = getIssueStatus(
+      issue({ labels: ["ai:implement", "ai:stuck"] }),
+      running([done(ago(1))]),
+      NOW,
+    );
+    expect(stuck.stage).toBe("stuck");
+    expect(stuck.grace).toBeNull();
+  });
+});

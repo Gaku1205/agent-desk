@@ -68,6 +68,15 @@ describe("デモのサンプル", () => {
     expect(all.some((s) => s.stage === "stuck" && s.stuckReason !== null)).toBe(true);
   });
 
+  it("PR作成待ちは、猶予中（AIの番）と猶予を過ぎた物・エラーの物（人間の番）の両方がある", () => {
+    const waiting = statuses().filter((s) => s.stage === "prWaiting");
+    expect(waiting.some((s) => s.turn === "ai" && s.grace === "creatingPull")).toBe(true);
+    expect(waiting.some((s) => s.turn === "human" && !s.implementError)).toBe(true);
+    expect(waiting.some((s) => s.turn === "human" && s.implementError)).toBe(true);
+    const items = buildTurnItems(buildDemoResults(NOW, startPlayback(NOW)), NOW);
+    expect(items.some((item) => item.status.grace !== null)).toBe(false);
+  });
+
   it("マージ後の公開は失敗したが、あとの公開が成功した物は公開済みに出る（失敗のままの物は失敗）", () => {
     const all = statuses();
     const later = all.find((s) => s.pull?.title === "ボタンを押したときの色を変える");

@@ -123,6 +123,7 @@ export function getProgress(status: IssueStatus): Progress {
   let tone: ProgressTone;
   if (status.stage === "stuck") tone = "human";
   else if (status.stage === "retrying") tone = "queue";
+  else if (status.grace) tone = "ai";
   else if (stage === "mergeWaiting") tone = status.turn === "human" ? "human" : "ai";
   else if (confirmingFix) tone = stage === "ciFailed" ? "fail" : "ai";
   else tone = TONE_BY_STAGE[stage];

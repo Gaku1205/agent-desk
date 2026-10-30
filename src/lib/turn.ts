@@ -99,10 +99,12 @@ export function turnButtons(
     case "skipped":
       return [operation("start")];
     case "notStarted":
-      // パイプラインが動いていないと、頼んでも誰も動かないのでボタンを出さない
+      // 受付中（猶予）はパイプラインが進める。動いていないと、頼んでも誰も動かないのでボタンを出さない
+      if (status.grace) return [];
       return data.pipeline === "notConfigured" ? [] : [operation("plan"), operation("implement")];
     case "prWaiting":
-      return [operation("createPull")];
+      // PRを作成中（猶予）はパイプラインが作る
+      return status.grace ? [] : [operation("createPull")];
     case "mergeWaiting":
       if (status.mergeWait !== "hold") return [];
       return needsReviewRequest(status, data)
