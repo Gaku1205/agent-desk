@@ -1,10 +1,11 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
 import { PLAY_BUTTON_LABEL } from "@/lib/demo/playback";
 import { formatResetTime, formatSyncTime, getDisplayedSyncTime } from "@/lib/refresh";
+import { revealScrollLeft } from "@/lib/tabScroll";
 import type { TurnCounts } from "@/lib/turn";
 import { useShell } from "./AppShell";
 import { useDemo } from "./DemoContext";
@@ -36,8 +37,16 @@ type Props = {
  */
 function Counts({ turn, running, labeled }: { turn: number; running: number; labeled: boolean }) {
   const text = `あなたの番 ${turn}件、AIが動いている ${running}件`;
+  // 押した札の点：次の画面が出るまで脈打つ（動きを減らすときは色だけ）。<Link> の子の部品の中で使う
+  const { pending } = useLinkStatus();
   return (
-    <i className={`${styles.counts} num`} aria-label={text} title={text} data-labeled={labeled ? "" : undefined}>
+    <i
+      className={`${styles.counts} num`}
+      aria-label={text}
+      title={text}
+      data-labeled={labeled ? "" : undefined}
+      data-pending={pending ? "" : undefined}
+    >
       <b className={styles.countTurn} aria-hidden="true">
         {labeled && <span className={styles.countName}>あなたの番</span>}
         {turn}
@@ -57,6 +66,19 @@ function CountsKey() {
       <span className={styles.keyTurn}>あなたの番</span>
       <span className={styles.keyRunning}>AI</span>
     </span>
+  );
+}
+
+/** 「設定」リンクの中身：押したあと次の画面が出るまで、歯車が脈打つ */
+function SettingsLabel() {
+  const { pending } = useLinkStatus();
+  return (
+    <>
+      <span className={styles.gearIcon} data-pending={pending ? "" : undefined}>
+        <GearIcon />
+      </span>
+      設定
+    </>
   );
 }
 
@@ -90,8 +112,24 @@ export function RepoTabs({
   const pathname = usePathname();
   const isCurrent = (href: string) => pathname.toLowerCase() === href.toLowerCase();
   const home = basePath || "/";
+  const navRef = useRef<HTMLElement>(null);
+  // 札が増えて横にスクロールするとき、今いる札が見える位置に来る（動きは付けない）
+  useEffect(() => {
+    const nav = navRef.current;
+    const current = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !current || nav.scrollWidth <= nav.clientWidth) return;
+    const itemLeft = current.getBoundingClientRect().left - nav.getBoundingClientRect().left + nav.scrollLeft;
+    nav.scrollLeft = revealScrollLeft({
+      scrollLeft: nav.scrollLeft,
+      viewportWidth: nav.clientWidth,
+      scrollWidth: nav.scrollWidth,
+      itemLeft,
+      itemWidth: current.offsetWidth,
+      edge: 20,
+    });
+  }, [pathname]);
   return (
-    <nav className={styles.repos} aria-label="リポジトリ">
+    <nav className={styles.repos} aria-label="リポジトリ" ref={navRef}>
       <Link
         href={home}
         className={styles.tab}
@@ -216,8 +254,7 @@ export function TopBar(props: Props) {
             className={styles.gear}
             aria-current={pathname.toLowerCase() === settingsHref ? "page" : undefined}
           >
-            <GearIcon />
-            設定
+            <SettingsLabel />
           </Link>
           {props.login && props.logout && (
             <form action={props.logout} className={styles.user}>
@@ -256,8 +293,7 @@ function MenuSheet(props: Props) {
         <RepoTabs {...props} onPick={closeMenu} />
         <span className={styles.lbl}>ほか</span>
         <Link href={`${props.basePath ?? ""}/settings`} className={styles.lnk} onClick={closeMenu}>
-          <GearIcon />
-          設定
+          <SettingsLabel />
         </Link>
         {props.extraLinks}
         <div className={styles.foot}>

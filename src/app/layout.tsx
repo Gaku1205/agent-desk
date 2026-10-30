@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist, IBM_Plex_Sans_JP } from "next/font/google";
 import { MOTION_INIT_SCRIPT } from "@/lib/motion";
 import "./globals.css";
@@ -30,6 +30,9 @@ export const metadata: Metadata = {
   title: "agent-desk",
   description: "AIに開発を任せるときの進行状況と、人間の判断待ちを1画面で",
 };
+
+/** スマホのアドレスバーの色：docs/design.md の `--bg` */
+export const viewport: Viewport = { themeColor: "#0b0c10" };
 
 /** 全ページ共通の骨組み。ログインの確認は (app)/layout.tsx、デモは demo/layout.tsx */
 export default function RootLayout({
