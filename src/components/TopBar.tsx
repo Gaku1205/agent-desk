@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
+import { useFormStatus } from "react-dom";
 import { PLAY_BUTTON_LABEL } from "@/lib/demo/playback";
 import { formatResetTime, formatSyncTime, getDisplayedSyncTime } from "@/lib/refresh";
 import type { TurnCounts } from "@/lib/turn";
@@ -222,9 +223,7 @@ export function TopBar(props: Props) {
           {props.login && props.logout && (
             <form action={props.logout} className={styles.user}>
               <span className={`${styles.login} num`}>{props.login}</span>
-              <button type="submit" className={styles.logout}>
-                ログアウト
-              </button>
+              <LogoutButton />
             </form>
           )}
         </div>
@@ -267,13 +266,21 @@ function MenuSheet(props: Props) {
           {props.login && props.logout && (
             <form action={props.logout} className={styles.user}>
               <span className={`${styles.login} num`}>{props.login}</span>
-              <button type="submit" className={styles.logout}>
-                ログアウト
-              </button>
+              <LogoutButton />
             </form>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+/** ログアウトのボタン（PCの帯とスマホのメニューで同じ）：送信の最中は文言を変え、押せなくする */
+function LogoutButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" className={styles.logout} disabled={pending}>
+      {pending ? "ログアウト中…" : "ログアウト"}
+    </button>
   );
 }

@@ -5,6 +5,7 @@ import { DEMO_BASE_PATH } from "@/lib/demo/data";
 import { getLoginScope } from "@/lib/loginScope";
 import { PROGRESS_STAGE_NAMES } from "@/lib/progress";
 import { Backdrop } from "./Backdrop";
+import { LoginSubmit } from "./LoginSubmit";
 import styles from "./LoginScreen.module.css";
 
 /** ログイン画面：川の上に、画面いっぱいの極太のワードマークと、ログインのボタンだけ（スマホは上に段階の一覧） */
@@ -33,9 +34,7 @@ export function LoginScreen() {
         </h1>
         <div className={styles.actions}>
           <form action={login}>
-            <button type="submit" className={styles.button}>
-              GitHubでログイン
-            </button>
+            <LoginSubmit />
           </form>
           <Link className={styles.demoLink} href={DEMO_BASE_PATH}>
             ログインせずにデモを見る
