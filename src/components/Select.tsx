@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type Ref } from "react";
+import { typeahead, type TypeaheadState } from "@/lib/typeahead";
 import styles from "./Select.module.css";
 
 type Props = {
@@ -18,7 +19,7 @@ type Props = {
 
 /**
  * 選択欄（標準の `<select>` は使わない。docs/design.md の「設定」）。
- * 押す・Enter・Space・↓ で開き、↑↓ で動かし、Enter で選ぶ、Esc で閉じる。外を押しても閉じる
+ * 押す・Enter・Space・↓ で開き、↑↓ で動かし、文字を打てばその文字で始まる候補へ移り、Enter で選ぶ、Esc で閉じる。外を押しても閉じる
  */
 export function Select({ options, value, onChange, disabled, label, emptyText, buttonRef }: Props) {
   const [open, setOpen] = useState(false);
@@ -26,6 +27,7 @@ export function Select({ options, value, onChange, disabled, label, emptyText, b
   const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const id = useId();
+  const typed = useRef<TypeaheadState>({ text: "", at: 0 });
 
   useEffect(() => {
     if (!open) return;
@@ -93,6 +95,15 @@ export function Select({ options, value, onChange, disabled, label, emptyText, b
       case "Tab":
         setOpen(false);
         break;
+      default: {
+        if (event.ctrlKey || event.metaKey || event.altKey) break;
+        const result = typeahead(typed.current, event.key, Date.now(), options);
+        typed.current = result.state;
+        if (result.index === null) break;
+        event.preventDefault();
+        if (!open) setOpen(true);
+        setActive(result.index);
+      }
     }
   }
 

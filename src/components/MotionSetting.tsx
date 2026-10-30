@@ -1,6 +1,7 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useRef, useSyncExternalStore, type KeyboardEvent } from "react";
+import { rovingNext } from "@/lib/roving";
 import {
   MOTION_OPTIONS,
   applyMotion,
@@ -43,15 +44,29 @@ function choose(setting: Motion) {
 /** 「アニメーション」の切り替え。選んだらすぐ反映する（保存ボタンなし） */
 export function MotionSetting() {
   const current = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const next = rovingNext(event.key, index, MOTION_OPTIONS.length);
+    if (next === null) return;
+    event.preventDefault();
+    choose(MOTION_OPTIONS[next].value);
+    refs.current[next]?.focus();
+  }
 
   return (
     <div className={styles.choices} role="radiogroup" aria-label="アニメーション">
-      {MOTION_OPTIONS.map(({ value, label }) => (
+      {MOTION_OPTIONS.map(({ value, label }, index) => (
         <button
           key={value}
+          ref={(el) => {
+            refs.current[index] = el;
+          }}
           type="button"
           role="radio"
           aria-checked={current === value}
+          tabIndex={current === value ? 0 : -1}
+          onKeyDown={(event) => onKeyDown(event, index)}
           className={settingsStyles.toggle}
           onClick={() => choose(value)}
         >
