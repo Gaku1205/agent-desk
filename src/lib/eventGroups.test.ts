@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildDemoResults } from "./demo/data";
 import { startPlayback } from "./demo/playback";
-import { groupTrailDays, groupTrails, jstDay, trailLimit } from "./eventGroups";
+import { groupTrailDays, groupTrails, jstDay } from "./eventGroups";
 import { buildRecentEvents, buildTrailEvents, type TrailEvent } from "./events";
 
 const NOW = new Date("2026-10-25T08:00:00Z"); // 日本時間 10月25日 17:00
@@ -91,13 +91,5 @@ describe("buildTrailEvents", () => {
     for (const s of ["PRができた", "CI 4/4", "レビュー済", "自動でマージ", "本番に公開", "実装を依頼"]) {
       expect(shorts.has(s), s).toBe(true);
     }
-  });
-});
-
-describe("trailLimit", () => {
-  it("広いほど多く出す", () => {
-    expect(trailLimit(2560)).toBe(10);
-    expect(trailLimit(1280)).toBe(6);
-    expect(trailLimit(390)).toBe(5);
   });
 });

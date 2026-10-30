@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { rovingNext } from "@/lib/roving";
-import { groupTrailDays, trailLimit } from "@/lib/eventGroups";
+import { groupTrailDays } from "@/lib/eventGroups";
 import type { TrailEvent } from "@/lib/events";
 import { TriangleDownIcon } from "./icons";
 import { SmartLink } from "./SmartLink";
@@ -21,23 +21,16 @@ export function Trails({ events, now, hint }: Props) {
   const days = groupTrailDays(events, new Date(now));
   const [day, setDay] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  const [limit, setLimit] = useState(6);
   const baseId = useId();
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // 前の描画の出来事（新しく入った物を見分ける）
   const [seen, setSeen] = useState<{ events: TrailEvent[]; ids: Set<string> | null }>({ events, ids: null });
   if (seen.events !== events) setSeen({ events, ids: new Set(seen.events.map((e) => e.id)) });
 
-  useEffect(() => {
-    const update = () => setLimit(trailLimit(window.innerWidth));
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-
   const current = days.find((d) => d.day === day) ?? days[0] ?? null;
-  const list = current ? (open ? current.trails : current.trails.slice(0, limit)) : [];
-  const rest = current ? current.trails.length - list.length : 0;
+  // 全件を描き、幅ごとに隠す件数は CSS で決める（1500px以上10件・900px以上6件・それ未満5件）
+  const list = current ? current.trails : [];
+  const total = list.length;
 
   // 前の描画に無かった出来事を持つ列を「新しい」として、上からすっと入れる
   const fresh = new Set<string>();
@@ -105,6 +98,7 @@ export function Trails({ events, now, hint }: Props) {
             id={days.length > 1 ? panelId : undefined}
             aria-labelledby={days.length > 1 && current ? tabId(current.day) : undefined}
           >
+            <div className={styles.groups} data-open={open ? "" : undefined}>
             {list.map((trail) => (
               <article className={styles.group} data-new={fresh.has(trail.key) ? "" : undefined} key={trail.key}>
                 <div className={styles.groupHead}>
@@ -122,15 +116,31 @@ export function Trails({ events, now, hint }: Props) {
                         {step.time}
                       </time>
                       <i aria-hidden="true" />
-                      {step.short}
+                      <span>{step.short}</span>
                     </li>
                   ))}
                 </ul>
               </article>
             ))}
-            {current && current.trails.length > limit && (
-              <button type="button" className={styles.more} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-                {open ? "たたむ" : `残り${rest}件を見る`}
+            </div>
+            {total > 5 && (
+              <button
+                type="button"
+                className={styles.more}
+                data-over6={total > 6 ? "" : undefined}
+                data-over10={total > 10 ? "" : undefined}
+                aria-expanded={open}
+                onClick={() => setOpen((o) => !o)}
+              >
+                {open ? (
+                  "たたむ"
+                ) : (
+                  <>
+                    <span className={styles.rest10}>残り{total - 10}件を見る</span>
+                    <span className={styles.rest6}>残り{total - 6}件を見る</span>
+                    <span className={styles.rest5}>残り{total - 5}件を見る</span>
+                  </>
+                )}
                 <span className={styles.caret}>
                   <TriangleDownIcon />
                 </span>
