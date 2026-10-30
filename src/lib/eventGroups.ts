@@ -82,10 +82,3 @@ export function groupTrailDays(events: TrailEvent[], now: Date): TrailDay[] {
       return { heading: dayHeading(list[0].at, now), day, trails, count: trails.length };
     });
 }
-
-/** 一度に出す Issue の数（残りは「残りN件を見る」で開く）。幅で変える（docs/design.md） */
-export function trailLimit(viewportWidth: number): number {
-  if (viewportWidth >= 1500) return 10;
-  if (viewportWidth >= 900) return 6;
-  return 5;
-}

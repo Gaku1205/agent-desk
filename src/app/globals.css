@@ -80,6 +80,7 @@ body {
 a {
   color: inherit;
   text-decoration: none;
+  touch-action: manipulation;
 }
 
 button {
@@ -90,6 +91,7 @@ button {
   color: inherit;
   font: inherit;
   cursor: pointer;
+  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 

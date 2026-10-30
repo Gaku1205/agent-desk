@@ -81,6 +81,23 @@
   border-top: 1px solid var(--hair-2);
 }
 
+/* 閉じているときの件数は幅ごとに CSS で隠す：1500px以上10件・900px以上6件・それ未満5件 */
+.groups:not([data-open]) .group:nth-child(n + 6) {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .groups:not([data-open]) .group:nth-child(6) {
+    display: block;
+  }
+}
+
+@media (min-width: 1500px) {
+  .groups:not([data-open]) .group:nth-child(n + 7):nth-child(-n + 10) {
+    display: block;
+  }
+}
+
 .group:first-child {
   border-top-color: transparent;
 }
@@ -133,9 +150,18 @@
   display: inline-flex;
   gap: 6px;
   align-items: center;
+  max-width: 100%;
+  overflow: hidden;
   color: var(--bone-2);
   font-size: 12.5px;
   white-space: nowrap;
+}
+
+/* 幅を超える足あとは「…」で省く（折り返さない） */
+.trail li span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .trail time {
@@ -191,6 +217,40 @@
   margin-top: 8px;
   color: var(--bone-2);
   font-size: 12.5px;
+}
+
+/* 残りの数は幅ごとの件数に合わせる。隠れる件が無い幅ではボタンも出さない */
+.rest10,
+.rest6 {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .more:not([data-over6], [aria-expanded="true"]) {
+    display: none;
+  }
+
+  .more .rest5 {
+    display: none;
+  }
+
+  .more .rest6 {
+    display: inline;
+  }
+}
+
+@media (min-width: 1500px) {
+  .more:not([data-over10], [aria-expanded="true"]) {
+    display: none;
+  }
+
+  .more .rest6 {
+    display: none;
+  }
+
+  .more .rest10 {
+    display: inline;
+  }
 }
 
 .more:hover {

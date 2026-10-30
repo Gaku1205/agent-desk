@@ -341,7 +341,8 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
               className={styles.caption}
               data-on={current || clusterOn || stripOpen !== null ? "" : undefined}
               data-pinned={caption?.pinned || stripOpen !== null ? "" : undefined}
-              aria-live="polite"
+              // 乗せただけでは読み上げない（名札の aria-label と二重になる）。固定したときだけ
+              aria-live={caption?.pinned || stripOpen !== null ? "polite" : undefined}
               style={
                 {
                   // 強い色は急ぐ物（止まった・公開失敗）だけ

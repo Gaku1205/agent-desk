@@ -174,9 +174,9 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
         </span>
         <span className={`${styles.wait} num`}>{wait}</span>
       </div>
-      <h3 className={styles.title}>
+      <h2 className={styles.title}>
         <SmartLink href={issue.url}>{issue.title}</SmartLink>
-      </h3>
+      </h2>
       {lines ? (
         <ul className={styles.lines} aria-label="マージの前の確認">
           {lines.map((line) => (
