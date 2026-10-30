@@ -1,10 +1,11 @@
 "use server";
 
-import { refresh, updateTag } from "next/cache";
+import { refresh } from "next/cache";
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
 import { getAllowedLogins } from "@/lib/config";
 import { GitHubClient } from "@/lib/github/client";
 import { fetchRepoData } from "@/lib/github/fetch";
+import { invalidateRepoNow } from "@/lib/github/repoCache";
 import {
   authorizeOperation,
   executeOperation,
@@ -14,7 +15,6 @@ import {
   type OperationResult,
 } from "@/lib/operations";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
-import { repoTag } from "@/lib/webhook";
 
 /** 「あなたの番」のボタンの操作。トークンはサーバー側だけで使い、結果には含めない */
 export async function runOperation(value: unknown): Promise<OperationResult> {
@@ -42,7 +42,7 @@ export async function runOperation(value: unknown): Promise<OperationResult> {
   }
   if (result.ok || result.changed) {
     // 押した結果をすぐ出すため、Webhook を待たずにキャッシュを無効にする
-    updateTag(repoTag(auth.target));
+    invalidateRepoNow(auth.target);
     refresh();
   }
   return result;
@@ -51,7 +51,7 @@ export async function runOperation(value: unknown): Promise<OperationResult> {
 /** 手で押す「同期」。監視リポジトリのキャッシュを無視して、すぐ取り直す */
 export async function syncNow(): Promise<void> {
   if (await getSignedInLogin()) {
-    for (const repo of (await loadWatchedRepos()).repos) updateTag(repoTag(repo));
+    for (const repo of (await loadWatchedRepos()).repos) invalidateRepoNow(repo);
   }
   refresh();
 }

@@ -76,9 +76,15 @@ describe("POST /api/github/webhook", () => {
     const response = await POST(webhookRequest(BODY));
     expect(response.status).toBe(202);
 
-    await new Promise((resolve) => setTimeout(resolve, 2));
-    expect((await cachedRepoData(REPO, load)).mainDeployedAt).toBe("v2");
-    expect(await getChangeMark(REPO)).not.toBe(markBefore);
+    // 前に取ってから15秒あくまでは取り直さない（下限）。あいたら取り直す
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 15_000);
+    try {
+      expect((await cachedRepoData(REPO, load)).mainDeployedAt).toBe("v2");
+      expect(await getChangeMark(REPO)).not.toBe(markBefore);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("署名が違う・無いときは 401 で、キャッシュはそのまま", async () => {
