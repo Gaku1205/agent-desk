@@ -59,6 +59,41 @@ export function getAutoRefreshPlan(input: {
   return { intervalMs: null, resumeAt: new Date(resetMs) };
 }
 
+/** Webhook で取り直すリポジトリしか無いときの、保険の取り直しの間隔（キャッシュの寿命と同じ5分） */
+export const WEBHOOK_FALLBACK_REFRESH_INTERVAL_MS = 5 * 60_000;
+
+/**
+ * Webhook で「変わった」ときだけ取り直すリポジトリ（App の鍵で読んだ物）と、今までどおりの間隔の取り直しが要るか。
+ * Webhook を使わない設定なら、全部を今までどおりの間隔で取り直す。リポジトリは `owner/repo`
+ */
+export function getChangeWatchPlan(
+  results: RepoResult[],
+  webhookEnabled: boolean,
+): { changeRepos: string[]; needsIntervalRefresh: boolean } {
+  if (!webhookEnabled) return { changeRepos: [], needsIntervalRefresh: true };
+  const changeRepos = results
+    .filter((result) => result.readSource === "app")
+    .map((result) => `${result.owner}/${result.repo}`);
+  return {
+    changeRepos,
+    needsIntervalRefresh: changeRepos.length === 0 || changeRepos.length < results.length,
+  };
+}
+
+/**
+ * 画面が使う自動の取り直しの間隔。「変わった」印を見ていて、今までどおりの間隔が要らないときは5分ごと（保険）。
+ * 止めている（`planned` が null）ときは null のまま
+ */
+export function getIntervalWhileWatching(input: {
+  planned: number | null;
+  watching: boolean;
+  needsIntervalRefresh: boolean;
+}): number | null {
+  const { planned, watching, needsIntervalRefresh } = input;
+  if (planned === null || !watching || needsIntervalRefresh) return planned;
+  return WEBHOOK_FALLBACK_REFRESH_INTERVAL_MS;
+}
+
 /** 速い更新（20秒ごと）の間か。同期の横の点を光らせるかどうかに使う */
 export function isFastRefresh(intervalMs: number): boolean {
   return intervalMs === BUSY_REFRESH_INTERVAL_MS;

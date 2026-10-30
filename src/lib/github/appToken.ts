@@ -174,6 +174,25 @@ async function userCanRead(
 }
 
 /**
+ * ログインした人がいない所（Webhook の受け取り）で、そのリポジトリの App のインストールの鍵だけを取る。
+ * 設定の監視リポジトリ（Variable）を読むのに使う。環境変数が無い・App が入っていない・鍵が取れないときは null
+ */
+export async function resolveAppAccess(
+  repo: WatchedRepo,
+  options: { env?: Env; fetcher?: Fetcher; nowMs?: number } = {},
+): Promise<ReadAccess | null> {
+  const fetcher = options.fetcher ?? fetch;
+  const nowMs = options.nowMs ?? Date.now();
+  const credentials = readAppCredentials(options.env);
+  if (!credentials) return null;
+  const installationId = await findInstallationId(credentials, repo, fetcher, nowMs);
+  if (installationId === null) return null;
+  const token = await getInstallationToken(credentials, installationId, fetcher, nowMs);
+  if (token === null) return null;
+  return { token, keyId: installationKeyId(installationId) };
+}
+
+/**
  * 同期の読み取りに使う App のインストールの鍵。使えないときは null（ログインした人のトークンで読む）。
  * 環境変数が無い・App が入っていない・鍵が取れない・ログインした人が読めると確かめられない、のどれでも null
  */

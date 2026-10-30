@@ -1,9 +1,11 @@
 import { generateKeyPairSync } from "node:crypto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { WatchedRepo } from "../config";
 import { appTokenCacheForTest, getReadRateLimit, lowestRateLimit } from "./appToken";
 import { etagCacheForTest } from "./client";
 import { fetchAllRepos, mainDeployedCacheForTest } from "./fetch";
 import { rateLimitForTest } from "./rateLimit";
+import type { RepoData } from "./types";
 
 const USER_TOKEN = "ghp_user_token_value";
 const APP_TOKEN = "ghs_installation_token_value";
@@ -96,6 +98,35 @@ describe("同期の読み取りの鍵の選び方", () => {
     const [result] = await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: {} });
     expect(result.ok).toBe(true);
     expect(calls.every((c) => c.auth === `Bearer ${USER_TOKEN}`)).toBe(true);
+  });
+
+  it("App の鍵で読む物だけ readAppData（キャッシュ）を通し、読んだ鍵を readSource に入れる", async () => {
+    const { fetcher } = fakeGitHub();
+    const readAppData = vi.fn((_repo: WatchedRepo, load: () => Promise<RepoData>) => load());
+    const [viaApp] = await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: ENV, readAppData });
+    expect(viaApp.readSource).toBe("app");
+    expect(readAppData).toHaveBeenCalledTimes(1);
+    expect(readAppData.mock.calls[0][0]).toEqual(REPOS[0]);
+
+    readAppData.mockClear();
+    const [viaUser] = await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: {}, readAppData });
+    expect(viaUser.readSource).toBe("user");
+    expect(readAppData).not.toHaveBeenCalled();
+  });
+
+  it("覚えた物（readAppData）が返す物をそのまま使い、GitHub には問い合わせない", async () => {
+    const { fetcher, calls } = fakeGitHub();
+    const [first] = await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: ENV });
+    if (!first.ok) throw new Error("取れていない");
+    const before = calls.length;
+    const [second] = await fetchAllRepos(USER_TOKEN, REPOS, {
+      fetcher,
+      now: NOW,
+      env: ENV,
+      readAppData: async () => first.data,
+    });
+    expect(second.ok && second.data).toEqual(first.data);
+    expect(dataCalls(calls.slice(before))).toHaveLength(0);
   });
 
   it("環境変数の鍵が読めないときも、ログインした人のトークンで読む", async () => {

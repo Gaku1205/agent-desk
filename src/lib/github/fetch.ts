@@ -21,6 +21,7 @@ import { judgePipelineState, type PipelineProbe, type PipelineState } from "../p
 import { isDeployStatus } from "../deployStatus";
 import { deployState, isIssueLinkedPull, latestSuccessDeployByContext } from "../status";
 import type { WatchdogLastRun } from "../watchdogState";
+import { cachedRepoData } from "./repoCache";
 import { PIPELINE_WORKFLOW_PATH } from "./settings";
 import type { CommitStatusData, PullChecks, PullData, RepoData, RepoResult } from "./types";
 
@@ -253,33 +254,45 @@ async function fetchPullChecks(
   return { checkRuns: [], statuses };
 }
 
-/** 監視リポジトリ全部を取る。1つが失敗しても、ほかは取れる（エラーはリポジトリごとに返す） */
+/**
+ * 監視リポジトリ全部を取る。1つが失敗しても、ほかは取れる（エラーはリポジトリごとに返す）。
+ * `readAppData` を渡すと、App の鍵で読むリポジトリはそれを通して取る（キャッシュに覚えるため）
+ */
 export async function fetchAllRepos(
   token: string,
   repos: WatchedRepo[],
-  options: { fetcher?: Fetcher; now?: Date; env?: Env } = {},
+  options: {
+    fetcher?: Fetcher;
+    now?: Date;
+    env?: Env;
+    readAppData?: (repo: WatchedRepo, load: () => Promise<RepoData>) => Promise<RepoData>;
+  } = {},
 ): Promise<RepoResult[]> {
   const userClient = new GitHubClient(token, options.fetcher);
   return Promise.all(
     repos.map(async (repo): Promise<RepoResult> => {
       const { owner, repo: name } = repo;
+      // 読み取りは、使えるときだけ App のインストールの鍵で行う（無ければログインした人のトークン）
+      const access = await resolveReadAccess(token, repo, {
+        env: options.env,
+        fetcher: options.fetcher,
+        nowMs: options.now?.getTime(),
+      }).catch(() => null);
+      const readSource = access ? "app" : "user";
       try {
-        // 読み取りは、使えるときだけ App のインストールの鍵で行う（無ければログインした人のトークン）
-        const access = await resolveReadAccess(token, repo, {
-          env: options.env,
-          fetcher: options.fetcher,
-          nowMs: options.now?.getTime(),
-        }).catch(() => null);
-        const client = access
-          ? new GitHubClient(access.token, options.fetcher, {
-              source: "app",
-              keyId: access.keyId,
-            })
-          : userClient;
-        const data = await fetchRepoData(client, repo, options.now);
-        return { owner, repo: name, ok: true, data };
+        if (!access) {
+          const data = await fetchRepoData(userClient, repo, options.now);
+          return { owner, repo: name, ok: true, data, readSource };
+        }
+        const client = new GitHubClient(access.token, options.fetcher, {
+          source: "app",
+          keyId: access.keyId,
+        });
+        const load = () => fetchRepoData(client, repo, options.now);
+        const data = await (options.readAppData ? options.readAppData(repo, load) : load());
+        return { owner, repo: name, ok: true, data, readSource };
       } catch (error) {
-        return { owner, repo: name, ok: false, error: toErrorInfo(error) };
+        return { owner, repo: name, ok: false, error: toErrorInfo(error), readSource };
       }
     }),
   );
@@ -287,10 +300,11 @@ export async function fetchAllRepos(
 
 /**
  * 1回のリクエスト（サーバーのレンダリング）の中では、同じ引数なら取得結果を使い回す。
- * React の cache は引数を参照で比べるので、リポジトリは文字列にして渡す
+ * React の cache は引数を参照で比べるので、リポジトリは文字列にして渡す。
+ * App の鍵で読むリポジトリは、Next.js のキャッシュ（`cachedRepoData`。タグ `repo:<owner>/<repo>`）を通す
  */
 const fetchAllReposOnce = cache((token: string, reposKey: string) =>
-  fetchAllRepos(token, JSON.parse(reposKey) as WatchedRepo[]),
+  fetchAllRepos(token, JSON.parse(reposKey) as WatchedRepo[], { readAppData: cachedRepoData }),
 );
 
 export function getRepoResults(token: string, repos: WatchedRepo[]): Promise<RepoResult[]> {

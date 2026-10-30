@@ -104,11 +104,15 @@ export type GitHubErrorKind =
   | "rate_limited"
   | "other";
 
+/** 同期の読み取りに使った鍵。`app` はキャッシュに覚え、Webhook で取り直す（無ければ `user` と同じ扱い） */
+export type ReadSource = "app" | "user";
+
 export type RepoResult =
-  | { owner: string; repo: string; ok: true; data: RepoData }
+  | { owner: string; repo: string; ok: true; data: RepoData; readSource?: ReadSource }
   | {
       owner: string;
       repo: string;
       ok: false;
       error: { kind: GitHubErrorKind; message: string };
+      readSource?: ReadSource;
     };

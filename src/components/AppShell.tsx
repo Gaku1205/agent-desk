@@ -11,7 +11,14 @@ import {
   useTransition,
   type ReactNode,
 } from "react";
-import { isFastRefresh, startAutoRefresh, startResumeRefresh } from "@/lib/refresh";
+import { syncNow } from "@/app/actions";
+import { parseChangeMarks, startChangeWatch, type ChangeMarksResult } from "@/lib/changeMarks";
+import {
+  getIntervalWhileWatching,
+  isFastRefresh,
+  startAutoRefresh,
+  startResumeRefresh,
+} from "@/lib/refresh";
 import { KeyboardHelp } from "./KeyboardHelp";
 
 export type ShellState = {
@@ -78,11 +85,22 @@ export function useMenuState(): Pick<ShellState, "menuOpen" | "openMenu" | "clos
   return { menuOpen, openMenu, closeMenu };
 }
 
+/** 「変わった」印を `/api/changes` から読む。404 は Webhook を使わない設定 */
+async function loadChangeMarks(repos: string[]): Promise<ChangeMarksResult> {
+  const query = repos.map((repo) => `repo=${encodeURIComponent(repo)}`).join("&");
+  const response = await fetch(`/api/changes?${query}`, { cache: "no-store" });
+  if (response.status === 404) return "unavailable";
+  if (!response.ok) return null;
+  return parseChangeMarks(await response.json());
+}
+
 /** 自動更新・更新ボタン・スマホのメニューの開閉を、画面全体で共有する */
 export function AppShell({
   initialSyncedAt,
   refreshIntervalMs,
   resumeAt,
+  changeRepos,
+  needsIntervalRefresh,
   children,
 }: {
   /** サーバーが最初に取った時刻（ISO文字列） */
@@ -91,6 +109,10 @@ export function AppShell({
   refreshIntervalMs: number | null;
   /** 自動更新を止めているとき、再開する時刻（ISO文字列） */
   resumeAt: string | null;
+  /** Webhook で「変わった」ときだけ取り直すリポジトリ（`owner/repo`） */
+  changeRepos: string[];
+  /** 今までどおりの間隔の取り直しが要るか（ログインした人のトークンで読むリポジトリがある） */
+  needsIntervalRefresh: boolean;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -99,13 +121,32 @@ export function AppShell({
   const [syncedAt, setSyncedAt] = useState(() => new Date(initialSyncedAt));
   const [requestedAt, setRequestedAt] = useState(syncedAt);
   const [refreshCount, setRefreshCount] = useState({ pathname, count: 0 });
+  // `/api/changes` が 404 だった（Webhook を使わない設定）。今までどおりの間隔に戻す
+  const [changesUnavailable, setChangesUnavailable] = useState(false);
+  // 取り直しのたびに配列は新しくなるので、中身が同じなら見張りを続ける
+  const changeReposKey = changeRepos.join(",");
+  const watching = changeReposKey !== "" && !changesUnavailable;
+  const intervalMs = getIntervalWhileWatching({
+    planned: refreshIntervalMs,
+    watching,
+    needsIntervalRefresh,
+  });
 
-  const refresh = useCallback(() => {
+  // 自動の取り直し（キャッシュがあれば使う）
+  const autoRefresh = useCallback(() => {
     setRequestedAt(new Date());
     startTransition(() => {
       router.refresh();
     });
   }, [router]);
+
+  // 手で押す「同期」：キャッシュを無視して、すぐ取り直す
+  const refresh = useCallback(() => {
+    setRequestedAt(new Date());
+    startTransition(async () => {
+      await syncNow();
+    });
+  }, []);
 
   // 取り直しが終わったら、取り直しを始めた時刻を同期の時刻にして、終わった回数を数える
   if (!refreshing && requestedAt !== syncedAt) {
@@ -117,13 +158,28 @@ export function AppShell({
   }
 
   useEffect(() => {
-    if (refreshIntervalMs === null) {
+    if (intervalMs === null) {
       // 回数制限で止めている間は、再開する時刻に1回だけ取り直す
       if (resumeAt === null) return;
-      return startResumeRefresh({ refresh, source: document, resumeAt: new Date(resumeAt) });
+      return startResumeRefresh({
+        refresh: autoRefresh,
+        source: document,
+        resumeAt: new Date(resumeAt),
+      });
     }
-    return startAutoRefresh({ refresh, source: document, intervalMs: refreshIntervalMs });
-  }, [refresh, refreshIntervalMs, resumeAt]);
+    return startAutoRefresh({ refresh: autoRefresh, source: document, intervalMs });
+  }, [autoRefresh, intervalMs, resumeAt]);
+
+  // 見えている間、5秒ごとに「変わった」印を見て、変わったリポジトリがあるときだけ取り直す。止めている間は見ない
+  useEffect(() => {
+    if (!watching || refreshIntervalMs === null) return;
+    return startChangeWatch({
+      load: () => loadChangeMarks(changeReposKey.split(",")),
+      refresh: autoRefresh,
+      onUnavailable: () => setChangesUnavailable(true),
+      source: document,
+    });
+  }, [watching, refreshIntervalMs, changeReposKey, autoRefresh]);
 
   const { menuOpen, openMenu, closeMenu } = useMenuState();
 
