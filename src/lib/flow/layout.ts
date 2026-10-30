@@ -2,14 +2,17 @@ import type { FlowNode, FlowWho } from "./nodes";
 
 /**
  * 流れ（PC）の配置：光の区域を横のレーン（光の筋）に分け、Issue の光をレーンの上、自分の段階の列の中に置く。
- * 名札を常に出すのは人間の番と失敗だけ。公開済みは右端の1つの塊にまとめる。
+ * 名札を常に出すのは人間の番と失敗だけ（1行：番号＋短い説明。題名は乗せたときだけ2行目として出す）。公開済みは右端の1つの塊にまとめる。
  * レーンと、レーンの上の位置（席）は、その Issue が同じ列にいる間は固定する。前の席（prev）を渡すと、
  * 列が変わった物と新しい物だけを空いた席に置き、ほかの光と名札は動かさない。
  * 入力から出力が決まる純粋関数。文字の幅は呼ぶ側が測って渡す（canvas の measureText など）。
  * 寸法の決まりは docs/design.md の「流れ（PC）」
  */
 
-/** 名札の出し方：2行（1行目 番号＋短い説明、2行目 題名）／縦に積む（1行目 番号、2行目 短い説明） */
+/**
+ * 名札の出し方。常に出す名札は必ず "full"（1行：番号＋短い説明）。
+ * 乗せたときの名札は "full"（2行：1行目 番号＋短い説明、2行目 題名）か "stack"（縦に積む：1行目 番号、2行目 短い説明）
+ */
 export type LabelVariant = "full" | "stack";
 
 /** 名札の部品ごとの文字の幅（px） */
@@ -56,7 +59,12 @@ export type LayoutInput = {
 /** 名札の位置（光の中心からの左上） */
 export type LabelBox = { width: number; variant: LabelVariant; dx: number; dy: number };
 
+/** 常に出す名札に乗せたときだけ出す題名（1行）の位置（光の中心からの左上） */
+export type TitleBox = { width: number; dx: number; dy: number };
+
 export type PlacedNode = LabelBox & {
+  /** 題名の出し場所（常に出す名札だけ。乗せた・フォーカスした・押したとき、ほかの名札と重ならない側に出す） */
+  tip: TitleBox | null;
   key: string;
   /** 光の中心（px） */
   x: number;
@@ -107,7 +115,7 @@ export const FOOT_ROOM = 26;
 /** 光の区域の上の、段階の目盛り（乗せたときの名札は、ここまでかかってよい） */
 export const STAGES_ROOM = 30;
 /** レーンの数の上限（大きな画面で筋が五線譜のように並ばないように） */
-export const MAX_LANES = 6;
+export const MAX_LANES = 8;
 /** 同じレーン・同じ列の光の間隔。入らなければ順に詰める */
 export const SLOT_GAPS: readonly number[] = [22, 16, 12];
 /** 名札の範囲と光の間 */
@@ -117,8 +125,13 @@ const LABEL_LEFT = 10;
 /** 光と光の最小の間（同じレーン） */
 const MIN_SEP = 10;
 
-/** 名札（2行）の高さ */
+/** 常に出す名札（1行）と、題名の札（1行）の高さ */
 export function labelHeight(fontSize: number): number {
+  return fontSize * 1.25 + 4;
+}
+
+/** 乗せたときの名札（2行）の高さ */
+export function hoverLabelHeight(fontSize: number): number {
   return fontSize * 2.5 + 4;
 }
 
@@ -150,26 +163,22 @@ function gapOf(fontSize: number): number {
   return fontSize * 0.5;
 }
 
-/** 2行の名札の、ほしい幅と、1行目だけの幅 */
+/** 名札のほしい幅：2行（full）・1行目だけ（line1。常に出す名札）・縦に積む（stack）・題名だけ（title） */
 function wants(m: LabelMetrics, fontSize: number) {
   const line1 = m.id + gapOf(fontSize) + m.status;
   return {
     full: Math.ceil(Math.max(line1, m.title)) + LABEL_PADDING,
     line1: Math.ceil(line1) + LABEL_PADDING,
     stack: Math.ceil(Math.max(m.id, m.status)) + LABEL_PADDING,
+    title: Math.ceil(m.title) + LABEL_PADDING,
   };
 }
 
-/** 使ってよい幅の中で、名札の出し方と幅を決める：2行（題名は切ってよい）→ 縦に積む → 切る */
-export function chooseLabel(
-  m: LabelMetrics,
-  room: number,
-  fontSize: number,
-): { variant: LabelVariant; width: number } {
+/** 常に出す名札（1行）の幅：使ってよい幅の中で、文字の幅＋余白。入らなければ「…」で切る */
+export function chooseLabel(m: LabelMetrics, room: number, fontSize: number): { variant: LabelVariant; width: number } {
   const want = wants(m, fontSize);
   const cap = Math.min(room, fontSize * MAX_LABEL_EM);
-  if (want.line1 <= cap) return { variant: "full", width: Math.max(0, Math.min(want.full, cap)) };
-  return { variant: "stack", width: Math.max(0, Math.min(want.stack, cap)) };
+  return { variant: "full", width: Math.max(0, Math.min(want.line1, cap)) };
 }
 
 export type Rect = { x0: number; x1: number; y0: number; y1: number };
@@ -192,7 +201,7 @@ export function hoverLabelBox(
   m: LabelMetrics,
   input: { fontSize: number; height: number; rightEdge: number; avoid: readonly Rect[] },
 ): LabelBox {
-  const lh = labelHeight(input.fontSize);
+  const lh = hoverLabelHeight(input.fontSize);
   const want = wants(m, input.fontSize);
   const cap = input.fontSize * MAX_LABEL_EM;
   const shapes: { variant: LabelVariant; width: number }[] = [
@@ -231,6 +240,37 @@ export function hoverLabelBox(
   if (best) return best;
   const width = shapes[0].width;
   return { dx: Math.max(-x, Math.min(LABEL_GAP, input.rightEdge - width - x)), dy: -HOVER_DROP - lh, width, variant: "full" };
+}
+
+/**
+ * 常に出す名札の題名の札（1行）の位置と幅：名札の真下（2行目）→ 真上 → 1行ずつ離した下・上 の順に、
+ * ほかの常に出す名札と重ならない所を選ぶ。右端に入らないときは、左へずらして右端をそろえる。
+ * どこも重なるときは、重なりのいちばん小さい所。文字はいつも左揃えで、光そのものは隠さない。
+ * avoid はほかの常に出す名札の範囲（自分の名札は含めない）
+ */
+export function titleTipBox(
+  x: number,
+  y: number,
+  m: LabelMetrics,
+  input: { fontSize: number; height: number; rightEdge: number; avoid: readonly Rect[] },
+): TitleBox {
+  const lh = labelHeight(input.fontSize);
+  const width = Math.min(wants(m, input.fontSize).title, input.fontSize * MAX_LABEL_EM);
+  const dx = Math.max(-x, Math.min(LABEL_GAP, input.rightEdge - width - x));
+  let best: TitleBox | null = null;
+  let bestArea = Infinity;
+  for (const k of [1, -1, 2, -2, 3, -3]) {
+    const dy = -lh / 2 + k * lh;
+    if (y + dy < -STAGES_ROOM - 0.01 || y + dy + lh > input.height + 0.01) continue;
+    const r = { x0: x + dx, x1: x + dx + width, y0: y + dy, y1: y + dy + lh };
+    const area = input.avoid.reduce((sum, a) => sum + overlapArea(r, a), 0);
+    if (area < bestArea - 0.01) {
+      best = { width, dx, dy };
+      bestArea = area;
+    }
+    if (bestArea === 0) break;
+  }
+  return best ?? { width, dx, dy: lh / 2 };
 }
 
 /** 真ん中に近い順（同じなら上）にレーンを並べる */
@@ -388,7 +428,7 @@ function place(input: LayoutInput, gap: number, maxPinned: number[], prev: PrevS
         const sx = xOf(column, slot);
         if (blocked(lane, sx)) continue;
         const room = roomAt(lane, sx, node.key);
-        const fit = room >= want.full ? 0 : room >= want.line1 ? 1 : room >= want.stack ? 2 : 6;
+        const fit = room >= want.line1 ? 0 : room >= want.stack ? 2 : 6;
         const score = fit * 10000 + slot * 100 + (prev && lane !== prevLane ? 10 : 0) + centerRank(lane);
         if (!best || score < best.score) best = { lane, slot, score, cut: false };
         break;
@@ -449,16 +489,23 @@ function place(input: LayoutInput, gap: number, maxPinned: number[], prev: PrevS
     const room = Math.min(limit, roomAt(seat.lane, x, node.key));
     const { variant, width: w } = chooseLabel(measure(node), room, fontSize);
     const y = laneYs[seat.lane];
-    placed.push({ key: node.key, x, y, column: seat.column, pinned: true, lane: seat.lane, slot: seat.slot, width: w, variant, dx: LABEL_GAP, dy: -lh / 2 });
+    placed.push({ key: node.key, x, y, column: seat.column, pinned: true, lane: seat.lane, slot: seat.slot, width: w, variant, dx: LABEL_GAP, dy: -lh / 2, tip: null });
     pinnedRects.push({ x0: x + LABEL_GAP, x1: x + LABEL_GAP + w, y0: y - lh / 2, y1: y + lh / 2 });
   }
+  // 題名の札：ほかの常に出す名札と重ならない側
+  placed.forEach((p, i) => {
+    const node = rest.find((n) => n.key === p.key);
+    if (!node) return;
+    const avoid = pinnedRects.filter((_, j) => j !== i);
+    p.tip = titleTipBox(p.x, p.y, measure(node), { fontSize, height, rightEdge, avoid });
+  });
   for (const node of rest) {
     const seat = seats.get(node.key);
     if (!seat || pinnedKeys.has(node.key)) continue;
     const x = xOf(seat.column, seat.slot);
     const y = laneYs[seat.lane];
     const box = hoverLabelBox(x, y, measure(node), { fontSize, height, rightEdge, avoid: pinnedRects });
-    placed.push({ key: node.key, x, y, column: seat.column, pinned: false, lane: seat.lane, slot: seat.slot, ...box });
+    placed.push({ key: node.key, x, y, column: seat.column, pinned: false, lane: seat.lane, slot: seat.slot, tip: null, ...box });
   }
 
   // 4. 公開済みの塊：右の余白の真ん中。名札のかかっていないレーン（前と同じレーンを優先）

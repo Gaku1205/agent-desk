@@ -8,12 +8,15 @@ import {
   DOT_OFFSET,
   hoverLabelBox,
   LABEL_GAP,
+  hoverLabelHeight,
   labelHeight,
   laneCountOf,
+  laneHeightOf,
   layoutFlow,
   MAX_LANES,
   STAGES_ROOM,
   stripColumns,
+  titleTipBox,
   type FlowLayout,
   type LayoutInput,
   type MeasureLabel,
@@ -105,8 +108,12 @@ function run(size: Size, nodes = demoLike(), prev: FlowLayout | null = null): Fl
   return layoutFlow(input(size, nodes, prev));
 }
 
-function labelRect(p: { x: number; y: number; dx: number; dy: number; width: number }, fontSize: number) {
-  return { x0: p.x + p.dx, x1: p.x + p.dx + p.width, y0: p.y + p.dy, y1: p.y + p.dy + labelHeight(fontSize) };
+function labelRect(
+  p: { x: number; y: number; dx: number; dy: number; width: number },
+  fontSize: number,
+  height = labelHeight(fontSize),
+) {
+  return { x0: p.x + p.dx, x1: p.x + p.dx + p.width, y0: p.y + p.dy, y1: p.y + p.dy + height };
 }
 
 function overlaps(a: ReturnType<typeof labelRect>, b: ReturnType<typeof labelRect>): boolean {
@@ -175,6 +182,31 @@ describe("layoutFlow", () => {
         }
       });
 
+      it("常に出す名札は1行（高さは1行ぶん）で、題名は出さない（題名の札は乗せたときだけ）", () => {
+        for (const p of pinned) {
+          expect(p.variant, p.key).toBe("full");
+          expect(p.tip, p.key).not.toBeNull();
+        }
+        expect(dots.every((p) => p.tip === null)).toBe(true);
+        expect(labelHeight(size.fontSize)).toBeCloseTo(size.fontSize * 1.25 + 4);
+      });
+
+      it("題名の札は、ほかの常に出す名札と重ならず、自分の名札にもかからず、区域と右端からはみ出さない", () => {
+        for (const a of pinned) {
+          const tip = a.tip;
+          if (!tip) throw new Error(a.key);
+          const r = labelRect({ ...a, ...tip }, size.fontSize);
+          expect(r.x1).toBeLessThanOrEqual(size.width + size.overhang + 0.01);
+          expect(r.x0).toBeGreaterThanOrEqual(-0.01);
+          expect(r.y0).toBeGreaterThanOrEqual(-STAGES_ROOM - 0.01);
+          expect(r.y1).toBeLessThanOrEqual(size.height + 0.01);
+          expect(overlaps(r, labelRect(a, size.fontSize)), `${a.key} の自分の名札`).toBe(false);
+          for (const b of pinned) {
+            if (a !== b) expect(overlaps(r, labelRect(b, size.fontSize)), `${a.key} の題名と ${b.key}`).toBe(false);
+          }
+        }
+      });
+
       it("同じレーンの光どうしは離れている", () => {
         for (const a of layout.placed) {
           for (const b of layout.placed) {
@@ -189,7 +221,7 @@ describe("layoutFlow", () => {
         const crowded: string[] = [];
         if (layout.cluster) boxes.push(layout.cluster);
         for (const p of boxes) {
-          const r = labelRect(p, size.fontSize);
+          const r = labelRect(p, size.fontSize, hoverLabelHeight(size.fontSize));
           expect(r.x1).toBeLessThanOrEqual(size.width + size.overhang + 0.01);
           expect(r.x0).toBeGreaterThanOrEqual(-0.01);
           expect(r.y1).toBeLessThanOrEqual(size.height + 0.01);
@@ -281,17 +313,39 @@ describe("layoutFlow", () => {
   });
 
   it("レーンの数が変わる（画面の高さが変わる）ときは置き直す", () => {
-    const small = run(SIZES[2]);
-    const tall = run({ ...SIZES[2], height: 300 }, demoLike(), small);
+    const small = run({ ...SIZES[2], height: 100 });
+    const tall = run(SIZES[2], demoLike(), small);
     expect(tall.lanes).toBeGreaterThan(small.lanes);
     expect(tall.hidden).toEqual([]);
   });
 
   it("レーンの数は区域の高さで決まり、多すぎない", () => {
-    expect(laneCountOf(144, 11.55)).toBe(4);
-    expect(laneCountOf(178, 12.5)).toBe(4);
+    expect(laneCountOf(144, 11.55)).toBe(7);
+    expect(laneCountOf(178, 12.5)).toBe(8);
+    expect(laneCountOf(225, 13.6)).toBe(8);
+    expect(laneCountOf(318, 15)).toBe(8);
     expect(laneCountOf(600, 15)).toBe(MAX_LANES);
     expect(laneCountOf(10, 12)).toBe(1);
+  });
+
+  it("レーンの高さは1行の名札に合わせる（名札の高さ＋2px）", () => {
+    expect(labelHeight(12)).toBe(19);
+    expect(laneHeightOf(12)).toBe(21);
+    expect(hoverLabelHeight(12)).toBe(34);
+  });
+
+  it("1024×768・1440×900・2560×1440 の光の筋は、1行の名札にしたぶん増える（4・4・6本から）", () => {
+    for (const [size, lanes] of [[SIZES[0], 7], [SIZES[2], 8], [SIZES[5], 8]] as const) {
+      const layout = run(size);
+      expect(layout.lanes, size.name).toBe(lanes);
+      expect(layout.laneYs, size.name).toHaveLength(lanes);
+      // レーンどうしは、1行の名札が重ならない間隔
+      for (let l = 1; l < layout.laneYs.length; l++) {
+        expect(layout.laneYs[l] - layout.laneYs[l - 1], size.name).toBeGreaterThanOrEqual(laneHeightOf(size.fontSize) - 0.01);
+      }
+      expect(layout.laneYs[0]).toBeGreaterThanOrEqual(labelHeight(size.fontSize) / 2 - 0.01);
+      expect(layout.laneYs[lanes - 1]).toBeLessThanOrEqual(size.height - labelHeight(size.fontSize) / 2 + 0.01);
+    }
   });
 
   it("同じ列の常に出す名札は別のレーンで、区域の真ん中に寄せる", () => {
@@ -304,7 +358,7 @@ describe("layoutFlow", () => {
 
   it("左の列の名札がかかっているレーンは避ける", () => {
     const long = "とても長いタイトルがずっと続いていて隣の列まで伸びる";
-    const nodes = [node(1, 0, "human", { title: long }), node(2, 1, "human", { title: long })];
+    const nodes = [node(1, 0, "human", { label: long }), node(2, 1, "human", { label: long })];
     const layout = layoutFlow({ nodes, width: 800, height: 160, fontSize: 12, overhang: 20, measure: measureAt(12) });
     const [a, b] = layout.placed;
     expect(a.lane).not.toBe(b.lane);
@@ -328,10 +382,12 @@ describe("layoutFlow", () => {
     expect(cramped.placed.length + cramped.hidden.length).toBe(40);
   });
 
-  it("右の列の常に出す名札は、入らなければ縦に積む出し方にする", () => {
+  it("右の列の常に出す名札は、入らなくても1行のまま（右端で切る）", () => {
     const n = node(9, 7, "fail", { repo: "landing-page", label: "公開に失敗しました" });
     const layout = layoutFlow({ nodes: [n], width: 984, height: 144, fontSize: 11.55, overhang: 20, measure: measureAt(11.55) });
-    expect(layout.placed[0]).toMatchObject({ pinned: true, variant: "stack", dx: LABEL_GAP });
+    const p = layout.placed[0];
+    expect(p).toMatchObject({ pinned: true, variant: "full", dx: LABEL_GAP });
+    expect(p.x + p.dx + p.width).toBeLessThanOrEqual(984 + 20);
   });
 
   it("0件でも壊れない", () => {
@@ -344,7 +400,7 @@ describe("layoutFlow", () => {
 
 describe("hoverLabelBox", () => {
   const base = { fontSize: 12, height: 160, rightEdge: 1000 };
-  const lh = labelHeight(12);
+  const lh = hoverLabelHeight(12);
   const m = { id: 50, status: 60, title: 188 };
   it("空いていれば光の右に2行", () => {
     expect(hoverLabelBox(100, 80, m, { ...base, avoid: [] })).toEqual({ dx: LABEL_GAP, dy: -lh / 2, width: 200, variant: "full" });
@@ -372,17 +428,36 @@ describe("hoverLabelBox", () => {
   });
 });
 
+describe("titleTipBox", () => {
+  const base = { fontSize: 12, height: 160, rightEdge: 1000 };
+  const lh = labelHeight(12);
+  const m = { id: 50, status: 60, title: 188 };
+  it("空いていれば名札の真下（2行目）に出す", () => {
+    expect(titleTipBox(100, 80, m, { ...base, avoid: [] })).toEqual({ dx: LABEL_GAP, dy: lh / 2, width: 200 });
+  });
+  it("真下がふさがっていれば真上、それもふさがっていれば1行ずつ離す", () => {
+    const below = { x0: 0, x1: 1000, y0: 80 + lh / 2, y1: 80 + lh * 1.5 };
+    expect(titleTipBox(100, 80, m, { ...base, avoid: [below] })).toMatchObject({ dy: -lh * 1.5 });
+    const above = { x0: 0, x1: 1000, y0: 80 - lh * 1.5, y1: 80 - lh / 2 };
+    expect(titleTipBox(100, 80, m, { ...base, avoid: [below, above] })).toMatchObject({ dy: lh * 1.5 });
+  });
+  it("右端に入らなければ左へずらして右端をそろえ、区域の外には出さない", () => {
+    const box = titleTipBox(950, 10, m, { ...base, avoid: [] });
+    expect(950 + box.dx + box.width).toBeLessThanOrEqual(1000);
+    expect(10 + box.dy).toBeGreaterThanOrEqual(-STAGES_ROOM);
+  });
+});
+
 describe("chooseLabel", () => {
   const m = { id: 50, status: 60, title: 200 };
-  it("1行目が入れば2行（題名は切る）、入らなければ縦に積む", () => {
-    expect(chooseLabel(m, 400, 12)).toEqual({ variant: "full", width: 212 });
-    expect(chooseLabel(m, 150, 12)).toEqual({ variant: "full", width: 150 });
-    expect(chooseLabel(m, 100, 12)).toEqual({ variant: "stack", width: 72 });
-    expect(chooseLabel(m, 60, 12)).toEqual({ variant: "stack", width: 60 });
+  it("常に出す名札は1行（番号＋短い説明）。題名の幅は含めず、入らなければ「…」で切る", () => {
+    expect(chooseLabel(m, 400, 12)).toEqual({ variant: "full", width: 128 });
+    expect(chooseLabel(m, 100, 12)).toEqual({ variant: "full", width: 100 });
+    expect(chooseLabel(m, 60, 12)).toEqual({ variant: "full", width: 60 });
   });
 
   it("幅の上限は文字の大きさの26倍", () => {
-    expect(chooseLabel({ id: 50, status: 60, title: 900 }, 2000, 12).width).toBe(12 * 26);
+    expect(chooseLabel({ id: 50, status: 900, title: 60 }, 2000, 12).width).toBe(12 * 26);
   });
 });
 
