@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { rovingNext } from "@/lib/roving";
 import { groupTrailDays, trailLimit } from "@/lib/eventGroups";
 import type { TrailEvent } from "@/lib/events";
 import { TriangleDownIcon } from "./icons";
@@ -21,6 +22,8 @@ export function Trails({ events, now, hint }: Props) {
   const [day, setDay] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [limit, setLimit] = useState(6);
+  const baseId = useId();
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // 前の描画の出来事（新しく入った物を見分ける）
   const [seen, setSeen] = useState<{ events: TrailEvent[]; ids: Set<string> | null }>({ events, ids: null });
   if (seen.events !== events) setSeen({ events, ids: new Set(seen.events.map((e) => e.id)) });
@@ -43,6 +46,18 @@ export function Trails({ events, now, hint }: Props) {
     for (const trail of list) if (trail.steps.some((s) => !ids.has(s.id))) fresh.add(trail.key);
   }
 
+  const tabId = (d: string) => `${baseId}-tab-${d}`;
+  const panelId = `${baseId}-panel`;
+
+  function onTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const next = rovingNext(event.key, index, days.length);
+    if (next === null) return;
+    event.preventDefault();
+    setDay(days[next].day);
+    setOpen(false);
+    tabRefs.current[next]?.focus();
+  }
+
   return (
     <aside className={styles.events} aria-labelledby="trails-title">
       <h2 className={styles.h2} id="trails-title">
@@ -54,13 +69,20 @@ export function Trails({ events, now, hint }: Props) {
         <>
           {days.length > 1 ? (
             <div className={styles.days} role="tablist" aria-label="日">
-              {days.map((d) => (
+              {days.map((d, index) => (
                 <button
                   key={d.day}
+                  ref={(el) => {
+                    tabRefs.current[index] = el;
+                  }}
+                  id={tabId(d.day)}
                   type="button"
                   role="tab"
                   className={styles.day}
                   aria-selected={current?.day === d.day}
+                  aria-controls={panelId}
+                  tabIndex={current?.day === d.day ? 0 : -1}
+                  onKeyDown={(event) => onTabKeyDown(event, index)}
                   onClick={() => {
                     setDay(d.day);
                     setOpen(false);
@@ -78,7 +100,11 @@ export function Trails({ events, now, hint }: Props) {
               <i className="num">{days[0].count}</i>
             </p>
           )}
-          <div role={days.length > 1 ? "tabpanel" : undefined}>
+          <div
+            role={days.length > 1 ? "tabpanel" : undefined}
+            id={days.length > 1 ? panelId : undefined}
+            aria-labelledby={days.length > 1 && current ? tabId(current.day) : undefined}
+          >
             {list.map((trail) => (
               <article className={styles.group} data-new={fresh.has(trail.key) ? "" : undefined} key={trail.key}>
                 <div className={styles.groupHead}>
