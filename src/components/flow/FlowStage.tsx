@@ -11,7 +11,7 @@ import {
 import { stripColumns } from "@/lib/flow/layout";
 import { isNavKey, nextByArrow, pickTabStop, type NavBox } from "@/lib/flow/navigate";
 import { stripItemUrgent, stripPickAction } from "@/lib/flow/strip";
-import { countByStage, type FlowNode, type FlowWho } from "@/lib/flow/nodes";
+import { captionOffRow, countByStage, type FlowNode, type FlowWho } from "@/lib/flow/nodes";
 import { isMotionReduced } from "@/lib/motion";
 import { PROGRESS_STAGE_NAMES } from "@/lib/progress";
 import { CLUSTER_KEY, FlowEngine, WHO_CSS } from "./engine";
@@ -190,6 +190,8 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
   const counts = countByStage(nodes);
   const multiRepo = new Set(nodes.map((n) => `${n.owner}/${n.repo}`)).size > 1;
   const current = caption ? (nodes.find((n) => n.key === caption.key) ?? null) : null;
+  // 押す列の行と同じ文は出さない（外した結果が空なら、説明の文字は出さずリンクだけ）
+  const currentText = current ? captionOffRow(current.caption, current.rowText) : "";
   const columns = stripColumns(nodes);
   // 公開済みは右端の1つの塊（いちばん新しい物＝並びの先頭）
   const done = nodes.filter((n) => n.who === "done");
@@ -382,7 +384,7 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                     </span>
                     <b>{current.label}</b>
                   </span>
-                  <span className={styles.capText}>{current.caption}</span>
+                  {currentText && <span className={styles.capText}>{currentText}</span>}
                   {current.logUrl && (
                     <a className={styles.capLink} href={current.logUrl} target="_blank" rel="noreferrer">
                       ログを開く ↗
