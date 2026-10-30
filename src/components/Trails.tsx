@@ -1,10 +1,11 @@
 "use client";
 
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { rovingNext } from "@/lib/roving";
 import { currentStep, groupTrailDays, splitDeployed, type IssueTrail } from "@/lib/eventGroups";
 import type { TrailEvent } from "@/lib/events";
 import { TriangleDownIcon } from "./icons";
+import { Marquee } from "./Marquee";
 import { SmartLink } from "./SmartLink";
 import styles from "./Trails.module.css";
 
@@ -20,6 +21,26 @@ function toggled<T>(set: ReadonlySet<T>, value: T): Set<T> {
   const next = new Set(set);
   if (!next.delete(value)) next.add(value);
   return next;
+}
+
+/** Issue の1つの列。乗せた・中にフォーカスしたとき、切れた題名を流すために `hot` を渡す */
+function TrailGroup({ fresh, children }: { fresh: boolean; children: (hot: boolean) => ReactNode }) {
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  return (
+    <article
+      className={styles.group}
+      data-new={fresh ? "" : undefined}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+      }}
+    >
+      {children(hovered || focused)}
+    </article>
+  );
 }
 
 /** 出来事：直近3日を日ごとのタブに分け、Issue ごとに1つの列（今の足あと）にまとめる（docs/design.md の「出来事」） */
@@ -67,40 +88,46 @@ export function Trails({ events, now, hint }: Props) {
     const all = expanded.has(trail.key);
     const steps = all ? trail.steps : [currentStep(trail)];
     return (
-      <article className={styles.group} data-new={fresh.has(trail.key) ? "" : undefined} key={trail.key}>
-        <div className={styles.groupHead}>
-          <span className={`${styles.id} num`}>
-            {trail.issue.repo}#{trail.issue.number}
-          </span>
-          <SmartLink className={styles.ttl} href={trail.issue.url}>
-            {trail.issue.title}
-          </SmartLink>
-          {trail.steps.length > 1 && (
-            <button
-              type="button"
-              className={styles.expand}
-              aria-expanded={all}
-              aria-label={`${trail.issue.number} の出来事を${all ? "たたむ" : "すべて表示"}`}
-              onClick={() => setExpanded((set) => toggled(set, trail.key))}
-            >
-              <span className={styles.caret}>
-                <TriangleDownIcon />
+      <TrailGroup fresh={fresh.has(trail.key)} key={trail.key}>
+        {(hot) => (
+          <>
+            <div className={styles.groupHead}>
+              <span className={`${styles.id} num`}>
+                {trail.issue.repo}#{trail.issue.number}
               </span>
-            </button>
-          )}
-        </div>
-        <ul className={styles.trail}>
-          {steps.map((step) => (
-            <li key={step.id} data-tone={step.tone}>
-              <time className="num" dateTime={step.at}>
-                {step.time}
-              </time>
-              <i aria-hidden="true" />
-              <span>{step.short}</span>
-            </li>
-          ))}
-        </ul>
-      </article>
+              <SmartLink className={styles.ttl} href={trail.issue.url} aria-label={trail.issue.title}>
+                <Marquee active={hot} autoInView>
+                  {trail.issue.title}
+                </Marquee>
+              </SmartLink>
+              {trail.steps.length > 1 && (
+                <button
+                  type="button"
+                  className={styles.expand}
+                  aria-expanded={all}
+                  aria-label={`${trail.issue.number} の出来事を${all ? "たたむ" : "すべて表示"}`}
+                  onClick={() => setExpanded((set) => toggled(set, trail.key))}
+                >
+                  <span className={styles.caret}>
+                    <TriangleDownIcon />
+                  </span>
+                </button>
+              )}
+            </div>
+            <ul className={styles.trail}>
+              {steps.map((step) => (
+                <li key={step.id} data-tone={step.tone}>
+                  <time className="num" dateTime={step.at}>
+                    {step.time}
+                  </time>
+                  <i aria-hidden="true" />
+                  <span>{step.short}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </TrailGroup>
     );
   }
 

@@ -195,7 +195,7 @@
   font-size: 0.96em;
 }
 
-.st2 {
+.node .st2 {
   display: none;
 }
 
@@ -206,7 +206,7 @@
 }
 
 .node[data-variant="stack"] .st2 {
-  display: inline;
+  display: block;
 }
 
 .node:hover .tt,

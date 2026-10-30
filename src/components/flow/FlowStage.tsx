@@ -15,6 +15,7 @@ import { captionOffRow, countByStage, type FlowNode, type FlowWho } from "@/lib/
 import { isMotionReduced } from "@/lib/motion";
 import { PROGRESS_STAGE_NAMES } from "@/lib/progress";
 import { CLUSTER_KEY, FlowEngine, WHO_CSS } from "./engine";
+import { Marquee } from "../Marquee";
 import styles from "./FlowStage.module.css";
 
 const MOBILE_MAX = 899;
@@ -291,11 +292,17 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                     <span className={`${styles.id} num`}>
                       {multiRepo ? node.repo : ""}#{node.number}
                     </span>
-                    <span className={styles.st}>{node.label}</span>
+                    <Marquee className={styles.st} active={caption?.key === node.key}>
+                      {node.label}
+                    </Marquee>
                   </span>
                   <span className={styles.l2}>
-                    <span className={styles.tt}>{node.title}</span>
-                    <span className={styles.st2}>{node.label}</span>
+                    <Marquee className={styles.tt} active={caption?.key === node.key}>
+                      {node.title}
+                    </Marquee>
+                    <Marquee className={styles.st2} active={caption?.key === node.key}>
+                      {node.label}
+                    </Marquee>
                   </span>
                 </span>
               </button>
@@ -328,8 +335,12 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                     <span className={`${styles.id} num`}>{done.length}件</span>
                   </span>
                   <span className={styles.l2}>
-                    <span className={styles.tt}>{latest.title} ほか</span>
-                    <span className={styles.st2}>公開済み</span>
+                    <Marquee className={styles.tt} active={clusterOn}>
+                      {`${latest.title} ほか`}
+                    </Marquee>
+                    <Marquee className={styles.st2} active={clusterOn}>
+                      公開済み
+                    </Marquee>
                   </span>
                 </span>
               </button>
