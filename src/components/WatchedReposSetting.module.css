@@ -57,6 +57,13 @@
   margin-top: 16px;
 }
 
+.optionsError {
+  margin-top: 8px;
+  color: var(--fail-soft);
+  font-size: 12.5px;
+  word-break: auto-phrase;
+}
+
 @media (max-width: 899px) {
   .row {
     min-height: 44px;

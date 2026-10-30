@@ -5,7 +5,7 @@ import { saveNotifyEvents } from "@/app/(app)/settings/actions";
 import { useDemo } from "./DemoContext";
 import styles from "./NotifySetting.module.css";
 import settingsStyles from "./SettingsSections.module.css";
-import { changedRepos, formatSaveFailures, type NotifyDraft } from "@/lib/notifyChanges";
+import { changedRepos, formatSaveFailures } from "@/lib/notifyChanges";
 import {
   NOTIFY_EVENT_KINDS,
   NOTIFY_EVENT_LABELS,
@@ -21,7 +21,11 @@ export type NotifyRepoRow = {
   events: NotifyEvent[];
 };
 
-type Status = { kind: "idle" } | { kind: "saved" } | { kind: "error"; message: string };
+type Status =
+  | { kind: "idle" }
+  | { kind: "saved" }
+  | { kind: "unchanged" }
+  | { kind: "error"; message: string };
 
 /** 列の見出し。`owner/` を省く */
 function shortName(name: string): string {
@@ -61,8 +65,29 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
     return () => observer.disconnect();
   }, [measure, rows.length]);
 
+  // 保存済みの種類との差があるリポジトリ（パイプラインが無い列は除く）
+  const targets = changedRepos(
+    rows.map((row) => ({
+      name: row.name,
+      pipeline: row.pipeline,
+      saved: saved[row.name] ?? [],
+      current: current[row.name] ?? [],
+    })),
+  );
+  const dirty = targets.length > 0;
+
+  // 未保存のままリロード・タブを閉じようとしたら、ブラウザ標準の確認を出す（デモでは出さない）
   useEffect(() => {
-    if (status.kind !== "saved") return;
+    if (!dirty || demo) return;
+    function onBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty, demo]);
+
+  useEffect(() => {
+    if (status.kind !== "saved" && status.kind !== "unchanged") return;
     const timer = window.setTimeout(() => setStatus({ kind: "idle" }), 2000);
     return () => window.clearTimeout(timer);
   }, [status]);
@@ -84,15 +109,11 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
       demo.notify();
       return;
     }
-    const drafts: NotifyDraft[] = rows.map((row) => ({
-      name: row.name,
-      pipeline: row.pipeline,
-      saved: saved[row.name] ?? [],
-      current: current[row.name] ?? [],
-    }));
-    const targets = changedRepos(drafts);
-    // 変更が無ければ何も書き込まない
-    if (targets.length === 0) return;
+    // 変更が無ければ何も書き込まず、そう知らせる
+    if (targets.length === 0) {
+      setStatus({ kind: "unchanged" });
+      return;
+    }
     setStatus({ kind: "idle" });
     startSaving(async () => {
       const failures: { name: string; message: string }[] = [];
@@ -112,7 +133,13 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
     });
   }
 
-  if (rows.length === 0) return null;
+  if (rows.length === 0) {
+    return (
+      <p className={styles.empty}>
+        監視するリポジトリがありません。上で追加して保存すると、ここで通知を選べます
+      </p>
+    );
+  }
 
   return (
     <div>
@@ -185,6 +212,12 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
         >
           {saving ? "保存中…" : "通知を保存"}
         </button>
+        {dirty && !saving && <span className={settingsStyles.unsaved}>未保存</span>}
+        {status.kind === "unchanged" && (
+          <span className={settingsStyles.unchanged} role="status">
+            変更はありません
+          </span>
+        )}
         {status.kind === "saved" && (
           <span className={settingsStyles.saved} role="status">
             保存しました

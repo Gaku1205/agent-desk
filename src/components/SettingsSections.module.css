@@ -35,9 +35,13 @@
   }
 }
 
+/* 幅は中身の幅（最大は列の幅）。節の線の右端が、通知の表の右端にそろう */
 .sections {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: fit-content;
   min-width: 0;
+  max-width: 100%;
 }
 
 /* 節：箱で囲まず、上に髪の毛の線を引くだけ */
@@ -45,6 +49,12 @@
   min-width: 0;
   padding: 20px 0 44px;
   border-top: 1px solid var(--hair);
+}
+
+/* 最初の節の上には、何も無い所へ線を引かない */
+.section:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 
 .section:last-child {
@@ -133,6 +143,16 @@
 
 .saved {
   color: var(--done-soft);
+  font-size: 12.5px;
+}
+
+.unsaved {
+  color: var(--bone-2);
+  font-size: 12.5px;
+}
+
+.unchanged {
+  color: var(--mute);
   font-size: 12.5px;
 }
 
