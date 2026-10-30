@@ -30,8 +30,10 @@
   display: flex;
   gap: 2px;
   min-width: 0;
-  /* 札が増えたら横にスクロール（バーは見せない）。右端は消し、最後の札が消えないよう右に20px空ける */
-  padding-right: 20px;
+  /* 札が増えたら横にスクロール（バーは見せない）。右端は消し、最後の札が消えないよう右に20px空ける。
+     スクロールの枠で切れないよう、フォーカスの輪の分（上下左4px）を余白にし、負のmarginで帯の高さと位置を保つ */
+  padding: 4px 20px 4px 4px;
+  margin: -4px 0 -4px -4px;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
@@ -444,7 +446,8 @@
   }
 
   .sheet .repos {
-    padding-right: 0;
+    padding: 0;
+    margin: 0;
     overflow: visible;
     -webkit-mask-image: none;
     mask-image: none;
