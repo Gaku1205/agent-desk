@@ -206,19 +206,38 @@ describe("回数制限の残り", () => {
   it("lowestRateLimit は不明でない中でいちばん少ない物", () => {
     expect(lowestRateLimit([])).toEqual({ remaining: null, resetAt: null });
     expect(
-      lowestRateLimit([
-        { remaining: null, resetAt: null },
-        { remaining: 900, resetAt: 5 },
-        { remaining: 100, resetAt: 7 },
-      ]),
+      lowestRateLimit(
+        [
+          { remaining: null, resetAt: null },
+          { remaining: 900, resetAt: 5 },
+          { remaining: 100, resetAt: 7 },
+        ],
+        0,
+      ),
     ).toEqual({ remaining: 100, resetAt: 7 });
+  });
+
+  it("lowestRateLimit は回復する時刻を過ぎた古い記録を飛ばす", () => {
+    expect(
+      lowestRateLimit(
+        [
+          { remaining: 0, resetAt: 10 },
+          { remaining: 200, resetAt: 100 },
+        ],
+        10_000,
+      ),
+    ).toEqual({ remaining: 200, resetAt: 100 });
+    expect(lowestRateLimit([{ remaining: 0, resetAt: 10 }], 10_000)).toEqual({
+      remaining: null,
+      resetAt: null,
+    });
   });
 
   it("App の鍵で読んだあとは、App の残りが少なければそちらで決める", async () => {
     etagCacheForTest.clear();
     mainDeployedCacheForTest.clear();
     const { fetcher } = fakeGitHub({
-      headers: { "x-ratelimit-remaining": "321", "x-ratelimit-reset": "99" },
+      headers: { "x-ratelimit-remaining": "321", "x-ratelimit-reset": String(Math.floor(Date.now() / 1000) + 3600) },
     });
     await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: ENV });
     expect(getReadRateLimit(USER_TOKEN).remaining).toBe(321);

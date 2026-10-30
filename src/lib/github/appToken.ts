@@ -198,11 +198,18 @@ export async function resolveReadAccess(
   return source === "app" ? { token, keyId: installationKeyId(installationId) } : null;
 }
 
-/** 回数制限の残りが最も少ない物（鍵ごとの残りのうち、不明でない物から）。自動の取り直しの間隔を決めるのに使う */
-export function lowestRateLimit(infos: RateLimitInfo[]): RateLimitInfo {
+/**
+ * 回数制限の残りが最も少ない物（鍵ごとの残りのうち、不明でない物から）。自動の取り直しの間隔を決めるのに使う。
+ * 回復する時刻を過ぎた記録は古いので比べない
+ */
+export function lowestRateLimit(
+  infos: RateLimitInfo[],
+  nowMs: number = Date.now(),
+): RateLimitInfo {
   let lowest: RateLimitInfo = { remaining: null, resetAt: null };
   for (const info of infos) {
     if (info.remaining === null) continue;
+    if (info.resetAt !== null && nowMs >= info.resetAt * 1000) continue;
     if (lowest.remaining === null || info.remaining < lowest.remaining) lowest = info;
   }
   return lowest;
