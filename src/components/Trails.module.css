@@ -253,8 +253,32 @@
   }
 }
 
+/* 公開済みの行は、幅に関わらず出す */
+.more[data-deployed] {
+  display: inline-flex;
+}
+
 .more:hover {
   color: var(--bone);
+}
+
+/* Issue ごとの ↓：今の足あとと同じ大きさ・色。押せる範囲はスマホで44px以上 */
+.expand {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-left: auto;
+  color: var(--bone-2);
+  font-size: 12.5px;
+}
+
+.expand:hover {
+  color: var(--bone);
+}
+
+.expand[aria-expanded="true"] .caret {
+  transform: rotate(180deg);
 }
 
 .caret {
@@ -277,5 +301,15 @@
 
   .more {
     height: 44px;
+  }
+
+  .expand::after {
+    position: absolute;
+    top: 50%;
+    right: -8px;
+    left: -16px;
+    height: 44px;
+    transform: translateY(-50%);
+    content: "";
   }
 }

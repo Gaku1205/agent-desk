@@ -24,6 +24,24 @@ export type IssueTrail = {
   latestAt: string;
 };
 
+/** 公開済み（今の段階が `deployed`）の Issue か。公開失敗・公開中は含めない */
+export function isDeployedTrail(trail: IssueTrail): boolean {
+  return trail.issue.stage === "deployed";
+}
+
+/** 今の足あと：いちばん新しい1つ（`steps` は古い順なので最後） */
+export function currentStep(trail: IssueTrail): TrailStep {
+  return trail.steps[trail.steps.length - 1];
+}
+
+/** 公開済みの Issue とそれ以外に分ける（それぞれ並びは変えない） */
+export function splitDeployed(trails: IssueTrail[]): { active: IssueTrail[]; deployed: IssueTrail[] } {
+  return {
+    active: trails.filter((trail) => !isDeployedTrail(trail)),
+    deployed: trails.filter(isDeployedTrail),
+  };
+}
+
 /** 日ごとのタブ */
 export type TrailDay = {
   heading: string;

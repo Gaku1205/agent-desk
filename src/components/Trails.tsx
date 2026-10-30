@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { rovingNext } from "@/lib/roving";
-import { groupTrailDays } from "@/lib/eventGroups";
+import { currentStep, groupTrailDays, splitDeployed, type IssueTrail } from "@/lib/eventGroups";
 import type { TrailEvent } from "@/lib/events";
 import { TriangleDownIcon } from "./icons";
 import { SmartLink } from "./SmartLink";
@@ -16,11 +16,20 @@ type Props = {
   hint: string;
 };
 
-/** 出来事：直近3日を日ごとのタブに分け、Issue ごとに1つの列（足あと）にまとめる（docs/design.md の「出来事」） */
+function toggled<T>(set: ReadonlySet<T>, value: T): Set<T> {
+  const next = new Set(set);
+  if (!next.delete(value)) next.add(value);
+  return next;
+}
+
+/** 出来事：直近3日を日ごとのタブに分け、Issue ごとに1つの列（今の足あと）にまとめる（docs/design.md の「出来事」） */
 export function Trails({ events, now, hint }: Props) {
   const days = groupTrailDays(events, new Date(now));
   const [day, setDay] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  // 足あとを全部出している Issue と、公開済みを開いている日。その画面にいる間だけ覚える
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [deployedOpen, setDeployedOpen] = useState<ReadonlySet<string>>(new Set());
   const baseId = useId();
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // 前の描画の出来事（新しく入った物を見分ける）
@@ -28,15 +37,18 @@ export function Trails({ events, now, hint }: Props) {
   if (seen.events !== events) setSeen({ events, ids: new Set(seen.events.map((e) => e.id)) });
 
   const current = days.find((d) => d.day === day) ?? days[0] ?? null;
-  // 全件を描き、幅ごとに隠す件数は CSS で決める（1500px以上10件・900px以上6件・それ未満5件）
-  const list = current ? current.trails : [];
+  const { active, deployed } = splitDeployed(current ? current.trails : []);
+  const deployedShown = current !== null && deployedOpen.has(current.day);
+  // 隠していない Issue を全件描き、幅ごとに隠す件数は CSS で決める（1500px以上10件・900px以上6件・それ未満5件）
+  // 公開済みは別の入れ物に出すので、件数の制限には入れない
+  const list = active;
   const total = list.length;
 
   // 前の描画に無かった出来事を持つ列を「新しい」として、上からすっと入れる
   const fresh = new Set<string>();
   if (seen.ids && seen.events === events) {
     const ids = seen.ids;
-    for (const trail of list) if (trail.steps.some((s) => !ids.has(s.id))) fresh.add(trail.key);
+    for (const trail of deployedShown ? [...active, ...deployed] : active) if (trail.steps.some((s) => !ids.has(s.id))) fresh.add(trail.key);
   }
 
   const tabId = (d: string) => `${baseId}-tab-${d}`;
@@ -49,6 +61,47 @@ export function Trails({ events, now, hint }: Props) {
     setDay(days[next].day);
     setOpen(false);
     tabRefs.current[next]?.focus();
+  }
+
+  function renderTrail(trail: IssueTrail) {
+    const all = expanded.has(trail.key);
+    const steps = all ? trail.steps : [currentStep(trail)];
+    return (
+      <article className={styles.group} data-new={fresh.has(trail.key) ? "" : undefined} key={trail.key}>
+        <div className={styles.groupHead}>
+          <span className={`${styles.id} num`}>
+            {trail.issue.repo}#{trail.issue.number}
+          </span>
+          <SmartLink className={styles.ttl} href={trail.issue.url}>
+            {trail.issue.title}
+          </SmartLink>
+          {trail.steps.length > 1 && (
+            <button
+              type="button"
+              className={styles.expand}
+              aria-expanded={all}
+              aria-label={`${trail.issue.number} の出来事を${all ? "たたむ" : "すべて表示"}`}
+              onClick={() => setExpanded((set) => toggled(set, trail.key))}
+            >
+              <span className={styles.caret}>
+                <TriangleDownIcon />
+              </span>
+            </button>
+          )}
+        </div>
+        <ul className={styles.trail}>
+          {steps.map((step) => (
+            <li key={step.id} data-tone={step.tone}>
+              <time className="num" dateTime={step.at}>
+                {step.time}
+              </time>
+              <i aria-hidden="true" />
+              <span>{step.short}</span>
+            </li>
+          ))}
+        </ul>
+      </article>
+    );
   }
 
   return (
@@ -99,29 +152,7 @@ export function Trails({ events, now, hint }: Props) {
             aria-labelledby={days.length > 1 && current ? tabId(current.day) : undefined}
           >
             <div className={styles.groups} data-open={open ? "" : undefined}>
-            {list.map((trail) => (
-              <article className={styles.group} data-new={fresh.has(trail.key) ? "" : undefined} key={trail.key}>
-                <div className={styles.groupHead}>
-                  <span className={`${styles.id} num`}>
-                    {trail.issue.repo}#{trail.issue.number}
-                  </span>
-                  <SmartLink className={styles.ttl} href={trail.issue.url}>
-                    {trail.issue.title}
-                  </SmartLink>
-                </div>
-                <ul className={styles.trail}>
-                  {trail.steps.map((step) => (
-                    <li key={step.id} data-tone={step.tone}>
-                      <time className="num" dateTime={step.at}>
-                        {step.time}
-                      </time>
-                      <i aria-hidden="true" />
-                      <span>{step.short}</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
+              {list.map(renderTrail)}
             </div>
             {total > 5 && (
               <button
@@ -145,6 +176,27 @@ export function Trails({ events, now, hint }: Props) {
                   <TriangleDownIcon />
                 </span>
               </button>
+            )}
+            {current && deployed.length > 0 && (
+              <div>
+                <button
+                  type="button"
+                  className={styles.more}
+                  data-deployed=""
+                  aria-expanded={deployedShown}
+                  onClick={() => setDeployedOpen((set) => toggled(set, current.day))}
+                >
+                  {deployedShown ? "たたむ" : `公開済み ${deployed.length}件`}
+                  <span className={styles.caret}>
+                    <TriangleDownIcon />
+                  </span>
+                </button>
+              </div>
+            )}
+            {deployedShown && (
+              <div className={styles.groups} data-open="">
+                {deployed.map(renderTrail)}
+              </div>
             )}
           </div>
         </>
