@@ -39,6 +39,7 @@ function node(
     who,
     label: options.label ?? "名札",
     caption: "",
+    rowText: null,
     deployLinks: [],
     logUrl: null,
     turn: who === "human",

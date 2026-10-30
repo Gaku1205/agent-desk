@@ -1,10 +1,11 @@
 import type { DeployLink } from "../deployStatus";
-import type { RepoResult } from "../github/types";
+import type { RepoData, RepoResult } from "../github/types";
 import { buildPipelineRows, type PipelineRow } from "../pipeline";
 import { PROGRESS_STAGE_NAMES } from "../progress";
 import type { IssueStatus } from "../status";
 import { describeStatus } from "../describe";
 import { parseFailureReason } from "../failureReason";
+import { turnRowDescription } from "../turn";
 
 /** 流れの中の光の色（誰の番か）。docs/design.md の「流れ」 */
 export type FlowWho = "human" | "ai" | "queue" | "fail" | "done";
@@ -25,6 +26,8 @@ export type FlowNode = {
   label: string;
   /** 乗せた・押したときに流れの下に出す説明（理由があれば理由） */
   caption: string;
+  /** 押す列にあるこの Issue の行の説明文（行が無ければ null）。下端の説明と同じ文は出さない */
+  rowText: string | null;
   /** 公開済みの行の、公開先へのリンク */
   deployLinks: DeployLink[];
   /** 止まった理由のログのURL（この行のリポジトリの物だけ） */
@@ -89,6 +92,15 @@ export function flowCaption(row: PipelineRow, repo: string): string {
   return dedupeCaption(short, long);
 }
 
+/**
+ * 下端の説明を、押す列の行の説明文と同じなら外す（同じ件の同じ文を2回出さない）。
+ * 行の説明文に含まれる文も同じとみなす。行が無い（rowText が null）ときは、そのまま
+ */
+export function captionOffRow(caption: string, rowText: string | null): string {
+  if (rowText === null) return caption;
+  return caption === "" || rowText.includes(caption) ? "" : caption;
+}
+
 function logUrlOf(status: IssueStatus, repo: string): string | null {
   const reason =
     status.stage === "stuck" ? (status.stuckReason ?? "") : status.stage === "retrying" ? (status.retry?.reason ?? "") : null;
@@ -96,7 +108,12 @@ function logUrlOf(status: IssueStatus, repo: string): string | null {
 }
 
 /** パイプライン表の1行を、流れの1つの光にする */
-export function rowToNode(owner: string, repo: string, row: PipelineRow): FlowNode {
+export function rowToNode(
+  owner: string,
+  repo: string,
+  row: PipelineRow,
+  data: Pick<RepoData, "pipeline" | "isTemplate">,
+): FlowNode {
   const full = `${owner}/${repo}`;
   return {
     key: `${full}#${row.issue.number}`,
@@ -109,6 +126,7 @@ export function rowToNode(owner: string, repo: string, row: PipelineRow): FlowNo
     who: whoOf(row.status),
     label: flowLabel(row),
     caption: flowCaption(row, full),
+    rowText: turnRowDescription(row.issue, row.status, data, full),
     deployLinks: row.deployLinks,
     logUrl: logUrlOf(row.status, full),
     turn: row.status.turn === "human",
@@ -133,7 +151,7 @@ export function buildFlowNodes(
       continue;
     }
     for (const row of buildPipelineRows(result.data, now, `${result.owner}/${result.repo}`)) {
-      nodes.push(rowToNode(result.owner, result.repo, row));
+      nodes.push(rowToNode(result.owner, result.repo, row, result.data));
     }
   }
   return nodes.sort(compareFlowNodes);
