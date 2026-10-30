@@ -214,6 +214,7 @@ PR作成待ちは、パイプラインが入っていれば数秒でPRになる�
 
 ### 更新
 
+- App の鍵で読むリポジトリ（「読み取りの鍵」）は、決まった間隔では取り直さず、GitHub の Webhook で「変わった」と知らせてもらった時だけ取り直す（下の「Webhook で取り直す」）。何も変わっていない間は GitHub に問い合わせない。Webhook を使わない設定（`GITHUB_WEBHOOK_SECRET` が無い）のときと、ログインした人のトークンで読むリポジトリがあるときは、下の表の間隔で取り直す（今までどおり）
 - 自動で取り直す間隔は、動いている作業があるかと、GitHubの回数制限の残りで変える（タブが非表示のときは止める）。判定は `src/lib/refresh.ts` の `getAutoRefreshPlan`（入力：作業の有無・残り・回復する時刻・今の時刻。出力：間隔、または「自動では取り直さない」と再開する時刻）
 
 | 残り | 自動で取り直す間隔 |
@@ -225,7 +226,7 @@ PR作成待ちは、パイプラインが入っていれば数秒でPRになる�
 - ログインした人のトークンの回数制限（1時間5,000回）はオーナーのアカウント全体で共有で、パイプライン（`PIPELINE_TOKEN`）やほかのツール（Claude のセッションの `gh` など）も同じ枠を使う。ダッシュボードが使い切るとパイプラインのマージなども止まるので、残りが少ないときは自動の取り直しを控えて、パイプラインの分を残す。同期の読み取りを App の鍵で行っているリポジトリは、別の枠（インストールごと。リポジトリ数で増え、最大1時間12,500回）を使う（「読み取りの鍵」）。自動の取り直しの間隔は、使っている鍵の残りのうち**いちばん少ない物**で決める
 - 残りは、GitHubの返事の `X-RateLimit-Remaining`、回復する時刻は `X-RateLimit-Reset`（UNIX秒）。304の返事にも付くので読む。書き込み（`send`）の返事も覚える。サーバーのメモリに、トークンのハッシュごとに最新の物を覚える（トークンそのものはキーにしない）。読む・覚えるのは `src/lib/github/client.ts`
 - 回復する時刻を過ぎたら、覚えている残りは古いので使わず、普段の間隔に戻す。まだ一度も返事を受けていない（不明）ときも普段の間隔
-- 取り直しのたびにサーバーが間隔を決め直し、画面（`AppShell`）に渡す。渡すのは間隔（ミリ秒、または止めるとき `null`）と再開する時刻だけで、GitHubのトークンは渡さない
+- 取り直しのたびにサーバーが間隔を決め直し、画面（`AppShell`）に渡す。渡すのは間隔（ミリ秒、または止めるとき `null`）と再開する時刻、Webhook で取り直すリポジトリ（`owner/repo`）と今までどおりの間隔が要るかだけで、GitHubのトークンは渡さない
 - スマホのメニュー（`TopBar.tsx` の `MenuSheet`。デモも同じ）は、開いている間は裏に出ないシートとして動く（`role="dialog"`・`aria-modal="true"`）
   - 閉じ込め：開いている間、メニューの外（帯のほかの部分・ページの中身）に `inert` を付け（付け先は `useMenuState` の `menuOpen` から決める）、Tab / Shift+Tab を押してもメニューの外へ出ない。閉じている間のメニュー自身も `inert`（中のリンクにフォーカスが入らない）
   - フォーカスの戻り：`Esc`・背景・項目で閉じたら、メニューボタンへフォーカスを戻す。項目を押して別のページへ移ったときも `body` に落とさず、メニューボタンへ戻す。判定は `src/lib/menuFocus.ts` の `shouldRestoreMenuFocus`（入力：直前と今の開閉・フォーカスがメニューの中か・どこにも無いか。出力：戻すか）
@@ -253,8 +254,31 @@ PR作成待ちは、パイプラインが入っていれば数秒でPRになる�
   - チェックの取り方はPRの状態で分ける。開いているPR：先頭コミットの check-runs だけ。マージ済みのPR：マージコミットの公開ステータス（`/status`）だけで、check-runs は取らず空にする。閉じた（マージしていない）PR：取らない（チェックなし）
   - Issueに紐づかないPR（本文に `Closes #番号` が無く、ブランチ名も `claude/issue-<番号>-` でない。`pipeline-sync/*` など）は、状態によらずチェックを取らない（チェックなし）。紐づきの判定は `src/lib/status.ts` の `isIssueLinkedPull`
   - 公開済み（公開ステータスがあり、全部成功）と決まったマージコミットは、同じ sha をもう取らず、サーバーのメモリに覚えた公開ステータスを使う。キーはトークンのハッシュ＋リポジトリ＋sha、件数に上限があり（超えたら古い物から捨てる）、消えても取り直すだけ
-- 手動の更新：上端の帯の「同期 HH:MM:SS」を押すと取り直す（スマホではメニューの中）。更新にキーボードのショートカットは無し
+- 手動の更新：上端の帯の「同期 HH:MM:SS」を押すと取り直す（スマホではメニューの中）。押したら、監視リポジトリ全部のキャッシュを無視して（サーバーアクション `syncNow` で `updateTag`）すぐ取り直す。更新にキーボードのショートカットは無し
 - 同期の時刻を出す（上端の帯）。出すのは「最後に取り直した時刻」（日本時間 `HH:MM:SS`）。現在時刻では進めない。取り直しが終わると、その取り直しの時刻に変わる。判定は `src/lib/refresh.ts` の `getDisplayedSyncTime`
+
+### Webhook で取り直す
+
+GitHub から「変わった」と知らせてもらい（パイプラインの GitHub App の Webhook）、そのリポジトリだけを取り直す。画面には数秒で出し、GitHub への問い合わせは変わった時だけにする（パイプラインと共有の App の鍵の枠を使い切らないため）。依存パッケージは足さない。判定の純粋関数は `src/lib/webhook.ts`（サーバー）と `src/lib/changeMarks.ts`（画面）、キャッシュは `src/lib/github/repoCache.ts`。
+
+- 受け取る：Route Handler `POST /api/github/webhook`（`src/app/api/github/webhook/route.ts`）。ログインは要らない（署名が認証の代わり。ログインの確かめは `(app)` のレイアウトの中だけで、このパスは止めない）。判定は `decideWebhook`（入力：環境変数の合言葉・署名・イベント・本文・監視リポジトリ。出力：返す番号と、無効にするリポジトリ）
+  - 環境変数 `GITHUB_WEBHOOK_SECRET` が無い（空）ときは 404（Webhook を使わない設定）
+  - `X-Hub-Signature-256`（`sha256=` ＋本文の HMAC-SHA256 の16進）を、`GITHUB_WEBHOOK_SECRET` で Node の `crypto` を使って確かめる（比べるのは `timingSafeEqual`。`verifyWebhookSignature`）。合わない・無いときは 401
+  - 使うイベント（`X-GitHub-Event`）は `issues`・`issue_comment`・`pull_request`・`pull_request_review_comment`・`check_run`・`check_suite`・`status`・`workflow_run`・`label` だけ（`isUsedWebhookEvent`）。ほか（`ping` など）・本文の `repository.full_name` が無い物は 204 で無視
+  - 監視しているリポジトリ（`isWatchedRepo`。大文字・小文字は区別しない）の物だけを使う。監視リポジトリは、環境変数 `WATCHED_REPOS` と、設定の監視リポジトリ（`SETTINGS_REPO` の Variable `AGENT_DESK_WATCHED_REPOS`。ログインした人がいないので App の鍵で読み、最大5分キャッシュに覚える。設定を保存したらタグ `watched-repos` を無効にして覚え直す）を合わせた物。設定の保存先があるのに読めない（App が入っていない・権限が無い）ときは、分からないので使う側に倒す（印を進めるだけで害は無い）。監視していない物は 204
+  - 使う物は、タグ `repo:<owner>/<repo>`（小文字）を `revalidateTag(タグ, { expire: 0 })` で無効にして 202 を返す。本文の中身は保存しない・ログに出さない
+- 覚えておく：Next.js のキャッシュのタグ（`unstable_cache`。Cache Components の `use cache`・`cacheTag` は画面全体の作りが変わるので使わない。Vercel では、タグの無効化が全部のインスタンスに効く）
+  - App の鍵で読むリポジトリの `fetchRepoData` の結果を、タグ `repo:<owner>/<repo>` つきで覚える（`cachedRepoData`）。キーはリポジトリ（と公開ごとの ID）だけで、鍵は入れない（App の鍵で読むのは、ログインした人が読めると確かめた物だけ）。寿命は最大5分（Webhook が届かなかったときの保険）
+  - ログインした人のトークンで読むリポジトリ（App の鍵が使えない物）はキャッシュに覚えず、今までどおりの間隔で取り直す
+  - 「変わった」印：リポジトリごとの「最後に変わった時刻」を、同じタグつきで期限なしに覚える（`getChangeMark`）。タグが無効になった後に初めて読んだ時刻になり、次に無効になるまで変わらない（Webhook が来ると、この値も進む）。`GET /api/changes?repo=owner/repo&repo=…` が、渡したリポジトリ（最大50件）ごとの印を `{ "changes": { "owner/repo": "ISO時刻" } }` で返す（キャッシュから。GitHub には問い合わせない）。ログインしていなければ 401、`GITHUB_WEBHOOK_SECRET` が無ければ 404
+  - ボタンの操作（`runOperation`）が成功したら、そのリポジトリのタグを `updateTag` で無効にしてから取り直す（Webhook を待たずに結果を出すため）
+- 画面（`src/components/AppShell.tsx`、`src/lib/changeMarks.ts` の `startChangeWatch`）
+  - サーバーは、App の鍵で読んだリポジトリを「Webhook で取り直すリポジトリ」として渡す。`GITHUB_WEBHOOK_SECRET` が無ければ空（`src/lib/refresh.ts` の `getChangeWatchPlan`）
+  - 画面が見えている間（`visibilitychange`。今までどおり）、5秒ごとに `/api/changes` を見て、前に見た印と違うリポジトリがあるときだけ `router.refresh()` する（`hasChangedRepo`。初めて見たときは比べる元として覚えるだけ）。違わなければ何もしない。非表示から戻ったらすぐ1回見る。回数制限で自動更新を止めている間は見ない
+  - `/api/changes` が 404（Webhook を使わない設定）なら見るのをやめ、今までどおりの間隔で取り直す。ほかの失敗は何もせず、次の5秒で見る
+  - Webhook で取り直すリポジトリしか無いときは、決まった間隔の取り直しは5分ごと（キャッシュの寿命と同じ。保険）にする。ログインした人のトークンで読むリポジトリが1つでもあるときは、今までどおりの間隔（上の表）でも取り直す（`getIntervalWhileWatching`）
+  - 「同期」の時刻と手で押す「同期」は今までどおり（押したらキャッシュを無視してすぐ取り直す）
+- マージ後に人間がすること：合言葉を作って Vercel の環境変数 `GITHUB_WEBHOOK_SECRET` に入れ、App の Webhook を設定する（`README.md` のセットアップ）
 
 ### キーボード操作の一覧（`?`）
 

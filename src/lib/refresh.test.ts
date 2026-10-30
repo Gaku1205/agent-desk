@@ -4,8 +4,11 @@ import {
   formatSyncTime,
   getAutoRefreshPlan,
   BUSY_REFRESH_INTERVAL_MS,
+  getChangeWatchPlan,
   getDisplayedSyncTime,
+  getIntervalWhileWatching,
   getRefreshIntervalMs,
+  WEBHOOK_FALLBACK_REFRESH_INTERVAL_MS,
   hasAiTurnWork,
   IDLE_REFRESH_INTERVAL_MS,
   isFastRefresh,
@@ -14,6 +17,58 @@ import {
   type VisibilitySource,
 } from "./refresh";
 import type { RepoResult } from "./github/types";
+
+describe("getChangeWatchPlan", () => {
+  const result = (repo: string, readSource?: "app" | "user"): RepoResult => ({
+    owner: "o",
+    repo,
+    ok: false,
+    error: { kind: "other", message: "" },
+    ...(readSource ? { readSource } : {}),
+  });
+
+  it("Webhook を使わない設定なら、全部を今までどおりの間隔で取り直す", () => {
+    expect(getChangeWatchPlan([result("a", "app")], false)).toEqual({
+      changeRepos: [],
+      needsIntervalRefresh: true,
+    });
+  });
+
+  it("App の鍵で読んだ物だけ印を見る。ログインした人のトークンで読む物があれば間隔の取り直しも続ける", () => {
+    expect(getChangeWatchPlan([result("a", "app"), result("b", "user")], true)).toEqual({
+      changeRepos: ["o/a"],
+      needsIntervalRefresh: true,
+    });
+    expect(getChangeWatchPlan([result("a", "app"), result("b", "app")], true)).toEqual({
+      changeRepos: ["o/a", "o/b"],
+      needsIntervalRefresh: false,
+    });
+    expect(getChangeWatchPlan([result("a")], true)).toEqual({
+      changeRepos: [],
+      needsIntervalRefresh: true,
+    });
+  });
+});
+
+describe("getIntervalWhileWatching", () => {
+  it("印を見ていて間隔の取り直しが要らなければ5分ごと（保険）", () => {
+    expect(
+      getIntervalWhileWatching({ planned: 20_000, watching: true, needsIntervalRefresh: false }),
+    ).toBe(WEBHOOK_FALLBACK_REFRESH_INTERVAL_MS);
+  });
+
+  it("それ以外は今までどおり。止めている（null）ときは null のまま", () => {
+    expect(
+      getIntervalWhileWatching({ planned: 20_000, watching: false, needsIntervalRefresh: false }),
+    ).toBe(20_000);
+    expect(
+      getIntervalWhileWatching({ planned: 30_000, watching: true, needsIntervalRefresh: true }),
+    ).toBe(30_000);
+    expect(
+      getIntervalWhileWatching({ planned: null, watching: true, needsIntervalRefresh: false }),
+    ).toBeNull();
+  });
+});
 
 describe("formatSyncTime", () => {
   it("日本時間の時:分:秒で出す", () => {

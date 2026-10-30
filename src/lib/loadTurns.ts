@@ -3,7 +3,13 @@ import { getGitHubToken } from "./auth";
 import { getRepoResults } from "./github/fetch";
 import type { RepoResult } from "./github/types";
 import { getReadRateLimit } from "./github/appToken";
-import { getAutoRefreshPlan, hasAiTurnWork, IDLE_REFRESH_INTERVAL_MS } from "./refresh";
+import { isWebhookEnabled } from "./github/repoCache";
+import {
+  getAutoRefreshPlan,
+  getChangeWatchPlan,
+  hasAiTurnWork,
+  IDLE_REFRESH_INTERVAL_MS,
+} from "./refresh";
 import { buildTurnItems, type TurnItem } from "./turn";
 import { loadWatchedRepos } from "./watchedRepos";
 
@@ -13,6 +19,8 @@ export type LoadedTurns = {
   items: TurnItem[];
   /** 自動更新の間隔（取り直しのたびに決め直す）。止めるときは intervalMs が null で、再開する時刻（ISO文字列）が入る */
   refreshPlan: { intervalMs: number | null; resumeAt: string | null };
+  /** Webhook で「変わった」ときだけ取り直すリポジトリ（`owner/repo`）と、今までどおりの間隔の取り直しが要るか */
+  changeWatch: { changeRepos: string[]; needsIntervalRefresh: boolean };
   now: Date;
 };
 
@@ -28,6 +36,7 @@ export const loadTurns = cache(async (): Promise<LoadedTurns> => {
       results: [],
       items: [],
       refreshPlan: { intervalMs: IDLE_REFRESH_INTERVAL_MS, resumeAt: null },
+      changeWatch: { changeRepos: [], needsIntervalRefresh: true },
       now,
     };
   }
@@ -46,6 +55,7 @@ export const loadTurns = cache(async (): Promise<LoadedTurns> => {
     results,
     items: buildTurnItems(results, now),
     refreshPlan: { intervalMs: plan.intervalMs, resumeAt: plan.resumeAt?.toISOString() ?? null },
+    changeWatch: getChangeWatchPlan(results, isWebhookEnabled()),
     now,
   };
 });

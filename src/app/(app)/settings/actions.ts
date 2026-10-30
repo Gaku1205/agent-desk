@@ -1,6 +1,6 @@
 "use server";
 
-import { refresh } from "next/cache";
+import { refresh, updateTag } from "next/cache";
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
 import { findWatchedRepo, getAllowedLogins, getSettingsRepo } from "@/lib/config";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/lib/notifyEvents";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { GitHubClient } from "@/lib/github/client";
+import { WATCHED_REPOS_TAG } from "@/lib/github/repoCache";
 import {
   canReadRepo,
   hasPipeline,
@@ -62,6 +63,8 @@ export async function saveWatchedRepos(value: unknown): Promise<SaveReposResult>
   } catch (error) {
     return { ok: false, message: repoSettingErrorMessage(error) };
   }
+  // Webhook が見る監視リポジトリを覚え直す
+  updateTag(WATCHED_REPOS_TAG);
   refresh();
   return { ok: true };
 }

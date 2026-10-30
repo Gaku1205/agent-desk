@@ -25,6 +25,8 @@ export default async function AppLayout({
       initialSyncedAt={syncedAt.toISOString()}
       refreshIntervalMs={loaded.refreshPlan.intervalMs}
       resumeAt={loaded.refreshPlan.resumeAt}
+      changeRepos={loaded.changeWatch.changeRepos}
+      needsIntervalRefresh={loaded.changeWatch.needsIntervalRefresh}
     >
       <TopBar
         repos={repos}

@@ -59,6 +59,19 @@ Vercel の agent-desk の環境変数に、パイプラインのSecretと同じ�
 - Appの鍵で読むのは、ログインした人のトークンで読めると確かめたリポジトリだけです。ボタンの操作は、いつもログインした人のトークンで行います
 - 鍵はサーバーだけで使い、画面にもログにも出しません（詳しくは [docs/spec.md](docs/spec.md) の「読み取りの鍵」）
 
+## セットアップ：GitHub の Webhook で、変わった時だけ取り直す（任意）
+
+Appの鍵で読むリポジトリは、GitHub から「変わった」と知らせてもらった時だけ取り直し、数秒で画面に出します。何も変わっていない間は GitHub に問い合わせないので、パイプラインと共有のAppの回数制限を使い切りません。上の「Appの鍵で読む」設定をしてから、次の3つをしてください。
+
+1. 合言葉を作る（パスワード生成などで、長いランダムな文字列）。Vercel の agent-desk の環境変数 `GITHUB_WEBHOOK_SECRET` に入れて、公開し直す
+2. GitHub → Settings → Developer settings → GitHub Apps → パイプラインの App → General の Webhook：Active にチェック、URL に `https://<agent-desk のアドレス>/api/github/webhook`、Secret に同じ合言葉
+3. 同じ App の Permissions & events → Subscribe to events で、Issues・Issue comment・Pull request・Pull request review comment・Check run・Check suite・Status・Workflow run・Label にチェック
+
+- 入れなくても今までどおり動きます（決まった間隔で取り直します）。ログインした人のトークンで読むリポジトリも、今までどおりの間隔です
+- Webhook が届かなかったときのため、覚えたデータは最大5分で取り直します。上端の「同期」を押せば、いつでもすぐ取り直します
+- 設定画面で選んだ監視リポジトリは、Appの鍵で読みます（App に Variables の読み取りの権限が無いときは、App が入っているリポジトリの知らせを全部使います）
+- 知らせの中身は保存せず、ログにも出しません（詳しくは [docs/spec.md](docs/spec.md) の「Webhook で取り直す」）
+
 ## READMEの画像の撮り直し
 
 見た目を変えたときは、`npm run readme:shots` で `assets/readme/` の画像とGIFを撮り直します（初回は `npx playwright install chromium` が要ります）。
