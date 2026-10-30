@@ -1,6 +1,6 @@
 import type { RepoResult } from "./github/types";
 import { buildPipelineRows, type PipelineRow } from "./pipeline";
-import type { Stage } from "./status";
+import type { IssueStatus, Stage } from "./status";
 import type { TurnCounts } from "./turn";
 
 /** ホームの「実行中のパイプライン」の1行（どのリポジトリの物かを持つ） */
@@ -17,8 +17,9 @@ const RUNNING_STAGES: ReadonlySet<Stage> = new Set<Stage>([
 ]);
 
 /** 実行中のパイプラインに出す段階か（あなたの番・順番待ち・公開済み・止まった物は出さない） */
-export function isRunningStage(stage: Stage): boolean {
-  return RUNNING_STAGES.has(stage);
+export function isRunningStage(stage: Stage, grace: IssueStatus["grace"] = null): boolean {
+  // パイプラインが自動で進める間（PRを作成中・受付中）もAIの番で動いている
+  return grace !== null || RUNNING_STAGES.has(stage);
 }
 
 /** サイドバーに出す実行中の件数（ホーム全体と、`owner/repo`（小文字）ごと）。ホームの表の行数と同じ数え方 */
@@ -38,7 +39,7 @@ export function buildRunningPipelineRows(results: RepoResult[], now: Date): Runn
   for (const result of results) {
     if (!result.ok) continue;
     for (const row of buildPipelineRows(result.data, now, `${result.owner}/${result.repo}`)) {
-      if (isRunningStage(row.status.stage)) rows.push({ ...row, owner: result.owner, repo: result.repo });
+      if (isRunningStage(row.status.stage, row.status.grace)) rows.push({ ...row, owner: result.owner, repo: result.repo });
     }
   }
   return rows.sort(

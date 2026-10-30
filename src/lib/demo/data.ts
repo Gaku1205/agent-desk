@@ -518,7 +518,19 @@ function landingPage(base: Date): RepoData {
   });
   addComment(ctx, 14, REVIEW_CLEAN, ago(ctx, 8));
 
-  // PR作成待ち
+  // パイプラインが入っているリポジトリ（PR作成待ち・未着手の猶予を使う）
+  ctx.data.pipeline = "running";
+
+  // PRを作成中（完了コメントから15分たっていない：AIの番）
+  addIssue(ctx, 17, "お問い合わせの送信後にお礼の文を出す", {
+    createdAt: ago(ctx, 30),
+    labels: ["ai:implement"],
+    planned: true,
+  });
+  addLabeled(ctx, 17, "ai:implement", ago(ctx, 20));
+  addComment(ctx, 17, DONE_COMMENT, ago(ctx, 4));
+
+  // PR作成待ち（完了コメントから15分以上たった：人間の番）
   addIssue(ctx, 7, "料金表を3列にする", { createdAt: ago(ctx, 50), labels: ["ai:implement"] });
   addLabeled(ctx, 7, "ai:implement", ago(ctx, 45));
   addComment(ctx, 7, DONE_COMMENT, ago(ctx, 16));

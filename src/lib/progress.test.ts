@@ -19,6 +19,7 @@ function status(overrides: Partial<IssueStatus>): IssueStatus {
     planned: true,
     fixCount: 1,
     verifyingFix: false,
+    grace: null,
     ...overrides,
   };
 }
