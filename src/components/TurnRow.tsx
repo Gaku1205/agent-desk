@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { runOperation } from "@/app/actions";
+import { nextRowIndex } from "@/lib/focusAfterLeave";
 import { flightColumn } from "@/lib/flow/flight";
 import { isMergeWeak, mergeResultLines } from "@/lib/mergeLines";
 import { getProgress } from "@/lib/progress";
@@ -48,11 +49,18 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
   const [leavingSig, setLeavingSig] = useState<string | null>(null);
   const leaving = leavingSig === sig;
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const mergeRef = useRef<HTMLButtonElement>(null);
+  // 確認を閉じたとき「マージ…」へフォーカスを戻す
+  const restoreMergeFocus = useRef(false);
   const rowRef = useRef<HTMLElement>(null);
   const demo = useDemo();
 
   useEffect(() => {
     if (confirming) confirmRef.current?.focus();
+    else if (restoreMergeFocus.current) {
+      restoreMergeFocus.current = false;
+      mergeRef.current?.focus();
+    }
   }, [confirming]);
 
   useEffect(() => {
@@ -74,13 +82,37 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
   // 畳む：今の高さから0へ（CSS の --h）。数字は取り直しを待たずに減らす
   useLayoutEffect(() => {
     const row = rowRef.current;
-    if (leaving && row) row.style.setProperty("--h", `${row.offsetHeight}px`);
+    if (leaving && row) {
+      row.style.setProperty("--h", `${row.offsetHeight}px`);
+      // フォーカスが畳む行の中にあるときだけ、次の行の最初のボタン（無ければリンク）へ。次が無ければ見出しへ
+      if (row.contains(document.activeElement)) {
+        const rows = Array.from(row.parentElement?.children ?? []).filter(
+          (el): el is HTMLElement => el instanceof HTMLElement && el.tagName === "ARTICLE",
+        );
+        const next = nextRowIndex(
+          rows.map((el) => el.hasAttribute("data-leaving")),
+          rows.indexOf(row),
+        );
+        const target =
+          next === null
+            ? document.getElementById("turn-title")
+            : (rows[next].querySelector<HTMLElement>('[data-act]:not([aria-disabled="true"])') ??
+              rows[next].querySelector<HTMLElement>("a, button"));
+        target?.focus();
+      }
+    }
     onLeave(key, leaving);
   }, [leaving, key, onLeave]);
 
   useEffect(() => () => onLeave(key, false), [key, onLeave]);
 
+  function closeConfirm() {
+    restoreMergeFocus.current = true;
+    setConfirming(false);
+  }
+
   function run(kind: OperationKind) {
+    if (pending) return;
     setError(null);
     setHit(kind);
     onPress(key, flightColumn(kind, progress.at));
@@ -107,7 +139,7 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
   function onKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key === "Escape" && confirming) {
       event.stopPropagation();
-      setConfirming(false);
+      closeConfirm();
     }
   }
 
@@ -125,6 +157,7 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
       data-fade-in={fadeIn ? "" : undefined}
       data-flash={flash ?? undefined}
       data-leaving={leaving ? "" : undefined}
+      inert={leaving}
       onMouseEnter={() => onHover(key)}
       onMouseLeave={() => onHover(null)}
       onFocus={() => onHover(key)}
@@ -180,7 +213,7 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
                 className={`${styles.act} ${styles.fill}`}
                 data-act=""
                 data-weak={weak ? "" : undefined}
-                disabled={pending}
+                aria-disabled={pending ? "true" : undefined}
                 onClick={() => run("merge")}
                 onKeyDown={(event) => {
                   // 押し続けた Enter の繰り返しで、意図せずマージしない
@@ -193,8 +226,10 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
                 type="button"
                 className={`${styles.act} ${styles.ghost}`}
                 data-act=""
-                disabled={pending}
-                onClick={() => setConfirming(false)}
+                aria-disabled={pending ? "true" : undefined}
+                onClick={() => {
+                  if (!pending) closeConfirm();
+                }}
               >
                 やめる
               </button>
@@ -208,12 +243,17 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
               ) : (
                 <button
                   key={button.kind}
+                  ref={button.kind === "merge" ? mergeRef : undefined}
                   type="button"
                   className={styles.act}
                   data-act=""
                   data-hit={hit === button.kind ? "" : undefined}
-                  disabled={pending}
-                  onClick={() => (button.kind === "merge" ? setConfirming(true) : run(button.kind))}
+                  aria-disabled={pending ? "true" : undefined}
+                  onClick={() => {
+                    if (pending) return;
+                    if (button.kind === "merge") setConfirming(true);
+                    else run(button.kind);
+                  }}
                 >
                   {button.label}
                 </button>

@@ -296,7 +296,7 @@
 }
 
 /* 操作の最中は薄くするが、押した直後の220msは薄くしない（押した文字が読める） */
-.act:disabled:not([data-hit]) {
+.act[aria-disabled="true"]:not([data-hit]) {
   opacity: 0.7;
 }
 

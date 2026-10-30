@@ -354,6 +354,17 @@
   color: var(--bone);
 }
 
+/* ログアウトの最中：押した直後の220msは不透明度を下げない（design.md の決まり）。乗せても色を変えない */
+.logout:disabled {
+  opacity: 0.7;
+  transition: opacity 0s 0.22s;
+  cursor: default;
+}
+
+.logout:disabled:hover {
+  color: var(--mute);
+}
+
 .menuBtn {
   display: none;
   align-items: center;
