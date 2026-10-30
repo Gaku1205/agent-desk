@@ -6,6 +6,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { PLAY_BUTTON_LABEL } from "@/lib/demo/playback";
 import { formatResetTime, formatSyncTime, getDisplayedSyncTime } from "@/lib/refresh";
+import { shouldRestoreMenuFocus } from "@/lib/menuFocus";
 import { revealScrollLeft } from "@/lib/tabScroll";
 import type { TurnCounts } from "@/lib/turn";
 import { useShell } from "./AppShell";
@@ -225,6 +226,25 @@ export function TopBar(props: Props) {
   const { menuOpen, openMenu, closeMenu } = useShell();
   const pathname = usePathname();
   const settingsHref = `${props.basePath ?? ""}/settings`;
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const wasOpenRef = useRef(false);
+
+  // 閉じたら（Esc・背景・項目）メニューボタンへフォーカスを戻す。別のページへ移っても body に落とさない
+  useEffect(() => {
+    const active = document.activeElement;
+    const sheet = document.getElementById("menu-sheet");
+    if (
+      shouldRestoreMenuFocus({
+        wasOpen: wasOpenRef.current,
+        menuOpen,
+        focusInSheet: !!active && !!sheet?.contains(active),
+        focusLost: !active || active === document.body || !active.isConnected,
+      })
+    ) {
+      menuBtnRef.current?.focus();
+    }
+    wasOpenRef.current = menuOpen;
+  }, [menuOpen, pathname]);
 
   return (
     <>
@@ -236,6 +256,7 @@ export function TopBar(props: Props) {
           aria-label="メニュー"
           aria-expanded={menuOpen}
           aria-controls="menu-sheet"
+          ref={menuBtnRef}
           onClick={menuOpen ? closeMenu : openMenu}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
@@ -281,9 +302,15 @@ function MenuSheet(props: Props) {
   }, [menuOpen]);
 
   return (
-    <div className={styles.sheet} data-open={menuOpen ? "" : undefined} aria-hidden={!menuOpen} id="menu-sheet">
+    <div
+      className={styles.sheet}
+      data-open={menuOpen ? "" : undefined}
+      aria-hidden={!menuOpen}
+      inert={!menuOpen}
+      id="menu-sheet"
+    >
       <div className={styles.scrim} onClick={closeMenu} aria-hidden="true" />
-      <div className={styles.pane} role="dialog" aria-label="メニュー" ref={paneRef}>
+      <div className={styles.pane} role="dialog" aria-modal="true" aria-label="メニュー" ref={paneRef}>
         <span className={styles.mark}>agent-desk</span>
         <span className={`${styles.lbl} ${styles.lblRow}`}>
           リポジトリ
