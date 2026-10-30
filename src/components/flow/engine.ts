@@ -10,6 +10,7 @@ import {
 } from "@/lib/flow/layout";
 import type { FlowNode, FlowWho } from "@/lib/flow/nodes";
 import { seededRandom, seedOf } from "@/lib/flow/random";
+import { GIANT_UNIT_GAP, inkRightOf, unitLeft, unitShift } from "@/lib/giantUnit";
 import { squeezeTowardLabel } from "@/lib/flow/squeeze";
 
 /**
@@ -158,6 +159,8 @@ export type EngineElements = {
 export type GiantElements = {
   canvas: HTMLCanvasElement;
   ghost: HTMLElement;
+  /** 「件」。数字の字面の右端から6pxに置く（位置は giantLayout が決める） */
+  unit: HTMLElement | null;
   /** 灯った粒を見せてよい右端（画面の x）。押す列の文字・ボタンの手前 */
   litEdge: () => number;
 };
@@ -308,6 +311,8 @@ export class FlowEngine {
   private gRoll = 1;
   private gRollT0 = 0;
   private gW = 0;
+  /** 「件」の左端（箱の左端から）。前に置いた位置（転がり中に跳ばないための出発点） */
+  private gUnitX: number | null = null;
   private gH = 0;
   /** 数字の canvas の、箱の上下へのはみ出し */
   private gPad = 0;
@@ -1365,6 +1370,9 @@ export class FlowEngine {
     const asc = m.actualBoundingBoxAscent;
     const des = m.actualBoundingBoxDescent;
     this.gW = Math.ceil(m.width - this.gFs * 0.06 * (text.length - 1)) + 4;
+    const value = String(this.gValue);
+    const vm = ctx.measureText(value);
+    const inkRight = inkRightOf(vm.actualBoundingBoxRight, vm.actualBoundingBoxLeft, -0.06 * this.gFs, value.length, 2);
     this.gH = Math.ceil(asc + des) + 8;
     this.gPad = Math.round(this.gH * GIANT_PAD);
     this.gMetrics = { asc, left: m.actualBoundingBoxLeft };
@@ -1386,6 +1394,7 @@ export class FlowEngine {
     g.canvas.style.left = "0";
     g.canvas.style.top = `${-this.gPad}px`;
     g.canvas.style.pointerEvents = "none";
+    this.placeUnit(inkRight);
     this.drawGiantBase();
     this.buildMask();
     this.gRand = seededRandom(11);
@@ -1403,6 +1412,31 @@ export class FlowEngine {
       const heat = x > this.gW * 0.5 ? Math.exp((-HEAT_DECAY * (x - this.gW * 0.5)) / RIVER_SPEED) : 0;
       this.gCurrent.push({ x, y: rand() * this.gH, s: 0.6 + rand() * 1.1, ph: rand() * 6.28, sp: 0.6 + rand() * 0.8, heat, vx: 0, vy: 0 });
     }
+  }
+
+  /**
+   * 「件」を、新しい数字の字面の右端＋6pxへ置く。
+   * 箱の幅は転がり中の大きいほうなので、置き場所（箱の右端＋列の間）から動かして合わせる。
+   * 転がるときは、前の位置から始めて数字の転がりと同じ時間で動かす（箱の幅が変わっても跳ばない）
+   */
+  private placeUnit(inkRight: number) {
+    const u = this.giant?.unit;
+    if (!u) return;
+    const gap = parseFloat(getComputedStyle(u.parentElement ?? u).columnGap) || 0;
+    const from = this.gUnitX;
+    const to = unitLeft(inkRight);
+    this.gUnitX = to;
+    const shift = (x: number) => `translateX(${unitShift(x - GIANT_UNIT_GAP, this.gW, gap)}px)`;
+    const animate = from !== null && from !== to && this.gRoll < 1 && !this.opt.isReduced();
+    u.style.transition = "none";
+    u.style.transform = shift(from ?? to);
+    if (!animate) {
+      u.style.transform = shift(to);
+      return;
+    }
+    void u.getBoundingClientRect();
+    u.style.transition = "transform 460ms cubic-bezier(0.215, 0.61, 0.355, 1)";
+    u.style.transform = shift(to);
   }
 
   /** 数字の中の地と、止まった2つの光（数字を描き直すときだけ。はみ出しの所まで） */
