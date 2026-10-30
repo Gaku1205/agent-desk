@@ -161,6 +161,17 @@
   white-space: nowrap;
 }
 
+/* 動きを減らす：短い説明は流さず折り返すので、番号の下の行に名札の幅いっぱいで落とす（1文字幅の縦書きにしない） */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .l1 {
+    flex-wrap: wrap;
+  }
+}
+
+:root[data-motion="reduce"] .l1 {
+  flex-wrap: wrap;
+}
+
 .id {
   flex: none;
   color: var(--mute);
@@ -195,7 +206,7 @@
   font-size: 0.96em;
 }
 
-.st2 {
+.node .st2 {
   display: none;
 }
 
@@ -206,7 +217,7 @@
 }
 
 .node[data-variant="stack"] .st2 {
-  display: inline;
+  display: block;
 }
 
 .node:hover .tt,

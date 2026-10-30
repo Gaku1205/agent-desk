@@ -8,6 +8,7 @@ type Props = {
   children: ReactNode;
   /** ボタンの印（キーボードの移動先を探すのに使う） */
   "data-act"?: string;
+  "aria-label"?: string;
 };
 
 /**
