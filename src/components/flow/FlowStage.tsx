@@ -98,6 +98,8 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
   const stripRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef(new Map<string, HTMLElement>());
   const [caption, setCaption] = useState<Caption>(null);
+  // 今乗せている・フォーカスしている名札（固定とは別。固定中でも、乗せた名札は流す）
+  const [hoverKey, setHoverKey] = useState<string | null>(null);
   const [stripOpen, setStripOpen] = useState<number | null>(null);
   const firstRef = useRef(true);
   // Tab で止まる物（最後にフォーカスした名札・列）
@@ -197,7 +199,7 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
   // 公開済みは右端の1つの塊（いちばん新しい物＝並びの先頭）
   const done = nodes.filter((n) => n.who === "done");
   const latest = done[0] ?? null;
-  const clusterOn = caption?.key === CLUSTER_KEY && latest !== null;
+  const clusterOn = (hoverKey === CLUSTER_KEY || caption?.key === CLUSTER_KEY) && latest !== null;
 
   function show(key: string, pinned: boolean) {
     setCaption((prev) => (prev?.pinned && !pinned ? prev : { key, pinned }));
@@ -274,14 +276,24 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                 tabIndex={-1}
                 style={{ "--c": WHO_CSS[node.who] } as React.CSSProperties}
                 aria-label={`${node.repo}#${node.number} ${node.title}。${node.label}`}
-                onMouseEnter={() => show(node.key, false)}
-                onMouseLeave={hide}
+                onMouseEnter={() => {
+                  setHoverKey(node.key);
+                  show(node.key, false);
+                }}
+                onMouseLeave={() => {
+                  setHoverKey(null);
+                  hide();
+                }}
                 onFocus={() => {
                   nodeStopRef.current = node.key;
                   syncTabStop(nodesRef.current, nodeKeyOf, node.key);
+                  setHoverKey(node.key);
                   show(node.key, false);
                 }}
-                onBlur={hide}
+                onBlur={() => {
+                  setHoverKey(null);
+                  hide();
+                }}
                 onClick={() => {
                   show(node.key, true);
                   onPick?.(node.key);
@@ -292,15 +304,15 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                     <span className={`${styles.id} num`}>
                       {multiRepo ? node.repo : ""}#{node.number}
                     </span>
-                    <Marquee className={styles.st} active={caption?.key === node.key}>
+                    <Marquee className={styles.st} active={hoverKey === node.key || caption?.key === node.key}>
                       {node.label}
                     </Marquee>
                   </span>
                   <span className={styles.l2}>
-                    <Marquee className={styles.tt} active={caption?.key === node.key}>
+                    <Marquee className={styles.tt} active={hoverKey === node.key || caption?.key === node.key}>
                       {node.title}
                     </Marquee>
-                    <Marquee className={styles.st2} active={caption?.key === node.key}>
+                    <Marquee className={styles.st2} active={hoverKey === node.key || caption?.key === node.key}>
                       {node.label}
                     </Marquee>
                   </span>
@@ -319,14 +331,24 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
                 tabIndex={-1}
                 style={{ "--c": WHO_CSS.done } as React.CSSProperties}
                 aria-label={`公開済み ${done.length}件（いちばん新しい物：${latest.repo}#${latest.number} ${latest.title}）`}
-                onMouseEnter={() => show(CLUSTER_KEY, false)}
-                onMouseLeave={hide}
+                onMouseEnter={() => {
+                  setHoverKey(CLUSTER_KEY);
+                  show(CLUSTER_KEY, false);
+                }}
+                onMouseLeave={() => {
+                  setHoverKey(null);
+                  hide();
+                }}
                 onFocus={() => {
                   nodeStopRef.current = CLUSTER_KEY;
                   syncTabStop(nodesRef.current, nodeKeyOf, CLUSTER_KEY);
+                  setHoverKey(CLUSTER_KEY);
                   show(CLUSTER_KEY, false);
                 }}
-                onBlur={hide}
+                onBlur={() => {
+                  setHoverKey(null);
+                  hide();
+                }}
                 onClick={() => show(CLUSTER_KEY, true)}
               >
                 <span className={styles.tag} aria-hidden="true">
