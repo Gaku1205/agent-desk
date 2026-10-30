@@ -28,6 +28,17 @@ export function parseRateLimit(headers: Headers): RateLimitInfo {
   };
 }
 
+/** GraphQL の返事の `data.rateLimit`（`remaining` と ISO の `resetAt`）を読む。形が違えば不明 */
+export function parseGraphqlRateLimit(value: unknown): RateLimitInfo {
+  const info = (value ?? {}) as { remaining?: unknown; resetAt?: unknown };
+  const remaining =
+    typeof info.remaining === "number" && Number.isFinite(info.remaining) && info.remaining >= 0
+      ? info.remaining
+      : null;
+  const resetMs = typeof info.resetAt === "string" ? Date.parse(info.resetAt) : NaN;
+  return { remaining, resetAt: Number.isNaN(resetMs) ? null : Math.floor(resetMs / 1000) };
+}
+
 /** 返事のヘッダーに残りがあれば、そのトークンの分として覚える（無ければ前の物のまま） */
 export function rememberRateLimit(token: string, headers: Headers): void {
   const info = parseRateLimit(headers);
@@ -35,9 +46,30 @@ export function rememberRateLimit(token: string, headers: Headers): void {
   rateLimits.set(tokenKey(token), info);
 }
 
-/** 覚えている残りと回復する時刻。まだ返事を受けていなければ不明 */
+/** GraphQL の枠（REST とは別）のキー */
+function graphqlKey(token: string): string {
+  return `graphql:${tokenKey(token)}`;
+}
+
+/** GraphQL の残り（問い合わせの `rateLimit`、無ければ返事のヘッダー）を、そのトークンの分として覚える */
+export function rememberGraphqlRateLimit(token: string, info: RateLimitInfo): void {
+  if (info.remaining === null) return;
+  rateLimits.set(graphqlKey(token), info);
+}
+
+/** 覚えている REST の残りと回復する時刻。まだ返事を受けていなければ不明 */
 export function getRateLimit(token: string): RateLimitInfo {
   return rateLimits.get(tokenKey(token)) ?? { remaining: null, resetAt: null };
+}
+
+/** 覚えている GraphQL の残りと回復する時刻。まだ返事を受けていなければ不明 */
+export function getGraphqlRateLimit(token: string): RateLimitInfo {
+  return rateLimits.get(graphqlKey(token)) ?? { remaining: null, resetAt: null };
+}
+
+/** そのトークンの REST と GraphQL の残り（少ない方で判断するため、両方を返す） */
+export function getRateLimits(token: string): RateLimitInfo[] {
+  return [getRateLimit(token), getGraphqlRateLimit(token)];
 }
 
 /** テスト用 */

@@ -6,7 +6,8 @@ import {
   parseNextLink,
 } from "./client";
 import { classifyError, GitHubError } from "./errors";
-import { deployedStatusCacheForTest, fetchAllRepos, mainDeployedCacheForTest } from "./fetch";
+import { fakeGitHub, gqlIssue, gqlPull, jsonResponse, type FakeRepo } from "./fakeGitHub";
+import { actionsCacheForTest, fetchAllRepos, mainDeployedCacheForTest } from "./fetch";
 
 const TOKEN = "ghp_secret_token_value";
 const NOW = new Date("2026-10-25T00:00:00Z");
@@ -90,6 +91,49 @@ describe("GitHubClient", () => {
   });
 });
 
+describe("GitHubClient の GraphQL", () => {
+  it("POST /graphql に問い合わせと変数を送り、data を返す", async () => {
+    let seen: { url: string; method?: string; auth: string | null; body: unknown } | undefined;
+    const client = new GitHubClient(TOKEN, async (url, init) => {
+      seen = {
+        url: String(url),
+        method: init?.method,
+        auth: new Headers(init?.headers).get("authorization"),
+        body: JSON.parse(String(init?.body)),
+      };
+      return json({ data: { repository: { isTemplate: true } } });
+    });
+    expect(await client.graphql("query { x }", { a: 1 })).toEqual({ repository: { isTemplate: true } });
+    expect(seen).toEqual({
+      url: "https://api.github.com/graphql",
+      method: "POST",
+      auth: `Bearer ${TOKEN}`,
+      body: { query: "query { x }", variables: { a: 1 } },
+    });
+  });
+
+  it.each([
+    ["RATE_LIMITED", "rate_limited"],
+    ["NOT_FOUND", "not_found"],
+    ["FORBIDDEN", "forbidden"],
+    ["SOMETHING", "other"],
+  ])("errors の type が %s なら %s のエラー（トークンなし）", async (type, kind) => {
+    const client = new GitHubClient(TOKEN, async () =>
+      json({ data: null, errors: [{ type, message: `bad ${TOKEN}` }] }),
+    );
+    const e = (await client.graphql("q", {}).catch((err: unknown) => err)) as GitHubError;
+    expect(e).toBeInstanceOf(GitHubError);
+    expect(e.kind).toBe(kind);
+    expect(e.message).not.toContain(TOKEN);
+  });
+
+  it("HTTP のエラーは REST と同じ分け方", async () => {
+    const client = new GitHubClient(TOKEN, async () => json({}, { status: 401 }));
+    const e = (await client.graphql("q", {}).catch((err: unknown) => err)) as GitHubError;
+    expect(e.kind).toBe("unauthorized");
+  });
+});
+
 describe("GitHubClient のETag", () => {
   beforeEach(() => etagCacheForTest.clear());
 
@@ -159,302 +203,122 @@ describe("parseNextLink", () => {
   });
 });
 
-/** リポジトリ `ok/repo` はデータを返し、`ng/repo` は指定のステータスで失敗する偽のGitHub */
-function fakeGitHub(
-  failStatus: number,
-  mainStatusFails = false,
-  mainCommits: Record<string, unknown[]> = {
-    mainsha: [{ context: "Vercel", state: "success", updated_at: "2026-10-21T01:00:00Z" }],
-  },
-): typeof fetch {
-  return async (input) => {
-    const url = new URL(String(input));
-    const path = url.pathname;
-    if (mainStatusFails && path.endsWith("/commits") && url.searchParams.get("sha") === "main") {
-      return json({ message: "x" }, { status: 404 });
-    }
-    if (path.startsWith("/repos/ng/")) return json({ message: "x" }, { status: failStatus });
-    if (path.endsWith("/issues")) {
-      return json([
-        {
-          number: 1,
-          title: "issue",
-          state: "open",
-          labels: [],
-          html_url: "u",
-          created_at: "2026-10-20T00:00:00Z",
-          updated_at: "2026-10-20T00:00:00Z",
-        },
-        {
-          number: 2,
-          title: "pr as issue",
-          state: "open",
-          pull_request: {},
-          html_url: "u",
-          created_at: "2026-10-20T00:00:00Z",
-          updated_at: "2026-10-20T00:00:00Z",
-        },
-      ]);
-    }
-    if (path.endsWith("/pulls")) {
-      return json([
-        {
-          number: 2,
-          title: "pr",
-          state: "closed",
-          merged_at: "2026-10-21T00:00:00Z",
-          html_url: "u",
-          head: { ref: "claude/issue-1-x", sha: "headsha" },
-          merge_commit_sha: "mergesha",
-          created_at: "2026-10-20T00:00:00Z",
-          updated_at: "2026-10-21T00:00:00Z",
-        },
-        {
-          number: 9,
-          title: "old",
-          state: "closed",
-          html_url: "u",
-          head: { ref: "b", sha: "oldsha" },
-          created_at: "2026-09-01T00:00:00Z",
-          updated_at: "2026-09-01T00:00:00Z",
-        },
-      ]);
-    }
-    if (path.endsWith("/issues/comments")) return json([]);
-    if (path.endsWith("/issues/events")) {
-      return json([
-        { event: "labeled", label: { name: "ai:implement" }, issue: { number: 1 }, created_at: "t" },
-      ]);
-    }
-    if (path.endsWith("/commits/headsha/check-runs")) {
-      return json({
-        check_runs: [
-          {
-            name: "test",
-            status: "completed",
-            conclusion: "success",
-            app: { slug: "github-actions" },
-            completed_at: "2026-10-20T01:00:00Z",
-          },
-        ],
-      });
-    }
-    if (path.endsWith("/commits/mergesha/status")) {
-      return json({
-        statuses: [{ context: "Vercel", state: "success", updated_at: "2026-10-21T00:05:00Z" }],
-      });
-    }
-    if (path.endsWith("/commits") && url.searchParams.get("sha") === "main") {
-      return json(Object.keys(mainCommits).map((sha) => ({ sha })));
-    }
-    const mainStatus = /\/commits\/([^/]+)\/status$/.exec(path);
-    if (mainStatus && mainStatus[1] in mainCommits) {
-      return json({ statuses: mainCommits[mainStatus[1]] });
-    }
-    return json({ message: "unexpected" }, { status: 500 });
-  };
-}
-
-/** 取り直しのURLと If-None-Match を順に覚える */
-type Seen = { url: string; inm: string | null };
-
-/** fakeGitHub に ETag を付けたもの。同じ内容のあいだは If-None-Match に 304 を返す */
-function etagGitHub(seen: Seen[]): typeof fetch {
-  const base = fakeGitHub(404);
-  return async (input, init) => {
-    const inm = new Headers(init?.headers).get("if-none-match");
-    seen.push({ url: String(input), inm });
-    if (inm) return new Response(null, { status: 304 });
-    const res = await base(input, init);
-    if (!res.ok) return res;
-    return new Response(res.body, {
-      status: 200,
-      headers: { "content-type": "application/json", etag: '"e"' },
-    });
-  };
-}
-
-function rawIssue(number: number, updatedAt: string) {
+/** `ok/repo` の中身：Issue 1件、マージ済みでIssueに紐づくPR 1件と古いPR 1件、ラベルの付け外し1件 */
+function okRepo(main: FakeRepo["main"] = [[{ context: "Vercel", state: "SUCCESS", createdAt: "2026-10-21T01:00:00Z" }]]): FakeRepo {
   return {
-    number,
-    title: `issue ${number}`,
-    state: "open",
-    labels: [],
-    html_url: "u",
-    created_at: "2026-10-01T00:00:00Z",
-    updated_at: updatedAt,
+    issues: [
+      gqlIssue(1, {
+        createdAt: "2026-10-20T00:00:00Z",
+        updatedAt: "2026-10-20T00:00:00Z",
+        timelineItems: {
+          nodes: [{ __typename: "LabeledEvent", createdAt: "2026-10-20T00:00:00Z", label: { name: "ai:implement" } }],
+        },
+      }),
+    ],
+    pulls: [
+      gqlPull(2, {
+        merged: true,
+        mergedAt: "2026-10-21T00:00:00Z",
+        headRefName: "claude/issue-1-x",
+        createdAt: "2026-10-20T00:00:00Z",
+        updatedAt: "2026-10-21T00:00:00Z",
+        statuses: [{ context: "Vercel", state: "SUCCESS", createdAt: "2026-10-21T00:05:00Z" }],
+      }),
+      gqlPull(9, { state: "CLOSED", headRefName: "b", createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z" }),
+    ],
+    main,
   };
 }
-
-function rawComment(id: number, createdAt: string) {
-  return {
-    id,
-    issue_url: "https://api.github.com/repos/ok/repo/issues/1",
-    user: { login: "gaku" },
-    body: "c",
-    created_at: createdAt,
-  };
-}
-
-describe("fetchAllRepos の since（日の始めに切り下げ）", () => {
-  beforeEach(() => etagCacheForTest.clear());
-
-  it("同じ日の中で時刻をずらして2回取り直すと、URL が同じで2回目に If-None-Match が付く", async () => {
-    const seen: Seen[] = [];
-    const fetcher = etagGitHub(seen);
-    const repos = [{ owner: "ok", repo: "repo" }];
-    await fetchAllRepos(TOKEN, repos, { fetcher, now: new Date("2026-10-25T01:00:00Z") });
-    await fetchAllRepos(TOKEN, repos, { fetcher, now: new Date("2026-10-25T20:00:00Z") });
-
-    const issueCalls = seen.filter((s) => new URL(s.url).pathname.endsWith("/issues"));
-    const commentCalls = seen.filter((s) => new URL(s.url).pathname.endsWith("/issues/comments"));
-    expect(issueCalls).toHaveLength(2);
-    expect(commentCalls).toHaveLength(2);
-    expect(new URL(issueCalls[0].url).searchParams.get("since")).toBe("2026-10-11T00:00:00.000Z");
-    expect(issueCalls[1].url).toBe(issueCalls[0].url);
-    expect(issueCalls[0].inm).toBeNull();
-    expect(issueCalls[1].inm).toBe('"e"');
-    expect(commentCalls[1].url).toBe(commentCalls[0].url);
-    expect(commentCalls[1].inm).toBe('"e"');
-  });
-
-  it("14日より古い Issue（updatedAt）・コメント（createdAt）は、切り下げで返ってきても結果に入らない", async () => {
-    const base = fakeGitHub(404);
-    const fetcher: typeof fetch = async (input, init) => {
-      const path = new URL(String(input)).pathname;
-      if (path.endsWith("/issues")) {
-        return json([rawIssue(1, "2026-10-20T00:00:00Z"), rawIssue(3, "2026-10-11T06:00:00Z")]);
-      }
-      if (path.endsWith("/issues/comments")) {
-        return json([rawComment(10, "2026-10-11T06:00:00Z"), rawComment(11, "2026-10-12T00:00:00Z")]);
-      }
-      return base(input, init);
-    };
-    const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], {
-      fetcher,
-      now: new Date("2026-10-25T12:00:00Z"),
-    });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data.issues.map((i) => i.number)).toEqual([1]);
-    expect(result.data.comments.map((c) => c.id)).toEqual([11]);
-  });
-});
 
 describe("fetchAllRepos", () => {
   beforeEach(() => {
     etagCacheForTest.clear();
     mainDeployedCacheForTest.clear();
-    deployedStatusCacheForTest.clear();
+    actionsCacheForTest.clear();
   });
 
   it("リポジトリのデータを自前の型にして返す", async () => {
-    const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], {
-      fetcher: fakeGitHub(404),
-      now: NOW,
-    });
+    const { fetcher } = fakeGitHub({ "ok/repo": { ...okRepo(), isTemplate: true } });
+    const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], { fetcher, now: NOW });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.issues.map((i) => i.number)).toEqual([1]);
     expect(result.data.pulls.map((p) => p.number)).toEqual([2]);
-    // マージ済みのPRは、公開ステータスだけ取る（check-runs は取らず空）
+    // マージ済みのPRは、公開ステータスだけ（チェックランは空）
     expect(result.data.pullChecks[2].checkRuns).toEqual([]);
     expect(result.data.pullChecks[2].statuses[0].updatedAt).toBe("2026-10-21T00:05:00Z");
-    expect(result.data.events).toHaveLength(1);
+    expect(result.data.events).toEqual([
+      { event: "labeled", labelName: "ai:implement", issueNumber: 1, createdAt: "2026-10-20T00:00:00Z" },
+    ]);
+    expect(result.data.isTemplate).toBe(true);
+    expect(result.data.pipeline).toBe("running");
+  });
+
+  it("問い合わせの since は日の始めに切り下げ、14日より古い物は結果に入らない", async () => {
+    const repo: FakeRepo = {
+      issues: [
+        gqlIssue(1, {
+          updatedAt: "2026-10-20T00:00:00Z",
+          comments: {
+            nodes: [
+              { databaseId: 10, createdAt: "2026-10-11T06:00:00Z", author: null },
+              { databaseId: 11, createdAt: "2026-10-12T00:00:00Z", author: null },
+            ],
+          },
+        }),
+        gqlIssue(3, { updatedAt: "2026-10-11T06:00:00Z" }),
+      ],
+    };
+    const { fetcher, calls } = fakeGitHub({ "ok/repo": repo });
+    const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], {
+      fetcher,
+      now: new Date("2026-10-25T12:00:00Z"),
+    });
+    expect(calls.find((c) => c.variables)?.variables?.since).toBe("2026-10-11T00:00:00.000Z");
+    if (!result.ok) throw new Error("取れるはず");
+    expect(result.data.issues.map((i) => i.number)).toEqual([1]);
+    expect(result.data.comments.map((c) => c.id)).toEqual([11]);
   });
 
   describe("main の最後に公開が成功した時刻", () => {
     const repo = [{ owner: "ok", repo: "repo" }];
-    const success = (at: string, description?: string) => ({
-      context: "Vercel",
-      state: "success",
-      description,
-      updated_at: at,
-    });
-    const pending = { context: "Vercel", state: "pending", updated_at: "2026-10-21T03:00:00Z" };
-    const mainDeployedAt = async (fetcher: typeof fetch) => {
+    const mainDeployedAt = async (main: FakeRepo["main"]) => {
+      const { fetcher } = fakeGitHub({ "ok/repo": okRepo(main) });
       const [result] = await fetchAllRepos(TOKEN, repo, { fetcher, now: NOW });
       if (!result.ok) throw new Error("取れていない");
       return result.data.mainDeployedAt;
     };
+    const pending = { context: "Vercel", state: "PENDING", createdAt: "2026-10-21T03:00:00Z" };
 
     it("いちばん新しいコミットが pending でも、1つ前のコミットが success ならその時刻を使う", async () => {
-      const at = await mainDeployedAt(
-        fakeGitHub(404, false, { new: [pending], prev: [success("2026-10-21T02:00:00Z")] }),
-      );
-      expect(at).toBe("2026-10-21T02:00:00Z");
-    });
-
-    it("Ignored Build Step の success は数えず、そのさきの success を使う", async () => {
-      const at = await mainDeployedAt(
-        fakeGitHub(404, false, {
-          new: [success("2026-10-21T03:00:00Z", " Canceled by Ignored Build Step ")],
-          prev: [success("2026-10-21T02:00:00Z", "Deployment has completed")],
-        }),
-      );
+      const at = await mainDeployedAt([
+        [pending],
+        [{ context: "Vercel", state: "SUCCESS", createdAt: "2026-10-21T02:00:00Z" }],
+      ]);
       expect(at).toBe("2026-10-21T02:00:00Z");
     });
 
     it("直近10件に成功が無ければ null", async () => {
-      expect(await mainDeployedAt(fakeGitHub(404, false, { new: [pending] }))).toBeNull();
+      expect(await mainDeployedAt([[pending]])).toBeNull();
     });
 
-    it("コミット一覧・ステータスのURLに、毎回変わる値を入れない", async () => {
-      const seen: string[] = [];
-      const base = fakeGitHub(404);
-      await mainDeployedAt(async (input, init) => {
-        seen.push(String(input));
-        return base(input, init);
-      });
-      expect(seen).toContain("https://api.github.com/repos/ok/repo/commits?sha=main&per_page=10");
-      expect(seen).toContain(
-        "https://api.github.com/repos/ok/repo/commits/mainsha/status?per_page=100",
-      );
+    it("main が取れなかったら前回の値を使う（前回の値が無ければ null）", async () => {
+      expect(await mainDeployedAt(null)).toBeNull();
+      expect(await mainDeployedAt([])).toBeNull();
+      expect(
+        await mainDeployedAt([[{ context: "Vercel", state: "SUCCESS", createdAt: "2026-10-21T01:00:00Z" }]]),
+      ).toBe("2026-10-21T01:00:00Z");
+      expect(await mainDeployedAt(null)).toBe("2026-10-21T01:00:00Z");
     });
-
-    it("取得に失敗したら前回の値を使う", async () => {
-      expect(await mainDeployedAt(fakeGitHub(404))).toBe("2026-10-21T01:00:00Z");
-      expect(await mainDeployedAt(fakeGitHub(404, true))).toBe("2026-10-21T01:00:00Z");
-    });
-
-    it("一部のコミットのステータスだけ失敗したときも前回の値を使う", async () => {
-      expect(await mainDeployedAt(fakeGitHub(404))).toBe("2026-10-21T01:00:00Z");
-      const base = fakeGitHub(404, false, { new: [pending], prev: [success("2026-10-21T02:00:00Z")] });
-      const at = await mainDeployedAt(async (input, init) =>
-        String(input).includes("/commits/prev/status")
-          ? json({ message: "x" }, { status: 500 })
-          : base(input, init),
-      );
-      expect(at).toBe("2026-10-21T01:00:00Z");
-    });
-  });
-
-  it("main の公開ステータスが取れなくても、ほかのデータは取れる（前回の値が無ければ公開の時刻は null）", async () => {
-    const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], {
-      fetcher: fakeGitHub(404, true),
-      now: NOW,
-    });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.data.mainDeployedAt).toBeNull();
-    expect(result.data.issues.map((i) => i.number)).toEqual([1]);
-    expect(result.data.pulls.map((p) => p.number)).toEqual([2]);
   });
 
   describe("見張り役（watchdog.yml）の最後の実行", () => {
-    /** watchdog.yml の問い合わせだけ差し替える。ほかは fakeGitHub のまま */
-    function withWatchdog(respond: () => Response): typeof fetch {
-      const base = fakeGitHub(404);
-      return async (input, init) =>
-        new URL(String(input)).pathname.endsWith("/actions/workflows/watchdog.yml/runs")
-          ? respond()
-          : base(input, init);
-    }
     async function watchdogOf(respond: () => Response) {
-      const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], {
-        fetcher: withWatchdog(respond),
-        now: NOW,
-      });
+      const { fetcher } = fakeGitHub({ "ok/repo": okRepo() }, (url) =>
+        url.pathname.endsWith("/actions/workflows/watchdog.yml/runs") ? respond() : undefined,
+      );
+      actionsCacheForTest.clear();
+      const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], { fetcher, now: NOW });
       expect(result.ok).toBe(true);
       return result.ok ? result.data : null;
     }
@@ -489,14 +353,29 @@ describe("fetchAllRepos", () => {
     });
   });
 
+  it("パイプラインの pipeline.yml が無い（404）なら「動いていない」", async () => {
+    const { fetcher } = fakeGitHub({ "ok/repo": okRepo() }, (url) =>
+      url.pathname.endsWith("/actions/workflows/pipeline.yml/runs")
+        ? json({ message: "Not Found" }, { status: 404 })
+        : undefined,
+    );
+    const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], { fetcher, now: NOW });
+    if (!result.ok) throw new Error("取れるはず");
+    expect(result.data.pipeline).toBe("notConfigured");
+  });
+
   it("1つのリポジトリが失敗しても、ほかは取れる", async () => {
+    const { fetcher } = fakeGitHub({
+      "ng/repo": () => jsonResponse({ message: `bad ${TOKEN}` }, { status: 403 }),
+      "ok/repo": okRepo(),
+    });
     const results = await fetchAllRepos(
       TOKEN,
       [
         { owner: "ng", repo: "repo" },
         { owner: "ok", repo: "repo" },
       ],
-      { fetcher: fakeGitHub(403), now: NOW },
+      { fetcher, now: NOW },
     );
     const [failed, succeeded] = results;
     expect(failed.ok).toBe(false);
@@ -505,5 +384,12 @@ describe("fetchAllRepos", () => {
       expect(failed.error.message).not.toContain(TOKEN);
     }
     expect(succeeded.ok).toBe(true);
+  });
+
+  it("見つからないリポジトリ（repository が null）は not_found", async () => {
+    const { fetcher } = fakeGitHub({});
+    const [result] = await fetchAllRepos(TOKEN, [{ owner: "x", repo: "y" }], { fetcher, now: NOW });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.kind).toBe("not_found");
   });
 });

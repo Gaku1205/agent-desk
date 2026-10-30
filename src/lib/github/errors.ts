@@ -44,6 +44,17 @@ function buildMessage(kind: GitHubErrorKind, resetAt: number | null, source: Err
   return MESSAGES[kind];
 }
 
+/** GraphQL の返事の `errors` の `type` から、エラーの種類を決める（最初に分かった物） */
+export function classifyGraphqlErrors(errors: unknown[]): GitHubErrorKind {
+  for (const error of errors) {
+    const type = (error as { type?: unknown } | null)?.type;
+    if (type === "RATE_LIMITED") return "rate_limited";
+    if (type === "NOT_FOUND") return "not_found";
+    if (type === "FORBIDDEN") return "forbidden";
+  }
+  return "other";
+}
+
 /** 失敗したレスポンスのステータスとヘッダーから、エラーの種類を決める */
 export function classifyError(status: number, headers: Headers): GitHubErrorKind {
   if (status === 401) return "unauthorized";

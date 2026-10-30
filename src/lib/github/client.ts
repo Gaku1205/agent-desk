@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
-import { classifyError, GitHubError } from "./errors";
-import { parseRateLimit, rememberRateLimit } from "./rateLimit";
+import { classifyError, classifyGraphqlErrors, GitHubError } from "./errors";
+import {
+  parseGraphqlRateLimit,
+  parseRateLimit,
+  rememberGraphqlRateLimit,
+  rememberRateLimit,
+} from "./rateLimit";
 
 /** どの鍵で呼ぶか。user＝ログインした人のトークン、app＝パイプラインの App のインストールの鍵 */
 export type ClientSource = "user" | "app";
@@ -145,6 +150,56 @@ export class GitHubClient {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * GraphQL の問い合わせ（`POST /graphql`）。`data` を返す。`errors` があれば GitHubError（トークンは含めない）。
+   * 回数制限は REST とは別の枠として覚える（`data.rateLimit`、無ければ返事のヘッダー）
+   */
+  async graphql(query: string, variables: Record<string, unknown>): Promise<unknown> {
+    let response: Response;
+    try {
+      response = await this.fetcher(`${API_BASE}/graphql`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query, variables }),
+        cache: "no-store",
+      });
+    } catch {
+      throw new GitHubError("other", null, null, this.source);
+    }
+    const fromHeaders = parseRateLimit(response.headers);
+    rememberGraphqlRateLimit(this.keyId, fromHeaders);
+    if (!response.ok) {
+      throw new GitHubError(
+        classifyError(response.status, response.headers),
+        response.status,
+        fromHeaders.resetAt,
+        this.source,
+      );
+    }
+    let body: { data?: unknown; errors?: unknown };
+    try {
+      body = (await response.json()) as { data?: unknown; errors?: unknown };
+    } catch {
+      throw new GitHubError("other", response.status, null, this.source);
+    }
+    const data = (body?.data ?? null) as { rateLimit?: unknown } | null;
+    const fromBody = parseGraphqlRateLimit(data?.rateLimit);
+    rememberGraphqlRateLimit(this.keyId, fromBody);
+    if (Array.isArray(body?.errors) && body.errors.length > 0) {
+      throw new GitHubError(
+        classifyGraphqlErrors(body.errors),
+        response.status,
+        fromBody.resetAt ?? fromHeaders.resetAt,
+        this.source,
+      );
+    }
+    if (data === null) throw new GitHubError("other", response.status, null, this.source);
+    return data;
   }
 
   async get<T>(path: string): Promise<T> {

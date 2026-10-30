@@ -2,37 +2,32 @@ import { cache } from "react";
 import type { Env, WatchedRepo } from "../config";
 import { resolveReadAccess } from "./appToken";
 import { GitHubClient, type Fetcher } from "./client";
-import {
-  convertCheckRun,
-  convertComment,
-  convertIssue,
-  convertIssueEvent,
-  convertPull,
-  convertStatus,
-  type GhCheckRun,
-  type GhComment,
-  type GhIssue,
-  type GhIssueEvent,
-  type GhPull,
-  type GhStatus,
-} from "./convert";
 import { GitHubError, toErrorInfo } from "./errors";
+import {
+  convertRepoNodes,
+  mainDeployedFrom,
+  readRepoResponse,
+  REPO_QUERY,
+  type GqlIssue,
+  type GqlPull,
+  type MainDeployed,
+} from "./graphql";
 import { judgePipelineState, type PipelineProbe, type PipelineState } from "../pipelineState";
-import { isDeployStatus } from "../deployStatus";
-import { deployState, isIssueLinkedPull, latestSuccessDeployByContext } from "../status";
 import type { WatchdogLastRun } from "../watchdogState";
 import { cachedRepoData } from "./repoCache";
 import { PIPELINE_WORKFLOW_PATH } from "./settings";
-import type { CommitStatusData, PullChecks, PullData, RepoData, RepoResult } from "./types";
+import type { CommitStatusData, RepoData, RepoResult } from "./types";
 
 const WINDOW_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** Issue・PR それぞれ、ページ送りで取る最大のページ数（1ページ100件） */
+const MAX_PAGES = 5;
 
-function nonNull<T>(value: T | null): value is T {
-  return value !== null;
-}
-
-/** 1リポジトリぶんのデータ（直近14日）を取る。どれか1つでも失敗したら GitHubError を投げる */
+/**
+ * 1リポジトリぶんのデータ（直近14日）を取る（docs/spec.md の「データの取得」）。
+ * GraphQL を1回（ページ送りのときだけ増える）と、5分ごとの Actions の runs（REST）。
+ * GraphQL が失敗したら GitHubError を投げる
+ */
 export async function fetchRepoData(
   client: GitHubClient,
   { owner, repo }: WatchedRepo,
@@ -41,79 +36,96 @@ export async function fetchRepoData(
   const base = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
   // 直近14日の境目。結果の絞り込みに使う
   const cutoffMs = now.getTime() - WINDOW_DAYS * DAY_MS;
-  // URL に入れる since は日の始め（UTC の0時）に切り下げる。同じ日のあいだは URL が変わり、ETag が効く
+  // 問い合わせの since は日の始め（UTC の0時）に切り下げ、取ったあとで直近14日に絞り直す
   const since = new Date(Math.floor(cutoffMs / DAY_MS) * DAY_MS).toISOString();
 
-  const [rawIssues, rawPulls, rawComments, rawEvents, pipeline, mainDeployed, watchdog, isTemplate] = await Promise.all([
-    client.getAll<GhIssue>(
-      `${base}/issues?state=all&since=${since}&sort=updated&direction=desc&per_page=100`,
-    ),
-    client.getAll<GhPull>(`${base}/pulls?state=all&sort=updated&direction=desc&per_page=100`),
-    client.getAll<GhComment>(`${base}/issues/comments?since=${since}&per_page=100`),
-    client.get<GhIssueEvent[]>(`${base}/issues/events?per_page=100`),
-    fetchPipelineState(client, base),
-    fetchMainDeployedAt(client, base),
-    fetchWatchdogLastRun(client, base),
-    fetchIsTemplate(client, base),
+  const [nodes, actions] = await Promise.all([
+    fetchRepoNodes(client, owner, repo, since, cutoffMs),
+    fetchActionsState(client, base, now.getTime()),
   ]);
-
-  // since は切り下げているので、取ったあとで直近14日に絞り直す
-  const issues = rawIssues
-    .map(convertIssue)
-    .filter(nonNull)
-    .filter((issue) => Date.parse(issue.updatedAt) >= cutoffMs);
-  const pulls = rawPulls
-    .map(convertPull)
-    .filter((pull) => Date.parse(pull.updatedAt) >= cutoffMs);
-  const comments = rawComments
-    .map(convertComment)
-    .filter(nonNull)
-    .filter((comment) => Date.parse(comment.createdAt) >= cutoffMs);
-  const events = rawEvents.map(convertIssueEvent);
-
-  // チェックを取るのは、Issueに紐づく「開いているPR」と「マージ済みPR」だけ（回数制限を使い切らないため）
-  const pullChecks: Record<number, PullChecks> = {};
-  await Promise.all(
-    pulls.map(async (pull) => {
-      if (!isIssueLinkedPull(pull) || (pull.state === "closed" && !pull.merged)) return;
-      pullChecks[pull.number] = await fetchPullChecks(client, base, pull, now);
-    }),
-  );
+  const mainDeployed = rememberedMainDeployed(client.memoKey(base), nodes.mainCommits);
 
   return {
-    issues,
-    pulls,
-    comments,
-    pullChecks,
-    events,
-    pipeline,
+    ...convertRepoNodes(nodes.issues, nodes.pulls, cutoffMs),
+    pipeline: actions.pipeline,
     mainDeployedAt: mainDeployed.at,
     mainDeployedByContext: mainDeployed.byContext,
-    watchdog,
-    ...(isTemplate === undefined ? {} : { isTemplate }),
+    watchdog: actions.watchdog,
+    ...(nodes.isTemplate === undefined ? {} : { isTemplate: nodes.isTemplate }),
   };
 }
 
-/** `GET /repos/{owner}/{repo}` の `is_template`。調べられなかった（エラー・形が違う）ときは undefined */
-async function fetchIsTemplate(client: GitHubClient, base: string): Promise<boolean | undefined> {
-  try {
-    const repo = await client.get<{ is_template?: unknown }>(base);
-    return typeof repo?.is_template === "boolean" ? repo.is_template : undefined;
-  } catch {
-    return undefined;
+/**
+ * GraphQL で Issue・PR（とコメント・チェックなど）と main の公開ステータスを取る。
+ * Issue は続きがあれば、PR は続きがあってそのページのいちばん古い物が直近14日の中なら、続きだけを問い合わせる
+ */
+async function fetchRepoNodes(
+  client: GitHubClient,
+  owner: string,
+  name: string,
+  since: string,
+  cutoffMs: number,
+): Promise<{
+  isTemplate: boolean | undefined;
+  issues: GqlIssue[];
+  pulls: GqlPull[];
+  mainCommits: CommitStatusData[][] | null;
+}> {
+  const issues: GqlIssue[] = [];
+  const pulls: GqlPull[] = [];
+  let isTemplate: boolean | undefined;
+  let mainCommits: CommitStatusData[][] | null = null;
+  let issuesAfter: string | null = null;
+  let pullsAfter: string | null = null;
+  let issuePages = 0;
+  let pullPages = 0;
+  let withIssues = true;
+  let withPulls = true;
+  for (let first = true; withIssues || withPulls; first = false) {
+    const read = readRepoResponse(
+      await client.graphql(REPO_QUERY, {
+        owner,
+        name,
+        since,
+        issuesAfter,
+        pullsAfter,
+        withIssues,
+        withPulls,
+        withMain: first,
+      }),
+    );
+    if (!read) throw new GitHubError("not_found");
+    if (first) {
+      isTemplate = read.isTemplate;
+      mainCommits = read.mainCommits;
+    }
+    if (withIssues) {
+      issuePages++;
+      issues.push(...(read.issues?.nodes ?? []));
+      issuesAfter = read.issues?.next ?? null;
+      withIssues = issuesAfter !== null && issuePages < MAX_PAGES;
+    }
+    if (withPulls) {
+      pullPages++;
+      const pagePulls = read.pulls?.nodes ?? [];
+      pulls.push(...pagePulls);
+      const oldest = pagePulls.at(-1);
+      pullsAfter = read.pulls?.next ?? null;
+      withPulls =
+        pullsAfter !== null &&
+        pullPages < MAX_PAGES &&
+        oldest !== undefined &&
+        Date.parse(oldest.updatedAt) >= cutoffMs;
+    }
   }
+  return { isTemplate, issues, pulls, mainCommits };
 }
 
-/** main の直近のコミット（新しい順）を何件まで見るか */
-const MAIN_COMMITS_SAMPLE = 10;
 /** 前回取れた「main の最後の公開の成功の時刻」を覚えておく件数の上限（超えたら古い物から捨てる） */
 export const MAIN_DEPLOYED_CACHE_MAX_ENTRIES = 100;
 
 /** サーバーのメモリ。キーは「トークンのハッシュ＋リポジトリ」（`GitHubClient.memoKey`） */
 const lastMainDeployedAt = new Map<string, MainDeployed>();
-
-/** main の最後の公開の成功：全体のいちばん新しい時刻と、context ごとの時刻 */
-type MainDeployed = { at: string | null; byContext: Record<string, string> };
 
 function rememberMainDeployedAt(key: string, value: MainDeployed): void {
   lastMainDeployedAt.delete(key);
@@ -129,40 +141,54 @@ function rememberMainDeployedAt(key: string, value: MainDeployed): void {
 export const mainDeployedCacheForTest = { clear: (): void => lastMainDeployedAt.clear() };
 
 /**
- * main の直近10件のコミットを新しい順に見て、公開の成功（Ignored Build Step を除く）がある
- * いちばん新しいコミットの時刻を取る（リポジトリごとに1回。見つかった時点でやめる）。
- * 取得に失敗したら、そのリポジトリで前回取れた値を使う（無ければ null）。
- * 補助の情報なので、失敗してもほかのデータは落とさない
+ * main の直近10件のコミットの公開ステータスから、最後に公開が成功した時刻を決める。
+ * main が取れなかった（`commits` が null）ときは、そのリポジトリで前回取れた値を使う（無ければ null）
  */
-async function fetchMainDeployedAt(client: GitHubClient, base: string): Promise<MainDeployed> {
-  const key = client.memoKey(base);
-  try {
-    const commits = await client.get<{ sha?: unknown }[]>(
-      `${base}/commits?sha=main&per_page=${MAIN_COMMITS_SAMPLE}`,
-    );
-    if (!Array.isArray(commits)) throw new GitHubError("other");
-    const byContext: Record<string, string> = {};
-    // 見えた公開の context。全部の context で成功が見つかったらやめる
-    const seen = new Set<string>();
-    for (const commit of commits.slice(0, MAIN_COMMITS_SAMPLE)) {
-      if (typeof commit?.sha !== "string") throw new GitHubError("other");
-      const status = await client.get<{ statuses?: GhStatus[] }>(
-        `${base}/commits/${encodeURIComponent(commit.sha)}/status?per_page=100`,
-      );
-      const statuses = (status.statuses ?? []).map(convertStatus);
-      for (const s of statuses) if (isDeployStatus(s.context)) seen.add(s.context);
-      // 新しいコミットで見つかった context は、古いコミットの値で上書きしない
-      for (const [context, at] of Object.entries(latestSuccessDeployByContext(statuses))) {
-        byContext[context] ??= at;
-      }
-      if (seen.size > 0 && [...seen].every((context) => context in byContext)) break;
-    }
-    const found: MainDeployed = { at: Object.values(byContext).sort().at(-1) ?? null, byContext };
-    rememberMainDeployedAt(key, found);
-    return found;
-  } catch {
-    return lastMainDeployedAt.get(key) ?? { at: null, byContext: {} };
+function rememberedMainDeployed(key: string, commits: CommitStatusData[][] | null): MainDeployed {
+  if (commits === null) return lastMainDeployedAt.get(key) ?? { at: null, byContext: {} };
+  const found = mainDeployedFrom(commits);
+  rememberMainDeployedAt(key, found);
+  return found;
+}
+
+/** Actions の runs（パイプラインの状態・見張り役の最後の実行）を取り直す間隔 */
+export const ACTIONS_REFRESH_MS = 5 * 60_000;
+/** 覚えておく件数の上限（超えたら古い物から捨てる） */
+export const ACTIONS_CACHE_MAX_ENTRIES = 100;
+
+type ActionsState = { at: number; pipeline: PipelineState; watchdog: WatchdogLastRun };
+
+/** サーバーのメモリ。キーは「トークンのハッシュ＋リポジトリ」（`GitHubClient.memoKey`） */
+const actionsStates = new Map<string, ActionsState>();
+
+/** テスト用：覚えている物を空にする */
+export const actionsCacheForTest = { clear: (): void => actionsStates.clear() };
+
+/**
+ * パイプラインの状態と見張り役の最後の実行（GraphQL で取れないので REST）。
+ * リポジトリごとに5分に1回だけ取り直し、間は前の値を使う
+ */
+async function fetchActionsState(
+  client: GitHubClient,
+  base: string,
+  nowMs: number,
+): Promise<ActionsState> {
+  const key = client.memoKey(`${base}#actions`);
+  const known = actionsStates.get(key);
+  if (known && nowMs >= known.at && nowMs - known.at < ACTIONS_REFRESH_MS) return known;
+  const [pipeline, watchdog] = await Promise.all([
+    fetchPipelineState(client, base),
+    fetchWatchdogLastRun(client, base),
+  ]);
+  const state: ActionsState = { at: nowMs, pipeline, watchdog };
+  actionsStates.delete(key);
+  actionsStates.set(key, state);
+  while (actionsStates.size > ACTIONS_CACHE_MAX_ENTRIES) {
+    const oldest = actionsStates.keys().next();
+    if (oldest.done) break;
+    actionsStates.delete(oldest.value);
   }
+  return state;
 }
 
 /**
@@ -202,56 +228,6 @@ async function fetchPipelineState(client: GitHubClient, base: string): Promise<P
     }
   }
   return judgePipelineState(probe);
-}
-
-/** 公開済みと決まったマージコミットの公開ステータスを覚えておく件数の上限（超えたら古い物から捨てる） */
-export const DEPLOYED_STATUS_CACHE_MAX_ENTRIES = 500;
-
-/** サーバーのメモリ。キーは「トークンのハッシュ＋リポジトリ＋sha」（`GitHubClient.memoKey`） */
-const deployedStatuses = new Map<string, CommitStatusData[]>();
-
-function rememberDeployedStatuses(key: string, value: CommitStatusData[]): void {
-  deployedStatuses.delete(key);
-  deployedStatuses.set(key, value);
-  while (deployedStatuses.size > DEPLOYED_STATUS_CACHE_MAX_ENTRIES) {
-    const oldest = deployedStatuses.keys().next();
-    if (oldest.done) break;
-    deployedStatuses.delete(oldest.value);
-  }
-}
-
-/** テスト用：覚えている物を空にする */
-export const deployedStatusCacheForTest = { clear: (): void => deployedStatuses.clear() };
-
-/**
- * PRのチェックを取る。開いているPRは先頭コミットの check-runs だけ。
- * マージ済みのPRはマージコミットの公開ステータスだけ（check-runs は取らず空）。
- * 公開済み（全部成功）と決まったら、同じ sha はもう取らない
- */
-async function fetchPullChecks(
-  client: GitHubClient,
-  base: string,
-  pull: PullData,
-  now: Date,
-): Promise<PullChecks> {
-  if (!pull.merged) {
-    const runs = await client.get<{ check_runs?: GhCheckRun[] }>(
-      `${base}/commits/${encodeURIComponent(pull.headSha)}/check-runs?per_page=100`,
-    );
-    return { checkRuns: (runs.check_runs ?? []).map(convertCheckRun), statuses: [] };
-  }
-  if (!pull.mergeCommitSha) return { checkRuns: [], statuses: [] };
-  const key = client.memoKey(`${base}/commits/${pull.mergeCommitSha}`);
-  const known = deployedStatuses.get(key);
-  if (known) return { checkRuns: [], statuses: known };
-  const result = await client.get<{ statuses?: GhStatus[] }>(
-    `${base}/commits/${encodeURIComponent(pull.mergeCommitSha)}/status?per_page=100`,
-  );
-  const statuses = (result.statuses ?? []).map(convertStatus);
-  if (statuses.length > 0 && deployState(statuses, pull.mergedAt, now).state === "deployed") {
-    rememberDeployedStatuses(key, statuses);
-  }
-  return { checkRuns: [], statuses };
 }
 
 /**
