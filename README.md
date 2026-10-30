@@ -44,6 +44,21 @@ Next.js（App Router）・TypeScript・Auth.js（GitHubログイン）・GitHub 
 
 Vercelは、`.github/` と `docs/pipeline.md` だけの変更では公開を飛ばします。
 
+## セットアップ：同期の読み取りをパイプラインのAppの鍵で行う（任意）
+
+ふつうは、ログインした人（オーナー）のトークンで同期のデータを読みます。この回数制限（1時間5,000回）は、ほかのツール（`gh` など）と共有です。パイプラインのGitHub App（`gaku-ai-pipeline`）の鍵で読めば、別の回数（インストールごと）を使えます。
+
+Vercel の agent-desk の環境変数に、パイプラインのSecretと同じ名前・同じ値で入れて、公開し直してください。
+
+| 名前 | 値 |
+| --- | --- |
+| `PIPELINE_APP_ID` | AppのID |
+| `PIPELINE_APP_PRIVATE_KEY` | 秘密鍵（`.pem` の中身。改行が `\n` の文字で入っていても読めます） |
+
+- 入れなくても今までどおり動きます。Appが入っていないリポジトリ、鍵が取れないときも、ログインした人のトークンで読みます
+- Appの鍵で読むのは、ログインした人のトークンで読めると確かめたリポジトリだけです。ボタンの操作は、いつもログインした人のトークンで行います
+- 鍵はサーバーだけで使い、画面にもログにも出しません（詳しくは [docs/spec.md](docs/spec.md) の「読み取りの鍵」）
+
 ## READMEの画像の撮り直し
 
 見た目を変えたときは、`npm run readme:shots` で `assets/readme/` の画像とGIFを撮り直します（初回は `npx playwright install chromium` が要ります）。

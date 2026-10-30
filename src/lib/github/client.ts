@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { classifyError, GitHubError } from "./errors";
 import { parseRateLimit, rememberRateLimit } from "./rateLimit";
 
-const API_BASE = "https://api.github.com";
+/** どの鍵で呼ぶか。user＝ログインした人のトークン、app＝パイプラインの App のインストールの鍵 */
+export type ClientSource = "user" | "app";
+
+const API_BASE ="https://api.github.com";
 const MAX_PAGES = 5;
 
 export type Fetcher = typeof fetch;
@@ -39,21 +42,30 @@ export const etagCacheForTest = {
 export class GitHubClient {
   private readonly token: string;
   private readonly fetcher: Fetcher;
+  private readonly source: ClientSource;
+  /** ETag・回数制限の記憶のキーに使う名前。App の鍵は1時間で替わるので、インストールごとの名前を渡す */
+  private readonly keyId: string;
 
-  constructor(token: string, fetcher: Fetcher = fetch) {
+  constructor(
+    token: string,
+    fetcher: Fetcher = fetch,
+    options: { source?: ClientSource; keyId?: string } = {},
+  ) {
     this.token = token;
     this.fetcher = fetcher;
+    this.source = options.source ?? "user";
+    this.keyId = options.keyId ?? token;
   }
 
   /** サーバーのメモリに覚える物のキー（トークンのハッシュ＋名前。トークンそのものは入れない） */
   memoKey(name: string): string {
-    return etagCacheKey(this.token, name);
+    return etagCacheKey(this.keyId, name);
   }
 
   /** 1回のGET。失敗したら GitHubError（トークンは含めない）。次のページのURLも返す */
   async request(pathOrUrl: string): Promise<{ json: unknown; next: string | null }> {
     const url = pathOrUrl.startsWith("https://") ? pathOrUrl : `${API_BASE}${pathOrUrl}`;
-    const key = etagCacheKey(this.token, url);
+    const key = etagCacheKey(this.keyId, url);
     const cached = etagCache.get(key);
     let response: Response;
     try {
@@ -68,10 +80,10 @@ export class GitHubClient {
       });
     } catch {
       // ネットワークエラーの原因にはヘッダー（トークン）が入りうるので捨てる
-      throw new GitHubError("other");
+      throw new GitHubError("other", null, null, this.source);
     }
     // 304の返事にも付くので、成功・失敗にかかわらず読む
-    rememberRateLimit(this.token, response.headers);
+    rememberRateLimit(this.keyId, response.headers);
     if (response.status === 304 && cached) {
       return { json: cached.json, next: cached.next };
     }
@@ -80,13 +92,14 @@ export class GitHubClient {
         classifyError(response.status, response.headers),
         response.status,
         parseRateLimit(response.headers).resetAt,
+        this.source,
       );
     }
     let json: unknown;
     try {
       json = await response.json();
     } catch {
-      throw new GitHubError("other", response.status);
+      throw new GitHubError("other", response.status, null, this.source);
     }
     const next = parseNextLink(response.headers.get("link"));
     const etag = response.headers.get("etag");
@@ -115,14 +128,15 @@ export class GitHubClient {
         cache: "no-store",
       });
     } catch {
-      throw new GitHubError("other");
+      throw new GitHubError("other", null, null, this.source);
     }
-    rememberRateLimit(this.token, response.headers);
+    rememberRateLimit(this.keyId, response.headers);
     if (!response.ok) {
       throw new GitHubError(
         classifyError(response.status, response.headers),
         response.status,
         parseRateLimit(response.headers).resetAt,
+        this.source,
       );
     }
     if (response.status === 204) return null;
@@ -143,7 +157,7 @@ export class GitHubClient {
     let next: string | null = path;
     for (let page = 0; next && page < MAX_PAGES; page++) {
       const result = await this.request(next);
-      if (!Array.isArray(result.json)) throw new GitHubError("other");
+      if (!Array.isArray(result.json)) throw new GitHubError("other", null, null, this.source);
       items.push(...(result.json as T[]));
       next = result.next;
     }

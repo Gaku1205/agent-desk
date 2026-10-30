@@ -2,7 +2,7 @@ import { cache } from "react";
 import { getGitHubToken } from "./auth";
 import { getRepoResults } from "./github/fetch";
 import type { RepoResult } from "./github/types";
-import { getRateLimit } from "./github/rateLimit";
+import { getReadRateLimit } from "./github/appToken";
 import { getAutoRefreshPlan, hasAiTurnWork, IDLE_REFRESH_INTERVAL_MS } from "./refresh";
 import { buildTurnItems, type TurnItem } from "./turn";
 import { loadWatchedRepos } from "./watchedRepos";
@@ -34,7 +34,8 @@ export const loadTurns = cache(async (): Promise<LoadedTurns> => {
   const { repos } = await loadWatchedRepos();
   const results = await getRepoResults(token, repos);
   // 取り直しで受けた返事のあとの残りで決める（トークンは画面に渡さない）
-  const { remaining, resetAt } = getRateLimit(token);
+  // 使った鍵（ログインした人のトークンと App の鍵）のうち、いちばん少ない残りで決める
+  const { remaining, resetAt } = getReadRateLimit(token);
   const plan = getAutoRefreshPlan({
     hasAiWork: hasAiTurnWork(results, now),
     remaining,
