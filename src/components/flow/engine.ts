@@ -7,6 +7,7 @@ import {
   type LabelVariant,
   type MeasureLabel,
   type PrevSeats,
+  type TitleBox,
 } from "@/lib/flow/layout";
 import type { FlowNode, FlowWho } from "@/lib/flow/nodes";
 import { seededRandom, seedOf } from "@/lib/flow/random";
@@ -115,6 +116,8 @@ type Body = {
   /** 名札の左上の、光からの位置 */
   dx: number;
   dy: number;
+  /** 題名の札（常に出す名札だけ。乗せたときに出す）の幅と、光からの位置 */
+  tip: TitleBox | null;
   /** 公開済みの粒が抜けて消える所（列の右端。流れの中の座標。スマホの帯） */
   edgeU: number;
   fresh: boolean;
@@ -620,6 +623,7 @@ export class FlowEngine {
       b.variant = p.variant;
       b.dx = p.dx;
       b.dy = p.dy;
+      b.tip = p.tip;
       b.count = 1;
       shown.add(p.key);
     }
@@ -648,6 +652,7 @@ export class FlowEngine {
       b.variant = c.variant;
       b.dx = c.dx;
       b.dy = c.dy;
+      b.tip = null;
       b.count = c.keys.length;
       shown.add(CLUSTER_KEY);
     } else {
@@ -736,6 +741,11 @@ export class FlowEngine {
     el.style.setProperty("--w", `${b.width}px`);
     el.style.setProperty("--tx", `${b.dx}px`);
     el.style.setProperty("--ty", `${b.dy}px`);
+    if (b.tip) {
+      el.style.setProperty("--hw", `${b.tip.width}px`);
+      el.style.setProperty("--hx", `${b.tip.dx}px`);
+      el.style.setProperty("--hy", `${b.tip.dy}px`);
+    }
   }
 
   /** スマホ：段階ごとに1つの光。列の中心は帯の中の x */
@@ -826,6 +836,7 @@ export class FlowEngine {
       variant: "full",
       dx: 0,
       dy: 0,
+      tip: null,
       edgeU: 0,
       fresh: true,
       lastX: NaN,

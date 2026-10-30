@@ -215,6 +215,32 @@
   color: var(--bone);
 }
 
+/* 常に出す名札は1行。題名は、乗せた・フォーカスした・押したときだけ、ほかの名札と重ならない側に1行の札で出す（0.12秒） */
+.node[data-pin] .l2 {
+  position: absolute;
+  top: calc(var(--hy, 0px) - var(--ty, 0px));
+  left: calc(var(--hx, 16px) - var(--tx, 16px));
+  box-sizing: border-box;
+  width: var(--hw, 120px);
+  margin: 0;
+  padding: 2px 4px;
+  border-radius: 5px;
+  background: rgba(11, 12, 16, 0.82);
+  box-shadow: 0 0 0 3px rgba(11, 12, 16, 0.82);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  transition: opacity 0.12s var(--ease);
+  pointer-events: none;
+}
+
+.node[data-pin]:hover .l2,
+.node[data-pin]:focus-visible .l2,
+.node[data-pin][data-pinned] .l2 {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* 下端の行：左に説明、右に凡例 */
 .foot {
   position: absolute;
