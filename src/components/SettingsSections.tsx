@@ -13,11 +13,13 @@ type Props = {
   repoOptions: string[];
   /** 監視するリポジトリを変えられるか */
   editable: boolean;
+  /** 追加の欄の一覧が取れなかったときの理由。取れたときは無し */
+  repoOptionsError?: string | null;
   notifyRows: NotifyRepoRow[];
 };
 
 /** 設定画面の中身：監視するリポジトリ・通知・アニメーション（本物とデモで同じ物） */
-export function SettingsSections({ repoRows, repoOptions, editable, notifyRows }: Props) {
+export function SettingsSections({ repoRows, repoOptions, editable, repoOptionsError, notifyRows }: Props) {
   // 「外す」を押したリポジトリ。保存前でも、通知の表からその列を消す
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
   const shownNotifyRows = notifyRows.filter((row) => !removed.has(row.name));
@@ -41,6 +43,7 @@ export function SettingsSections({ repoRows, repoOptions, editable, notifyRows }
               initialRows={repoRows}
               options={repoOptions}
               editable={editable}
+              optionsError={repoOptionsError}
               onListChange={handleListChange}
             />
           </section>
