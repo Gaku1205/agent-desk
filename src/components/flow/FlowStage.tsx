@@ -10,6 +10,7 @@ import {
 } from "react";
 import { stripColumns } from "@/lib/flow/layout";
 import { isNavKey, nextByArrow, pickTabStop, type NavBox } from "@/lib/flow/navigate";
+import { stripItemUrgent, stripPickAction } from "@/lib/flow/strip";
 import { countByStage, type FlowNode, type FlowWho } from "@/lib/flow/nodes";
 import { isMotionReduced } from "@/lib/motion";
 import { PROGRESS_STAGE_NAMES } from "@/lib/progress";
@@ -82,7 +83,7 @@ type Props = {
   /** すりガラスの帯（この上端より下は粒を暗くする） */
   bandRef: RefObject<HTMLElement | null>;
   /** 名札を押したとき：その Issue の行へ */
-  onPick?: (key: string) => void;
+  onPick?: (key: string) => boolean | void;
 };
 
 /**
@@ -160,16 +161,31 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
     [engineRef],
   );
 
+  const pinnedNow = caption?.pinned === true;
+  // 一覧か固定の説明が出ている間：外側を押すか Esc で閉じる
   useEffect(() => {
-    if (!caption?.pinned) return;
-    function onDown(event: PointerEvent) {
-      if (event.target instanceof Element && event.target.closest(`.${styles.node}, .${styles.caption}, .${styles.col}`)) return;
+    if (stripOpen === null && !pinnedNow) return;
+    function close() {
       setCaption(null);
       setStripOpen(null);
+      engineRef.current?.highlightStrip(-1);
+    }
+    function onDown(event: PointerEvent) {
+      if (event.target instanceof Element && event.target.closest(`.${styles.node}, .${styles.caption}, .${styles.col}`)) return;
+      close();
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      close();
+      if (stripOpen !== null) stripRef.current?.querySelector<HTMLElement>(`[data-at="${stripOpen}"]`)?.focus();
     }
     document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
-  }, [caption]);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [stripOpen, pinnedNow, engineRef]);
 
   const counts = countByStage(nodes);
   const multiRepo = new Set(nodes.map((n) => `${n.owner}/${n.repo}`)).size > 1;
@@ -332,7 +348,17 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
               }
             >
               {stripOpen !== null ? (
-                <StripCaption nodes={nodes.filter((n) => n.at === stripOpen)} onPick={onPick} />
+                <StripCaption
+                  nodes={nodes.filter((n) => n.at === stripOpen)}
+                  onPick={(key) => {
+                    const found = onPick?.(key) ?? true;
+                    if (stripPickAction(found) === "pin") {
+                      setStripOpen(null);
+                      setCaption({ key, pinned: true });
+                      engineRef.current?.highlightStrip(-1);
+                    }
+                  }}
+                />
               ) : clusterOn && latest ? (
                 <>
                   <b>公開済み</b>
@@ -385,7 +411,7 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
 }
 
 /** スマホの帯で列を押したとき：その段階の Issue を1行ずつ */
-function StripCaption({ nodes, onPick }: { nodes: FlowNode[]; onPick?: (key: string) => void }) {
+function StripCaption({ nodes, onPick }: { nodes: FlowNode[]; onPick: (key: string) => void }) {
   if (nodes.length === 0) return <span className={styles.capText}>この段階の作業はありません</span>;
   const multi = new Set(nodes.map((n) => `${n.owner}/${n.repo}`)).size > 1;
   return (
@@ -395,8 +421,9 @@ function StripCaption({ nodes, onPick }: { nodes: FlowNode[]; onPick?: (key: str
           key={node.key}
           type="button"
           className={styles.stripItem}
+          data-urgent={stripItemUrgent(node) ? "" : undefined}
           style={{ "--c": WHO_CSS[node.who] } as React.CSSProperties}
-          onClick={() => onPick?.(node.key)}
+          onClick={() => onPick(node.key)}
         >
           <span className={`${styles.id} num`}>
             {multi ? node.repo : ""}#{node.number}

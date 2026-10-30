@@ -85,7 +85,7 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
   // 流れの名札も同じ data-key を持つので、探すのは押す列の中だけにする（名札に当たらないように）
   const pick = useCallback((key: string) => {
     const row = rowsRef.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
-    if (!row) return;
+    if (!row) return false;
     row.scrollIntoView({ block: "center", behavior: motionReduced() ? "auto" : "smooth" });
     // 最初のボタン。ボタンが無い行（パイプライン未設定の未着手など）は題名のリンク
     (row.querySelector<HTMLElement>('[data-act]:not([aria-disabled="true"])') ?? row.querySelector<HTMLElement>("a, button"))?.focus({
@@ -93,6 +93,7 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
     });
     row.setAttribute("data-picked", "");
     window.setTimeout(() => row.removeAttribute("data-picked"), 1600);
+    return true;
   }, []);
 
   return (
