@@ -205,10 +205,11 @@
   font-size: 12.5px;
 }
 
+/* 4段目：ボタンの列と目盛りの列の間は20px（PC）。折り返すときは行の間14px */
 .foot {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 14px 20px;
   align-items: center;
   margin-top: 8px;
 }
@@ -363,12 +364,12 @@
   color: var(--bone);
 }
 
+/* 目盛りと段階名：PC はボタンの右（列の間20px）。スマホは行の右端（下の media） */
 .prog {
   display: flex;
   gap: 10px;
   align-items: center;
   min-width: 0;
-  margin-left: auto;
 }
 
 .stage {
@@ -410,7 +411,11 @@
     height: 36px;
   }
 
-  /* 目盛りは幅いっぱいに伸ばさない（行の区切りの線と並んで縞にならないように）：ボタンと同じ行の右端に短く */
+  /* スマホは今までどおり、目盛りをボタンと同じ行の右端に寄せる（幅いっぱいに伸ばさない。行の区切りの線と並んで縞にならないように） */
+  .foot {
+    column-gap: 14px;
+  }
+
   .prog {
     gap: 8px;
     margin-left: auto;
