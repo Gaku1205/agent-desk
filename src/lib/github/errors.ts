@@ -1,6 +1,9 @@
 import { formatResetTime } from "../refresh";
 import type { GitHubErrorKind } from "./types";
 
+/** どの鍵で読んでいたか。app のレート制限だけ、文言に「（パイプラインのApp）」を付ける */
+export type ErrorSource = "user" | "app";
+
 const MESSAGES: Record<GitHubErrorKind, string> = {
   unauthorized: "GitHubの認証が切れています。ログインし直してください",
   forbidden: "このリポジトリを読む権限がありません",
@@ -20,8 +23,9 @@ export class GitHubError extends Error {
     kind: GitHubErrorKind,
     status: number | null = null,
     rateLimitResetAt: number | null = null,
+    source: ErrorSource = "user",
   ) {
-    super(buildMessage(kind, rateLimitResetAt));
+    super(buildMessage(kind, rateLimitResetAt, source));
     this.name = "GitHubError";
     this.kind = kind;
     this.status = status;
@@ -30,9 +34,12 @@ export class GitHubError extends Error {
 }
 
 /** レート制限で、回復する時刻が分かるときは日本時間 `HH:MM` を入れる */
-function buildMessage(kind: GitHubErrorKind, resetAt: number | null): string {
-  if (kind === "rate_limited" && resetAt !== null) {
-    return `GitHubのレート制限に達しました。${formatResetTime(resetAt)}（日本時間）ごろに回復します`;
+function buildMessage(kind: GitHubErrorKind, resetAt: number | null, source: ErrorSource): string {
+  if (kind === "rate_limited") {
+    const subject = source === "app" ? "GitHubのレート制限（パイプラインのApp）" : "GitHubのレート制限";
+    return resetAt !== null
+      ? `${subject}に達しました。${formatResetTime(resetAt)}（日本時間）ごろに回復します`
+      : `${subject}に達しました。しばらくしてからもう一度試してください`;
   }
   return MESSAGES[kind];
 }

@@ -1,5 +1,6 @@
 import { cache } from "react";
-import type { WatchedRepo } from "../config";
+import type { Env, WatchedRepo } from "../config";
+import { resolveReadAccess } from "./appToken";
 import { GitHubClient, type Fetcher } from "./client";
 import {
   convertCheckRun,
@@ -256,13 +257,25 @@ async function fetchPullChecks(
 export async function fetchAllRepos(
   token: string,
   repos: WatchedRepo[],
-  options: { fetcher?: Fetcher; now?: Date } = {},
+  options: { fetcher?: Fetcher; now?: Date; env?: Env } = {},
 ): Promise<RepoResult[]> {
-  const client = new GitHubClient(token, options.fetcher);
+  const userClient = new GitHubClient(token, options.fetcher);
   return Promise.all(
     repos.map(async (repo): Promise<RepoResult> => {
       const { owner, repo: name } = repo;
       try {
+        // 読み取りは、使えるときだけ App のインストールの鍵で行う（無ければログインした人のトークン）
+        const access = await resolveReadAccess(token, repo, {
+          env: options.env,
+          fetcher: options.fetcher,
+          nowMs: options.now?.getTime(),
+        }).catch(() => null);
+        const client = access
+          ? new GitHubClient(access.token, options.fetcher, {
+              source: "app",
+              keyId: access.keyId,
+            })
+          : userClient;
         const data = await fetchRepoData(client, repo, options.now);
         return { owner, repo: name, ok: true, data };
       } catch (error) {
