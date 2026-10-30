@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 import { buildDemoResults } from "../demo/data";
 import { startPlayback } from "../demo/playback";
 import type { IssueStatus } from "../status";
-import { buildFlowNodes, compareFlowNodes, countByStage, dedupeCaption, isUrgentStage, whoOf } from "./nodes";
+import {
+  buildFlowNodes,
+  captionOffRow,
+  compareFlowNodes,
+  countByStage,
+  dedupeCaption,
+  isUrgentStage,
+  whoOf,
+} from "./nodes";
 
 const NOW = new Date("2026-10-26T03:00:00Z");
 
@@ -52,8 +60,41 @@ describe("dedupeCaption", () => {
   });
 });
 
+describe("captionOffRow", () => {
+  it("押す列の行の説明文と同じ文は外す（空になる）", () => {
+    expect(captionOffRow("マージできます", "マージできます")).toBe("");
+    expect(captionOffRow("CI 4/4 通過", "CI 4/4 通過・マージできます")).toBe("");
+  });
+
+  it("押す列に行が無いときは、そのまま出す", () => {
+    expect(captionOffRow("準備ができたら「始める」を押してください", null)).toBe(
+      "準備ができたら「始める」を押してください",
+    );
+  });
+
+  it("行の説明文と違う文（順番待ちの理由など）は出す", () => {
+    expect(captionOffRow("企画AIが先に進めています", "順番待ち 2番目")).toBe("企画AIが先に進めています");
+    expect(captionOffRow("利用上限に達しました。あとで再開します", "公開に失敗しました")).toBe(
+      "利用上限に達しました。あとで再開します",
+    );
+  });
+
+  it("空の説明は、行があってもそのまま空", () => {
+    expect(captionOffRow("", "マージできます")).toBe("");
+  });
+});
+
 describe("buildFlowNodes", () => {
   const results = buildDemoResults(NOW, startPlayback(NOW));
+
+  it("押す列の行の説明文は、あなたの番の Issue だけが持つ", () => {
+    const nodes = buildFlowNodes(results, NOW);
+    for (const node of nodes) {
+      if (node.turn) continue;
+      expect(node.rowText).toBeNull();
+    }
+    expect(nodes.some((n) => n.rowText !== null)).toBe(true);
+  });
 
   it("デモの全部の Issue が、段階の列（0〜7）と色を持つ", () => {
     const nodes = buildFlowNodes(results, NOW);

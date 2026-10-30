@@ -8,7 +8,7 @@ import { findLinkedPull, getIssueStatus, shouldShowIssue,type IssueStatus } from
 
 /** パイプライン表の1行 */
 export type PipelineRow = {
-  issue: { number: number; title: string; url: string };
+  issue: { number: number; title: string; url: string; state: "open" | "closed" };
   status: IssueStatus;
   /** 短い説明（今の段階のセルにだけ出す） */
   description: string;
@@ -79,7 +79,7 @@ export function buildPipelineRows(data: RepoData, now: Date, repo = ""): Pipelin
     const status = statuses.get(issue.number)!;
     const queuePosition = queuePositions.get(issue.number) ?? null;
     return {
-      issue: { number: issue.number, title: issue.title, url: issue.url },
+      issue: { number: issue.number, title: issue.title, url: issue.url, state: issue.state },
       status,
       description: queuePosition === null ? describeStatus(status).short : `順番待ち ${queuePosition}番目`,
       progress: getProgress(status),

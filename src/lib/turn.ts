@@ -218,15 +218,32 @@ export function compareTurnItems(a: TurnItem, b: TurnItem): number {
   return a.issue.number - b.issue.number;
 }
 
+/**
+ * 押す列に出す行の説明文（「あなたの番」に出す Issue だけ。出さない物は null）。
+ * 流れの下端の説明と同じ文を外すときにも同じ判定を使う（`src/lib/flow/nodes.ts` の `captionOffRow`）
+ */
+export function turnRowDescription(
+  issue: Pick<IssueData, "title" | "state">,
+  status: IssueStatus,
+  data: Pick<RepoData, "pipeline" | "isTemplate">,
+  repo: string,
+): string | null {
+  if (status.turn !== "human") return null;
+  // 工場が受け持つ「新サービス：」のIssueは、未着手のとき「あなたの番」に出さない
+  if (status.stage === "notStarted" && isFactoryIssue(issue.title, data.isTemplate, issue.state)) return null;
+  return status.stage === "notStarted" && data.pipeline === "notConfigured"
+    ? PIPELINE_MISSING_TEXT
+    : describeStatus(status, { repo }).long;
+}
+
 /** 1リポジトリぶんの「あなたの番」（並べる前） */
 export function repoTurnItems(owner: string, repo: string, data: RepoData, now: Date): TurnItem[] {
   const items: TurnItem[] = [];
   for (const issue of data.issues) {
     if (!shouldShowIssue(issue, data.pulls)) continue;
     const status = getIssueStatus(issue, data, now);
-    if (status.turn !== "human") continue;
-    // 工場が受け持つ「新サービス：」のIssueは、未着手のとき「あなたの番」に出さない
-    if (status.stage === "notStarted" && isFactoryIssue(issue.title, data.isTemplate, issue.state)) continue;
+    const description = turnRowDescription(issue, status, data, `${owner}/${repo}`);
+    if (description === null) continue;
     const buttons = turnButtons(status, data);
     const canMerge = buttons.some((b) => b.type === "operation" && b.kind === "merge");
     items.push({
@@ -234,10 +251,7 @@ export function repoTurnItems(owner: string, repo: string, data: RepoData, now: 
       repo,
       issue: { number: issue.number, title: issue.title, url: issue.url },
       status,
-      description:
-        status.stage === "notStarted" && data.pipeline === "notConfigured"
-          ? PIPELINE_MISSING_TEXT
-          : describeStatus(status, { repo: `${owner}/${repo}` }).long,
+      description,
       logUrl: failureLogUrl(status, `${owner}/${repo}`),
       waitingSince: waitingSince(issue, status, data),
       buttons,
