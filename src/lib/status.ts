@@ -136,13 +136,20 @@ const TURN_BY_STAGE: Record<Stage, Turn> = {
   notStarted: "human",
 };
 
+const CLOSES_PATTERN = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+#(\d+)\b/i;
+
 /** PRの本文に `Closes #<番号>`（Fixes/Resolvesも可、大文字小文字は問わない）があるか */
 export function bodyClosesIssue(body: string, issueNumber: number): boolean {
-  const pattern = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+#(\d+)\b/gi;
+  const pattern = new RegExp(CLOSES_PATTERN.source, "gi");
   for (const match of body.matchAll(pattern)) {
     if (Number(match[1]) === issueNumber) return true;
   }
   return false;
+}
+
+/** どれかのIssueに紐づくPRか（本文に `Closes #番号` があるか、ブランチ名が `claude/issue-<番号>-`） */
+export function isIssueLinkedPull(pull: PullData): boolean {
+  return /^claude\/issue-\d+-/.test(pull.headRef) || CLOSES_PATTERN.test(pull.body);
 }
 
 /** 本文の `Closes #<番号>` か、ブランチ名 `claude/issue-<番号>-` でIssueに紐づくか */

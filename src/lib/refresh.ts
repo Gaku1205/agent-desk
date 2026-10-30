@@ -2,7 +2,7 @@ import type { RepoResult } from "./github/types";
 import { getIssueStatus, shouldShowIssue } from "./status";
 
 /** AIの番の作業があるときに自動で取り直す間隔（docs/spec.md の「更新」） */
-export const BUSY_REFRESH_INTERVAL_MS = 10_000;
+export const BUSY_REFRESH_INTERVAL_MS = 20_000;
 /** AIの番の作業が無いときに自動で取り直す間隔 */
 export const IDLE_REFRESH_INTERVAL_MS = 30_000;
 /** 回数制限の残りが少ない（LOW 以上 NORMAL 未満）ときに自動で取り直す間隔 */
@@ -25,7 +25,7 @@ export function hasAiTurnWork(results: RepoResult[], now: Date): boolean {
   );
 }
 
-/** 自動で取り直す間隔：AIの番の作業があれば10秒、無ければ30秒 */
+/** 自動で取り直す間隔：AIの番の作業があれば20秒、無ければ30秒 */
 export function getRefreshIntervalMs(hasAiWork: boolean): number {
   return hasAiWork ? BUSY_REFRESH_INTERVAL_MS : IDLE_REFRESH_INTERVAL_MS;
 }
@@ -59,7 +59,7 @@ export function getAutoRefreshPlan(input: {
   return { intervalMs: null, resumeAt: new Date(resetMs) };
 }
 
-/** 速い更新（10秒ごと）の間か。同期の横の点を光らせるかどうかに使う */
+/** 速い更新（20秒ごと）の間か。同期の横の点を光らせるかどうかに使う */
 export function isFastRefresh(intervalMs: number): boolean {
   return intervalMs === BUSY_REFRESH_INTERVAL_MS;
 }
