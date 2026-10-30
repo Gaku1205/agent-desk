@@ -18,10 +18,10 @@ import {
 import { GitHubError, toErrorInfo } from "./errors";
 import { judgePipelineState, type PipelineProbe, type PipelineState } from "../pipelineState";
 import { isDeployStatus } from "../deployStatus";
-import { latestSuccessDeployByContext } from "../status";
+import { deployState, isIssueLinkedPull, latestSuccessDeployByContext } from "../status";
 import type { WatchdogLastRun } from "../watchdogState";
 import { PIPELINE_WORKFLOW_PATH } from "./settings";
-import type { PullChecks, PullData, RepoData, RepoResult } from "./types";
+import type { CommitStatusData, PullChecks, PullData, RepoData, RepoResult } from "./types";
 
 const WINDOW_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -69,10 +69,12 @@ export async function fetchRepoData(
     .filter((comment) => Date.parse(comment.createdAt) >= cutoffMs);
   const events = rawEvents.map(convertIssueEvent);
 
+  // チェックを取るのは、Issueに紐づく「開いているPR」と「マージ済みPR」だけ（回数制限を使い切らないため）
   const pullChecks: Record<number, PullChecks> = {};
   await Promise.all(
     pulls.map(async (pull) => {
-      pullChecks[pull.number] = await fetchPullChecks(client, base, pull);
+      if (!isIssueLinkedPull(pull) || (pull.state === "closed" && !pull.merged)) return;
+      pullChecks[pull.number] = await fetchPullChecks(client, base, pull, now);
     }),
   );
 
@@ -200,25 +202,54 @@ async function fetchPipelineState(client: GitHubClient, base: string): Promise<P
   return judgePipelineState(probe);
 }
 
+/** 公開済みと決まったマージコミットの公開ステータスを覚えておく件数の上限（超えたら古い物から捨てる） */
+export const DEPLOYED_STATUS_CACHE_MAX_ENTRIES = 500;
+
+/** サーバーのメモリ。キーは「トークンのハッシュ＋リポジトリ＋sha」（`GitHubClient.memoKey`） */
+const deployedStatuses = new Map<string, CommitStatusData[]>();
+
+function rememberDeployedStatuses(key: string, value: CommitStatusData[]): void {
+  deployedStatuses.delete(key);
+  deployedStatuses.set(key, value);
+  while (deployedStatuses.size > DEPLOYED_STATUS_CACHE_MAX_ENTRIES) {
+    const oldest = deployedStatuses.keys().next();
+    if (oldest.done) break;
+    deployedStatuses.delete(oldest.value);
+  }
+}
+
+/** テスト用：覚えている物を空にする */
+export const deployedStatusCacheForTest = { clear: (): void => deployedStatuses.clear() };
+
+/**
+ * PRのチェックを取る。開いているPRは先頭コミットの check-runs だけ。
+ * マージ済みのPRはマージコミットの公開ステータスだけ（check-runs は取らず空）。
+ * 公開済み（全部成功）と決まったら、同じ sha はもう取らない
+ */
 async function fetchPullChecks(
   client: GitHubClient,
   base: string,
   pull: PullData,
+  now: Date,
 ): Promise<PullChecks> {
-  const [runs, statuses] = await Promise.all([
-    client.get<{ check_runs?: GhCheckRun[] }>(
+  if (!pull.merged) {
+    const runs = await client.get<{ check_runs?: GhCheckRun[] }>(
       `${base}/commits/${encodeURIComponent(pull.headSha)}/check-runs?per_page=100`,
-    ),
-    pull.merged && pull.mergeCommitSha
-      ? client.get<{ statuses?: GhStatus[] }>(
-          `${base}/commits/${encodeURIComponent(pull.mergeCommitSha)}/status?per_page=100`,
-        )
-      : Promise.resolve<{ statuses?: GhStatus[] }>({ statuses: [] }),
-  ]);
-  return {
-    checkRuns: (runs.check_runs ?? []).map(convertCheckRun),
-    statuses: (statuses.statuses ?? []).map(convertStatus),
-  };
+    );
+    return { checkRuns: (runs.check_runs ?? []).map(convertCheckRun), statuses: [] };
+  }
+  if (!pull.mergeCommitSha) return { checkRuns: [], statuses: [] };
+  const key = client.memoKey(`${base}/commits/${pull.mergeCommitSha}`);
+  const known = deployedStatuses.get(key);
+  if (known) return { checkRuns: [], statuses: known };
+  const result = await client.get<{ statuses?: GhStatus[] }>(
+    `${base}/commits/${encodeURIComponent(pull.mergeCommitSha)}/status?per_page=100`,
+  );
+  const statuses = (result.statuses ?? []).map(convertStatus);
+  if (statuses.length > 0 && deployState(statuses, pull.mergedAt, now).state === "deployed") {
+    rememberDeployedStatuses(key, statuses);
+  }
+  return { checkRuns: [], statuses };
 }
 
 /** 監視リポジトリ全部を取る。1つが失敗しても、ほかは取れる（エラーはリポジトリごとに返す） */

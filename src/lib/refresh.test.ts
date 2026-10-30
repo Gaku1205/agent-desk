@@ -111,7 +111,7 @@ describe("startAutoRefresh", () => {
     const refresh = vi.fn();
     const source = new FakeDocument();
     const stopBusy = startAutoRefresh({ refresh, source, intervalMs: BUSY_REFRESH_INTERVAL_MS });
-    vi.advanceTimersByTime(10_000);
+    vi.advanceTimersByTime(20_000);
     expect(refresh).toHaveBeenCalledTimes(1);
 
     stopBusy();
@@ -124,9 +124,9 @@ describe("startAutoRefresh", () => {
 });
 
 describe("getRefreshIntervalMs", () => {
-  it("AIの番の作業があれば10秒、無ければ30秒", () => {
+  it("AIの番の作業があれば20秒、無ければ30秒", () => {
     expect(getRefreshIntervalMs(true)).toBe(BUSY_REFRESH_INTERVAL_MS);
-    expect(getRefreshIntervalMs(true)).toBe(10_000);
+    expect(getRefreshIntervalMs(true)).toBe(20_000);
     expect(getRefreshIntervalMs(false)).toBe(IDLE_REFRESH_INTERVAL_MS);
     expect(getRefreshIntervalMs(false)).toBe(30_000);
   });
@@ -138,10 +138,10 @@ describe("getAutoRefreshPlan", () => {
   const plan = (hasAiWork: boolean, remaining: number | null, resetAt: number | null) =>
     getAutoRefreshPlan({ hasAiWork, remaining, resetAt, now });
 
-  it("残りが1,500以上なら普段の間隔（作業の有無で10秒／30秒）", () => {
-    expect(plan(true, 1500, future)).toEqual({ intervalMs: 10_000, resumeAt: null });
+  it("残りが1,500以上なら普段の間隔（作業の有無で20秒／30秒）", () => {
+    expect(plan(true, 1500, future)).toEqual({ intervalMs: 20_000, resumeAt: null });
     expect(plan(false, 1500, future)).toEqual({ intervalMs: 30_000, resumeAt: null });
-    expect(plan(true, 5000, future)).toEqual({ intervalMs: 10_000, resumeAt: null });
+    expect(plan(true, 5000, future)).toEqual({ intervalMs: 20_000, resumeAt: null });
   });
 
   it("残りが1,500未満500以上なら60秒（作業の有無によらない）", () => {
@@ -159,14 +159,14 @@ describe("getAutoRefreshPlan", () => {
 
   it("回復する時刻を過ぎたら、残りは古いので普段の間隔に戻る", () => {
     const past = now.getTime() / 1000 - 1;
-    expect(plan(true, 10, past)).toEqual({ intervalMs: 10_000, resumeAt: null });
+    expect(plan(true, 10, past)).toEqual({ intervalMs: 20_000, resumeAt: null });
     expect(plan(false, 1000, past)).toEqual({ intervalMs: 30_000, resumeAt: null });
     // ちょうどその時刻も過ぎた扱い
     expect(plan(false, 10, now.getTime() / 1000).intervalMs).toBe(30_000);
   });
 
   it("残りが不明なら普段の間隔", () => {
-    expect(plan(true, null, null)).toEqual({ intervalMs: 10_000, resumeAt: null });
+    expect(plan(true, null, null)).toEqual({ intervalMs: 20_000, resumeAt: null });
     expect(plan(false, null, future)).toEqual({ intervalMs: 30_000, resumeAt: null });
   });
 
@@ -183,7 +183,7 @@ describe("formatResetTime", () => {
 });
 
 describe("isFastRefresh", () => {
-  it("10秒ごとの間だけ速い更新", () => {
+  it("20秒ごとの間だけ速い更新", () => {
     expect(isFastRefresh(getRefreshIntervalMs(true))).toBe(true);
     expect(isFastRefresh(getRefreshIntervalMs(false))).toBe(false);
   });

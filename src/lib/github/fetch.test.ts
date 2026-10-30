@@ -6,7 +6,7 @@ import {
   parseNextLink,
 } from "./client";
 import { classifyError, GitHubError } from "./errors";
-import { fetchAllRepos, mainDeployedCacheForTest } from "./fetch";
+import { deployedStatusCacheForTest, fetchAllRepos, mainDeployedCacheForTest } from "./fetch";
 
 const TOKEN = "ghp_secret_token_value";
 const NOW = new Date("2026-10-25T00:00:00Z");
@@ -345,6 +345,7 @@ describe("fetchAllRepos", () => {
   beforeEach(() => {
     etagCacheForTest.clear();
     mainDeployedCacheForTest.clear();
+    deployedStatusCacheForTest.clear();
   });
 
   it("リポジトリのデータを自前の型にして返す", async () => {
@@ -356,7 +357,8 @@ describe("fetchAllRepos", () => {
     if (!result.ok) return;
     expect(result.data.issues.map((i) => i.number)).toEqual([1]);
     expect(result.data.pulls.map((p) => p.number)).toEqual([2]);
-    expect(result.data.pullChecks[2].checkRuns[0].appSlug).toBe("github-actions");
+    // マージ済みのPRは、公開ステータスだけ取る（check-runs は取らず空）
+    expect(result.data.pullChecks[2].checkRuns).toEqual([]);
     expect(result.data.pullChecks[2].statuses[0].updatedAt).toBe("2026-10-21T00:05:00Z");
     expect(result.data.events).toHaveLength(1);
   });
