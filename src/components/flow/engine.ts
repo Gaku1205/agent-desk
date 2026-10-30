@@ -11,6 +11,7 @@ import {
 } from "@/lib/flow/layout";
 import type { FlowNode, FlowWho } from "@/lib/flow/nodes";
 import { seededRandom, seedOf } from "@/lib/flow/random";
+import { stripLight, type StripLight } from "@/lib/flow/stripLight";
 import { GIANT_UNIT_GAP, inkRightOf, unitLeft, unitShift } from "@/lib/giantUnit";
 import { squeezeTowardLabel } from "@/lib/flow/squeeze";
 
@@ -126,6 +127,8 @@ type Body = {
   rand: () => number;
   /** スマホの帯のまとまり・公開済みの塊（件数ぶん） */
   count: number;
+  /** スマホの帯の光（色・芯・粒の数。PC は null） */
+  light: StripLight | null;
   /** 押したときに飛んで行く先（null なら配置どおり） */
   flyU: number | null;
   flyUntil: number;
@@ -277,6 +280,7 @@ export class FlowEngine {
   /** 流れが画面の中にある（無い流れのページでは常に true） */
   private flowVisible = true;
   private observer: IntersectionObserver | null = null;
+  private sizeObserver: ResizeObserver | null = null;
   private fogDirty = true;
   private fogCanvas: HTMLCanvasElement = document.createElement("canvas");
   private dirty = true;
@@ -299,6 +303,10 @@ export class FlowEngine {
   private seats: PrevSeats | null = null;
   /** レーンの縦の位置（光の区域の中の座標）と、光の筋の画像 */
   private laneYs: number[] = [];
+  /** 筋の縦の位置の基準（流れの上端から。PC は段階の目盛りの下、スマホは 0） */
+  private laneTop = STAGES_H;
+  /** スマホの帯の光の高さ */
+  private stripV = 0;
   private threads: HTMLCanvasElement = document.createElement("canvas");
   private threadsKey = "";
   private glints: Glint[] = [];
@@ -368,6 +376,19 @@ export class FlowEngine {
       );
       this.observer.observe(elements.flow);
     }
+    // 帯の幅は、窓の幅が同じでも変わる（縦スクロールバーが出る・消える）。変わったら測り直して置き直す
+    if (elements.flow && typeof ResizeObserver === "function") {
+      this.sizeObserver = new ResizeObserver(() => {
+        const flow = this.el.flow;
+        if (!flow) return;
+        const width = flow.getBoundingClientRect().width;
+        if (Math.abs(width - this.flowRect.width) < 0.5) return;
+        this.layout(false);
+        this.dirty = true;
+        this.wake();
+      });
+      this.sizeObserver.observe(elements.flow);
+    }
     this.wake();
     if (typeof document.fonts?.ready?.then === "function") {
       void document.fonts.ready.then(() => {
@@ -382,6 +403,7 @@ export class FlowEngine {
     cancelAnimationFrame(this.raf);
     this.running = false;
     this.observer?.disconnect();
+    this.sizeObserver?.disconnect();
     for (const prop of ["background-image", "background-size", "background-attachment", "background-repeat"]) {
       this.el.fog.style.removeProperty(prop);
     }
@@ -540,6 +562,7 @@ export class FlowEngine {
     }
     this.sprites.river = makeSprite("150,165,205", 12, false);
     this.sprites.amber = makeSprite("255,196,96", 12, false);
+    this.sprites.mute = makeSprite("140,137,129", 16, false);
     this.sprites.glint = makeStreak("210,220,245", 96, 8, 1);
     this.seedRiver();
     this.layout(false);
@@ -592,6 +615,7 @@ export class FlowEngine {
       return;
     }
     this.strip = [];
+    this.laneTop = STAGES_H;
     for (const key of [...this.bodies.keys()]) if (key.startsWith("strip:")) this.bodies.delete(key);
     const gutter = parseFloat(getComputedStyle(flow).paddingLeft) || 0;
     this.gutter = gutter;
@@ -676,12 +700,12 @@ export class FlowEngine {
       const left = this.gaps.filter((g) => g.lane === p.lane && g.x1 <= u).reduce((m, g) => Math.max(m, g.x1), -Infinity);
       b.tailRoom = Math.max(0, u - left - 6);
     }
-    this.buildThreads(r.width, height);
+    this.buildThreads(r.width, height, THREAD_FADE);
   }
 
-  /** 光の筋（レーンごとに1本）を1回だけ描いて画像にする。きらめきの位置も決める */
-  private buildThreads(width: number, height: number) {
-    const key = `${width}x${height}:${this.laneYs.join(",")}:${this.DPR}:${this.gaps.map((g) => `${g.lane}/${Math.round(g.x0)}/${Math.round(g.x1)}`).join(",")}`;
+  /** 光の筋（レーンごとに1本）を1回だけ描いて画像にする。きらめきの位置も決める。fade は両端を消す幅 */
+  private buildThreads(width: number, height: number, fadeLen: number) {
+    const key = `${width}x${height}:${fadeLen}:${this.laneYs.join(",")}:${this.DPR}:${this.gaps.map((g) => `${g.lane}/${Math.round(g.x0)}/${Math.round(g.x1)}`).join(",")}`;
     if (key === this.threadsKey) return;
     this.threadsKey = key;
     const pad = 4;
@@ -698,7 +722,7 @@ export class FlowEngine {
       for (let u = 0; u < width; u += step) {
         // 一様な線にしない：横にゆっくり変わるノイズで、ところどころ消えかける。両端は消す
         const n = vnoise(u / 180 + lane * 13.7, lane * 3.1);
-        const fade = smooth(Math.min(u / THREAD_FADE, (width - u) / THREAD_FADE));
+        const fade = smooth(Math.min(u / fadeLen, (width - u) / fadeLen));
         const a = (0.35 + 0.65 * smooth((n - 0.15) / 0.7)) * fade;
         if (a <= 0.01) continue;
         g.fillStyle = `rgba(150,165,205,${(0.05 * a).toFixed(3)})`;
@@ -755,8 +779,7 @@ export class FlowEngine {
     const v = Math.max(18, this.flowRect.height * 0.34);
     const colW = this.flowRect.width / 8;
     this.strip = [];
-    this.laneYs = [];
-    this.glints = [];
+    this.stripV = v;
     this.bodies.delete(CLUSTER_KEY);
     const shown = new Set<string>();
     columns.forEach((column, k) => {
@@ -784,12 +807,17 @@ export class FlowEngine {
       const b = this.place(node, x, v, animate);
       b.count = column.count;
       b.pinned = true;
-      b.edgeU = x + colW / 2 - 2;
+      b.light = stripLight(this.nodes.filter((n) => n.at === k));
       shown.add(key);
     });
     for (const [key, b] of this.bodies) b.on = shown.has(key);
     for (const el of this.labels.values()) el.setAttribute("data-off", "");
     this.scale = 1;
+    // 8つの光の高さに、左端の列から右端の列まで1本の筋を通す（きらめきが走る）
+    this.laneTop = 0;
+    this.laneYs = [v];
+    this.gaps = [];
+    this.buildThreads(this.flowRect.width, this.flowRect.height, Math.min(THREAD_FADE, colW * 0.9));
   }
 
   private place(node: FlowNode, u: number, v: number, animate: boolean): Body {
@@ -843,6 +871,7 @@ export class FlowEngine {
       lastY: NaN,
       rand: seededRandom(seedOf(node.key)),
       count: 1,
+      light: null,
       flyU: null,
       flyUntil: 0,
       trail: [],
@@ -867,7 +896,9 @@ export class FlowEngine {
       spawned: spawn,
     };
     if (type === "orbit") {
-      p.r = 5 + r() * (this.mobile ? 9 : 6);
+      // スマホの帯：芯のまわりに密に集める（半径×0.6）。PC：名札を出す光は 3.5〜7px、公開済みの塊は 5〜11px（描くとき×0.65）
+      if (this.mobile) p.r = (5 + r() * 9) * 0.6;
+      else p.r = b.pinned ? 3.5 + r() * 3.5 : 5 + r() * 6;
       p.w = (0.3 + r() * 0.4) * (r() < 0.5 ? 1 : -1);
     } else if (type === "comet") {
       p.len = this.mobile || spawn ? 34 + r() * 20 : 24 + r() * 16;
@@ -878,43 +909,27 @@ export class FlowEngine {
       p.r = 10 + r() * 10;
       p.w = (0.12 + r() * 0.15) * (r() < 0.5 ? 1 : -1);
     } else {
-      p.r = 4 + r() * 8;
+      p.r = 3.5 + r() * 3.5;
     }
     return p;
   }
 
   private seedKey(b: Body): string {
-    return `${b.node.who}:${b.count > 1 ? b.count : ""}:${b.pinned ? 1 : 0}:${b.node.urgent ? 1 : 0}:${this.mobile ? 1 : 0}`;
+    return `${b.node.who}:${b.light?.grains ?? ""}:${b.pinned ? 1 : 0}:${b.node.urgent ? 1 : 0}:${this.mobile ? 1 : 0}`;
   }
 
   private seedParts(b: Body) {
     const who = b.node.who;
     let mix: [ParticleType, number][];
     if (this.mobile) {
-      // スマホの帯：段階ごとのまとまり（今までどおり）
-      const n = b.count > 1 ? 2.2 : 1;
-      mix =
-        who === "ai"
-          ? [
-              ["orbit", 12],
-              ["comet", 12],
-            ]
-          : who === "human"
-            ? [["orbit", 26]]
-            : who === "queue"
-              ? [["wide", 16]]
-              : who === "fail"
-                ? [["still", 16]]
-                : [
-                    ["orbit", 8 * n],
-                    ["exit", 12 * n],
-                  ];
+      // スマホの帯：1色の塊。同じ色の粒だけを、芯のまわりに密に回す
+      mix = [["orbit", b.light?.grains ?? 0]];
     } else if (b.node.key === CLUSTER_KEY) {
       // 公開済みの塊：小さく静か
       mix = [["orbit", 6]];
     } else if (b.pinned) {
       // 常に名札を出す光：人間は回る粒、失敗は震える粒。急ぐ物だけ多い
-      mix = who === "fail" ? [["still", b.node.urgent ? 14 : 8]] : [["orbit", b.node.urgent ? 20 : 12]];
+      mix = who === "fail" ? [["still", b.node.urgent ? 20 : 12]] : [["orbit", b.node.urgent ? 28 : 18]];
     } else {
       // 名札を出さない光：筋の上を進む1つの光。後ろへ抜ける小さな粒だけ（群れにしない）。待機は止まっている
       mix = who === "queue" ? [] : [["comet", 5]];
@@ -1032,7 +1047,8 @@ export class FlowEngine {
       const sz = 4 * p.s;
       rctx.drawImage(sprites.river, p.x - sz / 2, p.y - sz / 2, sz, sz);
     }
-    if (!this.mobile && this.laneYs.length > 0) this.drawThreads(dt, reduced);
+    if (this.laneYs.length > 0) this.drawThreads(dt, reduced);
+    if (this.mobile) this.drawEmptyDots(bandTop);
     // 光と粒
     const sc = this.mobile ? 1 : this.scale;
     for (const b of this.bodies.values()) {
@@ -1082,7 +1098,7 @@ export class FlowEngine {
   /** 光の筋と、筋の上を走るきらめき（流れの中だけ） */
   private drawThreads(dt: number, reduced: boolean) {
     const { rctx } = this;
-    const [x0, y0] = this.toXY(0, STAGES_H - 4);
+    const [x0, y0] = this.toXY(0, this.laneTop - 4);
     const width = this.flowRect.width;
     rctx.globalAlpha = 1;
     // 筋のある所（レーンの高さの8px）だけを重ねる（画像の大部分は透明。重ね合わせの面積を減らす）
@@ -1101,7 +1117,7 @@ export class FlowEngine {
         fade *= smooth(d / 24);
       }
       if (fade <= 0.01) continue;
-      const [x, y] = this.toXY(gl.u - GLINT_LEN, STAGES_H + (this.laneYs[gl.lane] ?? 0) - 4);
+      const [x, y] = this.toXY(gl.u - GLINT_LEN, this.laneTop + (this.laneYs[gl.lane] ?? 0) - 4);
       rctx.globalAlpha = 0.42 * fade;
       rctx.drawImage(this.sprites.glint, x, y, GLINT_LEN, 8);
     }
@@ -1144,46 +1160,37 @@ export class FlowEngine {
     rctx.drawImage(sprites[who], x - core / 2, y - core / 2, core, core);
   }
 
-  /** スマホの帯の光（今までどおり：段階ごとのまとまり） */
+  /** スマホの帯の光：1色の芯とにじみ（粒は drawParts）。にじみを大きくするのは急ぐ物がある列だけ */
   private drawStripBody(b: Body, x: number, y: number, bandTop: number) {
-    const { rctx, sprites, t } = this;
-    const who = b.node.who;
+    const { rctx, sprites } = this;
+    const light = b.light;
+    if (!light?.who) return;
+    const who = light.who;
     const dim = y > bandTop ? 0.3 : 1;
-    const big = b.count > 1 ? 1.3 : 1;
-    let g = who === "human" ? 0.5 : who === "ai" ? 0.3 : who === "queue" ? 0.18 : who === "fail" ? 0.3 : 0.22;
-    g = (g + b.hl * 0.35) * dim;
-    let gr = (who === "human" ? 24 : who === "queue" ? 24 : 18) * big * 0.6;
-    gr += b.hl * 10;
-    rctx.globalAlpha = g;
+    const glow = light.urgent ? 0.55 : 0.26;
+    const radius = light.urgent ? 20 : light.core * 1.6;
+    const gr = radius + b.hl * 10;
+    rctx.globalAlpha = (glow + b.hl * 0.35) * dim;
     rctx.drawImage(sprites[`${who}_glow`], x - gr, y - gr, gr * 2, gr * 2);
     rctx.globalAlpha = (who === "queue" ? 0.7 : 1) * dim;
-    const cs = (who === "human" ? 7.5 : 6) * big;
-    if (b.count > 1) {
-      for (let c = 0; c < Math.min(b.count, 12); c++) {
-        const an = c * 2.4 + 0.6;
-        const rr = 6 + c * 3.2;
-        rctx.drawImage(sprites[who], x + Math.cos(an) * rr - 3, y + Math.sin(an) * rr * 0.7 - 3, 6, 6);
-      }
-      const strip = this.strip[b.node.at];
-      if (strip) {
-        strip.whos.forEach((w, i) => {
-          if (i >= 12) return;
-          const an = t * 0.4 + i * 1.7;
-          const rr = 9 + (i % 3) * 4;
-          rctx.globalAlpha = 0.9;
-          rctx.drawImage(sprites[w], x + Math.cos(an) * rr - 2.5, y + Math.sin(an) * rr * 0.7 - 2.5, 5, 5);
-        });
-      }
-    } else {
-      rctx.drawImage(sprites[who], x - cs / 2, y - cs / 2, cs, cs);
-    }
+    rctx.drawImage(sprites[who], x - light.core / 2, y - light.core / 2, light.core, light.core);
+  }
+
+  /** スマホの帯：0件の列は、筋の上に小さな点（`--mute`）だけ */
+  private drawEmptyDots(bandTop: number) {
+    const { rctx, sprites } = this;
+    this.strip.forEach((col) => {
+      if (col.count > 0) return;
+      const [x, y] = this.toXY(col.x, this.stripV);
+      rctx.globalAlpha = (y > bandTop ? 0.3 : 1) * 0.8;
+      rctx.drawImage(sprites.mute, x - 2, y - 2, 4, 4);
+    });
   }
 
   /** 光の周りの粒（回る・震える・後ろへ抜ける） */
   private drawParts(b: Body, x: number, y: number, sc: number, dt: number, reduced: boolean, bandTop: number) {
     const { rctx, sprites, t } = this;
     const who = b.node.who;
-    const big = this.mobile && b.count > 1 ? 1.3 : 1;
     const cluster = b.node.key === CLUSTER_KEY;
     const psc = cluster ? 1 : sc;
     for (let k = b.parts.length - 1; k >= 0; k--) {
@@ -1193,7 +1200,7 @@ export class FlowEngine {
       let a: number;
       if (p.type === "orbit" || p.type === "wide" || p.type === "still") {
         if (!reduced) p.a += p.w * dt;
-        const rr = p.r * psc * big * (1 + b.hl * 0.3) * (cluster ? 0.75 : 1);
+        const rr = p.r * psc * (1 + b.hl * 0.3) * (cluster ? 0.75 * 0.65 : 1);
         const jx = p.type === "still" ? Math.sin(t * 9 + p.ph) * 0.8 : 0;
         // 名札の側（光の右）へは張り出さない
         const raw = Math.cos(p.a) * rr + jx;
@@ -1212,7 +1219,7 @@ export class FlowEngine {
         }
         // 後ろ（左）へ抜ける。名札（右）の上を通らない。PC は筋から上下2pxまで（粒の群れにしない）
         du = -p.p * (this.mobile ? p.len * 0.5 : Math.min(p.len, b.tailRoom));
-        dv = this.mobile || p.spawned ? p.off * 14 * (1 - p.p) + Math.sin(p.p * 6 + p.ph) * 2 : p.off * 4 * (1 - p.p);
+        dv = this.mobile || p.spawned ? p.off * 14 * (1 - p.p) + Math.sin(p.p * 6 + p.ph) * 2 : p.off * 4 * 0.65 * (1 - p.p);
         a = (1 - p.p) * (this.mobile || p.spawned ? 0.9 : 0.6);
       } else {
         if (!reduced) p.p += dt * p.sp;
@@ -1223,7 +1230,7 @@ export class FlowEngine {
         // 公開済み（スマホの帯）：列の右端まで抜けて消える（ほかの列に入らない）
         const edge = Math.max(8, b.edgeU - b.pu);
         du = p.p * p.p * edge;
-        dv = p.off * 18 * big + Math.sin(p.p * 8 + p.ph) * 3;
+        dv = p.off * 18 + Math.sin(p.p * 8 + p.ph) * 3;
         a = (1 - p.p) * 0.55;
       }
       const px = x + du;
