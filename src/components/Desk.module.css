@@ -95,6 +95,8 @@
   letter-spacing: -0.04em;
   line-height: 1;
   opacity: 0.8;
+  /* 字面の右端から6pxの位置へ動かす（flow/engine.ts が transform を決める） */
+  will-change: transform;
 }
 
 .h1 {

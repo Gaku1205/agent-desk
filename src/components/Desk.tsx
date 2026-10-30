@@ -59,7 +59,7 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
       if (window.innerWidth <= 899) return unit ? unit.getBoundingClientRect().right + 6 : 0;
       return turns ? turns.getBoundingClientRect().left - 10 : innerWidth;
     };
-    engine.setGiant({ canvas, ghost, litEdge });
+    engine.setGiant({ canvas, ghost, unit: unitRef.current, litEdge });
     return () => engine.setGiant(null);
   }, []);
 
