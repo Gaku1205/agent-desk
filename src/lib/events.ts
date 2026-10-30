@@ -1,5 +1,5 @@
 import { isFailedState, latestPerContext } from "./deployStatus";
-import type { IssueData, PullData, RepoData, RepoResult } from "./github/types";
+import type { CommitStatusData, IssueData, PullData, RepoData, RepoResult } from "./github/types";
 import {
   ciState,
   DEFAULT_STUCK_REASON,
@@ -49,6 +49,53 @@ type Draft = Omit<RecentEvent, "id"> & { key: string; short: string };
 function latest(times: (string | null)[]): string | null {
   const valid = times.filter((time): time is string => time !== null && time !== "");
   return valid.sort().at(-1) ?? null;
+}
+
+/** 出来事に出す公開の足あと：成功か失敗と、その時刻 */
+export type DeployFootprint = { result: "success" | "failure"; at: string };
+
+/** `time` が `base` より後か（どちらか無い・読めないときは false） */
+function isLater(time: string | undefined | null, base: string | null): boolean {
+  if (!time || !base) return false;
+  const t = Date.parse(time);
+  const b = Date.parse(base);
+  return !Number.isNaN(t) && !Number.isNaN(b) && t > b;
+}
+
+/**
+ * マージ済みPRの出来事に出す公開の足あと。段階の判定（`deployState`）と同じ考えで、あとの公開も見る。
+ * - マージコミットの公開が failure・error でも、同じ context で、マージより後に main の公開が成功していれば、
+ *   失敗は出さず、その成功の時刻で成功にする
+ * - マージコミットに公開の状態が無くても、マージより後に main の公開が成功していれば、
+ *   そのうち最新の時刻で成功にする（context は問わない）
+ * - あとの公開が無い・まだ失敗のままなら失敗。途中（pending）のままなら null（何も出さない）
+ * `mainDeployed` が文字列のときは、どの context にも同じ時刻を使う
+ */
+export function deployFootprint(
+  statuses: CommitStatusData[],
+  mergedAt: string | null,
+  mainDeployed: Record<string, string> | string | null = null,
+): DeployFootprint | null {
+  const laterSuccess = (context: string): string | null => {
+    const at = typeof mainDeployed === "string" ? mainDeployed : (mainDeployed?.[context] ?? null);
+    return isLater(at, mergedAt) ? at : null;
+  };
+  const sorted = latestPerContext(statuses).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+
+  if (sorted.length === 0) {
+    const times =
+      typeof mainDeployed === "string" ? [mainDeployed] : Object.values(mainDeployed ?? {});
+    const at = latest(times.filter((time) => isLater(time, mergedAt)));
+    return at ? { result: "success", at } : null;
+  }
+
+  const unresolved = sorted.filter((s) => isFailedState(s.state) && laterSuccess(s.context) === null);
+  const lastUnresolved = unresolved.at(-1);
+  if (lastUnresolved) return { result: "failure", at: lastUnresolved.updatedAt };
+  if (sorted.some((s) => s.state !== "success" && !isFailedState(s.state))) return null;
+
+  const at = latest(sorted.map((s) => (isFailedState(s.state) ? laterSuccess(s.context) : s.updatedAt)));
+  return at ? { result: "success", at } : null;
 }
 
 /** 1つのIssue（と紐づくPR）で起きた出来事 */
@@ -219,33 +266,34 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
       }
     }
 
-    // context ごとの最新をまとめる：どれかが失敗なら失敗、そうでなくどれかが途中なら出さない、全部成功なら成功
-    const deployStatuses = latestPerContext(checks.statuses).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
-    const deploy =
-      deployStatuses.filter((s) => isFailedState(s.state)).at(-1) ??
-      (deployStatuses.every((s) => s.state === "success") ? deployStatuses.at(-1) : undefined);
-    if (deploy && pull.merged) {
-      if (deploy.state === "success") {
-        drafts.push({
-          key: "deployed",
-          at: deploy.updatedAt,
-          tone: "deployed",
-          icon: "up",
-          text: `${quoted}が本番に公開されました`,
-          short: "本番に公開",
-          ref: pullRef,
-        });
-      } else if (deploy.state === "failure" || deploy.state === "error") {
-        drafts.push({
-          key: "deploy-failed",
-          at: deploy.updatedAt,
-          tone: "fail",
-          icon: "x",
-          text: `${quoted}の公開に失敗しました`,
-          short: "公開に失敗",
-          ref: pullRef,
-        });
-      }
+  }
+
+  if (pull.merged) {
+    const deploy = deployFootprint(
+      checks?.statuses ?? [],
+      pull.mergedAt,
+      data.mainDeployedByContext ?? data.mainDeployedAt ?? null,
+    );
+    if (deploy?.result === "success") {
+      drafts.push({
+        key: "deployed",
+        at: deploy.at,
+        tone: "deployed",
+        icon: "up",
+        text: `${quoted}が本番に公開されました`,
+        short: "本番に公開",
+        ref: pullRef,
+      });
+    } else if (deploy?.result === "failure") {
+      drafts.push({
+        key: "deploy-failed",
+        at: deploy.at,
+        tone: "fail",
+        icon: "x",
+        text: `${quoted}の公開に失敗しました`,
+        short: "公開に失敗",
+        ref: pullRef,
+      });
     }
   }
 
