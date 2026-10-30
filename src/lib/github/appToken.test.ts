@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WatchedRepo } from "../config";
 import { appTokenCacheForTest, getReadRateLimit, lowestRateLimit } from "./appToken";
 import { etagCacheForTest } from "./client";
-import { fetchAllRepos, mainDeployedCacheForTest } from "./fetch";
+import { actionsCacheForTest, fetchAllRepos, mainDeployedCacheForTest } from "./fetch";
 import { rateLimitForTest } from "./rateLimit";
 import type { RepoData } from "./types";
 
@@ -51,6 +51,9 @@ function fakeGitHub(
     if (url.pathname === "/repos/o/r") {
       return json({ is_template: false }, options.userRepo ?? 200);
     }
+    if (url.pathname === "/graphql") {
+      return json({ data: { repository: { isTemplate: false, ref: null } } }, options.dataStatus ?? 200);
+    }
     return json([], options.dataStatus ?? 200);
   };
   return { fetcher, calls };
@@ -64,6 +67,7 @@ describe("同期の読み取りの鍵の選び方", () => {
     appTokenCacheForTest.clear();
     etagCacheForTest.clear();
     mainDeployedCacheForTest.clear();
+    actionsCacheForTest.clear();
     rateLimitForTest.clear();
   });
 
@@ -79,8 +83,8 @@ describe("同期の読み取りの鍵の選び方", () => {
     const jwtCalls = calls.filter((c) => /\/installation$|access_tokens$/.test(c.path));
     expect(jwtCalls).toHaveLength(2);
     expect(jwtCalls.every((c) => c.auth.split(".").length === 3)).toBe(true);
-    // 取得のあとの /repos/o/r（is_template）は App の鍵
-    expect(calls.some((c) => c.path === "/repos/o/r" && c.auth === `Bearer ${APP_TOKEN}`)).toBe(true);
+    // 取得の GraphQL（is_template も入る）は App の鍵
+    expect(calls.some((c) => c.path === "/graphql" && c.auth === `Bearer ${APP_TOKEN}`)).toBe(true);
   });
 
   it("鍵は使い回し、確かめた結果・インストールも覚える（2回目は鍵の取得も確認もしない）", async () => {
@@ -174,8 +178,8 @@ describe("同期の読み取りの鍵の選び方", () => {
     const first = checks();
     await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: new Date(NOW.getTime() + 60_000), env: ENV });
     expect(appTokenCacheForTest.sizes().readChecks).toBe(1);
-    // 2回目は確認のための呼び出しが増えない（is_template の取得は1回増える）
-    expect(checks()).toBe(first + 1);
+    // 2回目は確認のための呼び出しが増えない（is_template は GraphQL で取るので /repos/o/r は呼ばない）
+    expect(checks()).toBe(first);
   });
 
   it("回数制限の知らせは、App の鍵のときだけ「（パイプラインのApp）」が付く", async () => {

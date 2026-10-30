@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { GitHubClient } from "./client";
 import { GitHubError } from "./errors";
-import { getRateLimit, parseRateLimit, rateLimitForTest } from "./rateLimit";
+import { getReadRateLimit } from "./appToken";
+import {
+  getGraphqlRateLimit,
+  getRateLimit,
+  getRateLimits,
+  parseGraphqlRateLimit,
+  parseRateLimit,
+  rateLimitForTest,
+} from "./rateLimit";
 
 const TOKEN = "ghp_secret_token_value";
 
@@ -70,6 +78,68 @@ describe("GitHubClient の回数制限の記憶", () => {
     expect(e.rateLimitResetAt).toBe(reset);
     expect(e.message).toBe("GitHubのレート制限に達しました。15:42（日本時間）ごろに回復します");
     expect(getRateLimit(TOKEN).remaining).toBe(0);
+  });
+});
+
+describe("GraphQL の回数制限", () => {
+  beforeEach(() => rateLimitForTest.clear());
+
+  it("parseGraphqlRateLimit は remaining と ISO の resetAt（UNIX秒にする）を読む", () => {
+    expect(parseGraphqlRateLimit({ cost: 1, remaining: 4321, resetAt: "2026-10-30T01:00:00Z" })).toEqual({
+      remaining: 4321,
+      resetAt: Date.parse("2026-10-30T01:00:00Z") / 1000,
+    });
+    expect(parseGraphqlRateLimit(null)).toEqual({ remaining: null, resetAt: null });
+    expect(parseGraphqlRateLimit({ remaining: "x", resetAt: "y" })).toEqual({ remaining: null, resetAt: null });
+  });
+
+  it("問い合わせの rateLimit を、REST とは別の枠として覚える", async () => {
+    const client = new GitHubClient(TOKEN, async () =>
+      res(
+        200,
+        { "x-ratelimit-remaining": "4999", "x-ratelimit-reset": "1000" },
+        { data: { rateLimit: { cost: 3, remaining: 1200, resetAt: "2026-10-30T01:00:00Z" } } },
+      ),
+    );
+    await client.graphql("q", {});
+    expect(getRateLimit(TOKEN)).toEqual({ remaining: null, resetAt: null });
+    expect(getGraphqlRateLimit(TOKEN).remaining).toBe(1200);
+    expect(rateLimitForTest.keys().join("")).not.toContain(TOKEN);
+  });
+
+  it("rateLimit が無ければ返事のヘッダーを使う", async () => {
+    const client = new GitHubClient(TOKEN, async () =>
+      res(200, { "x-ratelimit-remaining": "777", "x-ratelimit-reset": "1000" }, { data: {} }),
+    );
+    await client.graphql("q", {});
+    expect(getGraphqlRateLimit(TOKEN)).toEqual({ remaining: 777, resetAt: 1000 });
+  });
+
+  it("getRateLimits は REST と GraphQL の両方を返し、読み取りの残りは少ない方になる", async () => {
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    const resetAt = new Date(future * 1000).toISOString();
+    const client = new GitHubClient(TOKEN, async (url) =>
+      String(url).endsWith("/graphql")
+        ? res(200, {}, { data: { rateLimit: { remaining: 300, resetAt } } })
+        : res(200, { "x-ratelimit-remaining": "4000", "x-ratelimit-reset": String(future) }),
+    );
+    await client.get("/x");
+    await client.graphql("q", {});
+    expect(getRateLimits(TOKEN).map((info) => info.remaining)).toEqual([4000, 300]);
+    expect(getReadRateLimit(TOKEN).remaining).toBe(300);
+  });
+
+  it("RATE_LIMITED のエラーは、問い合わせの resetAt を回復する時刻に使う", async () => {
+    const client = new GitHubClient(TOKEN, async () =>
+      res(200, {}, {
+        data: { rateLimit: { remaining: 0, resetAt: "2026-10-28T06:42:00Z" } },
+        errors: [{ type: "RATE_LIMITED" }],
+      }),
+    );
+    const e = (await client.graphql("q", {}).catch((err: unknown) => err)) as GitHubError;
+    expect(e.kind).toBe("rate_limited");
+    expect(e.message).toBe("GitHubのレート制限に達しました。15:42（日本時間）ごろに回復します");
+    expect(getGraphqlRateLimit(TOKEN).remaining).toBe(0);
   });
 });
 

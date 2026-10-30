@@ -9,7 +9,7 @@ import {
 } from "./appAuth";
 import { GitHubClient, type Fetcher } from "./client";
 import { GitHubError } from "./errors";
-import { getRateLimit, type RateLimitInfo } from "./rateLimit";
+import { getRateLimits, type RateLimitInfo } from "./rateLimit";
 
 // このファイルはサーバーだけで使う（App の秘密鍵・インストールの鍵を扱う）。
 // クライアントのコンポーネントから import しない。鍵はログ・エラー文に出さない。
@@ -234,10 +234,10 @@ export function lowestRateLimit(
   return lowest;
 }
 
-/** ログインした人のトークンと、使った App の鍵のうち、残りがいちばん少ない物 */
+/** ログインした人のトークンと、使った App の鍵の、REST と GraphQL の残りのうち、いちばん少ない物 */
 export function getReadRateLimit(userToken: string): RateLimitInfo {
   return lowestRateLimit([
-    getRateLimit(userToken),
-    ...[...usedInstallationIds].map((id) => getRateLimit(installationKeyId(id))),
+    ...getRateLimits(userToken),
+    ...[...usedInstallationIds].flatMap((id) => getRateLimits(installationKeyId(id))),
   ]);
 }

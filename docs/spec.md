@@ -16,7 +16,7 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
   - 自動で進められないときは `ai:stuck` が付いて止まる。`ai:hold` のPRはマージだけ人間が押す
   - マージされるとVercelが本番に公開し、結果をマージコミットのコミットステータスに書き込む。Vercel以外の公開先（AWS App Runner・GitHub Releases の exe・Expo）は、パイプラインが context `deploy/<種類>`（`deploy/aws-apprunner`・`deploy/github-release`・`deploy/expo`）で書く（pending → success／failure・error。success の `target_url` は公開先、failure・error の `target_url` はActionsの実行のページ。`description` は日本語の説明）
   - 監視するリポジトリが全部このパイプラインを入れているとは限らない（`PIPELINE_TOKEN` が無いリポジトリでは、PR作成とマージは人間がする）
-- データベースは持たない。表示する情報は毎回GitHubのREST APIから取る
+- データベースは持たない。表示する情報は毎回GitHubのAPIから取る（ほとんどはGraphQLでまとめて取る。「データの取得」）
 - 技術：Next.js（App Router）＋TypeScript、認証はAuth.js（next-auth v5）のGitHubプロバイダ、テストはVitest
 
 ## 設定（環境変数）
@@ -70,7 +70,7 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
 「あとの公開が成功」：マージコミットの公開が failure・error でも、その context が、同じリポジトリの「main の最後に公開が成功した時刻」（context ごとに持つ）で、そのPRのマージ時刻より後に**同じ context で**成功していれば、その context は解決ずみ（そのPRの変更は本番に含まれているので）。全部の失敗が解決ずみなら公開済みにする（公開済みの表示は「公開状況は不明」にしない）。後のコミットの公開は、それ以前のコミットの内容も含むため。別の context の success では解決しない（App Runner が失敗したまま Releases だけが後で成功しても、App Runner の失敗は残る）。その時刻が無い、またはマージより前のときは、今までどおり「公開に失敗」。判定は `src/lib/status.ts` の `deployState`。
 
 「main の最後に公開が成功した時刻」は、main の直近のコミット（新しい順に最大10件）の公開ステータス（`Vercel` で始まる、または `deploy/` で始まるcontext）から、context ごとに、success がある一番新しいコミットの、その success の `updated_at` の最新で決める。一番新しいコミットの公開がまだ途中（pending）でも、1つ前のコミットが success ならその時刻を使うので、マージの直後に解決ずみの古い失敗がよみがえらない。説明（`description`）が「Canceled by Ignored Build Step」（前後の空白を除いた完全一致）の success は、公開を飛ばしたコミット（パイプラインの更新だけのコミット）なので、公開の成功に数えない。これは Vercel の context だけの扱い（`deploy/` の context には適用しない）（`src/lib/status.ts` の `latestSuccessDeployAt`・`latestSuccessDeployByContext`）。新しい順に見て、見えた公開の context が全部、数えられる success を見つけた時点でやめる（Vercel だけのリポジトリは、今までどおり success のある最初のコミットで止まる）。10件のうちに無い context は「無い」。取得の回数は増やさない。
-取得は `GET /repos/{owner}/{repo}/commits?sha=main&per_page=10` と、各コミットの `GET /repos/{owner}/{repo}/commits/{sha}/status?per_page=100`（リポジトリごとに1回。回数制限のため、URLに時刻など毎回変わる値は入れず、ETag を効かせる）。コミット一覧・ステータスの取得が1つでも失敗したときは、そのリポジトリで前回うまく取れた値を使い、古い失敗を戻さない（前回の値が無いときだけ null）。前回の値はサーバーのメモリに覚える（キーはトークンのハッシュ＋リポジトリ、件数に上限あり、再起動で消えてよい）。`fetchMainDeployedAt`（`src/lib/github/fetch.ts`）。
+取得は、同期の GraphQL の問い合わせ（「データの取得」）の中で、`ref(qualifiedName: "refs/heads/main")` の直近10コミット（`history(first: 10)`）の `status { contexts }` を一緒に取る（別の呼び出しは増やさない）。main が取れなかったとき（ブランチが無い・形が違う）は、そのリポジトリで前回うまく取れた値を使い、古い失敗を戻さない（前回の値が無いときだけ null）。前回の値はサーバーのメモリに覚える（キーはトークンのハッシュ＋リポジトリ、件数に上限あり、再起動で消えてよい）。`fetchMainDeployedAt`（`src/lib/github/fetch.ts`）。
 
 一緒に持つ情報（進み具合の目盛りと説明文に使う）：
 - 「清書した」：Issueの本文に、企画AIが残す `> 元のメモ：` がある
@@ -92,7 +92,7 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
 パイプラインが動いていないリポジトリの未着手：
 - 「パイプラインが動いていない」：`.github/workflows/pipeline.yml` が無い（`GET /repos/{owner}/{repo}/actions/workflows/pipeline.yml/runs?per_page=1` が 404）、またはそのワークフローの実行が1度も無い（`total_count` が 0）。Secretsの有無は、読むのに管理者の権限が要るので使わない
 - 確かめられないとき（404 以外のエラー・形が違う）は「動いている」とも「動いていない」とも決めず、今までどおり表示する
-- 判定は `src/lib/pipelineState.ts` の純粋関数。リポジトリごとに取得時にAPIを1回呼ぶ
+- 判定は `src/lib/pipelineState.ts` の純粋関数。取得は REST（GraphQL で取れないため）で、リポジトリごとに5分に1回だけ呼び、間は前の値を使う（「データの取得」）
 - 動いていないリポジトリの**未着手**のIssueだけ、「あなたの番」の説明文を「パイプライン未設定です。Secretsを登録してください」にし、「おまかせ」「実装を依頼」は出さない（サーバー側でも受け付けない）。段階・誰の番・流れの名札の短い説明・ほかの段階の表示は変えない
 - 設定画面の「パイプラインあり／なし」（ワークフローの有無だけ）は変えない
 
@@ -100,12 +100,12 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
 - テンプレートリポジトリ（GitHub の `is_template` が true）で、タイトルが `新サービス：`（全角コロン）または `新サービス:`（半角コロン）で始まる**開いている**Issueは、テンプレート側の工場（`factory.yml`）が受け持つ。パイプラインの受付もこのIssueを企画に回さない（`docs/pipeline.md` の「工場」）ので、`ai:` ラベルが無くて未着手になるものは「あなたの番」に出さない（「おまかせ」「実装を依頼」も出さず、サーバー側でも受け付けない。画面を介さない呼び出しでもラベルは付かない）。ラベルが付いて別の段階になったIssueの判定は変えない
 - 「流れ」には、今までどおり誰の番でも全部出す（外すのは「あなたの番」への表示と操作だけ）
 - テンプレートでないリポジトリの同じタイトルのIssue、テンプレートリポジトリの `新サービス` で始まらないIssueは、今までどおり
-- `is_template` は、リポジトリごとに取得時に `GET /repos/{owner}/{repo}` を1回呼んで読む（ETag が効く形）。調べられなかったとき（エラー・形が違う）は除外せず、今までどおり表示する
+- `is_template` は、同期の GraphQL の問い合わせで `repository { isTemplate }` を一緒に読む（「データの取得」）。調べられなかったとき（形が違う）は除外せず、今までどおり表示する
 - 判定は `src/lib/factoryIssue.ts` の純粋関数 `isFactoryIssue`
 
 見張り役が止まっているリポジトリ：
 - 「見張り役」：パイプラインの `.github/workflows/watchdog.yml`。止まると `ai:retry` のやり直しや見落としの拾い上げが動かなくなる（公開リポジトリで60日コミットが無い、Actions を止めた、ワークフローが壊れた、などで止まる）
-- 取得：リポジトリごとに `GET /repos/{owner}/{repo}/actions/workflows/watchdog.yml/runs?per_page=1` を1回呼ぶ。実行が1件あれば、その `created_at`（実行の開始時刻。成功・失敗は問わない）を「最後の実行の時刻」とする
+- 取得：リポジトリごとに `GET /repos/{owner}/{repo}/actions/workflows/watchdog.yml/runs?per_page=1` を呼ぶ（GraphQL で取れないため REST。5分に1回だけで、間は前の値を使う。「データの取得」）。実行が1件あれば、その `created_at`（実行の開始時刻。成功・失敗は問わない）を「最後の実行の時刻」とする
 - 404（`watchdog.yml` が無い）→「無い」。実行が0件、404 以外のエラー、形が違う →「分からない」。「無い」「分からない」のときは何も出さない（パイプラインを入れていないリポジトリでは出さない）
 - 判定：最後の実行から3時間以上（ちょうど3時間を含む）たっていたら「止まっている」。経過時間 N は時間単位で切り捨てる（3時間10分なら3）。3時間未満は「注意なし」。最後の実行の時刻が今より未来、または読めないときも「注意なし」
 - 判定は `src/lib/watchdogState.ts` の純粋関数 `judgeWatchdog`（入力：最後の実行の時刻または「無い」「分からない」・今の時刻。出力：「注意なし」か「止まっている（経過した時間）」）。取得に失敗しても、ほかのデータの表示は落とさない
@@ -115,7 +115,7 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
 PR作成待ちは、パイプラインが入っていれば数秒でPRになるので、ふつうは見えない。パイプラインの無いリポジトリや、PR作成が失敗したときに人間の番として出る。
 
 - 「紐づくPR」：本文に `Closes #<番号>`（大文字小文字は問わない、Fixes/Resolvesも可）を含むか、ブランチ名が `claude/issue-<番号>-` で始まるPR
-- 「公開ステータス」：マージコミットのコミットステータス（`GET /repos/{owner}/{repo}/commits/{sha}/status`）のうち、context が `Vercel` で始まる、または `deploy/` で始まるもの。VercelはGitHubのDeploymentではなく、ここに結果を書く（2026年10月25日に実データで確認）。`deploy/<種類>` はパイプラインが書く
+- 「公開ステータス」：マージコミットのコミットステータス（GraphQL の `mergeCommit { status { contexts } }`。context ごとの最新）のうち、context が `Vercel` で始まる、または `deploy/` で始まるもの。VercelはGitHubのDeploymentではなく、ここに結果を書く（2026年10月25日に実データで確認）。`deploy/<種類>` はパイプラインが書く
 - 公開失敗の理由：公開失敗の行では、context ごとの最新が failure・error のものの `description`（Vercelが失敗の理由を書く）を理由として出す。失敗しているのが Vercel の1つだけなら `description` だけ。それ以外（`deploy/` の context が失敗しているとき）は、`{種類}：{説明}` を1行ずつ（種類は context の `deploy/` の後ろ。Vercel は「Vercel」）。`description` が空の物は出さず、出す物が無ければ理由は出さない。「rate limited — retry in N hours」の形（N の単位は分・時間・日）は「利用上限に達しました。あとN時間で再開します」のように日本語にし、それ以外は `description` をそのまま出す。Nは `description` の数字をそのまま使う。出す場所は流れの公開失敗の光の説明だけ（理由の取り出しは `src/lib/deployFailure.ts`）
 - 公開先のリンク：公開済みの光の説明（流れ）で、context ごとの最新が success かつ `target_url` が `https://` で始まる物は、文字のリンク `開く ↗`（新しいタブ）を出す。複数あれば種類の名前つきで並べる（`App Runner ↗` `Releases ↗` `Expo ↗`。それ以外の種類は context の `deploy/` の後ろをそのまま）。`target_url` が無い・`https://` で始まらないときは出さない（`src/lib/deployStatus.ts` の `deployLinks`）
 - 公開ステータスが無いまま30分以上たったもの（Vercelをつなぐ前にマージしたものなど）は「公開済み」に入れ、名札に「公開状況は不明」と出す
@@ -201,7 +201,7 @@ PR作成待ちは、パイプラインが入っていれば数秒でPRになる�
 
 | 出来事 | 時刻 |
 | --- | --- |
-| `ai:implement` が付いた／`ai:review` が付いた | Issueのイベント（`GET /repos/{owner}/{repo}/issues/events`、`event` が `labeled`、`label.name` が一致）の `created_at`。PRに付いた `ai:review` は、そのPRに紐づくIssueの出来事にする |
+| `ai:implement` が付いた／`ai:review` が付いた | Issue・PRのラベルの付け外しのイベント（GraphQL の `timelineItems` の `LabeledEvent`、ラベル名が一致）の `createdAt`。PRに付いた `ai:review` は、そのPRに紐づくIssueの出来事にする |
 | 実装AIが完了した／エラーで止まった | `claude[bot]` のコメント（完了コメント／エラーコメント）の `createdAt` |
 | PRができた | 紐づくPRの `createdAt` |
 | CIが全部通った／失敗した | PRの先頭コミットのチェック（Claude Reviewを除く）が全部完了したとき、いちばん遅い `completed_at`。失敗は、失敗したチェックの `completed_at` |
@@ -209,7 +209,7 @@ PR作成待ちは、パイプラインが入っていれば数秒でPRになる�
 | マージされた | PRの `mergedAt` |
 | 公開された／公開に失敗した | 公開ステータス（`Vercel` または `deploy/` で始まるcontext）の `updated_at`（success／failure・error のとき） |
 
-- 出来事は、画面に出すIssue・PRと同じ取得データから作る。増えるAPI呼び出しは、リポジトリごとにIssueのイベント1回（`per_page=100`）だけにする
+- 出来事は、画面に出すIssue・PRと同じ取得データから作る。ラベルの付け外しのイベントも同じ GraphQL の問い合わせで一緒に取り、API呼び出しは増やさない（「データの取得」）
 - 出来事を作る処理は `src/lib/` の純粋関数にまとめ、テストする（入力：取得済みのIssue・PR・コメント・チェック・ステータス・イベントと「今」の時刻。出力：新しい順の出来事の配列）
 
 ### 更新
@@ -225,6 +225,7 @@ PR作成待ちは、パイプラインが入っていれば数秒でPRになる�
 
 - ログインした人のトークンの回数制限（1時間5,000回）はオーナーのアカウント全体で共有で、パイプライン（`PIPELINE_TOKEN`）やほかのツール（Claude のセッションの `gh` など）も同じ枠を使う。ダッシュボードが使い切るとパイプラインのマージなども止まるので、残りが少ないときは自動の取り直しを控えて、パイプラインの分を残す。同期の読み取りを App の鍵で行っているリポジトリは、別の枠（インストールごと。リポジトリ数で増え、最大1時間12,500回）を使う（「読み取りの鍵」）。自動の取り直しの間隔は、使っている鍵の残りのうち**いちばん少ない物**で決める
 - 残りは、GitHubの返事の `X-RateLimit-Remaining`、回復する時刻は `X-RateLimit-Reset`（UNIX秒）。304の返事にも付くので読む。書き込み（`send`）の返事も覚える。サーバーのメモリに、トークンのハッシュごとに最新の物を覚える（トークンそのものはキーにしない）。読む・覚えるのは `src/lib/github/client.ts`
+- GraphQL の回数制限（1時間5,000点。REST とは別の枠）も同じように覚える。問い合わせに `rateLimit { cost remaining resetAt }` を入れて読み（`resetAt` はUNIX秒にする）、読めなければ返事の `X-RateLimit-Remaining`・`X-RateLimit-Reset` を使う。鍵ごとに REST と GraphQL を別に覚え、残りの表示（止めている間の文言）と自動の取り直しの間隔は、REST と GraphQL の残りのうち**少ない方**（鍵が複数あれば全部のうちいちばん少ない物）で決める（`src/lib/github/rateLimit.ts` の `getRateLimits`、`src/lib/github/appToken.ts` の `getReadRateLimit`）。GraphQL の制限に当たったとき（`errors` の `type` が `RATE_LIMITED`、または 403・429）のエラーの文言は、REST と同じ
 - 回復する時刻を過ぎたら、覚えている残りは古いので使わず、普段の間隔に戻す。まだ一度も返事を受けていない（不明）ときも普段の間隔
 - 取り直しのたびにサーバーが間隔を決め直し、画面（`AppShell`）に渡す。渡すのは間隔（ミリ秒、または止めるとき `null`）と再開する時刻、Webhook で取り直すリポジトリ（`owner/repo`）と今までどおりの間隔が要るかだけで、GitHubのトークンは渡さない
 - スマホのメニュー（`TopBar.tsx` の `MenuSheet`。デモも同じ）は、開いている間は裏に出ないシートとして動く（`role="dialog"`・`aria-modal="true"`）
@@ -249,13 +250,32 @@ PR作成待ちは、パイプラインが入っていれば数秒でPRになる�
 - App の秘密鍵・インストールの鍵はサーバーだけで使う。クライアントのコンポーネントに渡さず、ログ・エラー文にも出さない
 - マージ後に人間がすること：Vercel の agent-desk の環境変数に `PIPELINE_APP_ID`・`PIPELINE_APP_PRIVATE_KEY` を入れて、公開し直す（`README.md` のセットアップ）
 
-- GitHubへの問い合わせは、前回の返事の `ETag` を `If-None-Match` に付けて送る。変わっていなければ 304 が返り、GitHubの回数制限に数えられない。304 のときは前回の中身を使う（サーバーのメモリに、トークンとURLごとに覚えておく。トークンそのものはキーにせず、ハッシュにする）
-- 1回の同期で呼ぶAPIの数を減らす（`src/lib/github/fetch.ts`。判定と表示は変えない）。ETag のキャッシュはサーバーのメモリにあり、インスタンスが替わると消えて 304 にならないため、監視リポジトリが3つ・直近14日のPRが100件・開いているPRが5件の規模で、1回の同期が60回以内に収まるようにする
-  - チェックの取り方はPRの状態で分ける。開いているPR：先頭コミットの check-runs だけ。マージ済みのPR：マージコミットの公開ステータス（`/status`）だけで、check-runs は取らず空にする。閉じた（マージしていない）PR：取らない（チェックなし）
-  - Issueに紐づかないPR（本文に `Closes #番号` が無く、ブランチ名も `claude/issue-<番号>-` でない。`pipeline-sync/*` など）は、状態によらずチェックを取らない（チェックなし）。紐づきの判定は `src/lib/status.ts` の `isIssueLinkedPull`
-  - 公開済み（公開ステータスがあり、全部成功）と決まったマージコミットは、同じ sha をもう取らず、サーバーのメモリに覚えた公開ステータスを使う。キーはトークンのハッシュ＋リポジトリ＋sha、件数に上限があり（超えたら古い物から捨てる）、消えても取り直すだけ
 - 手動の更新：上端の帯の「同期 HH:MM:SS」を押すと取り直す（スマホではメニューの中）。押したら、監視リポジトリ全部のキャッシュを無視して（サーバーアクション `syncNow` で `updateTag`）すぐ取り直す。更新にキーボードのショートカットは無し
 - 同期の時刻を出す（上端の帯）。出すのは「最後に取り直した時刻」（日本時間 `HH:MM:SS`）。現在時刻では進めない。取り直しが終わると、その取り直しの時刻に変わる。判定は `src/lib/refresh.ts` の `getDisplayedSyncTime`
+
+### データの取得
+
+同期（`fetchRepoData`。`src/lib/github/fetch.ts`）は、1リポジトリにつき GitHub の GraphQL（`POST https://api.github.com/graphql`。`fetch` で直接呼び、ライブラリは入れない）を**1回**（ページ送りが要るときだけ増える）呼んでまとめて取る。PRの数に比例して呼び出しが増えないようにするため（REST を1つずつ呼んでいたときは、PRの数だけチェックを呼んで1リポジトリ数十〜200回になり、オーナーの1時間5,000回を使い切った）。問い合わせと、返事を今の型（`src/lib/github/types.ts`）に変える純粋関数は `src/lib/github/graphql.ts`。判定（段階・誰の番・公開状態）は変えない。
+
+- 1回の問い合わせで取る物（`repository(owner, name)` の中）
+  - `isTemplate`
+  - Issue：`issues(first: 100, filterBy: { since: 直近14日の境目 }, orderBy: { field: UPDATED_AT, direction: DESC })` の番号・題名・本文・状態・ラベル・URL・作成・更新・閉じた時刻、コメント（`comments(last: 100)`）、ラベルの付け外し（`timelineItems(last: 50, itemTypes: [LABELED_EVENT, UNLABELED_EVENT])`）
+  - PR：`pullRequests(first: 100, orderBy: { field: UPDATED_AT, direction: DESC })` の番号・題名・本文・状態・マージの時刻・ラベル・URL・ブランチ名（`headRefName`）・先頭コミット（`headRefOid`）・作成・更新の時刻、コメント・ラベルの付け外し（Issue と同じ）、先頭コミットのチェック（`commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) } } } }` の CheckRun の名前・状態・結果・作ったアプリ・完了時刻）、マージコミット（`mergeCommit { oid status { contexts } }` の context・状態・説明・リンク先・時刻）
+  - main の直近10コミットの公開ステータス（「main の最後に公開が成功した時刻」）
+  - 回数制限：`rateLimit { cost remaining resetAt }`（「更新」）
+- ページ送り：Issue は `pageInfo` に続きがあれば、PR は続きがあり、かつそのページのいちばん古いPRの更新が直近14日の中なら、続きだけ（`after` に `endCursor`）をもう1回問い合わせる。Issue・PR それぞれ最大5ページ（500件）まで。続きの問い合わせには、main は入れない
+- 取ったあとで直近14日に絞る：Issue と PR は更新時刻、コメントは作成時刻
+- 今の型への変え方（REST から変えていたときと同じ結果にする。`src/lib/github/graphql.test.ts` で REST からの変換と比べる）
+  - 状態・結果の英字（`OPEN`・`COMPLETED`・`SUCCESS` など）は小文字にする。PRの `MERGED` は `closed`（マージ済みかはマージの時刻で決める）
+  - コメントの作者が Bot（`__typename` が `Bot`）のときは、ログイン名の後ろに `[bot]` を付ける（GraphQL は `claude`、REST は `claude[bot]` で返すため）。コメントの `id` は `databaseId`。コメントは作成時刻の順に並べる
+  - 公開ステータスの時刻（`updatedAt`）は、そのステータスの `createdAt`（context ごとの最新が来る）
+  - ラベルの付け外しは、`event` を `labeled`・`unlabeled`、`labelName` をラベル名、`issueNumber` をそのIssue・PRの番号にする（使うのは `labeled` だけ。ほかの種類のイベントは取らない）
+  - マージコミットは、マージ済みのPRだけ持つ（開いているPRは `null`）
+- チェックを持たせるPRは、今までどおり。開いているPR：先頭コミットのチェックランだけ（ステータスは空）。マージ済みのPR：マージコミットの公開ステータスだけ（チェックランは空）。閉じた（マージしていない）PRと、Issueに紐づかないPR（本文に `Closes #番号` が無く、ブランチ名も `claude/issue-<番号>-` でない。`pipeline-sync/*` など。判定は `src/lib/status.ts` の `isIssueLinkedPull`）：チェックなし
+- GraphQL の返事に `errors` があるときは、そのリポジトリを取れなかったことにする（`type` が `RATE_LIMITED` ならレート制限、`NOT_FOUND` なら見つからない、`FORBIDDEN` なら権限なし、ほかは「取れませんでした」。HTTP の 401・403・404・429 は REST と同じ分け方）
+- GraphQL で取れない物（パイプラインの状態＝`pipeline.yml` の実行、見張り役の最後の実行＝`watchdog.yml` の実行。Actions の runs）は REST のまま。ただしリポジトリごとに5分に1回だけ取り直し、間はサーバーのメモリに覚えた前の値を使う（キーはトークンのハッシュ＋リポジトリ、件数に上限あり、再起動で消えてよい）
+- 呼ぶ数の目安：監視リポジトリ3つ・直近14日のPRが100件で、1回の同期が GraphQL 6回以内、REST 0回（5分ごとの Actions の runs を除く）
+- REST の問い合わせ（Actions の runs など）は、前回の返事の `ETag` を `If-None-Match` に付けて送る。変わっていなければ 304 が返り、GitHubの回数制限に数えられない。304 のときは前回の中身を使う（サーバーのメモリに、トークンとURLごとに覚えておく。トークンそのものはキーにせず、ハッシュにする）。GraphQL（POST）には ETag は無い
 
 ### Webhook で取り直す
 
