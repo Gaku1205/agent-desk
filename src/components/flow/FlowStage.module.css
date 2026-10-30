@@ -423,8 +423,12 @@
 
   .stripItem b {
     flex: none;
+    color: var(--bone-2);
+    font-weight: 400;
+  }
+
+  .stripItem[data-urgent] b {
     color: var(--c);
-    font-weight: 500;
   }
 
   .stripTitle {
