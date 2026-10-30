@@ -40,14 +40,15 @@ export function Trails({ events, now, hint }: Props) {
   const { active, deployed } = splitDeployed(current ? current.trails : []);
   const deployedShown = current !== null && deployedOpen.has(current.day);
   // 隠していない Issue を全件描き、幅ごとに隠す件数は CSS で決める（1500px以上10件・900px以上6件・それ未満5件）
-  const list = deployedShown ? [...active, ...deployed] : active;
+  // 公開済みは別の入れ物に出すので、件数の制限には入れない
+  const list = active;
   const total = list.length;
 
   // 前の描画に無かった出来事を持つ列を「新しい」として、上からすっと入れる
   const fresh = new Set<string>();
   if (seen.ids && seen.events === events) {
     const ids = seen.ids;
-    for (const trail of list) if (trail.steps.some((s) => !ids.has(s.id))) fresh.add(trail.key);
+    for (const trail of deployedShown ? [...active, ...deployed] : active) if (trail.steps.some((s) => !ids.has(s.id))) fresh.add(trail.key);
   }
 
   const tabId = (d: string) => `${baseId}-tab-${d}`;
@@ -177,18 +178,25 @@ export function Trails({ events, now, hint }: Props) {
               </button>
             )}
             {current && deployed.length > 0 && (
-              <button
-                type="button"
-                className={styles.more}
-                data-deployed=""
-                aria-expanded={deployedShown}
-                onClick={() => setDeployedOpen((set) => toggled(set, current.day))}
-              >
-                {deployedShown ? "たたむ" : `公開済み ${deployed.length}件`}
-                <span className={styles.caret}>
-                  <TriangleDownIcon />
-                </span>
-              </button>
+              <div>
+                <button
+                  type="button"
+                  className={styles.more}
+                  data-deployed=""
+                  aria-expanded={deployedShown}
+                  onClick={() => setDeployedOpen((set) => toggled(set, current.day))}
+                >
+                  {deployedShown ? "たたむ" : `公開済み ${deployed.length}件`}
+                  <span className={styles.caret}>
+                    <TriangleDownIcon />
+                  </span>
+                </button>
+              </div>
+            )}
+            {deployedShown && (
+              <div className={styles.groups} data-open="">
+                {deployed.map(renderTrail)}
+              </div>
             )}
           </div>
         </>
