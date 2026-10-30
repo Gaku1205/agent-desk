@@ -91,6 +91,17 @@
   transform: scale(0.96);
 }
 
+/* 送信の最中：押した直後の220msは不透明度を下げない（design.md の決まり）。乗せても色を変えない */
+.button:disabled {
+  opacity: 0.7;
+  transition: opacity 0s 0.22s;
+  cursor: default;
+}
+
+.button:disabled:hover {
+  background: var(--you);
+}
+
 .demoLink {
   color: var(--bone-2);
   font-size: 13px;
