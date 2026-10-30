@@ -65,7 +65,7 @@ function SkipLink() {
   function skip(event: React.MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
     const target =
-      document.querySelector<HTMLElement>("[data-skip-target] [data-act]:not(:disabled)") ??
+      document.querySelector<HTMLElement>('[data-skip-target] [data-act]:not([aria-disabled="true"])') ??
       document.querySelector<HTMLElement>("[data-skip-target] a, [data-skip-target] button") ??
       document.querySelector<HTMLElement>("main a, main button, main input, main select");
     if (!target) return;

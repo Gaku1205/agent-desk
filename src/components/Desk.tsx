@@ -88,7 +88,7 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
     if (!row) return;
     row.scrollIntoView({ block: "center", behavior: motionReduced() ? "auto" : "smooth" });
     // 最初のボタン。ボタンが無い行（パイプライン未設定の未着手など）は題名のリンク
-    (row.querySelector<HTMLElement>("[data-act]:not(:disabled)") ?? row.querySelector<HTMLElement>("a, button"))?.focus({
+    (row.querySelector<HTMLElement>('[data-act]:not([aria-disabled="true"])') ?? row.querySelector<HTMLElement>("a, button"))?.focus({
       preventScroll: true,
     });
     row.setAttribute("data-picked", "");
@@ -109,7 +109,7 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
           <span className={styles.unit} ref={unitRef} aria-hidden="true">
             件
           </span>
-          <h1 className={styles.h1} id="turn-title">
+          <h1 className={styles.h1} id="turn-title" tabIndex={-1}>
             あなたの番
             <small>{count > 0 ? "待ちが長い順" : "今はAIの番です"}</small>
           </h1>
