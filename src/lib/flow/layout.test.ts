@@ -14,6 +14,8 @@ import {
   laneHeightOf,
   layoutFlow,
   MAX_LANES,
+  reflowExtraHeight,
+  reflowExtraLines,
   STAGES_ROOM,
   stripColumns,
   titleTipBox,
@@ -441,10 +443,34 @@ describe("titleTipBox", () => {
     const above = { x0: 0, x1: 1000, y0: 80 - lh * 1.5, y1: 80 - lh / 2 };
     expect(titleTipBox(100, 80, m, { ...base, avoid: [below, above] })).toMatchObject({ dy: lh * 1.5 });
   });
+  it("乗せた名札が折り返して伸びた分だけ、下側の候補を下げる（上側はそのまま）", () => {
+    expect(titleTipBox(100, 80, m, { ...base, avoid: [], extra: 15 })).toMatchObject({ dy: lh / 2 + 15 });
+    const below = { x0: 0, x1: 1000, y0: 80 + lh / 2 + 15, y1: 80 + lh * 1.5 + 15 };
+    expect(titleTipBox(100, 80, m, { ...base, avoid: [below], extra: 15 })).toMatchObject({ dy: -lh * 1.5 });
+  });
   it("右端に入らなければ左へずらして右端をそろえ、区域の外には出さない", () => {
     const box = titleTipBox(950, 10, m, { ...base, avoid: [] });
     expect(950 + box.dx + box.width).toBeLessThanOrEqual(1000);
     expect(10 + box.dy).toBeGreaterThanOrEqual(-STAGES_ROOM);
+  });
+});
+
+describe("reflowExtraLines", () => {
+  const m = { id: 50, status: 60, title: 200 };
+  it("番号と短い説明が並ぶなら増えない", () => {
+    expect(reflowExtraLines(m, 128, 12)).toBe(0);
+  });
+  it("並ばなければ短い説明が下の行に落ち、幅に入らなければさらに折り返す", () => {
+    expect(reflowExtraLines(m, 100, 12)).toBe(1);
+    expect(reflowExtraLines({ id: 50, status: 200, title: 0 }, 100, 12)).toBe(3);
+  });
+});
+
+describe("reflowExtraHeight", () => {
+  it("増える行が無ければ0。あれば行ぶんに、行の間の gap と番号の行の差（0.4em）を足す", () => {
+    expect(reflowExtraHeight(0, 12)).toBe(0);
+    expect(reflowExtraHeight(1, 12)).toBeCloseTo(12 * 1.25 + 12 * 0.4);
+    expect(reflowExtraHeight(2, 12)).toBeCloseTo(12 * 2.5 + 12 * 0.4);
   });
 });
 

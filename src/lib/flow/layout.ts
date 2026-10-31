@@ -54,6 +54,8 @@ export type LayoutInput = {
   prev?: PrevSeats | null;
   /** 公開済みの塊の名札の文字の幅 */
   clusterMetrics?: LabelMetrics;
+  /** 動きを減らす設定：乗せた名札は短い説明を折り返して全文を出すので、題名の札はその分だけ下げる */
+  reflow?: boolean;
 };
 
 /** 名札の位置（光の中心からの左上） */
@@ -128,6 +130,29 @@ const MIN_SEP = 10;
 /** 常に出す名札（1行）と、題名の札（1行）の高さ */
 export function labelHeight(fontSize: number): number {
   return fontSize * 1.25 + 4;
+}
+
+/** 名札の左右の内側の余白（CSS の padding 2px 4px の左右） */
+const TAG_INSET = 8;
+
+/**
+ * 動きを減らす設定で、乗せた常に出す名札（幅 width）が、1行目の下に折り返して増える行の数。
+ * 番号と短い説明が並ばなければ、短い説明は番号の下の行に名札の幅いっぱいで落ち、そこで文字ごとに折り返す（CSS の .l1 と同じ）
+ */
+export function reflowExtraLines(m: LabelMetrics, width: number, fontSize: number): number {
+  const inner = Math.max(1, width - TAG_INSET);
+  if (m.id + gapOf(fontSize) + m.status <= inner) return 0;
+  return Math.ceil(m.status / inner);
+}
+
+/**
+ * 折り返して増えた行（lines 行ぶん）の高さ。lines が 0 なら 0。
+ * 折り返すと .l1 は「番号の行（0.92em）＋行の間の gap（0.5em）＋短い説明 lines 行」になり、1行のときの 1行ぶんより
+ * 実測で 0.4em 余計に高くなる（0.5em − (1.25 − 0.92 × 1.25)em）。その分も含める
+ */
+export function reflowExtraHeight(lines: number, fontSize: number): number {
+  if (lines <= 0) return 0;
+  return lines * fontSize * 1.25 + gapOf(fontSize) - fontSize * 1.25 * 0.08;
 }
 
 /** 乗せたときの名札（2行）の高さ */
@@ -252,15 +277,17 @@ export function titleTipBox(
   x: number,
   y: number,
   m: LabelMetrics,
-  input: { fontSize: number; height: number; rightEdge: number; avoid: readonly Rect[] },
+  input: { fontSize: number; height: number; rightEdge: number; avoid: readonly Rect[]; extra?: number },
 ): TitleBox {
   const lh = labelHeight(input.fontSize);
+  // 乗せた名札が折り返して伸びた分（下側の候補だけ、その分だけ下げる）
+  const extra = input.extra ?? 0;
   const width = Math.min(wants(m, input.fontSize).title, input.fontSize * MAX_LABEL_EM);
   const dx = Math.max(-x, Math.min(LABEL_GAP, input.rightEdge - width - x));
   let best: TitleBox | null = null;
   let bestArea = Infinity;
   for (const k of [1, -1, 2, -2, 3, -3]) {
-    const dy = -lh / 2 + k * lh;
+    const dy = -lh / 2 + k * lh + (k > 0 ? extra : 0);
     if (y + dy < -STAGES_ROOM - 0.01 || y + dy + lh > input.height + 0.01) continue;
     const r = { x0: x + dx, x1: x + dx + width, y0: y + dy, y1: y + dy + lh };
     const area = input.avoid.reduce((sum, a) => sum + overlapArea(r, a), 0);
@@ -270,7 +297,7 @@ export function titleTipBox(
     }
     if (bestArea === 0) break;
   }
-  return best ?? { width, dx, dy: lh / 2 };
+  return best ?? { width, dx, dy: lh / 2 + extra };
 }
 
 /** 真ん中に近い順（同じなら上）にレーンを並べる */
@@ -492,12 +519,34 @@ function place(input: LayoutInput, gap: number, maxPinned: number[], prev: PrevS
     placed.push({ key: node.key, x, y, column: seat.column, pinned: true, lane: seat.lane, slot: seat.slot, width: w, variant, dx: LABEL_GAP, dy: -lh / 2, tip: null });
     pinnedRects.push({ x0: x + LABEL_GAP, x1: x + LABEL_GAP + w, y0: y - lh / 2, y1: y + lh / 2 });
   }
+  // 動きを減らす設定：乗せた名札が折り返して下へ伸びると、すぐ下の行の名札にかかる。左から入り込んでいる下の名札は、伸びる名札の左端の手前で切る（「…」で切れる）
+  if (input.reflow) {
+    placed.forEach((p, i) => {
+      const node = rest.find((n) => n.key === p.key);
+      if (!node) return;
+      const grown = pinnedRects[i].y1 + reflowExtraHeight(reflowExtraLines(measure(node), p.width, fontSize), fontSize);
+      if (grown <= pinnedRects[i].y1) return;
+      placed.forEach((q, j) => {
+        const r = pinnedRects[j];
+        if (j === i) return;
+        const below = r.y0 >= pinnedRects[i].y1 - 0.01 && r.y0 < grown;
+        const cuts = r.x0 < pinnedRects[i].x0 && r.x1 > pinnedRects[i].x0;
+        const w = pinnedRects[i].x0 - r.x0;
+        if (below && cuts && w >= fontSize * 3) {
+          q.width = w;
+          r.x1 = r.x0 + w;
+        }
+      });
+    });
+  }
   // 題名の札：ほかの常に出す名札と重ならない側
   placed.forEach((p, i) => {
     const node = rest.find((n) => n.key === p.key);
     if (!node) return;
     const avoid = pinnedRects.filter((_, j) => j !== i);
-    p.tip = titleTipBox(p.x, p.y, measure(node), { fontSize, height, rightEdge, avoid });
+    const m = measure(node);
+    const extra = input.reflow ? reflowExtraHeight(reflowExtraLines(m, p.width, fontSize), fontSize) : 0;
+    p.tip = titleTipBox(p.x, p.y, m, { fontSize, height, rightEdge, avoid, extra });
   });
   for (const node of rest) {
     const seat = seats.get(node.key);
