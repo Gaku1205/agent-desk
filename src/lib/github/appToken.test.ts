@@ -25,6 +25,8 @@ type Call = { method: string; path: string; auth: string; body: string };
 function fakeGitHub(
   options: {
     installation?: "ok" | "none" | "error";
+    /** インストールに与えられた権限（省略は全部） */
+    installationPermissions?: Record<string, string>;
     tokenEndpoint?: "ok" | "error";
     userRepo?: number;
     dataStatus?: number;
@@ -44,7 +46,20 @@ function fakeGitHub(
     if (url.pathname === "/repos/o/r/installation") {
       if (options.installation === "none") return json({}, 404);
       if (options.installation === "error") throw new Error(`boom ${auth}`);
-      return json({ id: 9 });
+      return json({
+        id: 9,
+        permissions: options.installationPermissions ?? {
+          contents: "read",
+          issues: "write",
+          pull_requests: "read",
+          checks: "read",
+          statuses: "read",
+          actions: "read",
+          variables: "read",
+          workflows: "write",
+          metadata: "read",
+        },
+      });
     }
     if (url.pathname === "/app/installations/9/access_tokens") {
       if (options.tokenEndpoint === "error") return json({}, 500);
@@ -144,6 +159,26 @@ describe("同期の読み取りの鍵の選び方", () => {
         metadata: "read",
       },
     });
+  });
+
+  it("Variables の権限が無いインストールでは variables を頼まず、鍵が取れる", async () => {
+    const { fetcher, calls } = fakeGitHub({
+      installationPermissions: {
+        contents: "read",
+        issues: "read",
+        pull_requests: "read",
+        checks: "read",
+        statuses: "read",
+        actions: "read",
+        metadata: "read",
+      },
+    });
+    const [result] = await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: ENV });
+    expect(result.readSource).toBe("app");
+    const call = calls.find((c) => c.path === "/app/installations/9/access_tokens");
+    const permissions = JSON.parse(call?.body ?? "null").permissions;
+    expect(permissions.variables).toBeUndefined();
+    expect(permissions.actions).toBe("read");
   });
 
   it.each(["FORBIDDEN", "NOT_FOUND"] as const)(
