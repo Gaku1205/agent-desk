@@ -37,12 +37,15 @@ export type MarqueeCycle = {
   frames: MarqueeFrame[];
 };
 
+/** これ未満の差は「入っている」とみなす幅（px。小数の丸めで入りきる文字を流さないため） */
+const FIT_TOLERANCE = 1;
+
 /**
  * 流す距離（px）：文字の幅が見える幅に入らなければ、末尾が右端の消す幅の手前に来るまで。
- * 入っている（またはまだ測れていない）なら 0
+ * 1px未満の差は入っている。入っている（またはまだ測れていない）なら 0
  */
 export function marqueeDistance(textWidth: number, viewWidth: number): number {
-  if (!(textWidth > 0) || !(viewWidth > 0) || textWidth <= viewWidth) return 0;
+  if (!(textWidth > 0) || !(viewWidth > 0) || textWidth - viewWidth < FIT_TOLERANCE) return 0;
   return Math.ceil(textWidth - viewWidth + MARQUEE_EDGE);
 }
 

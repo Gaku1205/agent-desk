@@ -50,11 +50,20 @@ export function Marquee({ children, className, active = false, autoInView = fals
     const view = viewRef.current;
     const text = textRef.current;
     if (!view || !text) return;
-    const measure = () => setDistance(marqueeDistance(text.getBoundingClientRect().width, view.clientWidth));
+    let alive = true;
+    // どちらも小数の幅（getBoundingClientRect）で比べる。整数に丸めた clientWidth と比べると、入りきる文字が流れてしまう
+    const measure = () => {
+      if (alive) setDistance(marqueeDistance(text.getBoundingClientRect().width, view.getBoundingClientRect().width));
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(view);
-    return () => observer.disconnect();
+    // Web フォントが後から差し替わると文字の幅が変わるので、読み込みが終わったあとにも測る
+    void document.fonts?.ready.then(measure);
+    return () => {
+      alive = false;
+      observer.disconnect();
+    };
   }, [children]);
 
   const watchView = autoInView && hoverNone;
@@ -112,7 +121,12 @@ export function Marquee({ children, className, active = false, autoInView = fals
   }, [play, distance, mode]);
 
   return (
-    <span ref={viewRef} className={`${styles.view} ${className ?? ""}`} aria-hidden="true">
+    <span
+      ref={viewRef}
+      className={`${styles.view} ${className ?? ""}`}
+      data-reflow={active || autoInView ? "" : undefined}
+      aria-hidden="true"
+    >
       <span ref={textRef} className={styles.text}>
         {children}
       </span>
