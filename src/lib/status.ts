@@ -250,6 +250,30 @@ export function isWithinGrace(since: string, now: Date, graceMs: number): boolea
   return !Number.isNaN(time) && now.getTime() - time < graceMs;
 }
 
+/**
+ * 猶予の中にある物の、猶予が終わる時刻（`since + graceMs`。ちょうどその時刻で猶予は終わる）。
+ * 猶予の外・時刻が読めないときは null
+ */
+export function graceEndsAt(since: string, now: Date, graceMs: number): Date | null {
+  if (!isWithinGrace(since, now, graceMs)) return null;
+  return new Date(Date.parse(since) + graceMs);
+}
+
+/** 猶予（`grace`）の中にあるIssueの、猶予が終わる時刻。猶予でなければ null */
+export function issueGraceEndsAt(
+  issue: IssueData,
+  comments: CommentData[],
+  grace: Grace | null,
+  now: Date,
+): Date | null {
+  if (grace === "intake") return graceEndsAt(issue.createdAt, now, INTAKE_GRACE_MS);
+  if (grace === "creatingPull") {
+    const implement = lastImplementComment(comments, issue.number);
+    return implement ? graceEndsAt(implement.createdAt, now, PULL_GRACE_MS) : null;
+  }
+  return null;
+}
+
 /** Claude Reviewのチェック（`claude-review.yml` のジョブ `review`） */
 export function isClaudeReviewCheck(check: CheckRunData): boolean {
   if (check.appSlug !== GITHUB_ACTIONS_APP) return false;

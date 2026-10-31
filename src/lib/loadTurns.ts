@@ -11,6 +11,7 @@ import {
   IDLE_REFRESH_INTERVAL_MS,
   type ChangeWatchPlan,
 } from "./refresh";
+import { graceRefreshAt, nextGraceEnd } from "./graceRefresh";
 import { buildTurnItems, type TurnItem } from "./turn";
 import { loadWatchedRepos } from "./watchedRepos";
 
@@ -22,6 +23,8 @@ export type LoadedTurns = {
   refreshPlan: { intervalMs: number | null; resumeAt: string | null };
   /** Webhook で「変わった」ときだけ取り直すリポジトリ（`owner/repo`）と反映済みの印、今までどおりの間隔の取り直しが要るか */
   changeWatch: ChangeWatchPlan;
+  /** 次に猶予（PR作成待ち15分・未着手10分）が終わる時刻の少し後（ISO文字列）。猶予の中の物が無ければ null */
+  graceRefreshAt: string | null;
   now: Date;
 };
 
@@ -38,6 +41,7 @@ export const loadTurns = cache(async (): Promise<LoadedTurns> => {
       items: [],
       refreshPlan: { intervalMs: IDLE_REFRESH_INTERVAL_MS, resumeAt: null },
       changeWatch: { changeRepos: [], appliedMarks: {}, needsIntervalRefresh: true },
+      graceRefreshAt: null,
       now,
     };
   }
@@ -52,11 +56,13 @@ export const loadTurns = cache(async (): Promise<LoadedTurns> => {
     resetAt,
     now,
   });
+  const graceEnd = nextGraceEnd(results, now);
   return {
     results,
     items: buildTurnItems(results, now),
     refreshPlan: { intervalMs: plan.intervalMs, resumeAt: plan.resumeAt?.toISOString() ?? null },
     changeWatch: getChangeWatchPlan(results, isWebhookEnabled()),
+    graceRefreshAt: graceEnd ? graceRefreshAt(graceEnd).toISOString() : null,
     now,
   };
 });
