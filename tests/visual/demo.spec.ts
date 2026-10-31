@@ -104,7 +104,8 @@ test.describe("デモの画面", () => {
       });
     for (let guard = 0; guard < 40; guard++) {
       await page.evaluate(() => document.fonts.ready);
-      await page.waitForTimeout(200);
+      // 数字の転がり（460ms）と「件」の動きが終わってから測る
+      await page.waitForTimeout(900);
       const m = await measure();
       expect(m, "数字の canvas と「件」が見つかる").not.toBeNull();
       if (!m) return;
