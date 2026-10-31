@@ -1,6 +1,6 @@
 import { isFactoryIssue } from "./factoryIssue";
 import type { PipelineState } from "./pipelineState";
-import { isCountedDeploySuccess, isDeployStatus, isFailedState, latestPerContext } from "./deployStatus";
+import { isCountedDeploySuccess, isFailedState, latestCountedPerContext } from "./deployStatus";
 import { holdRequestText, humanRequestReason } from "./humanRequest";
 import type { CheckRunData, CommentData, CommitStatusData, IssueData, PullChecks, PullData } from "./github/types";
 
@@ -447,7 +447,7 @@ export function hasNoDeploys(
     .sort((a, b) => b.time - a.time)
     .slice(0, NO_DEPLOYS_SAMPLE);
   if (recent.length === 0) return false;
-  return recent.every((item) => !item.statuses.some((status) => isDeployStatus(status.context)));
+  return recent.every((item) => latestCountedPerContext(item.statuses).length === 0);
 }
 
 /** リポジトリのマージ済みPRと取得済みの pullChecks から `hasNoDeploys` を求める（checks が未取得のPRは見ない） */
@@ -462,7 +462,8 @@ function repoHasNoDeploys(input: StatusInput, now: Date): boolean {
  * 公開ステータス（context が `Vercel` または `deploy/` で始まるコミットステータス）の解決。
  * context ごとに updatedAt が最新の物を取り、まとめる：どれかが failure・error → 公開失敗、
  * そうでなくどれかが pending → 公開中、全部 success → 公開済み。
- * 無いときは、マージから30分たっていれば「公開済み（状況は不明）」、それまでは「公開中」。
+ * 数えられる公開ステータスが無い（飛ばした物の success だけも同じ）ときは、マージより後に main の公開が成功していれば公開済み、
+ * そうでなければ、マージから30分たっていれば「公開済み（状況は不明）」、それまでは「公開中」。
  * ただし公開が無いリポジトリ（noDeploys）では、30分たっていなくても「公開済み」（状況は不明にしない）。
  * failure・error の context は、main のあとの公開がマージより後に同じ context で成功していれば解決ずみ。
  * mainDeployed が文字列のときは、どの context にも同じ時刻を使う
@@ -474,7 +475,7 @@ export function deployState(
   mainDeployed: string | null | Record<string, string> = null,
   noDeploys = false,
 ): DeployState {
-  const latest = latestPerContext(statuses);
+  const latest = latestCountedPerContext(statuses);
   if (latest.length > 0) {
     const resolved = (context: string): boolean =>
       isAfter(typeof mainDeployed === "object" && mainDeployed !== null ? (mainDeployed[context] ?? null) : mainDeployed, mergedAt);
@@ -486,6 +487,10 @@ export function deployState(
     }
     return { state: "deployed", unknown: false };
   }
+  // 数えられる公開ステータスが無い（まとめて公開した途中のマージ・飛ばした物だけ）：
+  // マージより後に main の公開が成功していれば公開済み
+  const laterTimes = typeof mainDeployed === "object" && mainDeployed !== null ? Object.values(mainDeployed) : [mainDeployed];
+  if (laterTimes.some((time) => isAfter(time, mergedAt))) return { state: "deployed", unknown: false };
   const merged = mergedAt ? Date.parse(mergedAt) : NaN;
   if (!Number.isNaN(merged) && now.getTime() - merged >= DEPLOY_UNKNOWN_AFTER_MS) {
     return { state: "deployed", unknown: true };

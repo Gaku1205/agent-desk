@@ -27,6 +27,15 @@ export function latestPerContext(statuses: CommitStatusData[]): CommitStatusData
   return [...latest.values()];
 }
 
+/**
+ * 公開ステータスのうち数えられる物を、context ごとの最新で返す。
+ * 最新が「飛ばした物」（Vercel の Ignored Build Step の success）の context は除く
+ * （飛ばした物しか無いコミットは、公開ステータスが無いのと同じ扱いにする）。failure・error・pending は残す
+ */
+export function latestCountedPerContext(statuses: CommitStatusData[]): CommitStatusData[] {
+  return latestPerContext(statuses).filter((s) => s.state !== "success" || isCountedDeploySuccess(s));
+}
+
 /** 失敗か：failure・error */
 export function isFailedState(state: string): boolean {
   return state === "failure" || state === "error";

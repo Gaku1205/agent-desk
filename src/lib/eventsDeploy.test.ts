@@ -65,6 +65,32 @@ describe("deployFootprint：あとの公開", () => {
     });
   });
 
+  it("飛ばした物（Ignored Build Step）の success だけなら、公開の状態が無いのと同じ", () => {
+    const ignored = [status("Vercel", "success", "2026-10-25T05:03:00Z", "Canceled by Ignored Build Step")];
+    expect(deployFootprint(ignored, MERGED, {})).toBeNull();
+    expect(deployFootprint(ignored, MERGED, { Vercel: MERGED })).toBeNull();
+    expect(deployFootprint(ignored, MERGED, { Vercel: "2026-10-25T07:00:00Z" })).toEqual({
+      result: "success",
+      at: "2026-10-25T07:00:00Z",
+    });
+  });
+
+  it("飛ばした物＋本物の成功（別の context）なら、本物の成功の時刻", () => {
+    const mixed = [
+      status("Vercel", "success", "2026-10-25T05:03:00Z", "Canceled by Ignored Build Step"),
+      status("deploy/expo", "success", "2026-10-25T05:10:00Z"),
+    ];
+    expect(deployFootprint(mixed, MERGED, {})).toEqual({ result: "success", at: "2026-10-25T05:10:00Z" });
+  });
+
+  it("飛ばした物があっても、failure は今までどおり", () => {
+    const mixed = [
+      status("Vercel", "success", "2026-10-25T05:03:00Z", "Canceled by Ignored Build Step"),
+      status("deploy/expo", "failure", "2026-10-25T05:10:00Z"),
+    ];
+    expect(deployFootprint(mixed, MERGED, {})).toEqual({ result: "failure", at: "2026-10-25T05:10:00Z" });
+  });
+
   it("途中（pending）のままなら何も出さない", () => {
     expect(deployFootprint([status("Vercel", "pending")], MERGED, { Vercel: "2026-10-25T07:00:00Z" })).toBeNull();
   });
@@ -138,6 +164,39 @@ describe("出来事：あとの公開で本番に入った物", () => {
       at: "2026-10-25T06:00:00Z",
       tone: "deployed",
     });
+  });
+
+  it("マージ済みでも、チェックランがあれば「CIが通りました」「レビューAIが確認を終えました」が残る", () => {
+    const run = (name: string, completedAt: string) => ({
+      name,
+      status: "completed",
+      conclusion: "success",
+      appSlug: "github-actions",
+      completedAt,
+    });
+    const events = build({
+      pullChecks: {
+        8: {
+          checkRuns: [run("test", "2026-10-25T02:00:00Z"), run("review", "2026-10-25T03:00:00Z")],
+          statuses: [],
+        },
+      },
+    });
+    expect(events.map((event) => event.text)).toEqual(
+      expect.arrayContaining(["CIが通りました（1/1）", "レビューAIが確認を終えました"]),
+    );
+  });
+
+  it("飛ばした公開（Ignored Build Step）だけのマージは「本番に公開」を出さない", () => {
+    const events = build({
+      pullChecks: {
+        8: {
+          checkRuns: [],
+          statuses: [status("Vercel", "success", "2026-10-25T05:03:00Z", "Canceled by Ignored Build Step")],
+        },
+      },
+    });
+    expect(events.filter((event) => event.tone === "deployed" || event.tone === "fail")).toEqual([]);
   });
 
   it("あとの公開が無ければ「公開に失敗」", () => {

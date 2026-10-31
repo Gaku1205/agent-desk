@@ -50,8 +50,8 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
 | --- | --- | --- |
 | 止まった | Issueか紐づくPRに `ai:stuck` がある（閉じたIssueは除く） | 人間 |
 | やり直し待ち | Issueか紐づくPRに `ai:retry` があり、閉じたIssueでなく、紐づくPRが未マージ（`ai:stuck` が無いとき。あれば上の「止まった」が優先）。`ai:implement`・CI中・レビュー中などの進行中の段階より優先 | なし |
-| 公開済み | 紐づくPRがマージ済みで、マージコミットの公開ステータスが（context ごとの最新で）全部 success。または、マージコミットの公開が failure・error でも、あとの公開が成功している（下の「あとの公開が成功」）。または公開ステータスが無いままマージから30分以上たった。または、公開が無いリポジトリで公開ステータスが無い（マージ直後でも。下の「公開が無いリポジトリ」） | なし |
-| 公開中／公開失敗 | 紐づくPRがマージ済みで、公開ステータスのどれかが failure・error（公開失敗）、それ以外でどれかが pending（公開中）。公開ステータスが無く、マージから30分たっていないときも公開中（公開が無いリポジトリを除く）。failure・error でも、あとの公開が成功していれば公開済み（上の行） | なし／人間 |
+| 公開済み | 紐づくPRがマージ済みで、マージコミットの公開ステータスが（context ごとの最新で）全部 success。または、マージコミットの公開が failure・error でも、あとの公開が成功している（下の「あとの公開が成功」）。または、マージコミットに（数えられる）公開ステータスが無くても、マージより後に main の公開が成功している（下の「あとの公開が成功」。「公開状況は不明」にしない）。または公開ステータスが無いままマージから30分以上たった。または、公開が無いリポジトリで公開ステータスが無い（マージ直後でも。下の「公開が無いリポジトリ」） | なし |
+| 公開中／公開失敗 | 紐づくPRがマージ済みで、公開ステータスのどれかが failure・error（公開失敗）、それ以外でどれかが pending（公開中）。公開ステータスが無く、あとの公開の成功も無いまま、マージから30分たっていないときも公開中（公開が無いリポジトリを除く）。failure・error でも、あとの公開が成功していれば公開済み（上の行） | なし／人間 |
 | 修正中 | 紐づくPRがopenで、パイプラインの「直して」の依頼（`<!-- auto-fix -->` を含むコメント）があり、その依頼に書かれたコミット（`<!-- auto-fix-sha: … -->`）がPRの先頭コミットのまま（AIがまだpushしていない） | AI |
 | レビュー中 | 紐づくPRがopenで、`ai:review` ラベルがあり、Claude Reviewのチェックが「`skipped` 以外の結果で完了」したものがまだ無い（チェックが無い・実行中・`skipped` のみ） | AI |
 | マージ待ち | 紐づくPRがopenで、GitHub ActionsのCIチェック（Claude Review以外）が1つ以上あり、チェックが全部 success | 下を参照 |
@@ -68,6 +68,10 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
 「公開ステータス」の判定：context が `Vercel` で始まる物**または** `deploy/` で始まる物（判定は `src/lib/deployStatus.ts` の `isDeployStatus` 1つにまとめる）。1つのコミットに複数あるとき（App Runner と Releases など）は、context ごとに `updated_at` が最新の物を取り、まとめる：どれかが failure・error → 公開失敗／それ以外でどれかが pending → 公開中／全部 success → 公開済み。
 
 「あとの公開が成功」：マージコミットの公開が failure・error でも、その context が、同じリポジトリの「main の最後に公開が成功した時刻」（context ごとに持つ）で、そのPRのマージ時刻より後に**同じ context で**成功していれば、その context は解決ずみ（そのPRの変更は本番に含まれているので）。全部の失敗が解決ずみなら公開済みにする（公開済みの表示は「公開状況は不明」にしない）。後のコミットの公開は、それ以前のコミットの内容も含むため。別の context の success では解決しない（App Runner が失敗したまま Releases だけが後で成功しても、App Runner の失敗は残る）。その時刻が無い、またはマージより前のときは、今までどおり「公開に失敗」。判定は `src/lib/status.ts` の `deployState`。
+
+マージコミットに（数えられる）公開ステータスが無いときも同じ考えで、いずれかの context の「main の最後に公開が成功した時刻」がマージ時刻より後なら公開済み（`unknown: false`）にする。公開は `deploy-vercel.yml` がまとめて1回だけ行うので、途中のマージには状態が付かないため。その時刻が無い・マージ時刻と同じか前なら、今までどおり（30分たてば公開済み（公開状況は不明）／それまでは公開中／公開が無いリポジトリは公開済み）。
+
+「数えられる公開ステータス」：context ごとの最新のうち、「飛ばした物」（Vercel の context で、`description` が「Canceled by Ignored Build Step」の success。`isCountedDeploySuccess`）を除いたもの。飛ばした物の success しか無いコミットは、公開ステータスが無いのと同じ扱い（`deployState` の「公開ステータスがある」判定、出来事の `deployFootprint`、`hasNoDeploys` の「公開ステータスが付いているか」すべて。`src/lib/deployStatus.ts` の `latestCountedPerContext`）。failure・error・pending は今までどおり数える。
 
 「main の最後に公開が成功した時刻」は、main の直近のコミット（新しい順に最大10件）の公開ステータス（`Vercel` で始まる、または `deploy/` で始まるcontext）から、context ごとに、success がある一番新しいコミットの、その success の `updated_at` の最新で決める。一番新しいコミットの公開がまだ途中（pending）でも、1つ前のコミットが success ならその時刻を使うので、マージの直後に解決ずみの古い失敗がよみがえらない。説明（`description`）が「Canceled by Ignored Build Step」（前後の空白を除いた完全一致）の success は、公開を飛ばしたコミット（パイプラインの更新だけのコミット）なので、公開の成功に数えない。これは Vercel の context だけの扱い（`deploy/` の context には適用しない）（`src/lib/status.ts` の `latestSuccessDeployAt`・`latestSuccessDeployByContext`）。新しい順に見て、見えた公開の context が全部、数えられる success を見つけた時点でやめる（Vercel だけのリポジトリは、今までどおり success のある最初のコミットで止まる）。10件のうちに無い context は「無い」。取得の回数は増やさない。
 取得は、同期の GraphQL の問い合わせ（「データの取得」）の中で、`ref(qualifiedName: "refs/heads/main")` の直近10コミット（`history(first: 10)`）の `status { contexts }` を一緒に取る（別の呼び出しは増やさない）。main が取れなかったとき（ブランチが無い・形が違う）は、そのリポジトリで前回うまく取れた値を使い、古い失敗を戻さない（前回の値が無いときだけ null）。前回の値はサーバーのメモリに覚える（キーはトークンのハッシュ＋リポジトリ、件数に上限あり、再起動で消えてよい）。`fetchMainDeployedAt`（`src/lib/github/fetch.ts`）。
@@ -224,7 +228,7 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
 - 公開の足あとは「あとの公開が成功」（「段階」の表の下）と同じ考えで出す。判定は `src/lib/events.ts` の `deployFootprint`
   - マージコミットの公開が failure・error でも、同じ context で、マージより後に main の公開が成功していれば、「公開に失敗」は出さず、その成功の時刻で「本番に公開」を出す
   - マージコミットに公開ステータスが無くても（公開をまとめたので、途中のマージには付かない）、マージより後に main の公開が成功していれば、context を問わず最新の成功の時刻で「本番に公開」を出す
-  - Vercel の `Canceled by Ignored Build Step`（飛ばした物）は公開した物に数えない（main の成功の時刻を作るのと同じ扱い）
+  - Vercel の `Canceled by Ignored Build Step`（飛ばした物。state は success になる）は公開した物に数えない（`isCountedDeploySuccess`。main の成功の時刻を作るのと同じ扱い）。マージコミットに飛ばした物の success しか無いときは、公開ステータスが無いときと同じ扱い（上の箇条書き）で、あとの公開が成功していなければ「本番に公開」は出さない（失敗も出さない）
   - 成功の時刻がマージ時刻と同じか前なら「あとの公開」に数えない。あとの公開が無い・まだ失敗のままなら、今までどおり「公開に失敗」。マージコミットの公開が途中（pending）のままなら何も出さない
 
 - 出来事は、画面に出すIssue・PRと同じ取得データから作る。ラベルの付け外しのイベントも同じ GraphQL の問い合わせで一緒に取り、API呼び出しは増やさない（「データの取得」）
@@ -290,7 +294,7 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
   - 公開ステータスの時刻（`updatedAt`）は、そのステータスの `createdAt`（context ごとの最新が来る）
   - ラベルの付け外しは、`event` を `labeled`・`unlabeled`、`labelName` をラベル名、`issueNumber` をそのIssue・PRの番号にする（使うのは `labeled` だけ。ほかの種類のイベントは取らない）
   - マージコミットは、マージ済みのPRだけ持つ（開いているPRは `null`）
-- チェックを持たせるPRは、今までどおり。開いているPR：先頭コミットのチェックランだけ（ステータスは空）。マージ済みのPR：マージコミットの公開ステータスだけ（チェックランは空）。閉じた（マージしていない）PRと、Issueに紐づかないPR（本文に `Closes #番号` が無く、ブランチ名も `claude/issue-<番号>-` でない。`pipeline-sync/*` など。判定は `src/lib/status.ts` の `isIssueLinkedPull`）：チェックなし
+- チェックを持たせるPRは、今までどおり。開いているPR：先頭コミットのチェックランだけ（ステータスは空）。マージ済みのPR：先頭コミットのチェックランと、マージコミットの公開ステータスの両方（出来事に「CIが通りました」「レビューAIが確認を終えました」を残すため。クエリは増やさず、取得済みの `commits(last: 1)` を使う）。閉じた（マージしていない）PRと、Issueに紐づかないPR（本文に `Closes #番号` が無く、ブランチ名も `claude/issue-<番号>-` でない。`pipeline-sync/*` など。判定は `src/lib/status.ts` の `isIssueLinkedPull`）：チェックなし
 - GraphQL の返事に `errors` があるときは、そのリポジトリを取れなかったことにする（`type` が `RATE_LIMITED` ならレート制限、`NOT_FOUND` なら見つからない、`FORBIDDEN` なら権限なし、ほかは「取れませんでした」。HTTP の 401・403・404・429 は REST と同じ分け方）
 - GraphQL で取れない物（パイプラインの状態＝`pipeline.yml` の実行、見張り役の最後の実行＝`watchdog.yml` の実行。Actions の runs）は REST のまま。ただしリポジトリごとに5分に1回だけ取り直し、間はサーバーのメモリに覚えた前の値を使う（キーはトークンのハッシュ＋リポジトリ、件数に上限あり、再起動で消えてよい）
 - 呼ぶ数の目安：監視リポジトリ3つ・直近14日のPRが100件で、1回の同期が GraphQL 6回以内、REST 0回（5分ごとの Actions の runs を除く）
