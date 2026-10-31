@@ -118,10 +118,15 @@
   }
 }
 
-/* 押した札：次の画面が出るまで点が脈打つ（同期の取り直し中と同じ0.8秒）。動きを減らすときは animation が止まり、色だけ変わる */
+/* 押した札：次の画面が出るまで点が脈打つ（同期の取り直し中と同じ0.8秒）。色は今のまま。動きを減らすときだけ animation が止まり、色が --bone に変わる */
 .counts[data-pending] b::before {
-  color: var(--bone);
   animation: sync-pulse 0.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .counts[data-pending] b::before {
+    color: var(--bone);
+  }
 }
 
 .countTurn,

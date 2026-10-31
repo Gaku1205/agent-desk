@@ -40,3 +40,30 @@ describe("inkRightOf", () => {
     expect(inkRightOf(0, 0, -10, 0, 0)).toBe(0);
   });
 });
+
+describe("「件」の間（どの数字でも字面の右端から6px）", () => {
+  it("1〜9のどの数字でも、描いた字面の右端から6pxになる", () => {
+    const letterSpacing = -0.06 * 274;
+    // 数字ごとに字面の左右が違う。描くときの左端と、右端の計算で使う左端は同じ
+    const glyphs: [number, number][] = [
+      [98, 21],
+      [150, 4],
+      [141, 6],
+      [160, 3],
+      [139, 8],
+      [143, 7],
+      [147, 5],
+      [138, 9],
+      [146, 6],
+    ];
+    for (const [right, left] of glyphs) {
+      const drawnRight = 2 + left + right; // 1桁：描き始めの余白 + 字面の左端 + 右端
+      expect(unitLeft(inkRightOf(right, left, letterSpacing, 1, 2)) - drawnRight).toBe(GIANT_UNIT_GAP);
+    }
+  });
+
+  it("2桁でも、字間を引いた描いた字面の右端から6pxになる", () => {
+    const drawnRight = 2 + 5 + 300 - 16;
+    expect(unitLeft(inkRightOf(300, 5, -16, 2, 2)) - drawnRight).toBe(6);
+  });
+});
