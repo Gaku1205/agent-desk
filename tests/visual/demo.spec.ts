@@ -68,3 +68,48 @@ test.describe("デモの画面", () => {
     await expect(page).toHaveScreenshot("menu-open.png");
   });
 });
+
+type Box = { x0: number; x1: number; y0: number; y1: number };
+
+function overlaps(a: Box, b: Box): boolean {
+  return Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > 0.5 && Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > 0.5;
+}
+
+test.describe("動きを減らす設定×乗せた名札（流れ）", () => {
+  // playwright.config.ts の reducedMotion: "reduce" で、乗せた名札の短い説明が折り返して全文が出る
+  for (const target of ["landing-page#9", "todo-app#22"]) {
+    test(`${target} に乗せると、折り返した全文が題名の札やほかの名札と重ならない`, async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name === "mobile", "名札の流れはPCだけ");
+      await page.goto("/demo");
+      await settle(page);
+      const selector = `button[data-key][aria-label^="${target} "]`;
+      await page.locator(selector).first().hover({ force: true });
+      await page.waitForTimeout(400);
+      const rects = await page.evaluate((sel) => {
+        const box = (el: Element): Box => {
+          const r = el.getBoundingClientRect();
+          return { x0: r.left, x1: r.right, y0: r.top, y1: r.bottom };
+        };
+        const hovered = document.querySelector(sel);
+        const tag = hovered?.querySelector(":scope > span");
+        const l1 = tag?.querySelector(":scope > span:nth-child(1)");
+        const tip = tag?.querySelector(":scope > span:nth-child(2)");
+        if (!hovered || !l1 || !tip) return null;
+        const others = [...document.querySelectorAll("button[data-key][data-pin]")]
+          .filter((b) => b !== hovered)
+          .flatMap((b) => {
+            const t = b.querySelector(":scope > span");
+            return t ? [box(t)] : [];
+          });
+        return { l1: box(l1), tip: box(tip), others };
+      }, selector);
+      expect(rects).not.toBeNull();
+      if (!rects) return;
+      expect(overlaps(rects.l1, rects.tip)).toBe(false);
+      for (const other of rects.others) {
+        expect(overlaps(rects.l1, other)).toBe(false);
+        expect(overlaps(rects.tip, other)).toBe(false);
+      }
+    });
+  }
+});
