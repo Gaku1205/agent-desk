@@ -26,9 +26,10 @@
   will-change: transform;
 }
 
-/* 動きを減らす：流さず、切れている行だけ折り返して全文を出す（globals.css と同じ判定） */
+/* 動きを減らす：流さず、折り返して全文を出す（globals.css と同じ判定）。
+   効くのは data-reflow（乗せた・フォーカスした・押して固定した名札と出来事の題名）だけ。常に出す名札は1行の「…」のまま */
 @media (prefers-reduced-motion: reduce) {
-  :root:not([data-motion="full"]) .view {
+  :root:not([data-motion="full"]) .view[data-reflow] {
     overflow: visible;
     text-overflow: clip;
     white-space: normal;
@@ -36,7 +37,7 @@
   }
 }
 
-:root[data-motion="reduce"] .view {
+:root[data-motion="reduce"] .view[data-reflow] {
   overflow: visible;
   text-overflow: clip;
   white-space: normal;

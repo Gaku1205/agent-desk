@@ -161,14 +161,14 @@
   white-space: nowrap;
 }
 
-/* 動きを減らす：短い説明は流さず折り返すので、番号の下の行に名札の幅いっぱいで落とす（1文字幅の縦書きにしない） */
+/* 動きを減らす：折り返す短い説明（乗せた・フォーカスした・押して固定した名札＝data-reflow）は、番号の下の行に名札の幅いっぱいで落とす（1文字幅の縦書きにしない）。常に出す名札は1行のまま */
 @media (prefers-reduced-motion: reduce) {
-  :root:not([data-motion="full"]) .l1 {
+  :root:not([data-motion="full"]) .l1:has([data-reflow]) {
     flex-wrap: wrap;
   }
 }
 
-:root[data-motion="reduce"] .l1 {
+:root[data-motion="reduce"] .l1:has([data-reflow]) {
   flex-wrap: wrap;
 }
 

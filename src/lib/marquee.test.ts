@@ -10,9 +10,15 @@ describe("marqueeDistance", () => {
     expect(marqueeDistance(Number.NaN, 100)).toBe(0);
   });
 
+  it("1px未満の差（小数と丸めの差）は入っているとみなす", () => {
+    expect(marqueeDistance(80.48, 80)).toBe(0);
+    expect(marqueeDistance(300.99, 300)).toBe(0);
+  });
+
   it("切れている行は、末尾が右端の消す幅の手前に来るまで流す", () => {
     expect(marqueeDistance(500, 300)).toBe(200 + MARQUEE_EDGE);
-    expect(marqueeDistance(300.4, 300)).toBe(13);
+    expect(marqueeDistance(301, 300)).toBe(1 + MARQUEE_EDGE);
+    expect(marqueeDistance(301.5, 300)).toBe(2 + MARQUEE_EDGE);
   });
 });
 
