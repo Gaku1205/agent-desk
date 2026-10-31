@@ -108,6 +108,7 @@ export function AppShell({
   changeRepos,
   appliedChangeMarks,
   needsIntervalRefresh,
+  graceRefreshAt,
   children,
 }: {
   /** サーバーが最初に取った時刻（ISO文字列） */
@@ -122,6 +123,8 @@ export function AppShell({
   appliedChangeMarks: ChangeMarks;
   /** 今までどおりの間隔の取り直しが要るか（ログインした人のトークンで読むリポジトリがある） */
   needsIntervalRefresh: boolean;
+  /** 次に猶予（PR作成待ち・未着手）が終わる時刻の少し後（ISO文字列）。猶予の中の物が無ければ null */
+  graceRefreshAt: string | null;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -178,6 +181,17 @@ export function AppShell({
     }
     return startAutoRefresh({ refresh: autoRefresh, source: document, intervalMs });
   }, [autoRefresh, intervalMs, resumeAt]);
+
+  // 猶予が終わる時刻の直後に1回だけ取り直す（猶予の終わりは Webhook が来ない）。
+  // 取り直したあとに新しい時刻が渡されたら、また同じようにする
+  useEffect(() => {
+    if (graceRefreshAt === null) return;
+    return startResumeRefresh({
+      refresh: autoRefresh,
+      source: document,
+      resumeAt: new Date(graceRefreshAt),
+    });
+  }, [autoRefresh, graceRefreshAt]);
 
   // 見張りが使うリポジトリと反映済みの印は、取り直しのたびに新しくなる。見張りを作り直さずに最新の物を読めるよう ref で持つ
   const changeReposRef = useRef(changeReposKey);

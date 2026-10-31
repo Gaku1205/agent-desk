@@ -28,6 +28,7 @@ export default async function AppLayout({
       changeRepos={loaded.changeWatch.changeRepos}
       appliedChangeMarks={loaded.changeWatch.appliedMarks}
       needsIntervalRefresh={loaded.changeWatch.needsIntervalRefresh}
+      graceRefreshAt={loaded.graceRefreshAt}
     >
       <TopBar
         repos={repos}
