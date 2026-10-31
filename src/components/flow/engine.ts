@@ -1402,7 +1402,8 @@ export class FlowEngine {
     const vm = ctx.measureText(value);
     const estimate = inkRightOf(vm.actualBoundingBoxRight, m.actualBoundingBoxLeft, -0.06 * this.gFs, value.length, 2);
     // measureText の字面の幅は、大きい文字で実際の画素より数px大きく出る。描くのと同じ字を描いて、不透明な画素の右端を測る
-    const inkRight = this.measureInkRight(ctx, value, m.actualBoundingBoxLeft, asc, des) ?? estimate;    this.gH = Math.ceil(asc + des) + 8;
+    const inkRight = this.measureInkRight(ctx, value, m.actualBoundingBoxLeft, asc, des) ?? estimate;
+    this.gH =Math.ceil(asc + des) + 8;
     this.gPad = Math.round(this.gH * GIANT_PAD);
     this.gMetrics = { asc, left: m.actualBoundingBoxLeft };
     this.gDpr = Math.min(devicePixelRatio || 1, 2);
