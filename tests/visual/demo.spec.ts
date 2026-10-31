@@ -67,4 +67,55 @@ test.describe("デモの画面", () => {
     await page.evaluate(() => document.fonts.ready);
     await expect(page).toHaveScreenshot("menu-open.png");
   });
+
+  test("巨大な数字と「件」の間は、どの数字でも字面の右端から6px（左端も切れない）", async ({ page }) => {
+    await page.goto("/demo");
+    await settle(page);
+    // 描いた画素（不透明なもの）の左右の端と、「件」の左端を測る
+    const measure = () =>
+      page.evaluate(() => {
+        const box = document.querySelector<HTMLElement>("main [role=img]");
+        const canvas = box?.querySelector("canvas") ?? null;
+        const unit = Array.from(document.querySelectorAll<HTMLElement>("main span")).find((e) => e.textContent?.trim() === "件");
+        const ctx = canvas?.getContext("2d");
+        if (!box || !canvas || !unit || !ctx) return null;
+        const { width, height } = canvas;
+        const data = ctx.getImageData(0, 0, width, height).data;
+        let min = width;
+        let max = -1;
+        for (let x = 0; x < width; x++) {
+          for (let y = 0; y < height; y++) {
+            if (data[(y * width + x) * 4 + 3] > 128) {
+              min = Math.min(min, x);
+              max = Math.max(max, x);
+              break;
+            }
+          }
+        }
+        const rect = canvas.getBoundingClientRect();
+        const scale = width / rect.width;
+        return {
+          label: box.getAttribute("aria-label") ?? "",
+          inkLeft: rect.left + min / scale,
+          inkRight: rect.left + (max + 1) / scale,
+          boxLeft: rect.left,
+          unitLeft: unit.getBoundingClientRect().left,
+        };
+      });
+    for (let guard = 0; guard < 40; guard++) {
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForTimeout(200);
+      const m = await measure();
+      expect(m, "数字の canvas と「件」が見つかる").not.toBeNull();
+      if (!m) return;
+      const gap = m.unitLeft - m.inkRight;
+      expect(Math.abs(gap - 6), `${m.label}：字面の右端から「件」まで ${gap.toFixed(1)}px`).toBeLessThanOrEqual(1);
+      expect(m.inkLeft, `${m.label}：数字の左端が箱の左で切れていない`).toBeGreaterThanOrEqual(m.boxLeft);
+      // 数を1つ減らす（確認が要る「マージ」以外のボタンを押す）
+      const act = page.locator("main button[data-act]:not([aria-disabled=true])").filter({ hasNotText: "マージ" }).first();
+      if ((await act.count()) === 0) break;
+      await act.click();
+      await page.waitForTimeout(500);
+    }
+  });
 });

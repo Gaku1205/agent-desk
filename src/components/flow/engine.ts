@@ -322,6 +322,8 @@ export class FlowEngine {
   private gRoll = 1;
   private gRollT0 = 0;
   private gW = 0;
+  /** 寸法を測る canvas。描く canvas（gTmp・gBase）と同じ DOM の外に置く（画面の canvas は tabular-nums を受け継ぎ、字形が変わるため） */
+  private gMeasure: HTMLCanvasElement = document.createElement("canvas");
   /** 「件」の左端（箱の左端から）。前に置いた位置（転がり中に跳ばないための出発点） */
   private gUnitX: number | null = null;
   private gH = 0;
@@ -1381,7 +1383,7 @@ export class FlowEngine {
   private giantLayout() {
     const g = this.giant;
     if (!g) return;
-    const ctx = g.canvas.getContext("2d");
+    const ctx = this.gMeasure.getContext("2d");
     if (!ctx) return;
     // 文字の大きさが読めない（NaN・0。DOM から外れた要素など）ときは、前の有効な値を使い、それも無ければ描かない
     const fs = parseFloat(getComputedStyle(g.canvas.parentElement ?? g.canvas).fontSize);
