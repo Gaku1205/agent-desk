@@ -106,9 +106,14 @@ describe("同期の読み取りの鍵の選び方", () => {
 
   it("App の鍵で読む物だけ readAppData（キャッシュ）を通し、読んだ鍵を readSource に入れる", async () => {
     const { fetcher } = fakeGitHub();
-    const readAppData = vi.fn((_repo: WatchedRepo, load: () => Promise<RepoData>) => load());
+    const readAppData = vi.fn(async (_repo: WatchedRepo, load: () => Promise<RepoData>) => ({
+      data: await load(),
+      changeMark: "2026-01-01T00:00:00.000Z",
+    }));
     const [viaApp] = await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: ENV, readAppData });
     expect(viaApp.readSource).toBe("app");
+    // 反映済みの印も結果に入れる（画面へ渡すため）
+    expect(viaApp.ok && viaApp.changeMark).toBe("2026-01-01T00:00:00.000Z");
     expect(readAppData).toHaveBeenCalledTimes(1);
     expect(readAppData.mock.calls[0][0]).toEqual(REPOS[0]);
 
@@ -127,7 +132,7 @@ describe("同期の読み取りの鍵の選び方", () => {
       fetcher,
       now: NOW,
       env: ENV,
-      readAppData: async () => first.data,
+      readAppData: async () => ({ data: first.data, changeMark: "2026-01-01T00:00:00.000Z" }),
     });
     expect(second.ok && second.data).toEqual(first.data);
     expect(dataCalls(calls.slice(before))).toHaveLength(0);

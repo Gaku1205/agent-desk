@@ -1,3 +1,4 @@
+import { repoChangeKey, type ChangeMarks } from "./changeMarks";
 import type { RepoResult } from "./github/types";
 import { getIssueStatus, shouldShowIssue } from "./status";
 
@@ -62,21 +63,33 @@ export function getAutoRefreshPlan(input: {
 /** Webhook で取り直すリポジトリしか無いときの、保険の取り直しの間隔（キャッシュの寿命と同じ5分） */
 export const WEBHOOK_FALLBACK_REFRESH_INTERVAL_MS = 5 * 60_000;
 
+/** Webhook で取り直すリポジトリと、そのデータに反映済みの印、今までどおりの間隔の取り直しが要るか */
+export type ChangeWatchPlan = {
+  /** Webhook で「変わった」ときだけ取り直すリポジトリ（`owner/repo`） */
+  changeRepos: string[];
+  /** そのリポジトリのデータに反映済みの「変わった」印（キーは `owner/repo` の小文字） */
+  appliedMarks: ChangeMarks;
+  needsIntervalRefresh: boolean;
+};
+
 /**
- * Webhook で「変わった」ときだけ取り直すリポジトリ（App の鍵で読んだ物）と、今までどおりの間隔の取り直しが要るか。
- * Webhook を使わない設定なら、全部を今までどおりの間隔で取り直す。リポジトリは `owner/repo`
+ * Webhook で「変わった」ときだけ取り直すリポジトリ（App の鍵で読めた物）と、今までどおりの間隔の取り直しが要るか。
+ * App の鍵で読もうとして失敗したリポジトリは入れない（今までどおりの間隔で取り直し、一時的なエラーを長く残さない）。
+ * Webhook を使わない設定なら、全部を今までどおりの間隔で取り直す
  */
-export function getChangeWatchPlan(
-  results: RepoResult[],
-  webhookEnabled: boolean,
-): { changeRepos: string[]; needsIntervalRefresh: boolean } {
-  if (!webhookEnabled) return { changeRepos: [], needsIntervalRefresh: true };
-  const changeRepos = results
-    .filter((result) => result.readSource === "app")
-    .map((result) => `${result.owner}/${result.repo}`);
+export function getChangeWatchPlan(results: RepoResult[], webhookEnabled: boolean): ChangeWatchPlan {
+  if (!webhookEnabled) return { changeRepos: [], appliedMarks: {}, needsIntervalRefresh: true };
+  const watched = results.filter((result) => result.ok && result.readSource === "app");
+  const appliedMarks: ChangeMarks = {};
+  for (const result of watched) {
+    if (result.ok && result.changeMark !== undefined) {
+      appliedMarks[repoChangeKey({ owner: result.owner, repo: result.repo })] = result.changeMark;
+    }
+  }
   return {
-    changeRepos,
-    needsIntervalRefresh: changeRepos.length === 0 || changeRepos.length < results.length,
+    changeRepos: watched.map((result) => `${result.owner}/${result.repo}`),
+    appliedMarks,
+    needsIntervalRefresh: watched.length === 0 || watched.length < results.length,
   };
 }
 
@@ -94,9 +107,12 @@ export function getIntervalWhileWatching(input: {
   return WEBHOOK_FALLBACK_REFRESH_INTERVAL_MS;
 }
 
-/** 速い更新（20秒ごと）の間か。同期の横の点を光らせるかどうかに使う */
-export function isFastRefresh(intervalMs: number): boolean {
-  return intervalMs === BUSY_REFRESH_INTERVAL_MS;
+/**
+ * 速い更新（20秒ごと）の間か。同期の横の点を光らせるかどうかに使う。
+ * 実際に使っている間隔（5分の保険のときは5分。止めているときは null）を渡す
+ */
+export function isFastRefresh(intervalMs: number | null): boolean {
+  return intervalMs !== null && intervalMs === BUSY_REFRESH_INTERVAL_MS;
 }
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;

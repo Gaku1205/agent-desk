@@ -26,6 +26,7 @@ export default async function AppLayout({
       refreshIntervalMs={loaded.refreshPlan.intervalMs}
       resumeAt={loaded.refreshPlan.resumeAt}
       changeRepos={loaded.changeWatch.changeRepos}
+      appliedChangeMarks={loaded.changeWatch.appliedMarks}
       needsIntervalRefresh={loaded.changeWatch.needsIntervalRefresh}
     >
       <TopBar

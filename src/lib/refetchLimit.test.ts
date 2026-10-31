@@ -17,6 +17,13 @@ describe("decideRefetch", () => {
     expect(decideRefetch({ lastFetchedAt: 1000, lastChangedAt: 1000, now: 99_000 }).refetch).toBe(false);
   });
 
+  it("反映済みの変化の時刻を渡したときは、それと比べる（前に取った時刻より前の変化でも取りこぼさない）", () => {
+    const input = { lastFetchedAt: 1000, lastChangedAt: 900, now: 99_000 };
+    expect(decideRefetch(input).refetch).toBe(false);
+    expect(decideRefetch({ ...input, reflectedChangedAt: 800 }).refetch).toBe(true);
+    expect(decideRefetch({ ...input, reflectedChangedAt: 900 }).refetch).toBe(false);
+  });
+
   it("静かなあとの最初の変化は、すぐ取り直す", () => {
     const fetched = 0;
     const now = 10 * 60_000;

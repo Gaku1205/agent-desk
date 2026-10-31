@@ -14,7 +14,7 @@ import {
 } from "./graphql";
 import { judgePipelineState, type PipelineProbe, type PipelineState } from "../pipelineState";
 import type { WatchdogLastRun } from "../watchdogState";
-import { cachedRepoData } from "./repoCache";
+import { cachedRepoData, type AppRepoData } from "./repoCache";
 import { PIPELINE_WORKFLOW_PATH } from "./settings";
 import type { CommitStatusData, RepoData, RepoResult } from "./types";
 
@@ -241,7 +241,7 @@ export async function fetchAllRepos(
     fetcher?: Fetcher;
     now?: Date;
     env?: Env;
-    readAppData?: (repo: WatchedRepo, load: () => Promise<RepoData>) => Promise<RepoData>;
+    readAppData?: (repo: WatchedRepo, load: () => Promise<RepoData>) => Promise<AppRepoData>;
   } = {},
 ): Promise<RepoResult[]> {
   const userClient = new GitHubClient(token, options.fetcher);
@@ -265,8 +265,9 @@ export async function fetchAllRepos(
           keyId: access.keyId,
         });
         const load = () => fetchRepoData(client, repo, options.now);
-        const data = await (options.readAppData ? options.readAppData(repo, load) : load());
-        return { owner, repo: name, ok: true, data, readSource };
+        if (!options.readAppData) return { owner, repo: name, ok: true, data: await load(), readSource };
+        const { data, changeMark } = await options.readAppData(repo, load);
+        return { owner, repo: name, ok: true, data, readSource, changeMark };
       } catch (error) {
         return { owner, repo: name, ok: false, error: toErrorInfo(error), readSource };
       }

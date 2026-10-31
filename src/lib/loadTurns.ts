@@ -9,6 +9,7 @@ import {
   getChangeWatchPlan,
   hasAiTurnWork,
   IDLE_REFRESH_INTERVAL_MS,
+  type ChangeWatchPlan,
 } from "./refresh";
 import { buildTurnItems, type TurnItem } from "./turn";
 import { loadWatchedRepos } from "./watchedRepos";
@@ -19,8 +20,8 @@ export type LoadedTurns = {
   items: TurnItem[];
   /** 自動更新の間隔（取り直しのたびに決め直す）。止めるときは intervalMs が null で、再開する時刻（ISO文字列）が入る */
   refreshPlan: { intervalMs: number | null; resumeAt: string | null };
-  /** Webhook で「変わった」ときだけ取り直すリポジトリ（`owner/repo`）と、今までどおりの間隔の取り直しが要るか */
-  changeWatch: { changeRepos: string[]; needsIntervalRefresh: boolean };
+  /** Webhook で「変わった」ときだけ取り直すリポジトリ（`owner/repo`）と反映済みの印、今までどおりの間隔の取り直しが要るか */
+  changeWatch: ChangeWatchPlan;
   now: Date;
 };
 
@@ -36,7 +37,7 @@ export const loadTurns = cache(async (): Promise<LoadedTurns> => {
       results: [],
       items: [],
       refreshPlan: { intervalMs: IDLE_REFRESH_INTERVAL_MS, resumeAt: null },
-      changeWatch: { changeRepos: [], needsIntervalRefresh: true },
+      changeWatch: { changeRepos: [], appliedMarks: {}, needsIntervalRefresh: true },
       now,
     };
   }
