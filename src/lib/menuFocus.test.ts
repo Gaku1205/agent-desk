@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { shouldRestoreMenuFocus } from "./menuFocus";
+import { shouldCloseMenuOnPick, shouldRestoreMenuFocus } from "./menuFocus";
+
+describe("shouldCloseMenuOnPick", () => {
+  it("今いるページの札はすぐ閉じる（大文字小文字は区別しない）", () => {
+    expect(shouldCloseMenuOnPick("/repos/Me/App", "/repos/me/app")).toBe(true);
+    expect(shouldCloseMenuOnPick("/", "/")).toBe(true);
+  });
+  it("ほかのページの札は閉じない（パスが変わったら閉じる）", () => {
+    expect(shouldCloseMenuOnPick("/", "/settings")).toBe(false);
+  });
+});
 
 const closed = { wasOpen: true, menuOpen: false, focusInSheet: false, focusLost: false };
 

@@ -6,7 +6,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { PLAY_BUTTON_LABEL } from "@/lib/demo/playback";
 import { formatResetTime, formatSyncTime, getDisplayedSyncTime } from "@/lib/refresh";
-import { shouldRestoreMenuFocus } from "@/lib/menuFocus";
+import { shouldCloseMenuOnPick, shouldRestoreMenuFocus } from "@/lib/menuFocus";
 import { revealScrollLeft } from "@/lib/tabScroll";
 import type { TurnCounts } from "@/lib/turn";
 import { useShell } from "./AppShell";
@@ -136,7 +136,7 @@ export function RepoTabs({
         href={home}
         className={styles.tab}
         aria-current={isCurrent(home) ? "page" : undefined}
-        onClick={onPick}
+        onClick={shouldCloseMenuOnPick(pathname, home) ? onPick : undefined}
       >
         <span>全部</span>
         <Counts turn={counts.total} running={runningCounts.total} labeled={isCurrent(home)} />
@@ -151,7 +151,7 @@ export function RepoTabs({
             className={styles.tab}
             aria-current={isCurrent(href) ? "page" : undefined}
             title={`${owner}/${repo}`}
-            onClick={onPick}
+            onClick={shouldCloseMenuOnPick(pathname, href) ? onPick : undefined}
           >
             <span className={styles.tabName}>{repo}</span>
             <Counts
@@ -241,7 +241,7 @@ export function TopBar(props: Props) {
         focusLost: !active || active === document.body || !active.isConnected,
       })
     ) {
-      menuBtnRef.current?.focus();
+      menuBtnRef.current?.focus({ preventScroll: true });
     }
     wasOpenRef.current = menuOpen;
   }, [menuOpen, pathname]);
@@ -295,6 +295,8 @@ export function TopBar(props: Props) {
 function MenuSheet(props: Props) {
   const { menuOpen, closeMenu } = useShell();
   const demo = useDemo();
+  const pathname = usePathname();
+  const settingsHref = `${props.basePath ?? ""}/settings`;
   const paneRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!menuOpen) return;
@@ -318,7 +320,11 @@ function MenuSheet(props: Props) {
         </span>
         <RepoTabs {...props} onPick={closeMenu} />
         <span className={styles.lbl}>ほか</span>
-        <Link href={`${props.basePath ?? ""}/settings`} className={styles.lnk} onClick={closeMenu}>
+        <Link
+          href={settingsHref}
+          className={styles.lnk}
+          onClick={shouldCloseMenuOnPick(pathname, settingsHref) ? closeMenu : undefined}
+        >
           <SettingsLabel />
         </Link>
         {props.extraLinks}
