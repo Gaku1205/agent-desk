@@ -140,6 +140,7 @@ describe("同期の読み取りの鍵の選び方", () => {
         checks: "read",
         statuses: "read",
         actions: "read",
+        variables: "read",
         metadata: "read",
       },
     });

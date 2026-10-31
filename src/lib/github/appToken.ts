@@ -84,6 +84,7 @@ export const READ_ONLY_PERMISSIONS = {
   checks: "read",
   statuses: "read",
   actions: "read",
+  variables: "read",
   metadata: "read",
 } as const;
 
