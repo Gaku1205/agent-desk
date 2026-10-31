@@ -322,6 +322,8 @@ export class FlowEngine {
   private gRoll = 1;
   private gRollT0 = 0;
   private gW = 0;
+  /** 寸法を測る canvas。描く canvas（gTmp・gBase）と同じ DOM の外に置く（画面の canvas は tabular-nums を受け継ぎ、字形が変わるため） */
+  private gMeasure: HTMLCanvasElement = document.createElement("canvas");
   /** 「件」の左端（箱の左端から）。前に置いた位置（転がり中に跳ばないための出発点） */
   private gUnitX: number | null = null;
   private gH = 0;
@@ -1382,7 +1384,7 @@ export class FlowEngine {
   private giantLayout() {
     const g = this.giant;
     if (!g) return;
-    const ctx = g.canvas.getContext("2d");
+    const ctx = this.gMeasure.getContext("2d");
     if (!ctx) return;
     // 文字の大きさが読めない（NaN・0。DOM から外れた要素など）ときは、前の有効な値を使い、それも無ければ描かない
     const fs = parseFloat(getComputedStyle(g.canvas.parentElement ?? g.canvas).fontSize);
@@ -1390,6 +1392,7 @@ export class FlowEngine {
     else if (!(this.gFs > 0)) return;
     g.ghost.textContent = String(this.gValue);
     ctx.font = this.giantFont();
+    ctx.letterSpacing = "0px"; // 字間 0 で測る（inkRightOf が字間を足す）。字面の測り直しで字間を設定するので、毎回戻す
     const text = String(Math.max(this.gValue, this.gPrev ?? 0));
     const m = ctx.measureText(text);
     const asc = m.actualBoundingBoxAscent;
@@ -1398,8 +1401,10 @@ export class FlowEngine {
     // 数字は gMetrics.left（上の text の左端）から描くので、字面の右端も同じ左端で測る（描く位置と同じ数字の幅）
     const value = String(this.gValue);
     const vm = ctx.measureText(value);
-    const inkRight = inkRightOf(vm.actualBoundingBoxRight, m.actualBoundingBoxLeft, -0.06 * this.gFs, value.length, 2);
-    this.gH = Math.ceil(asc + des) + 8;
+    const estimate = inkRightOf(vm.actualBoundingBoxRight, m.actualBoundingBoxLeft, -0.06 * this.gFs, value.length, 2);
+    // measureText の字面の幅は、大きい文字で実際の画素より数px大きく出る。描くのと同じ字を描いて、不透明な画素の右端を測る
+    const inkRight = this.measureInkRight(ctx, value, m.actualBoundingBoxLeft, asc, des) ?? estimate;
+    this.gH =Math.ceil(asc + des) + 8;
     this.gPad = Math.round(this.gH * GIANT_PAD);
     this.gMetrics = { asc, left: m.actualBoundingBoxLeft };
     this.gDpr = Math.min(devicePixelRatio || 1, 2);
@@ -1438,6 +1443,32 @@ export class FlowEngine {
       const heat = x > this.gW * 0.5 ? Math.exp((-HEAT_DECAY * (x - this.gW * 0.5)) / RIVER_SPEED) : 0;
       this.gCurrent.push({ x, y: rand() * this.gH, s: 0.6 + rand() * 1.1, ph: rand() * 6.28, sp: 0.6 + rand() * 0.8, heat, vx: 0, vy: 0 });
     }
+  }
+
+  /** 数字を glyph() と同じ位置・字間で描き、不透明な画素の右端（箱の左端から）を返す。読めなければ null */
+  private measureInkRight(ctx: CanvasRenderingContext2D, text: string, left: number, asc: number, des: number): number | null {
+    const c = this.gMeasure;
+    const w = Math.ceil(ctx.measureText(text).width + left + this.gFs) + 8;
+    const h = Math.ceil(asc + des) + 8;
+    if (!(w > 0) || !(h > 0)) return null;
+    c.width = w;
+    c.height = h;
+    ctx.font = this.giantFont();
+    ctx.textBaseline = "alphabetic";
+    ctx.letterSpacing = `${-0.06 * this.gFs}px`;
+    ctx.fillStyle = "#fff";
+    ctx.fillText(text, left + 2, asc + 4);
+    try {
+      const data = ctx.getImageData(0, 0, w, h).data;
+      for (let x = w - 1; x >= 0; x--) {
+        for (let y = 0; y < h; y++) {
+          if (data[(y * w + x) * 4 + 3] > 128) return x + 1;
+        }
+      }
+    } catch {
+      return null;
+    }
+    return null;
   }
 
   /**
