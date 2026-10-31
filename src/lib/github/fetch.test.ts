@@ -127,6 +127,15 @@ describe("GitHubClient の GraphQL", () => {
     expect(e.message).not.toContain(TOKEN);
   });
 
+  it("data と errors が両方ある返事（部分エラー）は、data があっても errors を優先してエラーにする", async () => {
+    const client = new GitHubClient(TOKEN, async () =>
+      json({ data: { repository: { isTemplate: true } }, errors: [{ type: "FORBIDDEN", message: "x" }] }),
+    );
+    const e = (await client.graphql("q", {}).catch((err: unknown) => err)) as GitHubError;
+    expect(e).toBeInstanceOf(GitHubError);
+    expect(e.kind).toBe("forbidden");
+  });
+
   it("HTTP のエラーは REST と同じ分け方", async () => {
     const client = new GitHubClient(TOKEN, async () => json({}, { status: 401 }));
     const e = (await client.graphql("q", {}).catch((err: unknown) => err)) as GitHubError;
