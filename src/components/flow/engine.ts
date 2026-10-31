@@ -533,6 +533,7 @@ export class FlowEngine {
     this.gValue = n;
     if (this.opt.isReduced()) {
       this.gRoll = 1;
+      this.gPrev = null;
     } else {
       this.gRoll = 0;
       this.gRollT0 = performance.now();
@@ -1382,7 +1383,10 @@ export class FlowEngine {
     if (!g) return;
     const ctx = g.canvas.getContext("2d");
     if (!ctx) return;
-    this.gFs = parseFloat(getComputedStyle(g.canvas.parentElement ?? g.canvas).fontSize);
+    // 文字の大きさが読めない（NaN・0。DOM から外れた要素など）ときは、前の有効な値を使い、それも無ければ描かない
+    const fs = parseFloat(getComputedStyle(g.canvas.parentElement ?? g.canvas).fontSize);
+    if (Number.isFinite(fs) && fs > 0) this.gFs = fs;
+    else if (!(this.gFs > 0)) return;
     g.ghost.textContent = String(this.gValue);
     ctx.font = this.giantFont();
     const text = String(Math.max(this.gValue, this.gPrev ?? 0));
@@ -1390,9 +1394,10 @@ export class FlowEngine {
     const asc = m.actualBoundingBoxAscent;
     const des = m.actualBoundingBoxDescent;
     this.gW = Math.ceil(m.width - this.gFs * 0.06 * (text.length - 1)) + 4;
+    // 数字は gMetrics.left（上の text の左端）から描くので、字面の右端も同じ左端で測る（描く位置と同じ数字の幅）
     const value = String(this.gValue);
     const vm = ctx.measureText(value);
-    const inkRight = inkRightOf(vm.actualBoundingBoxRight, vm.actualBoundingBoxLeft, -0.06 * this.gFs, value.length, 2);
+    const inkRight = inkRightOf(vm.actualBoundingBoxRight, m.actualBoundingBoxLeft, -0.06 * this.gFs, value.length, 2);
     this.gH = Math.ceil(asc + des) + 8;
     this.gPad = Math.round(this.gH * GIANT_PAD);
     this.gMetrics = { asc, left: m.actualBoundingBoxLeft };
@@ -1591,7 +1596,14 @@ export class FlowEngine {
     if (!g || !rect) return;
     const ctx = g.canvas.getContext("2d");
     if (!ctx) return;
-    if (this.gRoll < 1) this.gRoll = Math.min(1, (now - this.gRollT0) / 460);
+    if (this.gRoll < 1) {
+      this.gRoll = Math.min(1, (now - this.gRollT0) / 460);
+      // 転がり終わったら前の数字の幅を捨て、箱と「件」の位置を今の数字だけで測り直す
+      if (this.gRoll >= 1 && this.gPrev !== null) {
+        this.gPrev = null;
+        this.giantLayout();
+      }
+    }
     const rolling = this.gRoll < 1 && this.gPrev !== null;
     const dpr = this.gDpr;
     this.gSpan = rolling

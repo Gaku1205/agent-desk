@@ -386,6 +386,7 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
               {stripOpen !== null ? (
                 <StripCaption
                   nodes={nodes.filter((n) => n.at === stripOpen)}
+                  multi={multiRepo}
                   onPick={(key) => {
                     const found = onPick?.(key) ?? true;
                     if (stripPickAction(found) === "pin") {
@@ -447,9 +448,8 @@ export function FlowStage({ nodes, stage, engineRef, bandRef, onPick }: Props) {
 }
 
 /** スマホの帯で列を押したとき：その段階の Issue を1行ずつ */
-function StripCaption({ nodes, onPick }: { nodes: FlowNode[]; onPick: (key: string) => void }) {
+function StripCaption({ nodes, multi, onPick }: { nodes: FlowNode[]; multi: boolean; onPick: (key: string) => void }) {
   if (nodes.length === 0) return <span className={styles.capText}>この段階の作業はありません</span>;
-  const multi = new Set(nodes.map((n) => `${n.owner}/${n.repo}`)).size > 1;
   return (
     <span className={styles.stripList}>
       {nodes.map((node) => (

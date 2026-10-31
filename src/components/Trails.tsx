@@ -213,7 +213,7 @@ export function Trails({ events, now, hint }: Props) {
                   aria-expanded={deployedShown}
                   onClick={() => setDeployedOpen((set) => toggled(set, current.day))}
                 >
-                  {deployedShown ? "たたむ" : `公開済み ${deployed.length}件`}
+                  {deployedShown ? "公開済みをたたむ" :`公開済み ${deployed.length}件`}
                   <span className={styles.caret}>
                     <TriangleDownIcon />
                   </span>
