@@ -145,6 +145,16 @@ export function reflowExtraLines(m: LabelMetrics, width: number, fontSize: numbe
   return Math.ceil(m.status / inner);
 }
 
+/**
+ * 折り返して増えた行（lines 行ぶん）の高さ。lines が 0 なら 0。
+ * 折り返すと .l1 は「番号の行（0.92em）＋行の間の gap（0.5em）＋短い説明 lines 行」になり、1行のときの 1行ぶんより
+ * 実測で 0.4em 余計に高くなる（0.5em − (1.25 − 0.92 × 1.25)em）。その分も含める
+ */
+export function reflowExtraHeight(lines: number, fontSize: number): number {
+  if (lines <= 0) return 0;
+  return lines * fontSize * 1.25 + gapOf(fontSize) - fontSize * 1.25 * 0.08;
+}
+
 /** 乗せたときの名札（2行）の高さ */
 export function hoverLabelHeight(fontSize: number): number {
   return fontSize * 2.5 + 4;
@@ -509,13 +519,33 @@ function place(input: LayoutInput, gap: number, maxPinned: number[], prev: PrevS
     placed.push({ key: node.key, x, y, column: seat.column, pinned: true, lane: seat.lane, slot: seat.slot, width: w, variant, dx: LABEL_GAP, dy: -lh / 2, tip: null });
     pinnedRects.push({ x0: x + LABEL_GAP, x1: x + LABEL_GAP + w, y0: y - lh / 2, y1: y + lh / 2 });
   }
+  // 動きを減らす設定：乗せた名札が折り返して下へ伸びると、すぐ下の行の名札にかかる。左から入り込んでいる下の名札は、伸びる名札の左端の手前で切る（「…」で切れる）
+  if (input.reflow) {
+    placed.forEach((p, i) => {
+      const node = rest.find((n) => n.key === p.key);
+      if (!node) return;
+      const grown = pinnedRects[i].y1 + reflowExtraHeight(reflowExtraLines(measure(node), p.width, fontSize), fontSize);
+      if (grown <= pinnedRects[i].y1) return;
+      placed.forEach((q, j) => {
+        const r = pinnedRects[j];
+        if (j === i) return;
+        const below = r.y0 >= pinnedRects[i].y1 - 0.01 && r.y0 < grown;
+        const cuts = r.x0 < pinnedRects[i].x0 && r.x1 > pinnedRects[i].x0;
+        const w = pinnedRects[i].x0 - r.x0;
+        if (below && cuts && w >= fontSize * 3) {
+          q.width = w;
+          r.x1 = r.x0 + w;
+        }
+      });
+    });
+  }
   // 題名の札：ほかの常に出す名札と重ならない側
   placed.forEach((p, i) => {
     const node = rest.find((n) => n.key === p.key);
     if (!node) return;
     const avoid = pinnedRects.filter((_, j) => j !== i);
     const m = measure(node);
-    const extra = input.reflow ? reflowExtraLines(m, p.width, fontSize) * (fontSize * 1.25) : 0;
+    const extra = input.reflow ? reflowExtraHeight(reflowExtraLines(m, p.width, fontSize), fontSize) : 0;
     p.tip = titleTipBox(p.x, p.y, m, { fontSize, height, rightEdge, avoid, extra });
   });
   for (const node of rest) {

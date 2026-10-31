@@ -14,6 +14,7 @@ import {
   laneHeightOf,
   layoutFlow,
   MAX_LANES,
+  reflowExtraHeight,
   reflowExtraLines,
   STAGES_ROOM,
   stripColumns,
@@ -462,6 +463,14 @@ describe("reflowExtraLines", () => {
   it("並ばなければ短い説明が下の行に落ち、幅に入らなければさらに折り返す", () => {
     expect(reflowExtraLines(m, 100, 12)).toBe(1);
     expect(reflowExtraLines({ id: 50, status: 200, title: 0 }, 100, 12)).toBe(3);
+  });
+});
+
+describe("reflowExtraHeight", () => {
+  it("増える行が無ければ0。あれば行ぶんに、行の間の gap と番号の行の差（0.4em）を足す", () => {
+    expect(reflowExtraHeight(0, 12)).toBe(0);
+    expect(reflowExtraHeight(1, 12)).toBeCloseTo(12 * 1.25 + 12 * 0.4);
+    expect(reflowExtraHeight(2, 12)).toBeCloseTo(12 * 2.5 + 12 * 0.4);
   });
 });
 
