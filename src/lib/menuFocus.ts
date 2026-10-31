@@ -19,3 +19,11 @@ export function shouldRestoreMenuFocus({ wasOpen, menuOpen, focusInSheet, focusL
   if (!wasOpen || menuOpen) return false;
   return focusInSheet || focusLost;
 }
+
+/**
+ * メニューの札・設定を押したとき、すぐ閉じるか。今いるページ（パスが変わらない）ならすぐ閉じる。
+ * ほかのページなら閉じず、押した札の点を脈打たせて、パスが変わったときに閉じる
+ */
+export function shouldCloseMenuOnPick(pathname: string, href: string): boolean {
+  return pathname.toLowerCase() === href.toLowerCase();
+}

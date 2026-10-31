@@ -31,6 +31,27 @@ type Props = {
 const LEAVE_MS = 8000;
 
 /**
+ * フォーカスが畳む行の中にあるときだけ、次の行の最初のボタン（無ければリンク）へ移す。次が無ければ見出しへ。
+ * 行が畳み始める前（マージの確認を閉じる前）にも使う
+ */
+function moveFocusOutOf(row: HTMLElement) {
+  if (!row.contains(document.activeElement)) return;
+  const rows = Array.from(row.parentElement?.children ?? []).filter(
+    (el): el is HTMLElement => el instanceof HTMLElement && el.tagName === "ARTICLE",
+  );
+  const next = nextRowIndex(
+    rows.map((el) => el.hasAttribute("data-leaving")),
+    rows.indexOf(row),
+  );
+  const target =
+    next === null
+      ? document.getElementById("turn-title")
+      : (rows[next].querySelector<HTMLElement>('[data-act]:not([aria-disabled="true"])') ??
+        rows[next].querySelector<HTMLElement>("a, button"));
+  target?.focus();
+}
+
+/**
  * 押す列の1件（docs/design.md の「押す列」）。種類の札 → 題名 → 理由 → ボタンと目盛り。
  * ボタンはサーバー側で操作して、画面を取り直す。「マージ…」はその場で「マージする／やめる」に変わる（確認）
  */
@@ -84,22 +105,8 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
     const row = rowRef.current;
     if (leaving && row) {
       row.style.setProperty("--h", `${row.offsetHeight}px`);
-      // フォーカスが畳む行の中にあるときだけ、次の行の最初のボタン（無ければリンク）へ。次が無ければ見出しへ
-      if (row.contains(document.activeElement)) {
-        const rows = Array.from(row.parentElement?.children ?? []).filter(
-          (el): el is HTMLElement => el instanceof HTMLElement && el.tagName === "ARTICLE",
-        );
-        const next = nextRowIndex(
-          rows.map((el) => el.hasAttribute("data-leaving")),
-          rows.indexOf(row),
-        );
-        const target =
-          next === null
-            ? document.getElementById("turn-title")
-            : (rows[next].querySelector<HTMLElement>('[data-act]:not([aria-disabled="true"])') ??
-              rows[next].querySelector<HTMLElement>("a, button"));
-        target?.focus();
-      }
+      // フォーカスが畳む行の中にあるときだけ、次の行へ移す
+      moveFocusOutOf(row);
     }
     onLeave(key, leaving);
   }, [leaving, key, onLeave]);
@@ -118,6 +125,8 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
     onPress(key, flightColumn(kind, progress.at));
     if (demo) {
       // デモ：サンプルのデータの上で本当に段階を進める（少し遅れて、行が畳み終わる頃に）
+      // 確認のボタンが消える前に、フォーカスの移し先を決めて移す
+      if (rowRef.current) moveFocusOutOf(rowRef.current);
       setConfirming(false);
       setLeavingSig(sig);
       demo.operate({ owner, repo, number: issue.number }, kind);
@@ -125,11 +134,14 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
     }
     startTransition(async () => {
       const result = await runOperation({ kind, owner, repo, issueNumber: issue.number });
-      setConfirming(false);
       if (!result.ok && !result.changed) {
+        closeConfirm();
         setError(result.message);
         onSettle(key, false);
       } else {
+        // 確認のボタンが消える前に、フォーカスの移し先を決めて移す
+        if (rowRef.current) moveFocusOutOf(rowRef.current);
+        setConfirming(false);
         setLeavingSig(sig);
         onSettle(key, true);
       }
