@@ -69,19 +69,23 @@ describe("POST /api/github/webhook", () => {
   it("正しい署名なら、そのリポジトリのタグが無効になり、次の表示で取り直される", async () => {
     let calls = 0;
     const load = async () => emptyData(`v${++calls}`);
-    expect((await cachedRepoData(REPO, load)).mainDeployedAt).toBe("v1");
-    expect((await cachedRepoData(REPO, load)).mainDeployedAt).toBe("v1");
-    const markBefore = await getChangeMark(REPO);
-
-    const response = await POST(webhookRequest(BODY));
-    expect(response.status).toBe(202);
-
-    // 前に取ってから15秒あくまでは取り直さない（下限）。あいたら取り直す
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(Date.now() + 15_000);
     try {
-      expect((await cachedRepoData(REPO, load)).mainDeployedAt).toBe("v2");
-      expect(await getChangeMark(REPO)).not.toBe(markBefore);
+      expect((await cachedRepoData(REPO, load)).data.mainDeployedAt).toBe("v1");
+      expect((await cachedRepoData(REPO, load)).data.mainDeployedAt).toBe("v1");
+      const markBefore = await getChangeMark(REPO);
+
+      vi.setSystemTime(Date.now() + 1000);
+      const response = await POST(webhookRequest(BODY));
+      expect(response.status).toBe(202);
+
+      // 前に取ってから15秒あくまでは取り直さない（下限）。あいたら印が進み、取り直す
+      vi.setSystemTime(Date.now() + 15_000);
+      const markAfter = await getChangeMark(REPO);
+      expect(markAfter).not.toBe(markBefore);
+      const shown = await cachedRepoData(REPO, load);
+      expect(shown.data.mainDeployedAt).toBe("v2");
+      expect(shown.changeMark).toBe(markAfter);
     } finally {
       vi.useRealTimers();
     }
@@ -93,7 +97,7 @@ describe("POST /api/github/webhook", () => {
     await cachedRepoData(REPO, load);
     expect((await POST(webhookRequest(BODY, { signature: "sha256=00" }))).status).toBe(401);
     expect((await POST(webhookRequest(BODY, { signature: null }))).status).toBe(401);
-    expect((await cachedRepoData(REPO, load)).mainDeployedAt).toBe("v1");
+    expect((await cachedRepoData(REPO, load)).data.mainDeployedAt).toBe("v1");
   });
 
   it("GITHUB_WEBHOOK_SECRET が無いときは 404", async () => {
@@ -108,6 +112,6 @@ describe("POST /api/github/webhook", () => {
     expect((await POST(webhookRequest(BODY, { event: "push" }))).status).toBe(204);
     const other = JSON.stringify({ repository: { full_name: "owner/other" } });
     expect((await POST(webhookRequest(other))).status).toBe(204);
-    expect((await cachedRepoData(REPO, load)).mainDeployedAt).toBe("v1");
+    expect((await cachedRepoData(REPO, load)).data.mainDeployedAt).toBe("v1");
   });
 });

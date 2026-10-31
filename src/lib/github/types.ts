@@ -108,7 +108,15 @@ export type GitHubErrorKind =
 export type ReadSource = "app" | "user";
 
 export type RepoResult =
-  | { owner: string; repo: string; ok: true; data: RepoData; readSource?: ReadSource }
+  | {
+      owner: string;
+      repo: string;
+      ok: true;
+      data: RepoData;
+      readSource?: ReadSource;
+      /** App の鍵で読んでキャッシュを通したとき、このデータに反映済みの「変わった」印（ISO 文字列） */
+      changeMark?: string;
+    }
   | {
       owner: string;
       repo: string;

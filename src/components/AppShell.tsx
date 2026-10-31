@@ -7,12 +7,18 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
   type ReactNode,
 } from "react";
 import { syncNow } from "@/app/actions";
-import { parseChangeMarks, startChangeWatch, type ChangeMarksResult } from "@/lib/changeMarks";
+import {
+  parseChangeMarks,
+  startChangeWatch,
+  type ChangeMarks,
+  type ChangeMarksResult,
+} from "@/lib/changeMarks";
 import {
   getIntervalWhileWatching,
   isFastRefresh,
@@ -100,6 +106,7 @@ export function AppShell({
   refreshIntervalMs,
   resumeAt,
   changeRepos,
+  appliedChangeMarks,
   needsIntervalRefresh,
   children,
 }: {
@@ -111,6 +118,8 @@ export function AppShell({
   resumeAt: string | null;
   /** Webhook で「変わった」ときだけ取り直すリポジトリ（`owner/repo`） */
   changeRepos: string[];
+  /** そのリポジトリの、今のデータに反映済みの「変わった」印 */
+  appliedChangeMarks: ChangeMarks;
   /** 今までどおりの間隔の取り直しが要るか（ログインした人のトークンで読むリポジトリがある） */
   needsIntervalRefresh: boolean;
   children: ReactNode;
@@ -170,16 +179,27 @@ export function AppShell({
     return startAutoRefresh({ refresh: autoRefresh, source: document, intervalMs });
   }, [autoRefresh, intervalMs, resumeAt]);
 
-  // 見えている間、5秒ごとに「変わった」印を見て、変わったリポジトリがあるときだけ取り直す。止めている間は見ない
+  // 見張りが使うリポジトリと反映済みの印は、取り直しのたびに新しくなる。見張りを作り直さずに最新の物を読めるよう ref で持つ
+  const changeReposRef = useRef(changeReposKey);
+  const appliedChangeMarksRef = useRef(appliedChangeMarks);
   useEffect(() => {
-    if (!watching || refreshIntervalMs === null) return;
+    changeReposRef.current = changeReposKey;
+    appliedChangeMarksRef.current = appliedChangeMarks;
+  }, [changeReposKey, appliedChangeMarks]);
+
+  // 見えている間、5秒ごとに「変わった」印を見て、反映済みより新しいリポジトリがあるときだけ取り直す。止めている間は見ない。
+  // 作り直すのは見るかどうかが変わるときだけ（間隔が20秒⇔30秒に変わっても作り直さない）
+  const watchActive = watching && refreshIntervalMs !== null;
+  useEffect(() => {
+    if (!watchActive) return;
     return startChangeWatch({
-      load: () => loadChangeMarks(changeReposKey.split(",")),
+      load: () => loadChangeMarks(changeReposRef.current.split(",")),
+      getApplied: () => appliedChangeMarksRef.current,
       refresh: autoRefresh,
       onUnavailable: () => setChangesUnavailable(true),
       source: document,
     });
-  }, [watching, refreshIntervalMs, changeReposKey, autoRefresh]);
+  }, [watchActive, autoRefresh]);
 
   const { menuOpen, openMenu, closeMenu } = useMenuState();
 
@@ -187,7 +207,8 @@ export function AppShell({
     () => ({
       syncedAt,
       refreshing,
-      fastRefresh: refreshIntervalMs !== null && isFastRefresh(refreshIntervalMs),
+      // 実際に使っている間隔（5分の保険のときは5分）で決める
+      fastRefresh: isFastRefresh(intervalMs),
       pausedUntil: refreshIntervalMs === null && resumeAt !== null ? new Date(resumeAt) : null,
       refresh,
       refreshCountOnPage: refreshCount.pathname === pathname ? refreshCount.count : 0,
@@ -198,6 +219,7 @@ export function AppShell({
     [
       syncedAt,
       refreshing,
+      intervalMs,
       refreshIntervalMs,
       resumeAt,
       refresh,

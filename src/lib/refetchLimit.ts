@@ -11,6 +11,11 @@ export type RefetchInput = {
   lastChangedAt: number | null;
   /** 今の時刻（ミリ秒） */
   now: number;
+  /**
+   * 前に取ったデータに反映済みの「最後に変わった時刻」（ミリ秒）。渡したときは、変わったかをこれと比べる
+   * （渡さないときは前に取った時刻と比べる）
+   */
+  reflectedChangedAt?: number;
 };
 
 export type RefetchDecision = {
@@ -27,9 +32,15 @@ export type RefetchDecision = {
  * - 変わっていて、前に取ってから15秒以上：今（静かなあとの最初の変化はすぐ）
  * - 変わっていて、15秒たっていない：待つ。15秒の間に何回変わっても、たった後の1回にまとまる
  */
-export function decideRefetch({ lastFetchedAt, lastChangedAt, now }: RefetchInput): RefetchDecision {
+export function decideRefetch({
+  lastFetchedAt,
+  lastChangedAt,
+  now,
+  reflectedChangedAt,
+}: RefetchInput): RefetchDecision {
   if (lastFetchedAt === null) return { refetch: true, waitSeconds: 0 };
-  if (lastChangedAt === null || lastChangedAt <= lastFetchedAt) return { refetch: false, waitSeconds: 0 };
+  const reflected = reflectedChangedAt ?? lastFetchedAt;
+  if (lastChangedAt === null || lastChangedAt <= reflected) return { refetch: false, waitSeconds: 0 };
   const elapsed = now - lastFetchedAt;
   if (elapsed >= REFETCH_MIN_INTERVAL_MS) return { refetch: true, waitSeconds: 0 };
   return { refetch: false, waitSeconds: Math.ceil((REFETCH_MIN_INTERVAL_MS - elapsed) / 1000) };

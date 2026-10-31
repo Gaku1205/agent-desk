@@ -16,35 +16,68 @@ import {
   startResumeRefresh,
   type VisibilitySource,
 } from "./refresh";
-import type { RepoResult } from "./github/types";
+import type { RepoData, RepoResult } from "./github/types";
 
 describe("getChangeWatchPlan", () => {
+  const MARK = "2026-01-01T00:00:00.000Z";
   const result = (repo: string, readSource?: "app" | "user"): RepoResult => ({
+    owner: "o",
+    repo,
+    ok: true,
+    data: {} as RepoData,
+    ...(readSource ? { readSource } : {}),
+    ...(readSource === "app" ? { changeMark: MARK } : {}),
+  });
+  const failed = (repo: string, readSource: "app" | "user"): RepoResult => ({
     owner: "o",
     repo,
     ok: false,
     error: { kind: "other", message: "" },
-    ...(readSource ? { readSource } : {}),
+    readSource,
   });
 
   it("Webhook を使わない設定なら、全部を今までどおりの間隔で取り直す", () => {
     expect(getChangeWatchPlan([result("a", "app")], false)).toEqual({
       changeRepos: [],
+      appliedMarks: {},
       needsIntervalRefresh: true,
     });
   });
 
-  it("App の鍵で読んだ物だけ印を見る。ログインした人のトークンで読む物があれば間隔の取り直しも続ける", () => {
+  it("App の鍵で読めた物だけ印を見る（反映済みの印も渡す）。ログインした人のトークンで読む物があれば間隔の取り直しも続ける", () => {
     expect(getChangeWatchPlan([result("a", "app"), result("b", "user")], true)).toEqual({
       changeRepos: ["o/a"],
+      appliedMarks: { "o/a": MARK },
       needsIntervalRefresh: true,
     });
-    expect(getChangeWatchPlan([result("a", "app"), result("b", "app")], true)).toEqual({
-      changeRepos: ["o/a", "o/b"],
+    expect(getChangeWatchPlan([result("a", "app"), result("B", "app")], true)).toEqual({
+      changeRepos: ["o/a", "o/B"],
+      appliedMarks: { "o/a": MARK, "o/b": MARK },
       needsIntervalRefresh: false,
     });
     expect(getChangeWatchPlan([result("a")], true)).toEqual({
       changeRepos: [],
+      appliedMarks: {},
+      needsIntervalRefresh: true,
+    });
+  });
+
+  it("App の鍵で読めなかった物は Webhook で取り直す側に入れず、20〜30秒の間隔で取り直す", () => {
+    const plan = getChangeWatchPlan([result("a", "app"), failed("b", "app")], true);
+    expect(plan).toEqual({
+      changeRepos: ["o/a"],
+      appliedMarks: { "o/a": MARK },
+      needsIntervalRefresh: true,
+    });
+    // 間隔は保険の5分ではなく、今までどおりの20秒・30秒のまま
+    for (const planned of [BUSY_REFRESH_INTERVAL_MS, IDLE_REFRESH_INTERVAL_MS]) {
+      expect(
+        getIntervalWhileWatching({ planned, watching: true, needsIntervalRefresh: plan.needsIntervalRefresh }),
+      ).toBe(planned);
+    }
+    expect(getChangeWatchPlan([failed("a", "app")], true)).toEqual({
+      changeRepos: [],
+      appliedMarks: {},
       needsIntervalRefresh: true,
     });
   });
@@ -241,6 +274,17 @@ describe("isFastRefresh", () => {
   it("20秒ごとの間だけ速い更新", () => {
     expect(isFastRefresh(getRefreshIntervalMs(true))).toBe(true);
     expect(isFastRefresh(getRefreshIntervalMs(false))).toBe(false);
+    expect(isFastRefresh(null)).toBe(false);
+  });
+
+  it("点は実際の取り直しの間隔で決まる（Webhook だけで5分の保険のときは、AIの番の作業があっても光らない）", () => {
+    const planned = getRefreshIntervalMs(true);
+    const watchingOnly = getIntervalWhileWatching({ planned, watching: true, needsIntervalRefresh: false });
+    expect(watchingOnly).toBe(WEBHOOK_FALLBACK_REFRESH_INTERVAL_MS);
+    expect(isFastRefresh(watchingOnly)).toBe(false);
+    const withUserRepo = getIntervalWhileWatching({ planned, watching: true, needsIntervalRefresh: true });
+    expect(withUserRepo).toBe(BUSY_REFRESH_INTERVAL_MS);
+    expect(isFastRefresh(withUserRepo)).toBe(true);
   });
 });
 

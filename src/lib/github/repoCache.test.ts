@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isBehindChangeMarks, repoChangeKey } from "../changeMarks";
 import type { RepoData } from "./types";
 
-// Next.js のキャッシュの代わり：キーごとに覚え、タグを無効にしたら捨てる
+// Next.js のキャッシュの代わり：キーごとに覚え、タグを無効にしたら捨てる。全部のインスタンスで共有する（Vercel と同じ）。
+// 保存は取り終わってから行うので、取得の途中の無効化は保存で上書きされる（Next.js と同じ）
 const store = vi.hoisted(() => ({
   entries: new Map<string, { value: unknown; tags: string[] }>(),
 }));
@@ -27,13 +29,24 @@ vi.mock("next/cache", () => ({
   updateTag: invalidate,
 }));
 
-const { cachedRepoData, getChangeMark, invalidateRepoNow } = await import("./repoCache");
+type RepoCacheModule = typeof import("./repoCache");
+
+/** 別のインスタンス（メモリを共有しない、別に読み込んだモジュール） */
+async function loadInstance(): Promise<RepoCacheModule> {
+  vi.resetModules();
+  return import("./repoCache");
+}
+
+// ページ（`cachedRepoData`）と `/api/changes`（`getChangeMarks`）は、別々のインスタンスで動く
+const page = await loadInstance();
+const api = await loadInstance();
 const { repoTag } = await import("../webhook");
 
 function data(label: string): RepoData {
   return { mainDeployedAt: label } as unknown as RepoData;
 }
 
+const START = new Date("2026-01-01T00:00:00Z").getTime();
 let counter = 0;
 let repo = { owner: "owner", repo: "repo0" };
 let calls = 0;
@@ -44,81 +57,161 @@ function webhook() {
   invalidate(repoTag(repo));
 }
 
-describe("取り直しの下限（同じリポジトリは最短15秒あける）", () => {
-  beforeEach(() => {
-    store.entries.clear();
-    // テストごとに別のリポジトリにして、メモリに覚えた状態が混ざらないようにする
-    repo = { owner: "owner", repo: `repo${++counter}` };
-    calls = 0;
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
-  });
-  afterEach(() => vi.useRealTimers());
+function at(ms: number) {
+  vi.setSystemTime(START + ms);
+}
 
+/** 画面が `/api/changes` を見る（別のインスタンス） */
+async function apiMark(): Promise<string> {
+  return (await api.getChangeMarks([repo]))[repoChangeKey(repo)];
+}
+
+/** 画面が取り直す（ページのインスタンス）。データの中身の印と、反映済みの印を返す */
+async function pageShow(): Promise<{ label: string; applied: string }> {
+  const { data: shown, changeMark } = await page.cachedRepoData(repo, load);
+  return { label: shown.mainDeployedAt as unknown as string, applied: changeMark };
+}
+
+beforeEach(() => {
+  store.entries.clear();
+  repo = { owner: "owner", repo: `repo${++counter}` };
+  calls = 0;
+  vi.useFakeTimers({ toFake: ["Date"] });
+  at(0);
+});
+afterEach(() => vi.useRealTimers());
+
+describe("取り直しの下限（同じリポジトリは最短15秒あける）", () => {
   it("5秒おきに変わり続けても、取り直しは15秒に1回まで", async () => {
-    await cachedRepoData(repo, load); // 0秒：最初の1回
+    await pageShow(); // 0秒：最初の1回
     for (let second = 5; second <= 60; second += 5) {
-      vi.setSystemTime(new Date("2026-01-01T00:00:00Z").getTime() + second * 1000);
+      at(second * 1000);
       webhook();
-      await cachedRepoData(repo, load);
+      await apiMark();
+      await pageShow();
     }
     // 0秒＋15・30・45・60秒の4回で、合わせて5回
     expect(calls).toBe(5);
   });
 
   it("15秒の間の最後の変化も、15秒たった次の取り直しで出る", async () => {
-    await cachedRepoData(repo, load);
-    const start = Date.now();
-    vi.setSystemTime(start + 3000);
+    await pageShow();
+    at(3000);
     webhook();
-    expect((await cachedRepoData(repo, load)).mainDeployedAt).toBe("v1");
-    vi.setSystemTime(start + 14_000);
+    await apiMark();
+    expect((await pageShow()).label).toBe("v1");
+    at(14_000);
     webhook(); // 最後の変化
-    expect((await cachedRepoData(repo, load)).mainDeployedAt).toBe("v1");
-    vi.setSystemTime(start + 15_000);
-    expect((await cachedRepoData(repo, load)).mainDeployedAt).toBe("v2");
+    await apiMark();
+    expect((await pageShow()).label).toBe("v1");
+    at(15_000);
+    await apiMark();
+    expect((await pageShow()).label).toBe("v2");
     // まとめて1回だけ。そのあとは変わっていないので取り直さない
-    vi.setSystemTime(start + 40_000);
-    expect((await cachedRepoData(repo, load)).mainDeployedAt).toBe("v2");
+    at(40_000);
+    await apiMark();
+    expect((await pageShow()).label).toBe("v2");
     expect(calls).toBe(2);
   });
 
   it("静かなあとの最初の変化は、すぐ取り直す", async () => {
-    await cachedRepoData(repo, load);
-    vi.setSystemTime(Date.now() + 10 * 60_000);
+    await pageShow();
+    at(10 * 60_000);
     webhook();
-    expect((await cachedRepoData(repo, load)).mainDeployedAt).toBe("v2");
+    await apiMark();
+    expect((await pageShow()).label).toBe("v2");
   });
 
   it("印は、取り直してよい時になって初めて進む", async () => {
-    await cachedRepoData(repo, load);
-    const start = Date.now();
-    const markAtFetch = await getChangeMark(repo);
+    const first = await pageShow();
+    expect(await apiMark()).toBe(first.applied);
 
-    vi.setSystemTime(start + 3000);
+    at(3000);
     webhook();
-    expect(await getChangeMark(repo)).toBe(markAtFetch); // 待っている間は進まない
-    vi.setSystemTime(start + 10_000);
+    expect(await apiMark()).toBe(first.applied); // 待っている間は進まない
+    at(10_000);
     webhook();
-    expect(await getChangeMark(repo)).toBe(markAtFetch);
+    expect(await apiMark()).toBe(first.applied);
 
-    vi.setSystemTime(start + 15_000);
-    const markAfter = await getChangeMark(repo);
-    expect(markAfter).not.toBe(markAtFetch);
-    expect((await cachedRepoData(repo, load)).mainDeployedAt).toBe("v2");
-    expect(await getChangeMark(repo)).toBe(markAfter);
+    at(15_000);
+    const markAfter = await apiMark();
+    expect(markAfter).not.toBe(first.applied);
+    const shown = await pageShow();
+    expect(shown.label).toBe("v2");
+    expect(shown.applied).toBe(markAfter);
+    expect(await apiMark()).toBe(markAfter);
   });
 
   it("手で押す「同期」・ボタン操作の後は、下限を無視してすぐ取り直す", async () => {
-    await cachedRepoData(repo, load);
-    vi.setSystemTime(Date.now() + 1000);
+    await pageShow();
+    at(1000);
     webhook();
-    expect((await cachedRepoData(repo, load)).mainDeployedAt).toBe("v1");
-    const markBefore = await getChangeMark(repo);
+    await apiMark();
+    expect((await pageShow()).label).toBe("v1");
+    const markBefore = await apiMark();
 
-    vi.setSystemTime(Date.now() + 1000);
-    invalidateRepoNow(repo);
-    expect(await getChangeMark(repo)).not.toBe(markBefore);
-    expect((await cachedRepoData(repo, load)).mainDeployedAt).toBe("v2");
+    at(2000);
+    page.invalidateRepoNow(repo);
+    const shown = await pageShow();
+    expect(shown.label).toBe("v2");
+    expect(await apiMark()).toBe(shown.applied);
+    expect(shown.applied).not.toBe(markBefore);
+  });
+});
+
+describe("インスタンスと取得の途中をまたいでも、最後の変化が画面に出る", () => {
+  it("取得の途中に来た変化も、次の取り直しで画面に出る", async () => {
+    // CI の最中：GraphQL の取得中に check_run が来る
+    const loadWithWebhook = async () => {
+      at(1000);
+      webhook();
+      return data(`v${++calls}`);
+    };
+    const first = await page.cachedRepoData(repo, loadWithWebhook);
+    expect(first.data.mainDeployedAt).toBe("v1");
+
+    // 画面は「印 > 反映済み」の間は取り直す。15秒たてば印が進み、取り直しで変化が出る
+    at(5000);
+    const waiting = await apiMark();
+    expect(isBehindChangeMarks({ [repoChangeKey(repo)]: first.changeMark }, { [repoChangeKey(repo)]: waiting })).toBe(
+      false,
+    );
+    at(15_000);
+    const mark = await apiMark();
+    expect(isBehindChangeMarks({ [repoChangeKey(repo)]: first.changeMark }, { [repoChangeKey(repo)]: mark })).toBe(
+      true,
+    );
+    const shown = await pageShow();
+    expect(shown.label).toBe("v2");
+    expect(shown.applied).toBe(mark);
+  });
+
+  it("別のインスタンスで印を返しても、最後の変化が画面に出る", async () => {
+    const key = repoChangeKey(repo);
+    let screen = await pageShow(); // 画面が覚えている反映済みの印
+    expect(screen.label).toBe("v1");
+
+    // 3秒：変化。/api/changes は別のインスタンスでも15秒たつまで印を進めない
+    at(3000);
+    webhook();
+    let mark = await apiMark();
+    expect(isBehindChangeMarks({ [key]: screen.applied }, { [key]: mark })).toBe(false);
+
+    // 15秒：印が進む。画面は取り直すが、ページは別のインスタンスでも同じ印のデータを返す
+    for (const second of [15, 20, 25]) {
+      at(second * 1000);
+      mark = await apiMark();
+      if (isBehindChangeMarks({ [key]: screen.applied }, { [key]: mark })) screen = await pageShow();
+    }
+    expect(screen.label).toBe("v2");
+    expect(screen.applied).toBe(mark);
+    expect(calls).toBe(2);
+
+    // 3つ目のインスタンス（メモリに何も無い）がページを出しても、取り直さずに同じ物を返す
+    const other = await loadInstance();
+    const third = await other.cachedRepoData(repo, load);
+    expect(third.data.mainDeployedAt).toBe("v2");
+    expect(third.changeMark).toBe(mark);
+    expect(calls).toBe(2);
   });
 });
