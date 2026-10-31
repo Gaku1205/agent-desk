@@ -1,6 +1,6 @@
 import { cache } from "react";
 import type { Env, WatchedRepo } from "../config";
-import { resolveReadAccess } from "./appToken";
+import { forgetInstallation, resolveReadAccess } from "./appToken";
 import { GitHubClient, type Fetcher } from "./client";
 import { GitHubError, toErrorInfo } from "./errors";
 import {
@@ -269,6 +269,16 @@ export async function fetchAllRepos(
         const { data, changeMark } = await options.readAppData(repo, load);
         return { owner, repo: name, ok: true, data, readSource, changeMark };
       } catch (error) {
+        // App の鍵で権限なし・見つからないなら、記憶を消して、ログインした人のトークンで1回だけ読み直す
+        if (access && error instanceof GitHubError && (error.kind === "forbidden" || error.kind === "not_found")) {
+          forgetInstallation(repo);
+          try {
+            const data = await fetchRepoData(userClient, repo, options.now);
+            return { owner, repo: name, ok: true, data, readSource: "user" };
+          } catch (retryError) {
+            return { owner, repo: name, ok: false, error: toErrorInfo(retryError), readSource: "user" };
+          }
+        }
         return { owner, repo: name, ok: false, error: toErrorInfo(error), readSource };
       }
     }),

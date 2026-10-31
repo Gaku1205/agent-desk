@@ -35,6 +35,8 @@ const installations = new Map<string, Remembered<number | null>>();
 const installationTokens = new Map<number, { token: string; expiresAtMs: number }>();
 /** トークンのハッシュ＋リポジトリ → ログインした人のトークンで読めるか */
 const readChecks = new Map<string, Remembered<boolean>>();
+/** インストールの ID → そのインストールに与えられた権限（`GET /repos/{owner}/{repo}/installation` の permissions） */
+const installationPermissions = new Map<number, Record<string, string>>();
 /** 鍵を使ったインストール（回数制限の残りを見るため） */
 const usedInstallationIds = new Set<number>();
 
@@ -66,6 +68,7 @@ export const appTokenCacheForTest = {
   clear: (): void => {
     installations.clear();
     installationTokens.clear();
+    installationPermissions.clear();
     readChecks.clear();
     usedInstallationIds.clear();
   },
@@ -76,11 +79,35 @@ export const appTokenCacheForTest = {
   }),
 };
 
+/**
+ * インストールの鍵で頼む権限の候補（読み取りだけ。書き込みは App の鍵で使わない）。
+ * 実際に頼むのは、そのインストールに与えられている物だけ（無い権限を頼むと 422 で鍵が取れない）
+ */
+export const READ_ONLY_PERMISSIONS = {
+  contents: "read",
+  issues: "read",
+  pull_requests: "read",
+  checks: "read",
+  statuses: "read",
+  actions: "read",
+  variables: "read",
+  metadata: "read",
+} as const;
+
+/** 候補のうち、そのインストールにある権限だけ。調べられていないときは、無くてもよい variables を外す */
+function permissionsFor(known: Record<string, string> | undefined): Record<string, string> {
+  const entries = Object.entries(READ_ONLY_PERMISSIONS).filter(([name]) =>
+    known ? name === "metadata" || known[name] !== undefined : name !== "variables",
+  );
+  return Object.fromEntries(entries);
+}
+
 async function appRequest(
   fetcher: Fetcher,
   jwt: string,
   method: "GET" | "POST",
   path: string,
+  jsonBody?: unknown,
 ): Promise<unknown | null> {
   try {
     const response = await fetcher(`${API_BASE}${path}`, {
@@ -89,7 +116,9 @@ async function appRequest(
         Authorization: `Bearer ${jwt}`,
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
+        ...(jsonBody === undefined ? {} : { "Content-Type": "application/json" }),
       },
+      ...(jsonBody === undefined ? {} : { body: JSON.stringify(jsonBody) }),
       cache: "no-store",
     });
     if (!response.ok) return null;
@@ -116,8 +145,11 @@ async function findInstallationId(
     jwt,
     "GET",
     `/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}/installation`,
-  )) as { id?: unknown } | null;
+  )) as { id?: unknown; permissions?: unknown } | null;
   const id = typeof body?.id === "number" ? body.id : null;
+  if (id !== null && typeof body?.permissions === "object" && body.permissions !== null) {
+    installationPermissions.set(id, body.permissions as Record<string, string>);
+  }
   remember(installations, key, { value: id, at: nowMs });
   return id;
 }
@@ -137,6 +169,7 @@ async function getInstallationToken(
     jwt,
     "POST",
     `/app/installations/${installationId}/access_tokens`,
+    { permissions: permissionsFor(installationPermissions.get(installationId)) },
   )) as { token?: unknown; expires_at?: unknown } | null;
   if (typeof body?.token !== "string" || body.token === "") return null;
   const expiresAtMs = typeof body.expires_at === "string" ? Date.parse(body.expires_at) : NaN;
@@ -170,6 +203,22 @@ async function userCanRead(
       remember(readChecks, key, { value: false, at: nowMs });
     }
     return false;
+  }
+}
+
+/**
+ * そのリポジトリのインストールの記憶（`owner/repo` → インストール ID）と、そのインストールの覚えた鍵を消す。
+ * App の鍵で「権限なし・見つからない」になったとき（アプリを外した直後など）に呼ぶ。
+ * ログインした人の読める確認（readChecks）は消さない
+ */
+export function forgetInstallation(repo: WatchedRepo): void {
+  const key = repoKey(repo);
+  const id = installations.get(key)?.value;
+  installations.delete(key);
+  if (typeof id === "number") {
+    installationTokens.delete(id);
+    installationPermissions.delete(id);
+    usedInstallationIds.delete(id);
   }
 }
 

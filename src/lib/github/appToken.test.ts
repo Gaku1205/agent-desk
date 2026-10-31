@@ -19,16 +19,20 @@ const ENV = {
   PIPELINE_APP_PRIVATE_KEY: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
 };
 
-type Call = { method: string; path: string; auth: string };
+type Call = { method: string; path: string; auth: string; body: string };
 
 /** GitHub の代わり。どの鍵で何を呼んだかを覚える。データの取得は空の配列を返す */
 function fakeGitHub(
   options: {
     installation?: "ok" | "none" | "error";
+    /** インストールに与えられた権限（省略は全部） */
+    installationPermissions?: Record<string, string>;
     tokenEndpoint?: "ok" | "error";
     userRepo?: number;
     dataStatus?: number;
     headers?: Record<string, string>;
+    /** App の鍵での GraphQL だけ、この種類の errors を返す */
+    appGraphqlError?: "FORBIDDEN" | "NOT_FOUND" | "RATE_LIMITED";
   } = {},
 ) {
   const calls: Call[] = [];
@@ -36,13 +40,26 @@ function fakeGitHub(
     const url = new URL(String(input));
     const path = `${url.pathname}${url.search}`;
     const auth = new Headers(init?.headers).get("authorization") ?? "";
-    calls.push({ method: init?.method ?? "GET", path, auth });
+    calls.push({ method: init?.method ?? "GET", path, auth, body: String(init?.body ?? "") });
     const json = (body: unknown, status = 200) =>
       new Response(JSON.stringify(body), { status, headers: options.headers });
     if (url.pathname === "/repos/o/r/installation") {
       if (options.installation === "none") return json({}, 404);
       if (options.installation === "error") throw new Error(`boom ${auth}`);
-      return json({ id: 9 });
+      return json({
+        id: 9,
+        permissions: options.installationPermissions ?? {
+          contents: "read",
+          issues: "write",
+          pull_requests: "read",
+          checks: "read",
+          statuses: "read",
+          actions: "read",
+          variables: "read",
+          workflows: "write",
+          metadata: "read",
+        },
+      });
     }
     if (url.pathname === "/app/installations/9/access_tokens") {
       if (options.tokenEndpoint === "error") return json({}, 500);
@@ -52,6 +69,9 @@ function fakeGitHub(
       return json({ is_template: false }, options.userRepo ?? 200);
     }
     if (url.pathname === "/graphql") {
+      if (options.appGraphqlError && auth === `Bearer ${APP_TOKEN}`) {
+        return json({ data: null, errors: [{ type: options.appGraphqlError, message: "x" }] });
+      }
       return json({ data: { repository: { isTemplate: false, ref: null } } }, options.dataStatus ?? 200);
     }
     return json([], options.dataStatus ?? 200);
@@ -121,6 +141,81 @@ describe("同期の読み取りの鍵の選び方", () => {
     const [viaUser] = await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: {}, readAppData });
     expect(viaUser.readSource).toBe("user");
     expect(readAppData).not.toHaveBeenCalled();
+  });
+
+  it("access_tokens を頼む本文に、読み取りだけの permissions が入る", async () => {
+    const { fetcher, calls } = fakeGitHub();
+    await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: ENV });
+    const call = calls.find((c) => c.path === "/app/installations/9/access_tokens");
+    expect(JSON.parse(call?.body ?? "null")).toEqual({
+      permissions: {
+        contents: "read",
+        issues: "read",
+        pull_requests: "read",
+        checks: "read",
+        statuses: "read",
+        actions: "read",
+        variables: "read",
+        metadata: "read",
+      },
+    });
+  });
+
+  it("Variables の権限が無いインストールでは variables を頼まず、鍵が取れる", async () => {
+    const { fetcher, calls } = fakeGitHub({
+      installationPermissions: {
+        contents: "read",
+        issues: "read",
+        pull_requests: "read",
+        checks: "read",
+        statuses: "read",
+        actions: "read",
+        metadata: "read",
+      },
+    });
+    const [result] = await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: ENV });
+    expect(result.readSource).toBe("app");
+    const call = calls.find((c) => c.path === "/app/installations/9/access_tokens");
+    const permissions = JSON.parse(call?.body ?? "null").permissions;
+    expect(permissions.variables).toBeUndefined();
+    expect(permissions.actions).toBe("read");
+  });
+
+  it.each(["FORBIDDEN", "NOT_FOUND"] as const)(
+    "App の鍵で %s になっても、インストールの記憶を消して、ログインした人のトークンで読み直す",
+    async (appGraphqlError) => {
+      const { fetcher, calls } = fakeGitHub({ appGraphqlError });
+      const [result] = await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: ENV });
+      expect(result.ok).toBe(true);
+      expect(result.readSource).toBe("user");
+      expect(calls.some((c) => c.path === "/graphql" && c.auth === `Bearer ${USER_TOKEN}`)).toBe(true);
+      // 記憶と覚えた鍵が消える（ログインした人の確認は残る）
+      expect(appTokenCacheForTest.sizes()).toEqual({ installations: 0, tokens: 0, readChecks: 1 });
+    },
+  );
+
+  it("読み直しも失敗したら、読み直しのエラーを返す", async () => {
+    const { fetcher } = fakeGitHub({ appGraphqlError: "FORBIDDEN", dataStatus: 200 });
+    const failing: typeof fetch = async (input, init) => {
+      const auth = new Headers(init?.headers).get("authorization") ?? "";
+      if (new URL(String(input)).pathname === "/graphql" && auth === `Bearer ${USER_TOKEN}`) {
+        return new Response(JSON.stringify({ data: null, errors: [{ type: "NOT_FOUND", message: "x" }] }));
+      }
+      return fetcher(input, init);
+    };
+    const [result] = await fetchAllRepos(USER_TOKEN, REPOS, { fetcher: failing, now: NOW, env: ENV });
+    expect(result.ok).toBe(false);
+    expect(result.readSource).toBe("user");
+    expect(!result.ok && result.error.kind).toBe("not_found");
+  });
+
+  it("rate_limited など、権限なし・見つからない以外では読み直さない", async () => {
+    const { fetcher, calls } = fakeGitHub({ appGraphqlError: "RATE_LIMITED" });
+    const [result] = await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: ENV });
+    expect(result.ok).toBe(false);
+    expect(result.readSource).toBe("app");
+    expect(calls.some((c) => c.path === "/graphql" && c.auth === `Bearer ${USER_TOKEN}`)).toBe(false);
+    expect(appTokenCacheForTest.sizes().installations).toBe(1);
   });
 
   it("覚えた物（readAppData）が返す物をそのまま使い、GitHub には問い合わせない", async () => {
