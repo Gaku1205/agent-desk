@@ -640,8 +640,61 @@ describe("deployState", () => {
     expect(deployState(pending, MERGED, NOW, "2026-10-25T11:58:00Z").state).toBe("deploying");
   });
 
-  it("公開ステータスが無いときは、あとの公開があっても今までどおり", () => {
-    expect(deployState([], MERGED, NOW, "2026-10-25T11:58:00Z").state).toBe("deploying");
+  const ignored = [
+    {
+      context: "Vercel",
+      state: "success",
+      description: "Canceled by Ignored Build Step",
+      updatedAt: "2026-10-25T11:51:00Z",
+    },
+  ];
+
+  it("公開ステータスが無くても、マージより後に main の公開が成功していれば公開済み（不明にしない）", () => {
+    expect(deployState([], MERGED, NOW, "2026-10-25T11:58:00Z")).toEqual({ state: "deployed", unknown: false });
+    expect(deployState([], MERGED, NOW, { "deploy/expo": "2026-10-25T11:58:00Z" })).toEqual({
+      state: "deployed",
+      unknown: false,
+    });
+  });
+
+  it("公開ステータスが無く、成功の時刻がマージと同じか前、または無いなら今までどおり", () => {
+    for (const at of [MERGED, "2026-10-25T11:40:00Z"]) {
+      expect(deployState([], MERGED, NOW, at)).toEqual({ state: "deploying", unknown: false });
+      expect(deployState([], MERGED, NOW, { Vercel: at })).toEqual({ state: "deploying", unknown: false });
+    }
+    expect(deployState([], MERGED, NOW, {})).toEqual({ state: "deploying", unknown: false });
+    expect(deployState([], MERGED, NOW, null)).toEqual({ state: "deploying", unknown: false });
+    expect(deployState([], "2026-10-25T11:30:00Z", NOW, "2026-10-25T11:20:00Z")).toEqual({
+      state: "deployed",
+      unknown: true,
+    });
+  });
+
+  it("飛ばした物（Ignored Build Step）の success だけなら、公開ステータスが無いのと同じ", () => {
+    expect(deployState(ignored, MERGED, NOW, null)).toEqual({ state: "deploying", unknown: false });
+    expect(deployState(ignored, MERGED, NOW, "2026-10-25T11:58:00Z")).toEqual({ state: "deployed", unknown: false });
+    expect(deployState(ignored, "2026-10-25T11:30:00Z", NOW, null)).toEqual({ state: "deployed", unknown: true });
+  });
+
+  it("飛ばした物＋本物の成功（別の context）なら、本物の成功で公開済み", () => {
+    const mixed = [
+      ...ignored,
+      { context: "deploy/expo", state: "pending", description: "", updatedAt: "2026-10-25T11:52:00Z" },
+    ];
+    expect(deployState(mixed, MERGED, NOW, null).state).toBe("deploying");
+    const real = [
+      ...ignored,
+      { context: "deploy/expo", state: "success", description: "", updatedAt: "2026-10-25T11:52:00Z" },
+    ];
+    expect(deployState(real, MERGED, NOW, null)).toEqual({ state: "deployed", unknown: false });
+  });
+
+  it("飛ばした物があっても、failure は今までどおり", () => {
+    const mixed = [
+      ...ignored,
+      { context: "deploy/expo", state: "failure", description: "", updatedAt: "2026-10-25T11:52:00Z" },
+    ];
+    expect(deployState(mixed, MERGED, NOW, null).state).toBe("failed");
   });
 });
 
@@ -674,6 +727,15 @@ describe("hasNoDeploys", () => {
     const recent = [1, 2, 3, 4, 5].map((n) => none(`2026-10-25T0${n}:00:00Z`));
     expect(hasNoDeploys([...recent, withDeploy("2026-10-20T09:00:00Z")], NOW)).toBe(true);
     expect(hasNoDeploys([...recent.slice(1), withDeploy("2026-10-20T09:00:00Z")], NOW)).toBe(false);
+  });
+
+  it("飛ばした物（Ignored Build Step）の success だけなら公開ステータスとみなさない", () => {
+    const ignored = [
+      { context: "Vercel", state: "success", description: " Canceled by Ignored Build Step ", updatedAt: "2026-10-25T10:00:00Z" },
+    ];
+    expect(hasNoDeploys([{ mergedAt: "2026-10-25T09:00:00Z", statuses: ignored }], NOW)).toBe(true);
+    const failed = [{ ...ignored[0], state: "failure", description: "" }];
+    expect(hasNoDeploys([{ mergedAt: "2026-10-25T09:00:00Z", statuses: failed }], NOW)).toBe(false);
   });
 
   it("Vercel で始まらないステータスは公開とみなさない", () => {

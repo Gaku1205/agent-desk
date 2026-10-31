@@ -272,11 +272,11 @@ describe("convertGqlPullChecks（チェックを持たせるPR）", () => {
     expect(checks?.statuses).toEqual([]);
   });
 
-  it("マージ済みのPRはマージコミットの公開ステータスだけ", () => {
+  it("マージ済みのPRは先頭コミットのチェックランとマージコミットの公開ステータスの両方", () => {
     const checks = check(
       gqlPull(2, { merged: true, commits: runs, statuses: [{ context: "Vercel", state: "SUCCESS", createdAt: "t" }] }),
     );
-    expect(checks?.checkRuns).toEqual([]);
+    expect(checks?.checkRuns.map((r) => r.name)).toEqual(["test"]);
     expect(checks?.statuses.map((s) => s.state)).toEqual(["success"]);
   });
 

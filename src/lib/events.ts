@@ -1,4 +1,4 @@
-import { isFailedState, latestPerContext } from "./deployStatus";
+import { isFailedState, latestCountedPerContext } from "./deployStatus";
 import type { CommitStatusData, IssueData, PullData, RepoData, RepoResult } from "./github/types";
 import {
   ciState,
@@ -66,7 +66,7 @@ function isLater(time: string | undefined | null, base: string | null): boolean 
  * マージ済みPRの出来事に出す公開の足あと。段階の判定（`deployState`）と同じ考えで、あとの公開も見る。
  * - マージコミットの公開が failure・error でも、同じ context で、マージより後に main の公開が成功していれば、
  *   失敗は出さず、その成功の時刻で成功にする
- * - マージコミットに公開の状態が無くても、マージより後に main の公開が成功していれば、
+ * - マージコミットに公開の状態が無くても（飛ばした物の success だけのときも同じ扱い）、マージより後に main の公開が成功していれば、
  *   そのうち最新の時刻で成功にする（context は問わない）
  * - あとの公開が無い・まだ失敗のままなら失敗。途中（pending）のままなら null（何も出さない）
  * `mainDeployed` が文字列のときは、どの context にも同じ時刻を使う
@@ -80,7 +80,7 @@ export function deployFootprint(
     const at = typeof mainDeployed === "string" ? mainDeployed : (mainDeployed?.[context] ?? null);
     return isLater(at, mergedAt) ? at : null;
   };
-  const sorted = latestPerContext(statuses).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+  const sorted = latestCountedPerContext(statuses).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
 
   if (sorted.length === 0) {
     const times =
