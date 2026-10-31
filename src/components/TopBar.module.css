@@ -124,9 +124,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .counts[data-pending] b::before {
+  :root:not([data-motion="full"]) .counts[data-pending] b::before {
     color: var(--bone);
   }
+}
+
+:root[data-motion="reduce"] .counts[data-pending] b::before {
+  color: var(--bone);
 }
 
 .countTurn,
@@ -500,6 +504,17 @@
     padding: 0 12px;
     border-radius: 6px;
     color: var(--bone-2);
+  }
+
+  /* 押した札の同期中、動きを減らすときは「設定」の歯車・文字も --bone（押した札の点と同じ決まり） */
+  @media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion="full"]) .lnk:has(.gearIcon[data-pending]) {
+      color: var(--bone);
+    }
+  }
+
+  :root[data-motion="reduce"] .lnk:has(.gearIcon[data-pending]) {
+    color: var(--bone);
   }
 
   .foot {

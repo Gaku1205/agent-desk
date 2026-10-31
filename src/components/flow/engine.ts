@@ -635,6 +635,7 @@ export class FlowEngine {
       overhang: gutter,
       measure: this.measure,
       prev: this.seats,
+      reflow: this.opt.isReduced(),
       clusterMetrics: done[0] ? this.measureText(`${done.length}件`, "公開済み", `${done[0].title} ほか`) : undefined,
     });
     this.seats = layout.next;
