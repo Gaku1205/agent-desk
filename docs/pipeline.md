@@ -103,7 +103,7 @@ AIが正常に終わったのに変更が無いとき（質問した、指摘が
 
 文字だけで画面を作ると、行をまたいで揃うはずの列のずれ・重なり・何も無い帯・弱い主役に、誰も気づけない（工場で作った最初の2つのサービスで起きた）。そこで、画面を作るAIは**自分で撮って見る**。
 
-- 撮るのは `.github/scripts/shot.mjs`（依存なし。Chrome の操作は `.github/scripts/lib/cdp.mjs`（taste-skill から写した物、MIT）で、ubuntu-latest に入っている Chrome で撮る。Node 22 以上）。`--serve` でビルド済みのアプリを立ち上げてパス（`/` など）を撮るか、URL（実在のサイト）か HTML のファイルを撮る。幅は 390・1440・1920。`--scrolls N` で1画面ずつスクロールしながら N 枚撮る（スクロールで出てくる物・動きの途中が見える）。`--links` でページにあるリンクを出す（ギャラリーの一覧から、載っているサイトを拾う）。押す・入力する・localStorage にデータを入れるなどの操作をしてから撮る場面は `--steps` の JSON で書く（使い方はファイルの先頭）
+- 撮るのは `.github/scripts/shot.mjs`（依存なし。Chrome の操作は `.github/scripts/lib/cdp.mjs`（taste-skill から写した物、MIT）で、ubuntu-latest に入っている Chrome で撮る。Node 22 以上）。`--serve` でビルド済みのアプリを立ち上げてパス（`/` など）を撮るか、URL（実在のサイト）か HTML のファイルを撮る。幅は 390・1440・1920。`--scrolls N` で1画面ずつスクロールしながら N 枚撮る（スクロールで出てくる物・動きの途中が見える）。`--scale 2 --format webp` でサイトに載せる用の高精細で軽い画像にする。`--links` でページにあるリンクを出す（ギャラリーの一覧から、載っているサイトを拾う）。押す・入力する・localStorage にデータを入れるなどの操作をしてから撮る場面は `--steps` の JSON で書く（使い方はファイルの先頭）
 - **実装AI**（`claude-implement.yml`）：画面のあるアプリ（package.json に `start` がある Node のアプリ）では、確認コマンドが通ったあと `npm run build` → `node .github/scripts/shot.mjs --serve /` で撮り、画像を全部見て、`docs/design-ref/` の目標の絵があれば見比べ、目立つ問題の上位3つを直して撮り直す（最大3回）。撮った画像は `.shots/` にでき、コミットされない（`.git/info/exclude`）。そのあと、**別のAI（審査役）**が、ワークフローが撮り直した画像と目標の絵だけを見て採点し（コードは見ない）、8点に届かなければ、指摘をつけて実装AIにもう1回だけ直させる。採点はPRの本文に入る。そのぶん時間の上限を 75 分にしている
 - **デザイン担当**（工場）：実在の良いサイトを撮って参考にしてから、本物の画面を作り、撮って実例と見比べて直す（下の「工場」）
 
@@ -140,6 +140,7 @@ AIに許すコマンドを決めるので、`pipeline.json` と `.github/actions
 | `kind` | 公開のしかた | 要る設定 | 書く物 |
 | --- | --- | --- | --- |
 | `vercel` | `deploy-vercel.yml` が、main の CI が通ってから3分（変数 `VERCEL_DEPLOY_DELAY_MIN`）待ち、その間にまたマージされたら新しい方だけが、最新の main を1回だけ本番に公開する（Vercel の無料プランは「1日100回まで」なので、マージのたびに公開しない）。最後に公開に成功したコミットから、パイプラインの物（`.github/`・`docs/pipeline.md`）しか変わっていなければ公開しない。Secret `VERCEL_TOKEN` が無いときは何もせず、Vercel が自分で公開する（今までの形）。`pipeline.json` が無いときの既定 | Vercel でリポジトリを読み込み、`vercel.json` を `"git": { "deploymentEnabled": false }` にし、`ignoreCommand` を消す（Vercel が自分で公開するのを止める。`ignoreCommand` は直前のコミットとの差しか見ないので、まとめて公開すると間の変更を見落として公開が飛ばされる）。`VERCEL_TOKEN` は工場（新しいサービス）と配布（`sync.yml` の vercel-token。`vercel.json` があるリポジトリだけ）が入れる | `VERCEL_TOKEN`（任意）、変数 `VERCEL_TEAM_ID`（チームのとき） |
+| `github-pages` | 静的なサイトを作って GitHub Pages に出す（`<ユーザー名>.github.io` という名前のリポジトリなら、そのアドレスのトップに出る）。Next.js なら `next.config` で `output: "export"`・`images: { unoptimized: true }` にする（サーバーで動く機能は使えない） | Settings → Pages の Source を **GitHub Actions** にする（1回だけ） | `build`（作るコマンド。既定 `npm run build`）、`dir`（出すフォルダ。既定 `out`） |
 | `aws-apprunner` | Docker のイメージを作って ECR に置き、App Runner で動かす。最初の公開でサービスを作り、2回目から差し替える。言語を選ばない（Web・API） | 下の「AWS App Runner」 | `service`（サービス名・小文字の英数字と `-` `_`。ECR の名前にも使う）、`port`（既定 8080）、`dockerfile`（既定 `Dockerfile`）、`cpu`（既定 256）、`memory`（既定 512）、`health`（HTTPのヘルスチェックのパス。省くとTCP） |
 | `github-release` | OS ごとに配布物（exe など）を作り、GitHub Releases に置く。ファイル名に OS が付く（`hello.exe` → `hello-windows.exe`）。タグは `build-<日時>-<コミット>` | なし | `build`（作るコマンド）、`files`（置くファイル。例 `dist/*`）、`os`（既定 `["windows-latest"]`。`macos-latest`・`ubuntu-latest` も） |
 | `expo` | スマホアプリを Expo（EAS）で配る。既定は `eas update`（アプリを入れ直さずに中身を更新） | Secret の `EXPO_TOKEN` | `command`（既定 `npx --yes eas-cli@latest update --auto --non-interactive`。ストアに出すなら `eas build --auto-submit ...`） |
