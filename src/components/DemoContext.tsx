@@ -18,7 +18,7 @@ export type DemoState = {
   /** 「デモでは実際には動きません」を出す（設定の保存・同期） */
   notify: () => void;
   /** 「あなたの番」のボタン：サンプルのデータの上で本当に段階を進める（少し遅れて当てる） */
-  operate: (target: { owner: string; repo: string; number: number }, kind: OperationKind) => void;
+  operate: (target: { owner: string; repo: string; number: number }, kind: OperationKind, answer?: string) => void;
 };
 
 const DemoContext = createContext<DemoState | null>(null);

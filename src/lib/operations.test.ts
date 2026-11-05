@@ -112,8 +112,80 @@ describe("parseOperationInput", () => {
     { kind: "merge", owner: "o", repo: "r", issueNumber: 0 },
     { kind: "merge", owner: "o", repo: "r", issueNumber: 1.5 },
     { kind: "merge", owner: "o", repo: "r", issueNumber: "3" },
+    { kind: "answer", owner: "o", repo: "r", issueNumber: 3 },
+    { kind: "answer", owner: "o", repo: "r", issueNumber: 3, answer: "  " },
+    { kind: "answer", owner: "o", repo: "r", issueNumber: 3, answer: 1 },
+    { kind: "answer", owner: "o", repo: "r", issueNumber: 3, answer: "あ".repeat(4001) },
   ])("%j は通さない", (value) => {
     expect(parseOperationInput(value)).toBeNull();
+  });
+
+  it("答えを送る：答えの文も一緒に通す（ほかの操作では答えの文を持たない）", () => {
+    expect(parseOperationInput({ kind: "answer", owner: "o", repo: "r", issueNumber: 3, answer: "A。Q1はB" })).toEqual({
+      kind: "answer",
+      owner: "o",
+      repo: "r",
+      issueNumber: 3,
+      answer: "A。Q1はB",
+    });
+    expect(parseOperationInput({ kind: "plan", owner: "o", repo: "r", issueNumber: 3, answer: "x" })).toEqual({
+      kind: "plan",
+      owner: "o",
+      repo: "r",
+      issueNumber: 3,
+    });
+  });
+});
+
+describe("答えを送る", () => {
+  const question = {
+    id: 5,
+    issueNumber: 1,
+    author: "claude[bot]",
+    body: "<!-- ai-question -->\n**Q1. 色は？**\n- A. 明るい（おすすめ）\n- B. 暗い",
+    createdAt: "2026-10-25T10:00:00Z",
+  };
+  const asking = () => data({ issues: [issue({ labels: ["ai:question"] })], comments: [question] });
+
+  it("質問のIssueに、答えの文をコメントで書く", async () => {
+    const { client, calls } = fakeClient(() => Response.json({ id: 1 }, { status: 201 }));
+    const result = await executeOperation(
+      client,
+      TARGET,
+      { ...input("answer"), answer: "Q1はA（明るい）" },
+      asking(),
+      NOW,
+    );
+    expect(result).toEqual({ ok: true });
+    expect(calls).toEqual([
+      {
+        method: "POST",
+        url: "https://api.github.com/repos/o/r/issues/1/comments",
+        body: { body: "Q1はA（明るい）" },
+      },
+    ]);
+  });
+
+  it("もう答えてある・質問でなくなっていたら、何もせず取り直す", async () => {
+    const { client, calls } = fakeClient();
+    const answered = asking();
+    answered.comments.push({ ...question, id: 6, author: "owner", body: "A", createdAt: "2026-10-25T11:00:00Z" });
+    expect(await executeOperation(client, TARGET, { ...input("answer"), answer: "B" }, answered, NOW)).toEqual({
+      ok: false,
+      changed: true,
+    });
+    expect(await executeOperation(client, TARGET, { ...input("answer"), answer: "B" }, data(), NOW)).toEqual({
+      ok: false,
+      changed: true,
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it("答えの文が無ければ送らない", async () => {
+    const { client, calls } = fakeClient();
+    const result = await executeOperation(client, TARGET, input("answer"), asking(), NOW);
+    expect(result).toEqual({ ok: false, changed: false, message: OPERATION_MESSAGES.invalid });
+    expect(calls).toEqual([]);
   });
 });
 

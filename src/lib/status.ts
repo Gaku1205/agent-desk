@@ -2,6 +2,7 @@ import { isFactoryIssue } from "./factoryIssue";
 import type { PipelineState } from "./pipelineState";
 import { isCountedDeploySuccess, isFailedState, latestCountedPerContext } from "./deployStatus";
 import { holdRequestText, humanRequestReason } from "./humanRequest";
+import { isQuestionAnswered } from "./question";
 import type { CheckRunData, CommentData, CommitStatusData, IssueData, PullChecks, PullData } from "./github/types";
 
 /** 各Issueの段階（docs/spec.md の「状態の判定」） */
@@ -17,6 +18,7 @@ export type Stage =
   | "ciRunning"
   | "ciFailed"
   | "prWaiting"
+  | "question"
   | "implementing"
   | "planning"
   | "queued"
@@ -108,6 +110,7 @@ export const LABEL = {
   hold: "ai:hold",
   stuck: "ai:stuck",
   retry: "ai:retry",
+  question: "ai:question",
 } as const;
 
 const CLAUDE_BOT = "claude[bot]";
@@ -147,6 +150,7 @@ const TURN_BY_STAGE: Record<Stage, Turn> = {
   ciRunning: "ai",
   ciFailed: "ai",
   prWaiting: "human",
+  question: "human",
   implementing: "ai",
   planning: "ai",
   queued: "none",
@@ -592,6 +596,10 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
     });
   }
   if (issue.labels.includes(LABEL.implement)) return result("implementing");
+  if (issue.state === "open" && issue.labels.includes(LABEL.question)) {
+    // 答えのコメントを送ったら、パイプラインが続きを始めるまで企画中（AIの番）にする
+    return result(isQuestionAnswered(input.comments, issue.number) ? "planning" : "question");
+  }
   if (issue.labels.includes(LABEL.plan)) return result("planning");
   if (issue.labels.includes(LABEL.queue)) return result("queued");
   if (issue.state === "open" && issue.labels.includes(LABEL.skip)) return result("skipped");

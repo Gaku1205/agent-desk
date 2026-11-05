@@ -78,6 +78,8 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
       return { long: "保留中です。準備ができたら「始める」を押してください", short: "保留中" };
     case "planning":
       return { long: "企画AIがIssueを清書中", short: "清書中" };
+    case "question":
+      return { long: "企画AIから質問があります。選んで「答えを送る」を押してください", short: "質問があります" };
     case "implementing":
       return { long: "AIが実装中", short: "AIが実装中" };
     case "prWaiting":
@@ -149,6 +151,8 @@ export function statusIconSpec(status: IssueStatus): IconSpec {
       return spec("dashed", "idle");
     case "skipped":
       return spec("paused", "human");
+    case "question":
+      return spec("dashed", "human");
     case "planning":
     case "ciRunning":
     case "reviewing":

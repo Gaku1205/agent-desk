@@ -168,6 +168,27 @@ function vercel(
 const DONE_COMMENT = "**Claude finished** 実装してブランチにpushしました";
 const ERROR_COMMENT = "**Claude encountered an error** 途中で止まりました";
 const REVIEW_CLEAN = "## Code review\n\nNo issues found. 型・テストとも問題ありません";
+/** 企画AIの質問（画面案つき）。画像は public/mockups/ の見本 */
+const QUESTION_COMMENT = [
+  "<!-- ai-question -->",
+  "企画AIから質問です。決めてもらえれば、清書して実装に回します。",
+  "",
+  "**Q1. 全体の色の雰囲気は？**",
+  "- A. 落ち着いた夜の色（おすすめ）",
+  "- B. 明るい昼の色",
+  "",
+  "**Q2. いちばん上の大きな文の長さは？**",
+  "- A. 1行で短く（おすすめ）",
+  "- B. 2〜3行で説明する",
+  "",
+  "<!-- ai-mocks: issue-18/r1 -->",
+  "### A. 写真を大きく",
+  '<img src="/mockups/a-pc.svg" alt="A PC">',
+  '<img src="/mockups/a-mobile.svg" alt="A スマホ">',
+  "### B. 文字を大きく",
+  '<img src="/mockups/b-pc.svg" alt="B PC">',
+  '<img src="/mockups/b-mobile.svg" alt="B スマホ">',
+].join("\n");
 const REVIEW_ISSUES = "## Code review\n\n指摘が1件あります：空のときの表示がありません";
 
 function autoFixComment(sha: string, reason: string): string {
@@ -569,6 +590,11 @@ function landingPage(base: Date): RepoData {
   // 企画中
   addIssue(ctx, 3, "よくある質問のページを作る", { createdAt: ago(ctx, 1), labels: ["ai:plan"] });
 
+  // 質問（企画AIが、画面案つきで答えを待っている：人間の番）
+  addIssue(ctx, 18, "トップページの見た目を新しくする", { createdAt: ago(ctx, 70), labels: ["ai:question"] });
+  addLabeled(ctx, 18, "ai:question", ago(ctx, 34));
+  addComment(ctx, 18, QUESTION_COMMENT, ago(ctx, 34));
+
   // AI作業中（上端の帯の件数が、あなたの番の数と同じにならないように）
   addIssue(ctx, 16, "お知らせの帯を足す", { createdAt: ago(ctx, 12), labels: ["ai:implement"], planned: true });
   addLabeled(ctx, 16, "ai:implement", ago(ctx, 6));
@@ -608,10 +634,12 @@ export function pressDemo(
   playback: DemoPlayback,
   target: { owner: string; repo: string; number: number },
   kind: OperationKind,
+  answer?: string,
 ): DemoPlayback {
   const [todo] = DEMO_REPOS;
   if (target.owner === todo.owner && target.repo === DEMO_PLAY_ISSUE.repo && target.number === DEMO_PLAY_ISSUE.number) {
     return advancePlayback(playback);
   }
-  return { ...playback, ops: [...playback.ops, { ...target, kind, at: playback.now }] };
+  const op = { ...target, kind, at: playback.now, ...(answer === undefined ? {} : { answer }) };
+  return { ...playback, ops: [...playback.ops, op] };
 }

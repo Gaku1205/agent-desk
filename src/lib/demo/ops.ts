@@ -15,7 +15,12 @@ export type DemoOp = {
   kind: OperationKind;
   /** 押した時刻（ISO文字列） */
   at: string;
+  /** 「答えを送る」のときだけ：Issueに書くコメントの文 */
+  answer?: string;
 };
+
+/** デモで答えのコメントを書く人（bot ではない名前） */
+export const DEMO_ANSWER_AUTHOR = "you";
 
 const CI_CHECKS = ["typecheck", "lint", "test", "build"];
 
@@ -105,6 +110,20 @@ export function applyDemoOp(data: RepoData, op: DemoOp): RepoData {
       setPull(pull, { labels: withLabels(pull.labels, [LABEL.review], []) });
       labeled(pull.number, LABEL.review);
       break;
+    case "answer": {
+      // 答えのコメントを書く。パイプラインが続き（企画）を始めて、ai:question を ai:plan に替える
+      const id = Math.max(0, ...data.comments.map((c) => c.id)) + 1;
+      next.comments.push({
+        id,
+        issueNumber: op.number,
+        author: DEMO_ANSWER_AUTHOR,
+        body: op.answer ?? "",
+        createdAt: op.at,
+      });
+      setIssue({ labels: withLabels(issue.labels, [LABEL.plan], [LABEL.question]) });
+      labeled(op.number, LABEL.plan);
+      break;
+    }
     case "merge": {
       if (!pull) break;
       setPull(pull, { state: "closed", merged: true, mergedAt: op.at, mergeCommitSha: `${pull.headSha}ff` });
