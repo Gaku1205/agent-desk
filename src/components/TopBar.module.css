@@ -112,9 +112,26 @@
   white-space: nowrap;
 }
 
+.newShort {
+  display: none;
+}
+
 @media (max-width: 1279px) {
   .countName {
     display: none;
+  }
+
+  /* 帯の右側を詰めて、リポジトリの札が切れないようにする */
+  .right {
+    gap: 8px;
+  }
+
+  .newFull {
+    display: none;
+  }
+
+  .newShort {
+    display: inline;
   }
 }
 

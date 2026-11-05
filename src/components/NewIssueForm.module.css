@@ -61,7 +61,7 @@
 
 .input::placeholder {
   color: var(--mute);
-  opacity: 0.5;
+  opacity: 0.7;
 }
 
 /* 項目の間（22px）に、保存の行の上余白（24px）を足さない */

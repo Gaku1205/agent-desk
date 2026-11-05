@@ -275,9 +275,13 @@ export function TopBar(props: Props) {
           <Link
             href={newIssueHref}
             className={styles.gear}
+            aria-label="Issueを書く"
             aria-current={pathname.toLowerCase() === newIssueHref ? "page" : undefined}
           >
-            Issueを書く
+            <span className={styles.newFull}>Issueを書く</span>
+            <span className={styles.newShort} aria-hidden="true">
+              書く
+            </span>
           </Link>
           <Link
             href={settingsHref}
