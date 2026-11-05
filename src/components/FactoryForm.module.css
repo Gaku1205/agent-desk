@@ -1,0 +1,128 @@
+/* 工場の相談に答える欄（docs/design.md の「工場の相談に答える欄」）。形の大部分は QuestionForm.module.css と同じ */
+
+.notice {
+  color: var(--bone-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* 選択肢のカード：中の段の間6px、文は左揃え */
+.card {
+  gap: 6px;
+}
+
+/* 「全部ちがう」は中身が少ないので、隣のカードの高さに伸ばさない（何も無い大きな枠を作らない） */
+.redo {
+  align-self: start;
+}
+
+.title {
+  min-width: 0;
+  color: var(--bone);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.sub {
+  color: var(--mute);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.text {
+  color: var(--bone-2);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.facts {
+  display: grid;
+  gap: 2px;
+}
+
+.fact {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.factLabel {
+  margin-right: 6px;
+  color: var(--mute);
+  white-space: nowrap;
+}
+
+.factValue {
+  color: var(--bone-2);
+}
+
+/* 見た目の方向の板：幅いっぱい・高さ180pxまで（縦横の比は崩さない） */
+.board {
+  display: block;
+  min-width: 0;
+  border-radius: 3px;
+  background: #1c1d21;
+}
+
+.boardImg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 180px;
+  border-radius: 3px;
+  object-fit: contain;
+}
+
+/* 読めなかった画像は隠す（壊れた画像の印を出さない） */
+.img[data-broken] {
+  visibility: hidden;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(236, 232, 223, 0.16);
+}
+
+.fonts {
+  margin-left: 4px;
+  color: var(--mute);
+  font-size: 12px;
+}
+
+/* 最終確認のまとめ：名前と中身の2列 */
+.summary {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 14px;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.summaryRow {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+.summaryRow dt {
+  color: var(--mute);
+  white-space: nowrap;
+}
+
+.summaryRow dd {
+  margin: 0;
+  color: var(--bone);
+  overflow-wrap: anywhere;
+}

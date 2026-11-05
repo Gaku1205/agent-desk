@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CheckRunData, CommentData, IssueData, PullChecks, PullData } from "./github/types";
+import { encodeFactoryMark } from "./factoryTalk";
 import {
   bodyClosesIssue,
   ciState,
@@ -272,6 +273,40 @@ describe("getIssueStatus：表の各段階", () => {
     const status = getIssueStatus(issue({ labels: ["ai:question"] }), input([], {}, [question, answer]), NOW);
     expect(status.stage).toBe("planning");
     expect(status.turn).toBe("ai");
+  });
+
+  it("工場の相談：factory:wait があり、まだ答えていない（人間の番。新サービス：のIssueでも出す）", () => {
+    const talk = comment({
+      author: "github-actions[bot]",
+      body: encodeFactoryMark({ stage: "ideas" }),
+      createdAt: "2026-10-25T10:00:00Z",
+    });
+    const factory = issue({ title: "新サービス：天気", labels: ["factory", "factory:talk", "factory:wait"] });
+    const status = getIssueStatus(factory, { ...input([], {}, [talk]), isTemplate: true }, NOW);
+    expect(status.stage).toBe("factoryTalk");
+    expect(status.turn).toBe("human");
+    // 工場の相談のコメントが無くても、ラベルがあれば工場の相談
+    expect(getIssueStatus(factory, input(), NOW).stage).toBe("factoryTalk");
+    // factory:wait が外れたら、今までどおり（ラベルの無い未着手）
+    const removed = issue({ title: "新サービス：天気", labels: ["factory", "factory:talk"] });
+    expect(getIssueStatus(removed, { ...input(), isTemplate: true }, NOW).stage).toBe("notStarted");
+  });
+
+  it("工場の相談：答えのコメント（人が書いた物）を送ったら企画中（AIの番）。閉じたIssue・ai:stuck は先", () => {
+    const talk = comment({
+      author: "github-actions[bot]",
+      body: encodeFactoryMark({ stage: "ideas" }),
+      createdAt: "2026-10-25T10:00:00Z",
+    });
+    const answer = comment({ author: "Gaku1205", body: "案2を選ぶ", createdAt: "2026-10-25T10:30:00Z" });
+    const waiting = issue({ labels: ["factory:wait"] });
+    const status = getIssueStatus(waiting, input([], {}, [talk, answer]), NOW);
+    expect(status.stage).toBe("planning");
+    expect(status.turn).toBe("ai");
+    expect(getIssueStatus(issue({ labels: ["factory:wait"], state: "closed" }), input(), NOW).stage).not.toBe(
+      "factoryTalk",
+    );
+    expect(getIssueStatus(issue({ labels: ["factory:wait", "ai:stuck"] }), input(), NOW).stage).toBe("stuck");
   });
 
   it("質問：閉じたIssue・ai:implement・ai:stuck が付いていれば、そちらが先", () => {

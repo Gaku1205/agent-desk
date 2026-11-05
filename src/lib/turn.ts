@@ -13,6 +13,7 @@ import {
   type IssueStatus,
 } from "./status";
 import { latestQuestionComment, parseQuestionComment, type ParsedQuestion } from "./question";
+import { latestFactoryComment, parseFactoryTalk, type FactoryTalk } from "./factoryTalk";
 import { turnKind } from "./turnKind";
 
 /** 「あなたの番」で押せる操作（サーバー側で実行する物） */
@@ -80,6 +81,8 @@ export type TurnItem = {
   merge: MergeSummary | null;
   /** 企画AIの質問（段階が「質問」で、質問のコメントが読めたときだけ） */
   question: ParsedQuestion | null;
+  /** 工場の相談（段階が「工場の相談」で、工場の相談のコメントが読めたときだけ） */
+  factory: FactoryTalk | null;
 };
 
 /** 1件のキー（`owner/repo#番号`。流れの光のキーと同じ） */
@@ -112,6 +115,7 @@ export function turnButtons(
     case "skipped":
       return [operation("start")];
     case "question":
+    case "factoryTalk":
       return [operation("answer")];
     case "notStarted":
       // 受付中（猶予）はパイプラインが進める。動いていないと、頼んでも誰も動かないのでボタンを出さない
@@ -193,6 +197,20 @@ export function waitingSince(issue: IssueData, status: IssueStatus, data: RepoDa
               (event) =>
                 event.event === "labeled" &&
                 event.labelName === LABEL.question &&
+                event.issueNumber === issue.number,
+            )
+            .map((event) => event.createdAt),
+        );
+      break;
+    case "factoryTalk":
+      since =
+        latestFactoryComment(data.comments, issue.number)?.createdAt ??
+        latest(
+          data.events
+            .filter(
+              (event) =>
+                event.event === "labeled" &&
+                event.labelName === LABEL.factoryWait &&
                 event.issueNumber === issue.number,
             )
             .map((event) => event.createdAt),
@@ -296,6 +314,8 @@ export function repoTurnItems(owner: string, repo: string, data: RepoData, now: 
             }
           : null,
       question: status.stage === "question" ? parseQuestionComment(data.comments, issue.number) : null,
+      factory:
+        status.stage === "factoryTalk" ? parseFactoryTalk(data.comments, issue.number, `${owner}/${repo}`) : null,
     });
   }
   return items;

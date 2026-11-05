@@ -25,7 +25,7 @@ export function emptyAnswer(): AnswerInput {
  * 1つの選択（ラジオ）の並び。Tab で止まるのは選ばれている1つ（無ければ先頭）だけで、←→↑↓・Home・End で
  * フォーカスと選択が一緒に移る（`src/lib/roving.ts`）。選ばれている物をもう一度押すと選ばないに戻る
  */
-function useRoving<T extends string>(letters: T[], selected: T | null, select: (letter: T | null) => void) {
+export function useRoving<T extends string>(letters: T[], selected: T | null, select: (letter: T | null) => void) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const current = selected === null ? -1 : letters.indexOf(selected);
   const tabIndexOf = (i: number) => (i === (current === -1 ? 0 : current) ? 0 : -1);
@@ -40,7 +40,8 @@ function useRoving<T extends string>(letters: T[], selected: T | null, select: (
   return { refs, tabIndexOf, onKeyDown, onClick };
 }
 
-function QuestionBlock({
+/** 1つの質問：質問の文・選択肢のボタン（おすすめに印）・自分で書く欄（工場の相談でも使う） */
+export function QuestionBlock({
   item,
   answer,
   onAnswer,

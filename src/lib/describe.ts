@@ -80,6 +80,8 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
       return { long: "企画AIがIssueを清書中", short: "清書中" };
     case "question":
       return { long: "企画AIから質問があります。選んで「答えを送る」を押してください", short: "質問があります" };
+    case "factoryTalk":
+      return { long: "工場から相談があります。選んで「答えを送る」を押してください", short: "工場の相談" };
     case "implementing":
       return { long: "AIが実装中", short: "AIが実装中" };
     case "prWaiting":
@@ -152,6 +154,7 @@ export function statusIconSpec(status: IssueStatus): IconSpec {
     case "skipped":
       return spec("paused", "human");
     case "question":
+    case "factoryTalk":
       return spec("dashed", "human");
     case "planning":
     case "ciRunning":

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 200" width="360" height="200">
+  <rect width="360" height="200" fill="#0f2a24"/>
+  <rect x="16" y="16" width="200" height="168" rx="10" fill="#164036"/>
+  <circle cx="60" cy="64" r="24" fill="#7be0b6"/>
+  <rect x="96" y="50" width="96" height="12" rx="6" fill="#f6f3ea"/>
+  <rect x="96" y="70" width="64" height="6" rx="3" fill="#a8d5c4"/>
+  <rect x="32" y="112" width="80" height="56" rx="8" fill="#1f5246"/>
+  <rect x="120" y="112" width="80" height="56" rx="8" fill="#ffb35c"/>
+  <rect x="232" y="16" width="112" height="24" rx="10" fill="#164036"/>
+  <rect x="232" y="48" width="24" height="24" rx="12" fill="#164036"/>
+  <rect x="260" y="48" width="24" height="24" rx="12" fill="#7be0b6"/>
+  <rect x="288" y="48" width="24" height="24" rx="12" fill="#ffb35c"/>
+  <rect x="316" y="48" width="24" height="24" rx="12" fill="#f6f3ea"/>
+  <text x="232" y="104" font-family="sans-serif" font-weight="700" font-size="26" fill="#f6f3ea">Aa</text>
+  <text x="232" y="132" font-family="sans-serif" font-size="11" fill="#a8d5c4">丸くて元気</text>
+  <rect x="232" y="148" width="112" height="36" rx="10" fill="#1f5246"/>
+</svg>

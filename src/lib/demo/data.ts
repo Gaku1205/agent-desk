@@ -8,6 +8,8 @@ import type {
   RepoResult,
 } from "../github/types";
 import type { OperationKind } from "../turn";
+import { FACTORY_BOT } from "../factoryTalk";
+import { demoFactoryBody, demoFactoryState } from "./factory";
 import { applyDemoOps } from "./ops";
 import { advancePlayback, PLAY_STEPS, playStep, type DemoPlayback, type PlayStep } from "./playback";
 
@@ -594,6 +596,17 @@ function landingPage(base: Date): RepoData {
   addIssue(ctx, 18, "トップページの見た目を新しくする", { createdAt: ago(ctx, 70), labels: ["ai:question"] });
   addLabeled(ctx, 18, "ai:question", ago(ctx, 34));
   addComment(ctx, 18, QUESTION_COMMENT, ago(ctx, 34));
+
+  // 工場の相談（テンプレートの工場が、案を出して返事を待っている：人間の番。答えると次の段階へ進む）
+  addIssue(ctx, 19, "新サービス：毎朝の天気と予定を1枚で見られるページ", {
+    createdAt: ago(ctx, 90),
+    labels: ["factory", "factory:talk", "factory:wait"],
+  });
+  addLabeled(ctx, 19, "factory:wait", ago(ctx, 52));
+  addComment(ctx, 19, demoFactoryBody(demoFactoryState("ideas")), ago(ctx, 52), FACTORY_BOT);
+
+  // 企画中（上端の帯の件数が、あなたの番の数と同じにならないように）
+  addIssue(ctx, 20, "お問い合わせに自動で返事を送る", { createdAt: ago(ctx, 3), labels: ["ai:plan"] });
 
   // AI作業中（上端の帯の件数が、あなたの番の数と同じにならないように）
   addIssue(ctx, 16, "お知らせの帯を足す", { createdAt: ago(ctx, 12), labels: ["ai:implement"], planned: true });

@@ -6,6 +6,7 @@ import { addComment, addLabel, createPull, findIssueBranch, mergePull, removeLab
 import { isValidAnswer } from "./question";
 import type { RepoData } from "./github/types";
 import { isFactoryIssue } from "./factoryIssue";
+import { parseFactoryAnswer } from "./factoryTalk";
 import { getIssueStatus, LABEL, shouldShowIssue } from "./status";
 import { isOperationAvailable, OPERATION_KINDS, type OperationKind } from "./turn";
 
@@ -143,6 +144,10 @@ export async function executeOperation(
         break;
       case "answer":
         if (!isValidAnswer(input.answer)) return fail(OPERATION_MESSAGES.invalid);
+        // 工場の相談：印があるなら、工場が読める形のときだけ送る
+        if (status.stage === "factoryTalk" && parseFactoryAnswer(input.answer) === "invalid") {
+          return fail(OPERATION_MESSAGES.invalid);
+        }
         // コメントすると、パイプラインが自動で続き（企画）を始める
         await addComment(client, target, issue.number, input.answer);
         break;

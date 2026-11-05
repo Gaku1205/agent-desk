@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { composeFactoryAnswer } from "../factoryTalk";
 import { getProgress } from "../progress";
 import { getIssueStatus, type Stage } from "../status";
 import { buildTurnItems, turnItemKey, type OperationKind } from "../turn";
@@ -45,6 +46,49 @@ describe("デモで押した操作", () => {
     const last = result.data.comments.filter((c) => c.issueNumber === 18).at(-1);
     expect(last?.body).toBe("A。Q1はA（落ち着いた夜の色）");
     expect(last?.author.endsWith("[bot]")).toBe(false);
+  });
+
+  it("工場の相談：案 → 見た目の方向 → 画面 → 最終確認と進み、作るで閉じる（全部ちがうは同じ段階の出し直し）", () => {
+    const target = { owner: "demo", repo: "landing-page", number: 19 };
+    const factoryItem = (playback: ReturnType<typeof startPlayback>) =>
+      buildTurnItems(buildDemoResults(NOW, playback), NOW).find((i) => turnItemKey(i) === "demo/landing-page#19");
+    let playback = startPlayback(NOW);
+    const stages: (string | null | undefined)[] = [];
+    const answer = (input: Parameters<typeof composeFactoryAnswer>[1]) => {
+      const item = factoryItem(playback);
+      if (!item?.factory) throw new Error("no factory");
+      playback = pressDemo(playback, target, "answer", composeFactoryAnswer(item.factory, input));
+    };
+    const empty = { redoNote: "", answers: {}, note: "" };
+    stages.push(factoryItem(playback)?.factory?.stage);
+    expect(factoryItem(playback)?.status.stage).toBe("factoryTalk");
+    expect(factoryItem(playback)?.factory?.choices).toHaveLength(3);
+    answer({ ...empty, pick: "1", answers: { 1: { choice: "A", note: "" } } });
+    stages.push(factoryItem(playback)?.factory?.stage);
+    expect(factoryItem(playback)?.factory?.choices.map((c) => c.images.map((i) => i.src))).toEqual([
+      ["/factory/look-1.svg"],
+      ["/factory/look-2.svg"],
+      ["/factory/look-3.svg"],
+    ]);
+    answer({ ...empty, pick: "redo", redoNote: "もっと明るく" });
+    stages.push(factoryItem(playback)?.factory?.stage);
+    answer({ ...empty, pick: "2" });
+    stages.push(factoryItem(playback)?.factory?.stage);
+    answer({ ...empty, pick: "b" });
+    stages.push(factoryItem(playback)?.factory?.stage);
+    expect(factoryItem(playback)?.factory?.confirm?.images.map((i) => i.src)).toEqual([
+      "/mockups/b-pc.svg",
+      "/mockups/b-mobile.svg",
+    ]);
+    expect(factoryItem(playback)?.factory?.confirm?.facts.find((f) => f.label === "決まった事")?.value).toBe(
+      "主に使う端末は？ → スマホが中心",
+    );
+    answer({ ...empty, pick: "go" });
+    expect(stages).toEqual(["ideas", "looks", "looks", "mocks", "confirm"]);
+    expect(factoryItem(playback)).toBeUndefined();
+    const result = buildDemoResults(NOW, playback).find((r) => r.repo === "landing-page");
+    if (!result || !result.ok) throw new Error("no repo");
+    expect(result.data.issues.find((i) => i.number === 19)?.state).toBe("closed");
   });
 
   it("デモの質問は、質問と画面案（A・B、PCとスマホ）が読める", () => {

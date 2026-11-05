@@ -1,6 +1,8 @@
 import type { CheckRunData, IssueData, PullData, RepoData } from "../github/types";
 import { findLinkedPull, LABEL } from "../status";
 import type { OperationKind } from "../turn";
+import { FACTORY_BOT, latestFactoryComment } from "../factoryTalk";
+import { demoFactoryReply } from "./factory";
 
 /**
  * デモで押した「あなたの番」の操作を、サンプルのデータに当てる（docs/spec.md の「デモ」）。
@@ -113,13 +115,39 @@ export function applyDemoOp(data: RepoData, op: DemoOp): RepoData {
     case "answer": {
       // 答えのコメントを書く。パイプラインが続き（企画）を始めて、ai:question を ai:plan に替える
       const id = Math.max(0, ...data.comments.map((c) => c.id)) + 1;
+      const factory = issue.labels.includes(LABEL.factoryWait);
+      const current = factory ? latestFactoryComment(data.comments, op.number) : null;
+      // 工場の相談では、答えを今の相談より後の時刻にする（デモでは押した時刻が同じことがあるため）
+      const answerAt = current
+        ? new Date(Math.max(Date.parse(op.at), Date.parse(current.createdAt) + 1000)).toISOString()
+        : op.at;
       next.comments.push({
         id,
         issueNumber: op.number,
         author: DEMO_ANSWER_AUTHOR,
         body: op.answer ?? "",
-        createdAt: op.at,
+        createdAt: answerAt,
       });
+      if (factory) {
+        // 工場の相談：工場が答えを読んで、次の段階（作り直し）の相談を書く
+        const result = demoFactoryReply(current?.body ?? null, op.answer ?? "");
+        if (result.body !== null) {
+          next.comments.push({
+            id: id + 1,
+            issueNumber: op.number,
+            author: FACTORY_BOT,
+            body: result.body,
+            createdAt: new Date(Date.parse(answerAt) + 1000).toISOString(),
+          });
+        }
+        if (!result.keepWaiting) {
+          setIssue({
+            labels: withLabels(issue.labels, [], [LABEL.factoryWait]),
+            ...(result.close ? { state: "closed" as const, closedAt: op.at } : {}),
+          });
+        }
+        break;
+      }
       setIssue({ labels: withLabels(issue.labels, [LABEL.plan], [LABEL.question]) });
       labeled(op.number, LABEL.plan);
       break;

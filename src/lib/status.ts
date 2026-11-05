@@ -1,4 +1,5 @@
 import { isFactoryIssue } from "./factoryIssue";
+import { isFactoryAnswered } from "./factoryTalk";
 import type { PipelineState } from "./pipelineState";
 import { isCountedDeploySuccess, isFailedState, latestCountedPerContext } from "./deployStatus";
 import { holdRequestText, humanRequestReason } from "./humanRequest";
@@ -19,6 +20,7 @@ export type Stage =
   | "ciFailed"
   | "prWaiting"
   | "question"
+  | "factoryTalk"
   | "implementing"
   | "planning"
   | "queued"
@@ -111,6 +113,8 @@ export const LABEL = {
   stuck: "ai:stuck",
   retry: "ai:retry",
   question: "ai:question",
+  /** 工場（テンプレートの factory-talk.yml）がオーナーの返事を待っている */
+  factoryWait: "factory:wait",
 } as const;
 
 const CLAUDE_BOT = "claude[bot]";
@@ -151,6 +155,7 @@ const TURN_BY_STAGE: Record<Stage, Turn> = {
   ciFailed: "ai",
   prWaiting: "human",
   question: "human",
+  factoryTalk: "human",
   implementing: "ai",
   planning: "ai",
   queued: "none",
@@ -596,6 +601,10 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
     });
   }
   if (issue.labels.includes(LABEL.implement)) return result("implementing");
+  if (issue.state === "open" && issue.labels.includes(LABEL.factoryWait)) {
+    // 工場の相談：答えのコメントを送ったら、工場が `factory:wait` を外すまで企画中（AIの番）にする
+    return result(isFactoryAnswered(input.comments, issue.number) ? "planning" : "factoryTalk");
+  }
   if (issue.state === "open" && issue.labels.includes(LABEL.question)) {
     // 答えのコメントを送ったら、パイプラインが続きを始めるまで企画中（AIの番）にする
     return result(isQuestionAnswered(input.comments, issue.number) ? "planning" : "question");
