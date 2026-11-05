@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GitHubClient } from "./github/client";
 import { GitHubError } from "./github/errors";
+import { encodeBase64, encodeFactoryMark } from "./factoryTalk";
 import type { CheckRunData, IssueData, PullData, RepoData } from "./github/types";
 import {
   authorizeOperation,
@@ -185,6 +186,60 @@ describe("答えを送る", () => {
     const { client, calls } = fakeClient();
     const result = await executeOperation(client, TARGET, input("answer"), asking(), NOW);
     expect(result).toEqual({ ok: false, changed: false, message: OPERATION_MESSAGES.invalid });
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("工場の相談に答える", () => {
+  const talk = {
+    id: 5,
+    issueNumber: 1,
+    author: "github-actions[bot]",
+    body: encodeFactoryMark({ stage: "mocks", mocks: [{ key: "a", title: "A" }] }),
+    createdAt: "2026-10-25T10:00:00Z",
+  };
+  const factory = () =>
+    data({
+      isTemplate: true,
+      issues: [issue({ title: "新サービス：天気", labels: ["factory", "factory:talk", "factory:wait"] })],
+      comments: [talk],
+    });
+
+  it("factory:wait の「新サービス：」のIssueに、印つきの答えをコメントで書く", async () => {
+    const { client, calls } = fakeClient(() => Response.json({ id: 1 }, { status: 201 }));
+    const answer = `画面Aを選ぶ\n\n<!-- factory-answer:${encodeBase64('{"action":"pick","choice":"a","answers":[],"note":""}')} -->`;
+    expect(await executeOperation(client, TARGET, { ...input("answer"), answer }, factory(), NOW)).toEqual({ ok: true });
+    expect(calls.map((c) => [c.method, c.url, c.body])).toEqual([
+      ["POST", "https://api.github.com/repos/o/r/issues/1/comments", { body: answer }],
+    ]);
+  });
+
+  it("印が読めない答えは送らない（印の無い文は送る）", async () => {
+    const { client, calls } = fakeClient(() => Response.json({ id: 1 }, { status: 201 }));
+    const broken = `A\n\n<!-- factory-answer:${encodeBase64('{"action":"back"}')} -->`;
+    expect(await executeOperation(client, TARGET, { ...input("answer"), answer: broken }, factory(), NOW)).toEqual({
+      ok: false,
+      changed: false,
+      message: OPERATION_MESSAGES.invalid,
+    });
+    expect(calls).toEqual([]);
+    expect(await executeOperation(client, TARGET, { ...input("answer"), answer: "A で" }, factory(), NOW)).toEqual({ ok: true });
+  });
+
+  it("factory:wait が外れた（工場が受け取った）・答え済みなら、何もせず取り直す", async () => {
+    const { client, calls } = fakeClient();
+    const waiting = factory();
+    const removed = { ...waiting, issues: [issue({ title: "新サービス：天気", labels: ["factory", "factory:talk"] })] };
+    expect(await executeOperation(client, TARGET, { ...input("answer"), answer: "A" }, removed, NOW)).toEqual({
+      ok: false,
+      changed: true,
+    });
+    const answered = factory();
+    answered.comments.push({ ...talk, id: 6, author: "owner", body: "A", createdAt: "2026-10-25T11:00:00Z" });
+    expect(await executeOperation(client, TARGET, { ...input("answer"), answer: "A" }, answered, NOW)).toEqual({
+      ok: false,
+      changed: true,
+    });
     expect(calls).toEqual([]);
   });
 });

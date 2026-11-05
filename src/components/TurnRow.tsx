@@ -11,6 +11,13 @@ import { splitPhrases, turnKind } from "@/lib/turnKind";
 import type { OperationKind, TurnItem } from "@/lib/turn";
 import { useDemo } from "./DemoContext";
 import { emptyAnswer, QuestionForm } from "./QuestionForm";
+import { FactoryForm } from "./FactoryForm";
+import {
+  composeFactoryAnswer,
+  emptyFactoryInput,
+  factoryAnswerText,
+  type FactoryInput,
+} from "@/lib/factoryTalk";
 import { SmartLink } from "./SmartLink";
 import { Ticks } from "./Ticks";
 import styles from "./TurnRow.module.css";
@@ -71,7 +78,8 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
   const [confirming, setConfirming] = useState(false);
   const [hit, setHit] = useState<string | null>(null);
   // 操作が通った時点の段階とボタン。取り直しで変わったら（行が残るなら）元に戻す
-  const sig = `${status.stage}:${buttons.map((b) => b.label).join(",")}`;
+  // 工場の相談は、次の段階の相談が来たら（コメントが替わったら）、同じ段階でも元に戻す
+  const sig = `${status.stage}:${buttons.map((b) => b.label).join(",")}:${item.factory?.commentId ?? ""}`;
   const [leavingSig, setLeavingSig] = useState<string | null>(null);
   const leaving = leavingSig === sig;
   const confirmRef = useRef<HTMLButtonElement>(null);
@@ -83,9 +91,22 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
   // 企画AIの質問：画面で選んだ・書いた答えと、そこから組み立てた送る文
   const asking = status.stage === "question";
   const [answer, setAnswer] = useState<AnswerInput>(emptyAnswer);
+  // 工場の相談：選んだ・書いた物は、その相談のコメントの間だけ覚える（次の段階に変わったら空に戻す）
+  const talking = status.stage === "factoryTalk";
+  const talkId = item.factory?.commentId ?? null;
+  const [factoryState, setFactoryState] = useState<{ id: number | null; value: FactoryInput }>(() => ({
+    id: talkId,
+    value: emptyFactoryInput(),
+  }));
+  const factoryInput = factoryState.id === talkId ? factoryState.value : emptyFactoryInput();
+  const factoryTalk = item.factory ?? { stage: null, choices: [], questions: [] };
   const answerText = asking
     ? composeAnswer(item.question ?? { questions: [], mockups: [] }, answer)
-    : "";
+    : talking
+      ? factoryAnswerText(factoryTalk, factoryInput)
+      : "";
+  // 送るコメント（工場の相談は、見本の文の下に印を付ける）
+  const answerBody = talking ? composeFactoryAnswer(factoryTalk, factoryInput) : answerText;
 
   useEffect(() => {
     if (confirming) confirmRef.current?.focus();
@@ -145,7 +166,7 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
       if (rowRef.current) moveFocusOutOf(rowRef.current);
       setConfirming(false);
       setLeavingSig(sig);
-      demo.operate({ owner, repo, number: issue.number }, kind, kind === "answer" ? answerText : undefined);
+      demo.operate({ owner, repo, number: issue.number }, kind, kind === "answer" ? answerBody : undefined);
       return;
     }
     startTransition(async () => {
@@ -154,7 +175,7 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
         owner,
         repo,
         issueNumber: issue.number,
-        ...(kind === "answer" ? { answer: answerText } : {}),
+        ...(kind === "answer" ? { answer: answerBody } : {}),
       });
       if (!result.ok && !result.changed) {
         closeConfirm();
@@ -238,6 +259,18 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
           value={answer}
           onChange={(next) => {
             setAnswer(next);
+            if (error === EMPTY_ANSWER_MESSAGE) setError(null);
+          }}
+          idPrefix={`turn-${owner}-${repo}-${issue.number}`}
+          preview={answerText}
+        />
+      )}
+      {talking && (
+        <FactoryForm
+          talk={item.factory}
+          value={factoryInput}
+          onChange={(next) => {
+            setFactoryState({ id: talkId, value: next });
             if (error === EMPTY_ANSWER_MESSAGE) setError(null);
           }}
           idPrefix={`turn-${owner}-${repo}-${issue.number}`}

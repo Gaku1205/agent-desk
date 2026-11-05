@@ -26,6 +26,7 @@ const ALL_STAGES: Record<Stage, true> = {
   ciFailed: true,
   prWaiting: true,
   question: true,
+  factoryTalk: true,
   implementing: true,
   planning: true,
   queued: true,
