@@ -294,7 +294,7 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
                   className={styles.act}
                   data-act=""
                   data-hit={hit === button.kind ? "" : undefined}
-                  aria-disabled={pending ? "true" : undefined}
+                  aria-disabled={pending || (button.kind === "answer" && answerText.trim() === "") ? "true" : undefined}
                   onClick={() => {
                     if (pending) return;
                     if (button.kind === "merge") setConfirming(true);
