@@ -4,14 +4,14 @@ import type { CommentData } from "./github/types";
  * 企画AIの質問（`ai:question`）のコメントを読む・答えの文を組み立てる純粋関数（docs/spec.md の「企画AIの質問」）。
  *
  * 質問のコメント：1行目が質問の印（`<!-- ai-question -->`）。`**Q1. …**` の行が質問、その下の
- * `- A. …（おすすめ）` の行が選択肢。同じコメントに画面案の印（`<!-- mockups -->`）があれば、
+ * `- A. …（おすすめ）` の行が選択肢。同じコメントに画面案の印（`<!-- ai-mocks: issue-N/rR -->`）があれば、
  * その後ろの `<img src>` を画面案（A・B。PC とスマホ）として読む
  */
 
 /** 質問のコメントの1行目の印。`<!-- ai-question -->`（`ai:question`・`question` も同じ扱い） */
 const QUESTION_MARK_PATTERN = /^<!--\s*(?:ai[-:_]?)?question\s*-->/i;
-/** 画面案の印。`<!-- mockups -->`（`mockup`・`ai-mockups` も同じ扱い） */
-const MOCKUP_MARK_PATTERN = /<!--\s*(?:ai[-:_]?)?mockups?\s*-->/i;
+/** 画面案の印。`<!-- ai-mocks: issue-N/rR -->`（`: …` は無くてもよい。`mocks`・`mockups` も同じ扱い） */
+const MOCKUP_MARK_PATTERN = /<!--\s*(?:ai[-:_]?)?mock(?:up)?s?\s*(?::[^>]*?)?\s*-->/i;
 /** `**Q1. 質問**`（`**Q1.** 質問` も可） */
 const QUESTION_LINE_PATTERN = /^\s*\*\*\s*Q(\d+)\s*[.．:：]?\s*(.*?)\*\*\s*(.*)$/;
 /** `- A. 選択肢`（`*`・`A)`・`A：` も可） */

@@ -181,7 +181,7 @@ const QUESTION_COMMENT = [
   "- A. 1行で短く（おすすめ）",
   "- B. 2〜3行で説明する",
   "",
-  "<!-- mockups -->",
+  "<!-- ai-mocks: issue-18/r1 -->",
   "### A. 写真を大きく",
   '<img src="/mockups/a-pc.svg" alt="A PC">',
   '<img src="/mockups/a-mobile.svg" alt="A スマホ">',

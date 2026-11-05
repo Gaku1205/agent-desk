@@ -149,6 +149,35 @@ describe("parseMockups", () => {
       ["B", 1],
     ]);
   });
+
+  it("画面案を置くスクリプトが書く形（ai-mocks の印・1行に PC とスマホの画像が2つ）を読む", () => {
+    const raw = "https://raw.githubusercontent.com/o/r/ai-mocks/issue-9/r1";
+    const body = [
+      "<!-- ai-question -->",
+      "<!-- ai-mocks: issue-9/r1 -->",
+      "## 🖼 作る前に、画面を2案作りました（左が PC、右がスマホ）",
+      "",
+      "### A. 写真を大きく",
+      "余白を広く取った案",
+      "",
+      `<img src="${raw}/mock-a-1440.png" width="560" alt="A PC"> <img src="${raw}/mock-a-390.png" width="150" alt="A スマホ">`,
+      "",
+      "### B. 文字を大きく",
+      "文字中心の案",
+      "",
+      `<img src="${raw}/mock-b-1440.png" width="560" alt="B PC"> <img src="${raw}/mock-b-390.png" width="150" alt="B スマホ">`,
+      "",
+      "## ❓ 質問",
+      "",
+      "**Q1. 色は？**",
+      "- A. 夜（おすすめ）",
+      "- B. 昼",
+    ].join("\n");
+    expect(parseMockups(body).map((m) => [m.letter, m.label, m.images.map((i) => [i.src, i.device])])).toEqual([
+      ["A", "写真を大きく", [[`${raw}/mock-a-1440.png`, "pc"], [`${raw}/mock-a-390.png`, "mobile"]]],
+      ["B", "文字を大きく", [[`${raw}/mock-b-1440.png`, "pc"], [`${raw}/mock-b-390.png`, "mobile"]]],
+    ]);
+  });
 });
 
 describe("parseQuestionComment", () => {
