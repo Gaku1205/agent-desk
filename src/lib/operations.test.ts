@@ -5,6 +5,7 @@ import { encodeBase64, encodeFactoryMark } from "./factoryTalk";
 import type { CheckRunData, IssueData, PullData, RepoData } from "./github/types";
 import {
   authorizeOperation,
+  executeCreateIssue,
   executeOperation,
   OPERATION_MESSAGES,
   operationErrorMessage,
@@ -475,5 +476,44 @@ describe("operationErrorMessage", () => {
       OPERATION_MESSAGES.rateLimited,
     );
     expect(operationErrorMessage(new Error("boom"))).toBe(OPERATION_MESSAGES.failed);
+  });
+});
+
+describe("executeCreateIssue", () => {
+  const base = { owner: "o", repo: "r", title: "天気のページ", omakase: true };
+  const respond = (isTemplate: boolean) => (call: Call) =>
+    call.method === "GET"
+      ? Response.json({ is_template: isTemplate })
+      : Response.json({ number: 7, html_url: "https://github.com/o/r/issues/7" }, { status: 201 });
+
+  it("通常のリポジトリ：メモがタイトルで、ラベルも本文も付けない", async () => {
+    const { client, calls } = fakeClient(respond(false));
+    expect(await executeCreateIssue(client, TARGET, base)).toEqual({
+      ok: true,
+      number: 7,
+      url: "https://github.com/o/r/issues/7",
+    });
+    expect(calls[1]).toEqual({
+      method: "POST",
+      url: "https://api.github.com/repos/o/r/issues",
+      body: { title: "天気のページ" },
+    });
+  });
+
+  it("テンプレート：「新サービス：」付き。全部おまかせなら本文にチェックが入る", async () => {
+    const { client, calls } = fakeClient(respond(true));
+    await executeCreateIssue(client, TARGET, base);
+    expect(calls[1].body).toEqual({ title: "新サービス：天気のページ", body: "- [x] 全部おまかせ" });
+    const second = fakeClient(respond(true));
+    await executeCreateIssue(second.client, TARGET, { ...base, omakase: false });
+    expect(second.calls[1].body).toEqual({ title: "新サービス：天気のページ" });
+  });
+
+  it("GitHubの失敗は理由にして返す", async () => {
+    const { client } = fakeClient(() => new Response(null, { status: 403 }));
+    expect(await executeCreateIssue(client, TARGET, base)).toEqual({
+      ok: false,
+      message: OPERATION_MESSAGES.forbidden,
+    });
   });
 });

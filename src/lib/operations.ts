@@ -2,7 +2,17 @@ import { isAllowedLogin } from "./allowlist";
 import { findWatchedRepo, type WatchedRepo } from "./config";
 import type { GitHubClient } from "./github/client";
 import { GitHubError } from "./github/errors";
-import { addComment, addLabel, createPull, findIssueBranch, mergePull, removeLabel } from "./github/operations";
+import {
+  addComment,
+  addLabel,
+  createIssue,
+  createPull,
+  fetchIsTemplate,
+  findIssueBranch,
+  mergePull,
+  removeLabel,
+} from "./github/operations";
+import { composeNewIssue, type NewIssueInput } from "./newIssue";
 import { isValidAnswer } from "./question";
 import type { RepoData } from "./github/types";
 import { isFactoryIssue } from "./factoryIssue";
@@ -162,4 +172,27 @@ export async function executeOperation(
     return fail(operationErrorMessage(error));
   }
   return { ok: true };
+}
+
+export type CreateIssueResult =
+  | { ok: true; number: number; url: string }
+  | { ok: false; message: string };
+
+/**
+ * 画面から書いたIssueを作る（ラベルは付けない。パイプラインの受付が企画に回す）。
+ * テンプレートリポジトリかどうかはサーバーで確かめ直す（画面から来た値は信じない）
+ */
+export async function executeCreateIssue(
+  client: GitHubClient,
+  target: WatchedRepo,
+  input: NewIssueInput,
+): Promise<CreateIssueResult> {
+  try {
+    const isTemplate = await fetchIsTemplate(client, target);
+    const issue = composeNewIssue({ title: input.title, isTemplate, omakase: input.omakase });
+    const created = await createIssue(client, target, issue);
+    return { ok: true, ...created };
+  } catch (error) {
+    return { ok: false, message: operationErrorMessage(error) };
+  }
 }

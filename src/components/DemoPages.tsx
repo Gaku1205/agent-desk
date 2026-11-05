@@ -1,6 +1,6 @@
 "use client";
 
-import { DEMO_REPO_OPTIONS, DEMO_REPOS } from "@/lib/demo/data";
+import { DEMO_REPO_OPTIONS, DEMO_REPOS, DEMO_TEMPLATE_REPO } from "@/lib/demo/data";
 import { buildTrailEvents } from "@/lib/events";
 import { buildFlowNodes } from "@/lib/flow/nodes";
 import { parseNotifyEvents } from "@/lib/notifyEvents";
@@ -8,6 +8,7 @@ import { countTurnItems, filterTurnItems } from "@/lib/turn";
 import { Backdrop } from "./Backdrop";
 import { useDemoState } from "./DemoContext";
 import { Desk } from "./Desk";
+import { NewIssueForm } from "./NewIssueForm";
 import { SettingsSections } from "./SettingsSections";
 
 /** デモのホーム：本物のホームと同じ部品に、サンプルのデータを渡す */
@@ -49,6 +50,21 @@ export function DemoRepo({ owner, repo }: { owner: string; repo: string }) {
 }
 
 const DEMO_REPO_NAMES = DEMO_REPOS.map(({ owner, repo }) => `${owner}/${repo}`);
+
+/** デモのIssueを書く画面：GitHub には送らず、サンプルのデータにIssueが増える（landing-page はテンプレートの見本） */
+export function DemoNewIssue() {
+  return (
+    <>
+      <Backdrop />
+      <NewIssueForm
+        repos={DEMO_REPOS.map(({ owner, repo }) => ({
+          name: `${owner}/${repo}`,
+          template: repo === DEMO_TEMPLATE_REPO,
+        }))}
+      />
+    </>
+  );
+}
 
 /** デモの設定：保存を押しても書き込まない（アニメーションだけは、このブラウザに本当に保存する） */
 export function DemoSettings() {

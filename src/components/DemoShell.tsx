@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { buildDemoResults, pressDemo } from "@/lib/demo/data";
+import { buildDemoResults, createDemoIssue, pressDemo } from "@/lib/demo/data";
 import {
   advancePlayback,
   isPlaybackDone,
@@ -71,6 +71,12 @@ export function DemoShell({
     },
     [],
   );
+  const createIssue = useCallback(
+    (target: { owner: string; repo: string }, issue: { title: string; body: string }) => {
+      setPlayback((prev) => createDemoIssue(prev, target, issue));
+    },
+    [],
+  );
   const play = useCallback(() => {
     if (playing) return;
     if (isPlaybackDone(playback)) setPlayback(restartPlayback(playback));
@@ -86,8 +92,8 @@ export function DemoShell({
   const demo = useMemo<DemoState>(() => {
     const now = new Date(playback.now);
     const results = buildDemoResults(base, playback);
-    return { results, items: buildTurnItems(results, now), now, playState, play, notify, operate };
-  }, [base, playback, playState, play, notify, operate]);
+    return { results, items: buildTurnItems(results, now), now, playState, play, notify, operate, createIssue };
+  }, [base, playback, playState, play, notify, operate, createIssue]);
 
   const shell = useMemo<ShellState>(
     () => ({

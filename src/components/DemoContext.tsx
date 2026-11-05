@@ -19,6 +19,8 @@ export type DemoState = {
   notify: () => void;
   /** 「あなたの番」のボタン：サンプルのデータの上で本当に段階を進める（少し遅れて当てる） */
   operate: (target: { owner: string; repo: string; number: number }, kind: OperationKind, answer?: string) => void;
+  /** 「Issueを書く」：サンプルのデータにIssueを足す（GitHub には送らない） */
+  createIssue: (target: { owner: string; repo: string }, issue: { title: string; body: string }) => void;
 };
 
 const DemoContext = createContext<DemoState | null>(null);

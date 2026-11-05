@@ -14,11 +14,14 @@ export type DemoOp = {
   owner: string;
   repo: string;
   number: number;
-  kind: OperationKind;
+  /** `newIssue`：画面から書いたIssue（`number` は使わない。番号は当てるときに決める） */
+  kind: OperationKind | "newIssue";
   /** 押した時刻（ISO文字列） */
   at: string;
   /** 「答えを送る」のときだけ：Issueに書くコメントの文 */
   answer?: string;
+  /** 「Issueを書く」のときだけ：Issueのタイトルと本文 */
+  issue?: { title: string; body: string };
 };
 
 /** デモで答えのコメントを書く人（bot ではない名前） */
@@ -40,8 +43,26 @@ function withLabels(labels: string[], add: string[], remove: string[]): string[]
   return [...labels.filter((l) => !remove.includes(l)), ...add.filter((l) => !labels.includes(l))];
 }
 
+/** 画面から書いたIssueを足す（ラベルは付けない。番号は、そのリポジトリの Issue と PR の番号の最大＋1） */
+function applyNewIssue(data: RepoData, op: DemoOp): RepoData {
+  const number = Math.max(0, ...data.issues.map((i) => i.number), ...data.pulls.map((p) => p.number)) + 1;
+  const issue: IssueData = {
+    number,
+    title: op.issue?.title ?? "",
+    body: op.issue?.body ?? "",
+    state: "open",
+    labels: [],
+    url: `/demo/repos/${op.owner}/${op.repo}`,
+    createdAt: op.at,
+    updatedAt: op.at,
+    closedAt: null,
+  };
+  return { ...data, issues: [...data.issues, issue] };
+}
+
 /** 1つの操作を当てた、新しいデータ（元のデータは変えない） */
 export function applyDemoOp(data: RepoData, op: DemoOp): RepoData {
+  if (op.kind === "newIssue") return applyNewIssue(data, op);
   const issue = data.issues.find((i) => i.number === op.number);
   if (!issue) return data;
   const pull = findLinkedPull(data.pulls, op.number);

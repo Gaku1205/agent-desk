@@ -1,0 +1,102 @@
+/* Issueを書く画面（docs/design.md の「Issueを書く」）。見出し・節・ランプ・ボタンは SettingsSections.module.css */
+
+.form {
+  display: grid;
+  gap: 22px;
+  width: 100%;
+  max-width: 560px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.label {
+  color: var(--mute);
+  font-size: 12px;
+}
+
+/* 1行のメモ：箱にせず、下に1pxの線だけ（選択欄と同じ） */
+.memo {
+  display: flex;
+  align-items: baseline;
+  width: 100%;
+  max-width: 560px;
+  border-bottom: 1px solid rgba(236, 232, 223, 0.22);
+  transition: border-color 0.12s;
+}
+
+.memo:focus-within {
+  border-bottom-color: var(--bone);
+  box-shadow: 0 1px 0 var(--bone);
+}
+
+/* 全体の焦点の輪は使わない（線の色が変わることで示す） */
+.input:focus-visible {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.prefix {
+  flex: none;
+  color: var(--mute);
+  font-size: 15px;
+  line-height: 40px;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--bone);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--mute);
+  opacity: 0.5;
+}
+
+/* 項目の間（22px）に、保存の行の上余白（24px）を足さない */
+.form .actions {
+  margin-top: 0;
+}
+
+.input:disabled {
+  opacity: 0.6;
+}
+
+.omakase {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+  margin-left: -8px;
+}
+
+.hint {
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.link {
+  color: var(--bone-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.link:hover {
+  color: var(--bone);
+}
+
+.empty {
+  color: var(--mute);
+  font-size: 12.5px;
+}

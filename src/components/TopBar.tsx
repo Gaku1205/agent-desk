@@ -226,6 +226,7 @@ export function TopBar(props: Props) {
   const { menuOpen, openMenu, closeMenu } = useShell();
   const pathname = usePathname();
   const settingsHref = `${props.basePath ?? ""}/settings`;
+  const newIssueHref = `${props.basePath ?? ""}/new`;
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const wasOpenRef = useRef(false);
 
@@ -272,6 +273,13 @@ export function TopBar(props: Props) {
           <PausedNote className={styles.pausedTop} />
           <SyncButton className={styles.syncTop} />
           <Link
+            href={newIssueHref}
+            className={styles.gear}
+            aria-current={pathname.toLowerCase() === newIssueHref ? "page" : undefined}
+          >
+            Issueを書く
+          </Link>
+          <Link
             href={settingsHref}
             className={styles.gear}
             aria-current={pathname.toLowerCase() === settingsHref ? "page" : undefined}
@@ -297,6 +305,7 @@ function MenuSheet(props: Props) {
   const demo = useDemo();
   const pathname = usePathname();
   const settingsHref = `${props.basePath ?? ""}/settings`;
+  const newIssueHref = `${props.basePath ?? ""}/new`;
   const paneRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!menuOpen) return;
@@ -320,6 +329,13 @@ function MenuSheet(props: Props) {
         </span>
         <RepoTabs {...props} onPick={closeMenu} />
         <span className={styles.lbl}>ほか</span>
+        <Link
+          href={newIssueHref}
+          className={styles.lnk}
+          onClick={shouldCloseMenuOnPick(pathname, newIssueHref) ? closeMenu : undefined}
+        >
+          Issueを書く
+        </Link>
         <Link
           href={settingsHref}
           className={styles.lnk}

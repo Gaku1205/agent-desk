@@ -3,7 +3,7 @@ import { composeFactoryAnswer } from "../factoryTalk";
 import { getProgress } from "../progress";
 import { getIssueStatus, type Stage } from "../status";
 import { buildTurnItems, turnItemKey, type OperationKind } from "../turn";
-import { buildDemoResults, DEMO_PLAY_ISSUE, pressDemo } from "./data";
+import { buildDemoResults, createDemoIssue, DEMO_PLAY_ISSUE, pressDemo } from "./data";
 import { applyDemoOp, type DemoOp } from "./ops";
 import { advancePlayback, restartPlayback, startPlayback, type DemoPlayback } from "./playback";
 
@@ -157,5 +157,28 @@ describe("デモで押した操作", () => {
     const played = advancePlayback(pressed);
     expect(statusOf(played, "todo-app", 13).stage).toBe("planning");
     expect(restartPlayback(played).ops).toEqual([]);
+  });
+});
+
+describe("デモで書いたIssue", () => {
+  it("選んだリポジトリにIssueが増える（番号は重ならず、ラベルは無く、未着手）", () => {
+    const before = buildDemoResults(NOW, startPlayback(NOW)).find((r) => r.repo === "todo-app");
+    if (!before || !before.ok) throw new Error("no repo");
+    const used = [...before.data.issues.map((i) => i.number), ...before.data.pulls.map((p) => p.number)];
+    const playback = createDemoIssue(startPlayback(NOW), { owner: "demo", repo: "todo-app" }, { title: "メモ", body: "" });
+    const number = Math.max(...used) + 1;
+    const status = statusOf(playback, "todo-app", number);
+    expect(status.stage).toBe("notStarted");
+    expect(inTurn(playback, "todo-app", number)).toBe(true);
+    const after = buildDemoResults(NOW, playback).find((r) => r.repo === "todo-app");
+    expect(after && after.ok && after.data.issues.find((i) => i.number === number)?.labels).toEqual([]);
+    // 別のリポジトリには増えない
+    const other = buildDemoResults(NOW, playback).find((r) => r.repo === "landing-page");
+    expect(other && other.ok && other.data.issues.some((i) => i.title === "メモ")).toBe(false);
+  });
+
+  it("「もう一度」で消える", () => {
+    const playback = createDemoIssue(startPlayback(NOW), { owner: "demo", repo: "todo-app" }, { title: "メモ", body: "" });
+    expect(restartPlayback(playback).ops).toEqual([]);
   });
 });
