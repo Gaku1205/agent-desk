@@ -112,7 +112,8 @@
   white-space: nowrap;
 }
 
-.newShort {
+.newShort,
+.demoShort {
   display: none;
 }
 
@@ -130,8 +131,13 @@
     display: none;
   }
 
-  .newShort {
+  .newShort,
+  .demoShort {
     display: inline;
+  }
+
+  .demoFull {
+    display: none;
   }
 }
 

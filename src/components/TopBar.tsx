@@ -207,7 +207,10 @@ function DemoControls() {
   if (!demo) return null;
   return (
     <>
-      <span className={styles.demo}>デモ（サンプルのデータ）</span>
+      <span className={styles.demo} title="デモ（サンプルのデータ）">
+        <span className={styles.demoFull}>デモ（サンプルのデータ）</span>
+        <span className={styles.demoShort}>デモ</span>
+      </span>
       <button
         type="button"
         className={styles.play}
