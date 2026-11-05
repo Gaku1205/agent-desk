@@ -2,7 +2,8 @@ import { isAllowedLogin } from "./allowlist";
 import { findWatchedRepo, type WatchedRepo } from "./config";
 import type { GitHubClient } from "./github/client";
 import { GitHubError } from "./github/errors";
-import { addLabel, createPull, findIssueBranch, mergePull, removeLabel } from "./github/operations";
+import { addComment, addLabel, createPull, findIssueBranch, mergePull, removeLabel } from "./github/operations";
+import { isValidAnswer } from "./question";
 import type { RepoData } from "./github/types";
 import { isFactoryIssue } from "./factoryIssue";
 import { getIssueStatus, LABEL, shouldShowIssue } from "./status";
@@ -13,6 +14,8 @@ export type OperationInput = {
   owner: string;
   repo: string;
   issueNumber: number;
+  /** 「答えを送る」のときだけ：Issueに書くコメントの文 */
+  answer?: string;
 };
 
 export type OperationResult =
@@ -40,12 +43,17 @@ const CHANGED: OperationResult = { ok: false, changed: true };
 /** ブラウザから来た値を確かめる（Server Actionは誰でも直接呼べるため） */
 export function parseOperationInput(value: unknown): OperationInput | null {
   if (typeof value !== "object" || value === null) return null;
-  const { kind, owner, repo, issueNumber } = value as Record<string, unknown>;
+  const { kind, owner, repo, issueNumber, answer } = value as Record<string, unknown>;
   if (typeof kind !== "string" || !(OPERATION_KINDS as readonly string[]).includes(kind)) return null;
   if (typeof owner !== "string" || typeof repo !== "string") return null;
   if (!/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(repo)) return null;
   if (typeof issueNumber !== "number" || !Number.isSafeInteger(issueNumber) || issueNumber <= 0) {
     return null;
+  }
+  if (kind === "answer") {
+    // 答えの文は空でなく、長すぎない物だけ
+    if (!isValidAnswer(answer)) return null;
+    return { kind, owner, repo, issueNumber, answer };
   }
   return { kind: kind as OperationKind, owner, repo, issueNumber };
 }
@@ -132,6 +140,11 @@ export async function executeOperation(
       case "requestReview":
         if (!pull) return CHANGED;
         await addLabel(client, target, pull.number, LABEL.review);
+        break;
+      case "answer":
+        if (!isValidAnswer(input.answer)) return fail(OPERATION_MESSAGES.invalid);
+        // コメントすると、パイプラインが自動で続き（企画）を始める
+        await addComment(client, target, issue.number, input.answer);
         break;
       case "merge":
         if (!pull) return CHANGED;

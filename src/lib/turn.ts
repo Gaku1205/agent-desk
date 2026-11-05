@@ -12,10 +12,19 @@ import {
   shouldShowIssue,
   type IssueStatus,
 } from "./status";
+import { latestQuestionComment, parseQuestionComment, type ParsedQuestion } from "./question";
 import { turnKind } from "./turnKind";
 
 /** 「あなたの番」で押せる操作（サーバー側で実行する物） */
-export type OperationKind = "plan" | "implement" | "resume" | "start" | "createPull" | "requestReview" | "merge";
+export type OperationKind =
+  | "plan"
+  | "implement"
+  | "resume"
+  | "start"
+  | "createPull"
+  | "requestReview"
+  | "merge"
+  | "answer";
 
 export const OPERATION_KINDS: readonly OperationKind[] = [
   "plan",
@@ -25,6 +34,7 @@ export const OPERATION_KINDS: readonly OperationKind[] = [
   "createPull",
   "requestReview",
   "merge",
+  "answer",
 ];
 
 /** ボタンの文字（docs/spec.md の「操作」、docs/design.md の「あなたの番」） */
@@ -36,6 +46,7 @@ export const OPERATION_LABEL: Record<OperationKind, string> = {
   createPull: "PRを作る",
   requestReview: "レビューを依頼",
   merge: "マージ…",
+  answer: "答えを送る",
 };
 
 /** 1つのボタン：サーバーの操作か、GitHubで開くリンク（公開失敗の「確認する」） */
@@ -67,6 +78,8 @@ export type TurnItem = {
   buttons: TurnButton[];
   /** マージのボタンを出すときだけ */
   merge: MergeSummary | null;
+  /** 企画AIの質問（段階が「質問」で、質問のコメントが読めたときだけ） */
+  question: ParsedQuestion | null;
 };
 
 /** 1件のキー（`owner/repo#番号`。流れの光のキーと同じ） */
@@ -98,6 +111,8 @@ export function turnButtons(
       return [operation("resume")];
     case "skipped":
       return [operation("start")];
+    case "question":
+      return [operation("answer")];
     case "notStarted":
       // 受付中（猶予）はパイプラインが進める。動いていないと、頼んでも誰も動かないのでボタンを出さない
       if (status.grace) return [];
@@ -168,6 +183,20 @@ export function waitingSince(issue: IssueData, status: IssueStatus, data: RepoDa
       break;
     case "notStarted":
       since = issue.createdAt;
+      break;
+    case "question":
+      since =
+        latestQuestionComment(data.comments, issue.number)?.createdAt ??
+        latest(
+          data.events
+            .filter(
+              (event) =>
+                event.event === "labeled" &&
+                event.labelName === LABEL.question &&
+                event.issueNumber === issue.number,
+            )
+            .map((event) => event.createdAt),
+        );
       break;
     case "prWaiting":
       since = latest(
@@ -266,6 +295,7 @@ export function repoTurnItems(owner: string, repo: string, data: RepoData, now: 
               review: reviewOutcome(data.comments, status.pull.number),
             }
           : null,
+      question: status.stage === "question" ? parseQuestionComment(data.comments, issue.number) : null,
     });
   }
   return items;

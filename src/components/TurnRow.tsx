@@ -6,9 +6,11 @@ import { nextRowIndex } from "@/lib/focusAfterLeave";
 import { flightColumn } from "@/lib/flow/flight";
 import { isMergeWeak, mergeResultLines } from "@/lib/mergeLines";
 import { getProgress } from "@/lib/progress";
+import { composeAnswer, type AnswerInput } from "@/lib/question";
 import { splitPhrases, turnKind } from "@/lib/turnKind";
 import type { OperationKind, TurnItem } from "@/lib/turn";
 import { useDemo } from "./DemoContext";
+import { emptyAnswer, QuestionForm } from "./QuestionForm";
 import { SmartLink } from "./SmartLink";
 import { Ticks } from "./Ticks";
 import styles from "./TurnRow.module.css";
@@ -29,6 +31,9 @@ type Props = {
 
 /** 操作が通っても段階が変わらないまま、行を畳んでおく長さ */
 const LEAVE_MS = 8000;
+
+/** 何も選ばず・書かずに「答えを送る」を押したとき */
+const EMPTY_ANSWER_MESSAGE = "選ぶか書いてから送ってください";
 
 /**
  * フォーカスが畳む行の中にあるときだけ、次の行の最初のボタン（無ければリンク）へ移す。次が無ければ見出しへ。
@@ -75,6 +80,12 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
   const restoreMergeFocus = useRef(false);
   const rowRef = useRef<HTMLElement>(null);
   const demo = useDemo();
+  // 企画AIの質問：画面で選んだ・書いた答えと、そこから組み立てた送る文
+  const asking = status.stage === "question";
+  const [answer, setAnswer] = useState<AnswerInput>(emptyAnswer);
+  const answerText = asking
+    ? composeAnswer(item.question ?? { questions: [], mockups: [] }, answer)
+    : "";
 
   useEffect(() => {
     if (confirming) confirmRef.current?.focus();
@@ -120,6 +131,11 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
 
   function run(kind: OperationKind) {
     if (pending) return;
+    if (kind === "answer" && answerText.trim() === "") {
+      // 何も選んでいない・書いていない答えは送らない
+      setError(EMPTY_ANSWER_MESSAGE);
+      return;
+    }
     setError(null);
     setHit(kind);
     onPress(key, flightColumn(kind, progress.at));
@@ -129,11 +145,17 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
       if (rowRef.current) moveFocusOutOf(rowRef.current);
       setConfirming(false);
       setLeavingSig(sig);
-      demo.operate({ owner, repo, number: issue.number }, kind);
+      demo.operate({ owner, repo, number: issue.number }, kind, kind === "answer" ? answerText : undefined);
       return;
     }
     startTransition(async () => {
-      const result = await runOperation({ kind, owner, repo, issueNumber: issue.number });
+      const result = await runOperation({
+        kind,
+        owner,
+        repo,
+        issueNumber: issue.number,
+        ...(kind === "answer" ? { answer: answerText } : {}),
+      });
       if (!result.ok && !result.changed) {
         closeConfirm();
         setError(result.message);
@@ -210,6 +232,18 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
           ))}
         </p>
       )}
+      {asking && (
+        <QuestionForm
+          question={item.question}
+          value={answer}
+          onChange={(next) => {
+            setAnswer(next);
+            if (error === EMPTY_ANSWER_MESSAGE) setError(null);
+          }}
+          idPrefix={`turn-${owner}-${repo}-${issue.number}`}
+          preview={answerText}
+        />
+      )}
       {error && (
         <p className={styles.error} role="alert">
           {error}
@@ -267,7 +301,7 @@ export function TurnRow({ item, wait, onHover, onPress, onSettle, onLeave }: Pro
                     else run(button.kind);
                   }}
                 >
-                  {button.label}
+                  {pending && button.kind === "answer" ? "送信中…" : button.label}
                 </button>
               ),
             )
