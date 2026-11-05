@@ -10,6 +10,7 @@ export function flightColumn(kind: OperationKind, at: number): number {
   switch (kind) {
     case "plan":
     case "start":
+    case "answer":
       // 企画AIが清書する
       return 0;
     case "implement":

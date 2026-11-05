@@ -17,6 +17,16 @@ export async function addLabel(
   await client.send("POST", `${repoPath(target)}/issues/${number}/labels`, { labels: [label] });
 }
 
+/** Issue／PRにコメントを書く（企画AIの質問への答え） */
+export async function addComment(
+  client: GitHubClient,
+  target: WatchedRepo,
+  number: number,
+  body: string,
+): Promise<void> {
+  await client.send("POST", `${repoPath(target)}/issues/${number}/comments`, { body });
+}
+
 /** Issue／PRからラベルを外す。もう付いていなければ（404）何もしない */
 export async function removeLabel(
   client: GitHubClient,

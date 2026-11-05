@@ -35,7 +35,28 @@ describe("デモで押した操作", () => {
     { name: "PRを作る → CI 実行中", repo: "landing-page", number: 7, kind: "createPull", before: "prWaiting", after: "ciRunning", at: 3 },
     { name: "レビューを依頼 → レビュー中", repo: "todo-app", number: 21, kind: "requestReview", before: "mergeWaiting", after: "reviewing", at: 4 },
     { name: "マージ → 公開中", repo: "todo-app", number: 22, kind: "merge", before: "mergeWaiting", after: "deploying", at: 7 },
+    { name: "答えを送る → 清書中", repo: "landing-page", number: 18, kind: "answer", before: "question", after: "planning", at: 0 },
   ];
+
+  it("答えを送る：答えの文が、人のコメントとしてIssueに付く", () => {
+    const after = pressDemo(startPlayback(NOW), { owner: "demo", repo: "landing-page", number: 18 }, "answer", "A。Q1はA（落ち着いた夜の色）");
+    const result = buildDemoResults(NOW, after).find((r) => r.repo === "landing-page");
+    if (!result || !result.ok) throw new Error("no repo");
+    const last = result.data.comments.filter((c) => c.issueNumber === 18).at(-1);
+    expect(last?.body).toBe("A。Q1はA（落ち着いた夜の色）");
+    expect(last?.author.endsWith("[bot]")).toBe(false);
+  });
+
+  it("デモの質問は、質問と画面案（A・B、PCとスマホ）が読める", () => {
+    const item = buildTurnItems(buildDemoResults(NOW, startPlayback(NOW)), NOW).find(
+      (i) => turnItemKey(i) === "demo/landing-page#18",
+    );
+    expect(item?.question?.questions.map((q) => q.options.length)).toEqual([2, 2]);
+    expect(item?.question?.mockups.map((m) => [m.letter, m.images.map((i) => i.device)])).toEqual([
+      ["A", ["pc", "mobile"]],
+      ["B", ["pc", "mobile"]],
+    ]);
+  });
 
   for (const c of cases) {
     it(`${c.name}：段階が進み、あなたの番から外れる`, () => {

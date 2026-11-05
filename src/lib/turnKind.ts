@@ -17,6 +17,8 @@ export function turnKind(status: Pick<IssueStatus, "stage"> & Partial<Pick<Issue
       return { label: "保留", tone: "calm" };
     case "notStarted":
       return { label: "未着手", tone: "calm" };
+    case "question":
+      return { label: "質問", tone: "calm" };
     case "prWaiting":
       return { label: "PR作成待ち", tone: "calm" };
     case "mergeWaiting":

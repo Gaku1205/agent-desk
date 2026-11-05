@@ -65,9 +65,12 @@ export function DemoShell({
   }, [notice]);
 
   const notify = useCallback(() => setNotice((n) => n + 1), []);
-  const operate = useCallback((target: { owner: string; repo: string; number: number }, kind: OperationKind) => {
-    window.setTimeout(() => setPlayback((prev) => pressDemo(prev, target, kind)), DEMO_OP_DELAY_MS);
-  }, []);
+  const operate = useCallback(
+    (target: { owner: string; repo: string; number: number }, kind: OperationKind, answer?: string) => {
+      window.setTimeout(() => setPlayback((prev) => pressDemo(prev, target, kind, answer)), DEMO_OP_DELAY_MS);
+    },
+    [],
+  );
   const play = useCallback(() => {
     if (playing) return;
     if (isPlaybackDone(playback)) setPlayback(restartPlayback(playback));

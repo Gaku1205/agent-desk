@@ -1,0 +1,273 @@
+/* 企画AIの質問に答える欄（docs/design.md の「質問に答える欄」）。押す列の行の説明文の下に置く */
+
+.form {
+  display: grid;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.item {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+/* 質問の文：番号（Q1・画面案）は小さく薄く、文は本文の大きさ */
+.qtext {
+  color: var(--bone);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.qno {
+  margin-right: 8px;
+  color: var(--mute);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* 選択肢：静かなボタンと同じ形。選んだ物は --bone に塗りつぶす（アンバーは使わない） */
+.option {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 12px;
+  border-radius: 5px;
+  background: none;
+  box-shadow: inset 0 0 0 1px rgba(236, 232, 223, 0.16);
+  color: var(--bone);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.option:hover {
+  background: var(--well);
+}
+
+.option[aria-checked="true"] {
+  background: var(--bone);
+  box-shadow: none;
+  color: var(--bg);
+}
+
+.option:focus-visible,
+.mock:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px rgba(236, 232, 223, 0.5),
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+}
+
+.letter {
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.option[aria-checked="true"] .letter,
+.option[aria-checked="true"] .rec {
+  color: var(--bg);
+}
+
+/* おすすめの印：文字で出す（色だけにしない） */
+.rec {
+  color: var(--bone-2);
+  font-size: 11.5px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.rec::before {
+  margin-right: 4px;
+  content: "·";
+}
+
+/* 自分で書く欄：枠の線で囲まず、うすい下地（--hair-2）だけ。書く所だと分かり、行の区切りの線にも見えない */
+.note {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--hair-2);
+  color: var(--bone);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* 中の薄い字は、書いた文より小さく（入力済みに見えないように） */
+.note::placeholder {
+  color: var(--mute);
+  font-size: 12.5px;
+}
+
+.note:hover {
+  background: var(--well);
+}
+
+.note:focus-visible {
+  background: var(--well);
+  box-shadow:
+    inset 0 0 0 1px rgba(236, 232, 223, 0.3),
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+  outline: 2px solid transparent;
+}
+
+.extra {
+  resize: vertical;
+}
+
+/* 画面案：A・B を横に2つ。1つの案の中は PC とスマホの画像を並べる */
+.mocks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.mock {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 6px;
+  background: none;
+  box-shadow: inset 0 0 0 1px rgba(236, 232, 223, 0.16);
+  color: var(--bone);
+  text-align: left;
+}
+
+.mock:hover {
+  background: var(--well);
+}
+
+/* 選んだ案：枠を --bone にして、「選んだ案」の文字も出す（色だけにしない） */
+.mock[aria-checked="true"] {
+  background: var(--well);
+  box-shadow: inset 0 0 0 1.5px var(--bone);
+}
+
+.mockHead {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.mockLetter {
+  color: var(--bone);
+  font-family: var(--disp);
+  font-size: 20px;
+  font-variation-settings: "opsz" 96;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.mockLabel {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--bone-2);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mockPicked {
+  flex: none;
+  margin-left: auto;
+  color: var(--bone);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.shots {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  min-width: 0;
+}
+
+.shot {
+  display: block;
+  min-width: 0;
+  height: auto;
+  border-radius: 3px;
+  background: #1c1d21;
+  object-fit: contain;
+}
+
+/* PC は横長で幅の大部分、スマホは縦長で細く。画像の縦横の比は崩さず、広い画面でも左右に帯を作らない（伸ばさない） */
+.shot[data-device="pc"] {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: calc(100% - 72px);
+  max-height: 180px;
+}
+
+.shot[data-device="mobile"] {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 64px;
+  max-height: 140px;
+}
+
+.shot:only-child {
+  max-width: 100%;
+}
+
+/* 送る文の見本 */
+.preview {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.previewHead {
+  flex: none;
+  color: var(--mute);
+  white-space: nowrap;
+}
+
+.previewText {
+  min-width: 0;
+  color: var(--bone-2);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.previewEmpty {
+  color: var(--mute);
+}
+
+@media (max-width: 899px) {
+  .option {
+    min-height: 36px;
+    font-size: 13px;
+  }
+
+  .note {
+    font-size: 16px;
+  }
+
+  .note::placeholder {
+    font-size: 13px;
+  }
+
+  .mocks {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
