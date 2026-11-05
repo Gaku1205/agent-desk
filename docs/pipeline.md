@@ -33,6 +33,8 @@ Issueを作る（メモ）。ラベルが無ければ自動で ai:plan が付く
 | `ai:hold` | 人間か進行役 | 最後のマージだけ人間が押す（大事な変更用）。`.github/`・`docs/pipeline.md`・`CLAUDE.md`・`AGENTS.md` を触るPRには、進行役が自動で付ける（ただし ai-dev-template 自身は、スクリプト・テスト・`docs/pipeline.md` だけの変更なら付けず、自動でマージする。下の「安全のしくみ」） |
 | `ai:retry` | パイプライン | AIが一時的に止まった（使用量の上限など）。見張り役が30分以上あけて自動でやり直す（失敗のコメントに、原因の分類とログのURLが付く）。人間は何もしなくてよい |
 | `ai:stuck` | パイプライン | 自動で進められず止まった。人間が確認して、続けるなら外す（外すと自動で再開） |
+| `ai:question` | 企画AI・画面案 | 結果が大きく変わる迷い（見た目の方向・画面の構成・挙動・お金・データ・範囲）を、選択式で質問して待っている（コメントの印 `<!-- ai-question -->`）。オーナーがコメントで答えると `answer.yml` が `ai:plan` に戻し、企画AIが答えを使って清書する。小さい迷いは聞かずに「仮定」に書く |
+| `ai:mocks` | 企画AI | 見た目の大きい作り直し・新しい画面の作業。作る前に `claude-mocks.yml` が、今の画面とデザイン仕様を見てざっくり画面を2案作り（1枚の HTML。画像と HTML は `ai-mocks` ブランチ）、選択肢と質問を書いて `ai:question` で待つ。答えると、企画AIが選んだ画面を「目標の画面」（本文の印 `<!-- ai-mock: … -->`）として清書し、実装AIはそれを `.shots/target/` に受け取って合わせて作る |
 | `visual:update` | 進行役（見た目のテストだけが落ち、PRに「見た目を変えた」と書いてあるとき）か人間 | 見た目のテストの基準の画像を、CIの環境で全部撮り直してPRにコミットする（差が閾値の中で通っていた画像も撮り直すので、古い見た目の画像が残らない。終わると外れる） |
 
 見張り役は、ありえないラベルの組み合わせ（`ai:queue` と `ai:implement`、`ai:plan` と `ai:implement`、記録の無い `ai:retry`、直近7日に閉じた物に残った `ai:stuck`・`ai:retry`・`ai:queue`）を直し、その Issue・PR に1行コメントする（1回に20件まで）。
@@ -89,6 +91,7 @@ AIが正常に終わったのに変更が無いとき（質問した、指摘が
 | AI（ワークフロー） | 許可している操作 | 許可していない操作と理由 |
 | --- | --- | --- |
 | 企画AI（`claude-plan.yml`） | `Bash(gh issue view:*)`、`Bash(gh issue edit:*)`、`Bash(gh issue comment:*)`、`Bash(gh issue create:*)`、`Bash(gh issue list:*)`、`Bash(gh pr list:*)`、`Bash(gh pr diff:*)`、`Read`、`Glob`、`Grep`、`Write` | コードを変えるgit操作・npm（企画はIssueを書くだけ。`Write` は結果ファイル `plan-result.txt` のため） |
+| 画面案（`claude-mocks.yml`） | `Read`、`Write`、`Edit`、`Glob`、`Grep`、`Bash(node .github/scripts/shot.mjs:*)` | git・gh・npm・ネット（今の画面とデザイン仕様を見て、`mocks/` にざっくり画面の HTML を書いて撮るだけ。Issue は前のステップが `mocks/issue.txt` に書いておく。鍵は持たない） |
 | 実装AI（`claude-implement.yml`） | pipeline.json の checks のコマンド（無ければ npm run typecheck・lint・test・build。下の「言語と公開先」）、`Bash(.github/scripts/tests/run-all.sh)`、`Bash(git status:*)`、`Bash(git diff:*)`、`Bash(git add:*)`、`Bash(git commit:*)`、`Bash(git fetch:*)`、`Bash(git merge:*)`、`Bash(git push:*)`、`Bash(bash .github/scripts/tests/run-all.sh)`、`Bash(shellcheck:*)`、見た目のテストがあるアプリでは `Bash(npm run test:visual)`・`Bash(npm run test:visual -- -g:*)`・`Bash(npx playwright test:*)`（手元で動かして、位置や数値を確かめるため。基準の画像の撮り直し（--update-snapshots・-u）は許さない）、画面のあるアプリでは `Bash(npm run build)`・`Bash(node .github/scripts/shot.mjs:*)`・`Bash(.github/scripts/fetch-photos.sh:*)`（作った画面を本物のブラウザで 390・1440・1920 の幅で撮り、画像を見て直すため。下の「撮って見て直す」）、`Skill`（.claude/skills/ のスキル。画面を作るときの frontend-design・taste-skill・web-design-guidelines、GSAP・Lenis が入っているアプリでの motion-gsap-lenis。taste-skill のスクリプトは、測る inspect.mjs だけ動かしてよい） | `gh`（PRやコメントは進行役が作る）、`npm run readme:shots` などの重い物（README の撮影はCIのワークフローでやる）。ファイルの編集は、このツールの標準で許可される。gitは、標準に任せると拒否されて止まったことがあるので、明示して許可している。`git push --force`・`git rebase` は許可しない |
 | レビューAI（`claude-review.yml`） | `Bash(gh pr view:*)`、`Bash(gh pr diff:*)`、`Bash(gh issue view:*)`、`Bash(gh pr comment:*)`、`Read`、`Glob`、`Grep`、`Write`、`mcp__github_inline_comment__create_inline_comment` | コードの変更・git操作・npm（レビューは読むだけ。コードは直さない） |
 | 修正AI（`claude-mention.yml`） | `Bash(gh pr view:*)`、`Bash(gh pr edit:*)`、`Bash(gh pr comment:*)`、`Bash(git fetch:*)`、`Bash(git merge:*)`、`Bash(git status:*)`、`Bash(git diff:*)`、`Bash(git add:*)`、`Bash(git commit:*)`、`Bash(git push:*)`、pipeline.json の checks のコマンド（無ければ npm run typecheck・lint・test・build）、`Bash(.github/scripts/tests/run-all.sh)`、`Bash(bash .github/scripts/tests/run-all.sh)`、`Bash(shellcheck:*)`、見た目のテストがあるアプリでは `Bash(npm run test:visual)`・`Bash(npm run test:visual -- -g:*)`・`Bash(npx playwright test:*)`（基準の画像の撮り直しは許さない）、`Skill` | `git rebase`・`git push --force`（履歴を書き換えない）、`gh pr merge`（マージは進行役だけ）。`gh pr edit` はPRの説明の直し、`git merge` はコンフリクトの解消のために許可している |
@@ -170,6 +173,23 @@ AIに許すコマンドを決めるので、`pipeline.json` と `.github/actions
 ## 工場（1行から新しいサービスを作る）
 
 ai-dev-template に、タイトルが **`新サービス：`** で始まるIssueを書くと（例：「新サービス：毎朝の天気と予定を1枚で見られるページ」）、`factory.yml` が新しいサービスのリポジトリを作って、いつものパイプラインに渡す。テンプレート本体で、オーナーが書いたIssueでだけ動く。Issue の本文は「詳しいメモ」として、名前決め・デザイン担当・最初のIssueに渡る（載せたい中身や、見た目の雰囲気。3000文字まで）。本文に**画像（リールのスクショ・好きなサイトの画面など）を貼ると**、デザイン担当がいちばん大事な実例として見る（`.github/scripts/fetch-issue-images.sh` が AI の前に取ってくる。10 枚まで）。URL を書けば、それも撮って見る。
+
+### 相談してから作る（`factory-talk.yml`。ふつうはこちら）
+
+いきなり作らず、オーナーに選んでもらいながら、作る物と見た目を最初に大まかに決める（あとの作り直しを減らすため）。AIの決まりは `.github/factory/talk.md`、形の確かめとコメントは `.github/scripts/factory-talk.py`・`factory-talk-publish.sh`。
+
+1. **案**：AIが、作る物の案を5つ（名前・種類・使う人・新しい所・有料の分け方・画面）と、選択式の質問を Issue のコメントに書く
+2. **見た目の方向**：選んだ案の方向を3つ。実在の良いサイトを撮って、色・文字の見本と一緒に1枚の板の画像にする
+3. **ざっくり画面**：選んだ方向で、トップの画面を2案（1枚の HTML。PC とスマホを撮る）
+4. **最終確認**：名前・説明・無料と有料・値段・最初に作る画面・決まった事を1枚にまとめる。「作る」と返事すると、`factory.yml` を動かす（相談で決めた事をそのまま使い、名前をAIに決め直させない。デザイン担当は、選んだざっくり画面と方向の板を土台に本物を作る）
+
+- 各段階で、コメントの最後に選択式の質問を付ける。オーナーの返事（番号・「全部ちがう。もっと〇〇」・注文）は、AIが「選んだ物・質問の答え・注文」に読み替える（agent-desk のボタンからの返事は、印 `<!-- factory-answer:… -->` の形が決まっているので、AIを通さない）
+- 返事を待つ間は `factory:wait` が付く（答えるまで待つ。スマホに通知 `question`）。今までに決まった事はコメントの印 `<!-- factory-talk:v1:… -->` に入れて、毎回そこから読む
+- 板とざっくり画面の画像・HTML は、テンプレートの `factory-talk` ブランチの `issue-<番号>/r<回>-<段階>/` に置く（コメントの画像と、作り始めたときのデザイン担当が使う）
+- 作れなかったときは、そう書いて待つ。「もう一回」と返事すると、同じ段階をやり直す
+- Issue に「全部おまかせ」とある（Issue のテンプレートのチェック）と、相談せずに下の流れで全部決めて作る
+
+### 全部おまかせ（`factory.yml`）
 
 1. AIが、名前（英語の小文字と -）・種類（画面のあるWebなら Next.js、会員登録と月額の有料プランがあるWebなら saas、処理が中心なら Python、exe のゲームなら game、ブラウザで遊ぶゲームなら webgame）・1行の説明を決める（AIは名前を書くだけで、鍵は持たない）。メモが中身を任せているときは、ありきたりでない案を10個考えて1つ選ぶ（ToDo・家計簿・タイマー・割り勘・サブスク管理などは選ばない）
 2. **デザイン担当**（Next.js とゲームのとき。`.github/factory/design-department.md`）：AIが見た目を決めて、**本物の Next.js の画面を最後まで作る**。それがそのまま新しいリポジトリの最初の中身になる（前は、試作の HTML と文章の仕様を描いて、別のAIが作り直していた。伝言で質が落ちるのでやめた）
