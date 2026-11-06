@@ -62,6 +62,29 @@ export async function findIssueBranch(
   return branches.at(-1) ?? null;
 }
 
+/** そのリポジトリがテンプレートリポジトリか（`is_template`）。分からなければ false */
+export async function fetchIsTemplate(client: GitHubClient, target: WatchedRepo): Promise<boolean> {
+  const repo = await client.get<{ is_template?: boolean }>(repoPath(target));
+  return repo?.is_template === true;
+}
+
+/** Issueを作る（ラベルは付けない）。作ったIssueの番号とURLを返す */
+export async function createIssue(
+  client: GitHubClient,
+  target: WatchedRepo,
+  issue: { title: string; body: string },
+): Promise<{ number: number; url: string }> {
+  const created = (await client.send("POST", `${repoPath(target)}/issues`, {
+    title: issue.title,
+    // 本文が空のときは送らない（GitHubが空の本文として作る）
+    ...(issue.body === "" ? {} : { body: issue.body }),
+  })) as { number?: unknown; html_url?: unknown } | null;
+  if (typeof created?.number !== "number" || typeof created.html_url !== "string") {
+    throw new GitHubError("other", null, null, "user");
+  }
+  return { number: created.number, url: created.html_url };
+}
+
 /** ブランチから main へのPRを作る */
 export async function createPull(
   client: GitHubClient,

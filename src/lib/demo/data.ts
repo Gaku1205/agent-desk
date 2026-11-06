@@ -30,6 +30,9 @@ export const DEMO_REPOS: WatchedRepo[] = [
   { owner: "demo", repo: "landing-page" },
 ];
 
+/** Issueを書く画面で、テンプレートリポジトリの見本にするデモのリポジトリ（「新サービス：」「全部おまかせ」を見せる） */
+export const DEMO_TEMPLATE_REPO = "landing-page";
+
 /** 設定画面の「追加」の欄に出す、架空のリポジトリ */
 export const DEMO_REPO_OPTIONS = ["demo/blog", "demo/api-server"];
 
@@ -654,5 +657,15 @@ export function pressDemo(
     return advancePlayback(playback);
   }
   const op = { ...target, kind, at: playback.now, ...(answer === undefined ? {} : { answer }) };
+  return { ...playback, ops: [...playback.ops, op] };
+}
+
+/** デモで「Issueを書く」を押した：サンプルのデータにIssueが増える（ラベルは付かない。GitHub には何も送らない） */
+export function createDemoIssue(
+  playback: DemoPlayback,
+  target: WatchedRepo,
+  issue: { title: string; body: string },
+): DemoPlayback {
+  const op = { ...target, number: 0, kind: "newIssue" as const, at: playback.now, issue };
   return { ...playback, ops: [...playback.ops, op] };
 }
