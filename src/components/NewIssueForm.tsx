@@ -66,7 +66,7 @@ export function NewIssueForm({ repos, initialRepo }: { repos: NewIssueRepo[]; in
   }
 
   return (
-    <Sheet narrow={false}>
+    <Sheet>
       <div className={settingsStyles.page}>
         <h1 className={settingsStyles.h1}>Issueを書く</h1>
         <div className={settingsStyles.sections}>

@@ -30,7 +30,7 @@ export function SettingsSections({ repoRows, repoOptions, editable, repoOptionsE
   }
 
   return (
-    <Sheet narrow={false}>
+    <Sheet>
       {/* 広い画面では左に大きい見出し、右に節（最大720px）。節は箱で囲まず、上の髪の毛の線で区切る */}
       <div className={styles.page}>
         <h1 className={styles.h1}>設定</h1>
