@@ -154,7 +154,7 @@
 
 .countTurn,
 .keyTurn {
-  color: var(--you);
+  color: var(--accent);
 }
 
 .countRunning,
@@ -178,7 +178,7 @@
 }
 
 .keyTurn::before {
-  color: var(--you);
+  color: var(--accent);
 }
 
 .keyRunning::before {
@@ -238,7 +238,7 @@
   height: 30px;
   padding: 0 12px;
   border-radius: 6px;
-  background: rgba(236, 232, 223, 0.09);
+  background: var(--chip);
   color: var(--bone);
   font-size: 12.5px;
   font-weight: 500;
@@ -248,7 +248,7 @@
 }
 
 .play:hover {
-  background: rgba(236, 232, 223, 0.15);
+  background: var(--chip-hover);
 }
 
 .play:active {
@@ -476,7 +476,7 @@
   .scrim {
     position: absolute;
     inset: 0;
-    background: rgba(4, 4, 6, 0.6);
+    background: var(--scrim);
     opacity: 0;
     transition: opacity 0.2s;
   }

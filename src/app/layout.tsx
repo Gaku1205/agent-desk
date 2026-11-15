@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist, IBM_Plex_Sans_JP } from "next/font/google";
 import { MOTION_INIT_SCRIPT } from "@/lib/motion";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
 /** 和文：IBM Plex Sans JP（docs/design.md の「文字」） */
@@ -31,8 +32,13 @@ export const metadata: Metadata = {
   description: "AIに開発を任せるときの進行状況と、人間の判断待ちを1画面で",
 };
 
-/** スマホのアドレスバーの色：docs/design.md の `--bg` */
-export const viewport: Viewport = { themeColor: "#1c1b19" };
+/** スマホのアドレスバーの色：docs/design.md の `--bg`（白・黒）。CSS変数が使えないので、ここだけ直書き */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fafafa" },
+    { media: "(prefers-color-scheme: dark)", color: "#121212" },
+  ],
+};
 
 /** 全ページ共通の骨組み。ログインの確認は (app)/layout.tsx、デモは demo/layout.tsx */
 export default function RootLayout({
@@ -46,6 +52,7 @@ export default function RootLayout({
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: MOTION_INIT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>{children}</body>
     </html>

@@ -17,7 +17,7 @@
   border-radius: 0;
   /* 箱にしない：下に1pxの線だけ。開いたら骨色 */
   background: none;
-  box-shadow: 0 1px 0 rgba(236, 232, 223, 0.22);
+  box-shadow: 0 1px 0 var(--edge-line);
   color: var(--bone);
   font-size: 13.5px;
   text-align: left;
@@ -115,7 +115,6 @@
 
 .option[aria-selected="true"]::before {
   background: var(--bone);
-  box-shadow: 0 0 8px rgba(236, 232, 223, 0.55);
 }
 
 @media (max-width: 899px) {

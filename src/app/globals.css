@@ -3,28 +3,115 @@
  * 値はすべて docs/design.md の「色」「文字」「寸法」のとおり
  */
 
+/* 色：白（既定）。黒は下の2か所（OSが黒で、白を選んでいないとき／黒を選んだとき）。値は docs/design.md の「色」 */
 :root {
-  /* 色 */
-  --bg: #1c1b19;
-  --raise: #22211f;
-  --bone: #ece8df;
-  --bone-2: #a9a59c;
-  --mute: #8c8981;
-  --you: #f5a73a;
-  --ai: #5b8dff;
-  --q: #9b7cf5;
-  --fail: #f25c5c;
-  --done: #4dd39a;
-  --you-soft: #ffc06a;
-  --fail-soft: #ff8a8d;
-  --done-soft: #7bdcae;
-  --fail-dim: rgba(255, 138, 141, 0.72);
-  --hair: rgba(236, 232, 223, 0.09);
-  --hair-2: rgba(236, 232, 223, 0.05);
-  --well: rgba(236, 232, 223, 0.06);
-  /* 進捗図のアクセント（今はアンバーと同じ。インディゴにするときはここだけを替える） */
-  --accent: var(--you);
+  --bg: #fafafa;
+  --raise: #ffffff;
+  --bone: #18181b;
+  --bone-2: #52525b;
+  --mute: #6a6a72;
+  --accent: #4f46e5;
+  --accent-soft: #4338ca;
+  --accent-hover: #4338ca;
+  --accent-ink: #ffffff;
+  --ok: #15803d;
+  --fail: #dc2626;
+  --fail-ink: #ffffff;
+  --fail-hover: #b91c1c;
+  --fail-soft: #b91c1c;
+  --fail-dim: rgba(185, 28, 28, 0.85);
+  --fail-edge: rgba(185, 28, 28, 0.35);
+  --fail-wash: rgba(220, 38, 38, 0.08);
+  --hair: rgba(24, 24, 27, 0.1);
+  --hair-2: rgba(24, 24, 27, 0.05);
+  --well: rgba(24, 24, 27, 0.06);
+  --chip: rgba(24, 24, 27, 0.07);
+  --chip-hover: rgba(24, 24, 27, 0.12);
+  --edge: rgba(24, 24, 27, 0.2);
+  --edge-line: rgba(24, 24, 27, 0.28);
+  --edge-strong: rgba(24, 24, 27, 0.4);
+  --edge-focus: rgba(24, 24, 27, 0.55);
+  --image-bg: #ededef;
+  --veil: rgba(250, 250, 250, 0.92);
+  --scrim: rgba(24, 24, 27, 0.4);
+  --bone-hover: #000000;
 
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121212;
+    --raise: #1a1a1a;
+    --bone: #ececec;
+    --bone-2: #a3a3a3;
+    --mute: #8a8a8a;
+    --accent: #818cf8;
+    --accent-soft: #a5b4fc;
+    --accent-hover: #a5b4fc;
+    --accent-ink: #121212;
+    --ok: #4ade80;
+    --fail: #f25c5c;
+    --fail-ink: #121212;
+    --fail-hover: #ff7676;
+    --fail-soft: #ff8a8d;
+    --fail-dim: rgba(255, 138, 141, 0.72);
+    --fail-edge: rgba(255, 138, 141, 0.32);
+    --fail-wash: rgba(242, 92, 92, 0.1);
+    --hair: rgba(236, 236, 236, 0.09);
+    --hair-2: rgba(236, 236, 236, 0.05);
+    --well: rgba(236, 236, 236, 0.07);
+    --chip: rgba(236, 236, 236, 0.09);
+    --chip-hover: rgba(236, 236, 236, 0.15);
+    --edge: rgba(236, 236, 236, 0.18);
+    --edge-line: rgba(236, 236, 236, 0.22);
+    --edge-strong: rgba(236, 236, 236, 0.32);
+    --edge-focus: rgba(236, 236, 236, 0.5);
+    --image-bg: #1a1a1a;
+    --veil: rgba(18, 18, 18, 0.92);
+    --scrim: rgba(0, 0, 0, 0.65);
+    --bone-hover: #ffffff;
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #121212;
+  --raise: #1a1a1a;
+  --bone: #ececec;
+  --bone-2: #a3a3a3;
+  --mute: #8a8a8a;
+  --accent: #818cf8;
+  --accent-soft: #a5b4fc;
+  --accent-hover: #a5b4fc;
+  --accent-ink: #121212;
+  --ok: #4ade80;
+  --fail: #f25c5c;
+  --fail-ink: #121212;
+  --fail-hover: #ff7676;
+  --fail-soft: #ff8a8d;
+  --fail-dim: rgba(255, 138, 141, 0.72);
+  --fail-edge: rgba(255, 138, 141, 0.32);
+  --fail-wash: rgba(242, 92, 92, 0.1);
+  --hair: rgba(236, 236, 236, 0.09);
+  --hair-2: rgba(236, 236, 236, 0.05);
+  --well: rgba(236, 236, 236, 0.07);
+  --chip: rgba(236, 236, 236, 0.09);
+  --chip-hover: rgba(236, 236, 236, 0.15);
+  --edge: rgba(236, 236, 236, 0.18);
+  --edge-line: rgba(236, 236, 236, 0.22);
+  --edge-strong: rgba(236, 236, 236, 0.32);
+  --edge-focus: rgba(236, 236, 236, 0.5);
+  --image-bg: #1a1a1a;
+  --veil: rgba(18, 18, 18, 0.92);
+  --scrim: rgba(0, 0, 0, 0.65);
+  --bone-hover: #ffffff;
+
+  color-scheme: dark;
+}
+
+:root {
   /* 文字 */
   --jp: var(--font-latin), var(--font-jp), system-ui, sans-serif;
   --disp: var(--font-disp), var(--font-latin), sans-serif;
@@ -36,8 +123,6 @@
   --gutter: clamp(20px, 2.2vw, 40px);
   --top-h: 52px;
   --col: 680px;
-
-  color-scheme: dark;
 }
 
 @media (max-width: 899px) {

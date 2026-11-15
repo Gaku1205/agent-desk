@@ -37,8 +37,8 @@
   height: 42px;
   padding: 0 20px;
   border-radius: 8px;
-  background: var(--you);
-  color: #1a1206;
+  background: var(--accent);
+  color: var(--accent-ink);
   font-size: 14.5px;
   font-weight: 500;
   white-space: nowrap;
@@ -46,7 +46,7 @@
 }
 
 .button:hover {
-  background: #ffb95a;
+  background: var(--accent-hover);
 }
 
 .button:active {
@@ -61,7 +61,7 @@
 }
 
 .button:disabled:hover {
-  background: var(--you);
+  background: var(--accent);
 }
 
 .demoLink {
