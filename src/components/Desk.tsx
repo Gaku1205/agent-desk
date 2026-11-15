@@ -2,10 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@/lib/conversation";
-import { formatWait, turnItemKey, type TurnItem } from "@/lib/turn";
+import { pickFlowTarget } from "@/lib/flowTarget";
+import { formatWait, turnItemKey, type TurnCounts, type TurnItem } from "@/lib/turn";
 import type { WatchdogNotice } from "@/lib/watchdogState";
 import { Conversation, type ConversationNotice } from "./Conversation";
 import styles from "./Desk.module.css";
+import { FlowMap } from "./FlowMap";
+import { NewIssueForm, type NewIssueRepo } from "./NewIssueForm";
+import { SideRepos, type TopBarRepo } from "./TopBar";
 import { TurnRow } from "./TurnRow";
 
 export type DeskScope =
@@ -24,6 +28,18 @@ type Props = {
   errors: DeskError[];
   /** 見張り役が止まっているリポジトリ */
   notices: WatchdogNotice[];
+  /** PCの3ペインの左：リポジトリの一覧 */
+  nav: DeskNav;
+  /** PCの3ペインの中央の下：Issueを追加する入力欄のリポジトリ */
+  newIssueRepos: NewIssueRepo[];
+};
+
+export type DeskNav = {
+  repos: TopBarRepo[];
+  counts: TurnCounts;
+  runningCounts: TurnCounts;
+  /** リンクの頭（デモでは `/demo`） */
+  basePath?: string;
 };
 
 /** 1件の中の、最初のボタン（無ければ最初のリンク） */
@@ -39,7 +55,7 @@ function firstControl(row: Element | null | undefined): HTMLElement | null {
  * ホームとリポジトリのページの中身：1本の列に、上に「あなたの番」の1件、下に「いまの様子」（会話）。
  * 本物もデモも同じ物（docs/design.md の「構図」）
  */
-export function Desk({ items, messages, now, scope, errors, notices }: Props) {
+export function Desk({ items, messages, now, scope, errors, notices, nav, newIssueRepos }: Props) {
   const rowsRef = useRef<HTMLDivElement>(null);
   // 操作が通って片づけた1件。取り直しを待たずに次の1件に替え、件数を減らす（取り直しで消えたら自然に数えなくなる）
   const [leaving, setLeaving] = useState<ReadonlySet<string>>(() => new Set());
@@ -81,7 +97,10 @@ export function Desk({ items, messages, now, scope, errors, notices }: Props) {
     ...errors.map((error) => ({ key: `error:${error.repo}`, tone: "fail" as const, text: `${error.repo}：${error.message}` })),
   ];
 
-  return (
+  const showRepo = scope.kind === "all" && scope.repoCount > 1;
+  const flowTarget = pickFlowTarget(current, messages, showRepo);
+
+  const column = (
     <main className={styles.desk} id="main">
       <section
         className={styles.turn}
@@ -125,10 +144,32 @@ export function Desk({ items, messages, now, scope, errors, notices }: Props) {
       <Conversation
         messages={messages}
         now={now}
-        showRepo={scope.kind === "all" && scope.repoCount > 1}
+        showRepo={showRepo}
         repo={scope.kind === "repo" ? { name: scope.repo, githubUrl: scope.githubUrl } : null}
         notices={conversationNotices}
       />
     </main>
+  );
+
+  // PC（幅900px以上）は3ペイン：左に一覧、中央の上に進捗図、中央の下に入力欄。スマホでは列だけ（docs/design.md の「PCの3ペイン」）
+  return (
+    <div className={styles.panes} data-panes="">
+      <div className={styles.side}>
+        <SideRepos {...nav} />
+      </div>
+      <div className={styles.center}>
+        <div className={styles.flow}>
+          <FlowMap target={flowTarget} />
+        </div>
+        {column}
+        <div className={styles.composer}>
+          <NewIssueForm
+            variant="bar"
+            repos={newIssueRepos}
+            initialRepo={scope.kind === "repo" ? `${scope.owner}/${scope.repo}` : undefined}
+          />
+        </div>
+      </div>
+    </div>
   );
 }

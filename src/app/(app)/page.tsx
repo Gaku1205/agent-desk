@@ -2,6 +2,9 @@ import { Desk } from "@/components/Desk";
 import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
 import { loadTurns } from "@/lib/loadTurns";
+import { newIssueRepos } from "@/lib/newIssue";
+import { countRunningPipelineRows } from "@/lib/runningPipeline";
+import { countTurnItems } from "@/lib/turn";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { buildWatchdogNotices } from "@/lib/watchdogState";
 
@@ -17,6 +20,8 @@ export default async function Home() {
       scope={{ kind: "all", repoCount: repos.length }}
       errors={results.flatMap((result) => (result.ok ? [] : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }]))}
       notices={buildWatchdogNotices(results, now)}
+      nav={{ repos, counts: countTurnItems(items), runningCounts: countRunningPipelineRows(results, now) }}
+      newIssueRepos={newIssueRepos(repos, results)}
     />
   );
 }

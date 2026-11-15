@@ -3,6 +3,26 @@
  * 入力から出力が決まる純粋関数だけを置く（GitHubへの送信は operations.ts）
  */
 
+import type { RepoResult } from "./github/types";
+
+/**
+ * Issueを書く欄のリポジトリ（`owner/repo` と、テンプレートリポジトリか）。
+ * 取れなかったリポジトリ・取得に無いリポジトリはテンプレートでない扱い
+ */
+export function newIssueRepos(
+  repos: { owner: string; repo: string }[],
+  results: RepoResult[],
+): { name: string; template: boolean }[] {
+  return repos.map((watched) => {
+    const found = results.find(
+      (result) =>
+        result.owner.toLowerCase() === watched.owner.toLowerCase() &&
+        result.repo.toLowerCase() === watched.repo.toLowerCase(),
+    );
+    return { name: `${watched.owner}/${watched.repo}`, template: !!found && found.ok && found.data.isTemplate === true };
+  });
+}
+
 /** メモ（タイトル）の長さの上限 */
 export const MAX_NEW_ISSUE_TITLE = 120;
 

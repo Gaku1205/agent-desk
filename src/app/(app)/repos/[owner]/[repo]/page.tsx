@@ -4,7 +4,9 @@ import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
 import { findWatchedRepo } from "@/lib/config";
 import { loadTurns } from "@/lib/loadTurns";
-import { filterTurnItems } from "@/lib/turn";
+import { newIssueRepos } from "@/lib/newIssue";
+import { countRunningPipelineRows } from "@/lib/runningPipeline";
+import { countTurnItems, filterTurnItems } from "@/lib/turn";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { buildWatchdogNotices } from "@/lib/watchdogState";
 
@@ -14,7 +16,8 @@ export default async function RepoPage({
   params: Promise<{ owner: string; repo: string }>;
 }) {
   const { owner, repo } = await params;
-  const watched = findWatchedRepo(owner, repo, (await loadWatchedRepos()).repos);
+  const { repos } = await loadWatchedRepos();
+  const watched = findWatchedRepo(owner, repo, repos);
   if (!watched) notFound();
 
   const { results, items, now } = await loadTurns();
@@ -38,6 +41,8 @@ export default async function RepoPage({
           : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }],
       )}
       notices={buildWatchdogNotices(results, now).filter((notice) => same(notice.owner, notice.repo))}
+      nav={{ repos, counts: countTurnItems(items), runningCounts: countRunningPipelineRows(results, now) }}
+      newIssueRepos={newIssueRepos(repos, results)}
     />
   );
 }

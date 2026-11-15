@@ -22,6 +22,8 @@
   --hair: rgba(236, 232, 223, 0.09);
   --hair-2: rgba(236, 232, 223, 0.05);
   --well: rgba(236, 232, 223, 0.06);
+  /* 進捗図のアクセント（今はアンバーと同じ。インディゴにするときはここだけを替える） */
+  --accent: var(--you);
 
   /* 文字 */
   --jp: var(--font-latin), var(--font-jp), system-ui, sans-serif;

@@ -405,6 +405,47 @@
   display: none;
 }
 
+/* ───── PCの3ペインの左：リポジトリの一覧（docs/design.md の「PCの3ペイン」） ───── */
+.side {
+  padding: 24px 12px;
+}
+
+.sideLbl {
+  display: flex;
+  align-items: center;
+  margin: 0 10px 8px;
+  color: var(--mute);
+  font-size: 11.5px;
+}
+
+.side .repos {
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.side .tab {
+  justify-content: space-between;
+  height: 36px;
+  min-width: 0;
+}
+
+/* 左の一覧では名札を出さない（上の凡例で何の数か分かる。名前を「…」で切らない） */
+.side .countName {
+  display: none;
+}
+
+/* 3ペインのページでは、帯に札を出さない（左の一覧と同じ物を2か所に置かない） */
+@media (min-width: 900px) {
+  :global(body:has([data-panes])) .top .repos {
+    display: none;
+  }
+}
+
 /* ───── スマホ（幅900px未満） ───── */
 @media (max-width: 899px) {
   .top {

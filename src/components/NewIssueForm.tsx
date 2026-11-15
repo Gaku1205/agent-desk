@@ -21,8 +21,20 @@ type Status =
   | { kind: "created"; number: number | null; url: string | null }
   | { kind: "error"; message: string };
 
-/** Issueを書く画面（docs/design.md の「Issueを書く」）。作るのはサーバー側（Server Action）。デモでは GitHub に送らない */
-export function NewIssueForm({ repos, initialRepo }: { repos: NewIssueRepo[]; initialRepo?: string }) {
+/**
+ * Issueを書く画面（docs/design.md の「Issueを書く」）。作るのはサーバー側（Server Action）。デモでは GitHub に送らない。
+ * `bar` は PCの3ペインの中央の下に置く1行の形（見出し・名札なし。docs/design.md の「PCの3ペイン」）
+ */
+export function NewIssueForm({
+  repos,
+  initialRepo,
+  variant = "page",
+}: {
+  repos: NewIssueRepo[];
+  initialRepo?: string;
+  variant?: "page" | "bar";
+}) {
+  const bar = variant === "bar";
   const names = repos.map((repo) => repo.name);
   const [selected, setSelected] = useState(initialRepo && names.includes(initialRepo) ? initialRepo : (names[0] ?? ""));
   const [title, setTitle] = useState("");
@@ -65,23 +77,17 @@ export function NewIssueForm({ repos, initialRepo }: { repos: NewIssueRepo[]; in
     });
   }
 
-  return (
-    <Sheet>
-      <div className={settingsStyles.page}>
-        <h1 className={settingsStyles.h1}>Issueを書く</h1>
-        <div className={settingsStyles.sections}>
-          <section className={settingsStyles.section} aria-labelledby="new-issue-title">
-            <h2 id="new-issue-title" className={settingsStyles.title}>
-              メモ
-            </h2>
-            {names.length === 0 ? (
-              <p className={styles.empty}>監視するリポジトリがありません。設定で追加すると、ここからIssueを書けます</p>
-            ) : (
-              <form className={styles.form} onSubmit={submit} noValidate>
-                <div className={styles.field}>
-                  <span className={styles.label} id="new-issue-repo">
-                    リポジトリ
-                  </span>
+  const empty = (
+    <p className={styles.empty}>監視するリポジトリがありません。設定で追加すると、ここからIssueを書けます</p>
+  );
+  const form = (
+              <form className={bar ? styles.barForm : styles.form} onSubmit={submit} noValidate>
+                <div className={`${styles.field} ${bar ? styles.barRepo : ""}`}>
+                  {!bar && (
+                    <span className={styles.label} id="new-issue-repo">
+                      リポジトリ
+                    </span>
+                  )}
                   <Select
                     options={names}
                     value={selected}
@@ -93,8 +99,8 @@ export function NewIssueForm({ repos, initialRepo }: { repos: NewIssueRepo[]; in
                     disabled={saving}
                   />
                 </div>
-                <label className={styles.field}>
-                  <span className={styles.label}>{template ? "新サービスのメモ" : "1行のメモ"}</span>
+                <label className={`${styles.field} ${bar ? styles.barMemo : ""}`}>
+                  <span className={bar ? styles.hidden : styles.label}>{template ? "新サービスのメモ" : "1行のメモ"}</span>
                   <span className={styles.memo}>
                     {template && <span className={styles.prefix}>新サービス：</span>}
                     <input
@@ -157,7 +163,26 @@ export function NewIssueForm({ repos, initialRepo }: { repos: NewIssueRepo[]; in
                   )}
                 </div>
               </form>
-            )}
+  );
+
+  if (bar) {
+    return (
+      <section className={styles.bar} aria-label="Issueを書く">
+        <div className={styles.barInner}>{names.length === 0 ? empty : form}</div>
+      </section>
+    );
+  }
+
+  return (
+    <Sheet>
+      <div className={settingsStyles.page}>
+        <h1 className={settingsStyles.h1}>Issueを書く</h1>
+        <div className={settingsStyles.sections}>
+          <section className={settingsStyles.section} aria-labelledby="new-issue-title">
+            <h2 id="new-issue-title" className={settingsStyles.title}>
+              メモ
+            </h2>
+            {names.length === 0 ? empty : form}
           </section>
         </div>
       </div>
