@@ -1,119 +1,41 @@
-/* 押す列の1件（docs/design.md の「押す列」） */
+/* 「あなたの番」の1件（docs/design.md の「あなたの番」） */
 
 .row {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 5px;
-  padding: 14px 0 16px;
-  border-top: 1px solid var(--hair);
-  transition: background 0.5s var(--ease);
+  padding: 32px 36px;
+  border-radius: 14px;
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--hair);
 }
 
-.row:first-child {
-  border-top-color: transparent;
-}
-
-/* 流れの名札を押して飛んできた行：下地が少しの間浮かぶ（どの行へ飛んだかが分かる） */
-.row::before {
-  position: absolute;
-  inset: 4px -10px 2px;
-  z-index: -1;
-  border-radius: 8px;
-  background: var(--well);
-  content: "";
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.5s var(--ease);
-}
-
-.row[data-picked]::before {
-  opacity: 1;
-  transition-duration: 0.12s;
-}
-
-/* 新しく入った行：上から4px下がりながら出る */
-.row[data-fade-in] {
-  animation: row-in 0.2s var(--ease);
+/* 前の1件を片づけて替わった1件：不透明度だけの短いフェード */
+.row[data-fresh] {
+  animation: row-in 0.18s var(--ease);
 }
 
 @keyframes row-in {
   from {
     opacity: 0;
-    transform: translateY(-4px);
   }
 }
 
-/* 取り直しで段階が変わった行：アンバー（12%）から元に戻す */
-.row[data-flash="a"] {
-  animation: row-flash-a 1.2s var(--ease);
-}
-
-.row[data-flash="b"] {
-  animation: row-flash-b 1.2s var(--ease);
-}
-
-@keyframes row-flash-a {
-  from {
-    background: rgba(245, 167, 58, 0.12);
-  }
-}
-
-@keyframes row-flash-b {
-  from {
-    background: rgba(245, 167, 58, 0.12);
-  }
-}
-
-/* 押した操作が通った行：今の高さ（--h）から0へ畳まれる。下の行が詰めて上がる（取り直しで行が無くなるまで） */
+/* 片づけた1件：取り直しで無くなるまで隠しておく（8秒たっても段階が変わらなければ戻す） */
 .row[data-leaving] {
-  overflow: hidden;
-  animation: row-fold 0.42s var(--ease) forwards;
-  pointer-events: none;
-}
-
-@keyframes row-fold {
-  0% {
-    max-height: var(--h, 160px);
-    opacity: 1;
-  }
-
-  40% {
-    opacity: 0;
-  }
-
-  100% {
-    max-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-    border-top-color: transparent;
-    opacity: 0;
-  }
-}
-
-/* 動きを減らすときは、畳む動きの代わりにすぐ消す */
-@media (prefers-reduced-motion: reduce) {
-  :global(:root:not([data-motion="full"])) .row[data-leaving] {
-    display: none;
-  }
-}
-
-:global(:root[data-motion="reduce"]) .row[data-leaving] {
   display: none;
 }
 
 .head {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   align-items: baseline;
-  min-width: 0;
+  margin-bottom: 14px;
+  font-size: 13px;
 }
 
-/* 種類の札：強い色は止まった（アンバー）と公開失敗（赤）だけ。ほかは静かな色 */
+/* 種類の札：強い色は止まった（アンバー）と公開失敗（赤）だけ */
 .kind {
-  color: var(--bone-2);
-  font-size: 12.5px;
-  font-weight: 500;
+  color: var(--bone);
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -122,62 +44,74 @@
 }
 
 .kind[data-tone="fail"] {
-  color: var(--fail);
+  color: var(--fail-soft);
 }
 
-.id {
-  min-width: 0;
-  overflow: hidden;
+.id,
+.wait,
+.stage {
   color: var(--mute);
-  font-size: 12px;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.wait {
-  flex: none;
+.stage {
   margin-left: auto;
-  color: var(--mute);
-  font-size: 12px;
-  white-space: nowrap;
 }
 
 .title {
   color: var(--bone);
-  font-size: 16px;
-  font-weight: 500;
-  letter-spacing: -0.005em;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   line-height: 1.4;
+  text-wrap: balance;
+}
+
+.title a {
+  text-underline-offset: 4px;
 }
 
 .title a:hover {
-  color: var(--you-soft);
+  text-decoration: underline 1px;
 }
 
 .desc {
+  margin-top: 14px;
   color: var(--bone-2);
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 17.5px;
+  line-height: 1.8;
+}
+
+.note {
+  margin-top: 6px;
+  color: var(--fail-soft);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.form {
+  margin-top: 22px;
 }
 
 /* マージの確認：3行の結果（check / review / deploy）。空白でそろえず、grid の3列（印・名前・結果）でそろえる */
 .lines {
   display: grid;
   grid-template-columns: max-content max-content minmax(0, 1fr);
-  font-size: 12.5px;
-  line-height: 1.7;
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 1.8;
 }
 
 .lines li {
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
-  column-gap: 10px;
+  column-gap: 12px;
   align-items: baseline;
 }
 
 .mark {
-  color: var(--done);
+  color: var(--bone-2);
   text-align: center;
 }
 
@@ -201,41 +135,36 @@
 }
 
 .error {
-  color: var(--fail);
-  font-size: 12.5px;
-}
-
-/* 4段目：ボタンの列と目盛りの列の間は20px（PC）。折り返すときは行の間14px */
-.foot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px 20px;
-  align-items: center;
-  margin-top: 8px;
+  margin-top: 12px;
+  color: var(--fail-soft);
+  font-size: 14px;
 }
 
 .acts {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
+  margin-top: 24px;
 }
 
-/* ボタン：静かなボタンが基本。強い色（アンバー・赤）は止まった・公開失敗の行だけ */
+.acts:empty {
+  display: none;
+}
+
+/* ボタン：主役（最初の1つ）は塗り、ほかは縁だけ。強い色の塗りは止まった（アンバー）・公開失敗（赤）だけ */
 .act {
   display: inline-flex;
   align-items: center;
-  height: 30px;
-  padding: 0 13px;
-  border-radius: 5px;
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 8px;
   background: none;
-  box-shadow: inset 0 0 0 1px rgba(236, 232, 223, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(236, 232, 223, 0.18);
   color: var(--bone);
-  font-size: 12.5px;
+  font-size: 14.5px;
   font-weight: 500;
   white-space: nowrap;
-  /* 縮みだけ動かす。地と文字の色は即座に変える（押した瞬間に、薄い地に薄い文字の中間色を見せない） */
-  transition: transform 0.12s var(--ease);
 }
 
 .act:hover {
@@ -244,61 +173,7 @@
 
 .act:active,
 .act[data-hit] {
-  background: var(--bone);
-  color: var(--bg);
-  transform: scale(0.96);
-}
-
-.acts[data-tone="human"] .act {
-  background: rgba(245, 167, 58, 0.09);
-  box-shadow: inset 0 0 0 1px rgba(245, 167, 58, 0.4);
-  color: var(--you);
-}
-
-.acts[data-tone="human"] .act:hover {
-  background: rgba(245, 167, 58, 0.18);
-}
-
-.acts[data-tone="human"] .act:active,
-.acts[data-tone="human"] .act[data-hit] {
-  background: var(--you);
-  color: var(--bg);
-}
-
-.acts[data-tone="fail"] .act {
-  background: rgba(242, 92, 92, 0.09);
-  box-shadow: inset 0 0 0 1px rgba(242, 92, 92, 0.4);
-  color: var(--fail-soft);
-}
-
-.acts[data-tone="fail"] .act:hover {
-  background: rgba(242, 92, 92, 0.18);
-}
-
-.acts[data-tone="fail"] .act:active,
-.acts[data-tone="fail"] .act[data-hit] {
-  background: var(--fail);
-  color: var(--bg);
-}
-
-/* 強いボタンもフォーカスの輪を失わない（枠の影を上書きしているため、同じ強さで書き直す） */
-.acts[data-tone="human"] .act:focus-visible {
-  box-shadow:
-    inset 0 0 0 1px rgba(245, 167, 58, 0.8),
-    0 0 0 2px var(--bg),
-    0 0 0 3.5px var(--bone);
-}
-
-.acts[data-tone="fail"] .act:focus-visible {
-  box-shadow:
-    inset 0 0 0 1px rgba(242, 92, 92, 0.8),
-    0 0 0 2px var(--bg),
-    0 0 0 3.5px var(--bone);
-}
-
-/* 操作の最中は薄くするが、押した直後の220msは薄くしない（押した文字が読める） */
-.act[aria-disabled="true"]:not([data-hit]) {
-  opacity: 0.7;
+  background: var(--well);
 }
 
 .act:focus-visible {
@@ -308,55 +183,72 @@
     0 0 0 3.5px var(--bone);
 }
 
-/* マージの確認：「マージする」は塗りつぶし。レビューが未実施・指摘ありのときは弱める */
-.acts .fill {
+.acts .primary {
   background: var(--bone);
   box-shadow: none;
   color: var(--bg);
 }
 
-.acts .fill:hover {
+.acts .primary:hover {
   background: #f6f2e9;
 }
 
-.acts .fill[data-weak] {
-  background: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 138, 141, 0.32);
-  color: var(--fail-dim);
+.acts[data-tone="human"] .primary {
+  background: var(--you);
+  color: #1a1206;
 }
 
-.acts .fill[data-weak]:hover {
-  background: rgba(242, 92, 92, 0.1);
+.acts[data-tone="human"] .primary:hover {
+  background: #ffb95a;
 }
 
-.acts .fill[data-weak]:active {
-  background: var(--fail-dim);
-  color: var(--bg);
+.acts[data-tone="fail"] .primary {
+  background: var(--fail);
+  color: #1a0808;
 }
 
-.acts .fill:focus-visible {
+.acts[data-tone="fail"] .primary:hover {
+  background: #ff7676;
+}
+
+.acts .primary:active,
+.acts .primary[data-hit] {
+  opacity: 0.85;
+}
+
+.acts .primary:focus-visible {
   box-shadow:
     0 0 0 2px var(--bg),
     0 0 0 3.5px var(--bone);
 }
 
-.acts .ghost {
-  background: none;
-  box-shadow: inset 0 0 0 1px rgba(236, 232, 223, 0.16);
-  color: var(--bone-2);
+/* 操作の最中・まだ押せない「答えを送る」は薄くする。押した直後の220msは薄くしない（押した文字が読める） */
+.act[aria-disabled="true"]:not([data-hit]) {
+  opacity: 0.55;
 }
 
-.acts .ghost:hover {
-  background: var(--well);
+/* マージの確認：レビューが未実施・指摘ありのときは「マージする」を弱める */
+.acts .primary[data-weak] {
+  background: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 138, 141, 0.32);
+  color: var(--fail-dim);
+}
+
+.acts .primary[data-weak]:hover {
+  background: rgba(242, 92, 92, 0.1);
+}
+
+.acts .ghost {
+  color: var(--bone-2);
 }
 
 .link {
   display: inline-flex;
   align-items: center;
-  height: 30px;
-  padding: 0 6px;
+  height: 42px;
+  padding: 0 8px;
   color: var(--bone-2);
-  font-size: 12.5px;
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -364,60 +256,25 @@
   color: var(--bone);
 }
 
-/* 目盛りと段階名：PC はボタンの右（列の間20px）。スマホは行の右端（下の media） */
-.prog {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  min-width: 0;
-}
-
-.stage {
-  color: var(--bone-2);
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.stage[data-tone="fail"] {
-  color: var(--fail);
-}
-
 @media (max-width: 899px) {
+  .row {
+    padding: 22px 18px;
+  }
+
   .title {
+    font-size: 21px;
+  }
+
+  .desc {
     font-size: 15.5px;
   }
 
   .act {
-    height: 36px;
-    padding: 0 14px;
-    font-size: 13px;
-  }
-
-  /* 押せる範囲だけ上下に広げて44pxにする（見た目の高さは変えない） */
-  .act::before,
-  .link::before {
-    position: absolute;
-    inset: -4px 0;
-    content: "";
-  }
-
-  .act,
-  .link {
-    position: relative;
+    height: 44px;
+    font-size: 15px;
   }
 
   .link {
-    height: 36px;
-  }
-
-  /* スマホは今までどおり、目盛りをボタンと同じ行の右端に寄せる（幅いっぱいに伸ばさない。行の区切りの線と並んで縞にならないように） */
-  .foot {
-    column-gap: 14px;
-  }
-
-  .prog {
-    gap: 8px;
-    margin-left: auto;
+    height: 44px;
   }
 }

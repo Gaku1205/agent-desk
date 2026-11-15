@@ -4,11 +4,16 @@ const REPO_PAGE = "/demo/repos/demo/todo-app";
 
 /**
  * フォントの読み込みを待ち、画面の高さをページ全体に広げてから撮る。
- * fullPage のままだと、上に貼り付く帯（`position: sticky`）や画面いっぱいの映像（`position: fixed`）が
- * スクロール位置や最初の画面の高さの所に写って、ずれて見えるため。
- * 映像（流れ）は、動きを減らす設定（playwright.config.ts の reducedMotion）で止まり、粒の位置は種から決まるので毎回同じ
+ * fullPage のままだと、上に貼り付く帯（`position: sticky`）が、スクロール位置や最初の画面の高さの所に写って、ずれて見えるため。
+ * 「あなたの番」の場所は最初の1画面の高さ（100svh）なので、画面を伸ばす前に、その高さを今の画面の高さで止めておく
+ * （止めないと、画面を伸ばすたびにその場所も伸びて、高さが決まらない）
  */
 async function settle(page: Page) {
+  await page.evaluate(() => {
+    const style = document.createElement("style");
+    style.textContent = `main > section[data-skip-target]:not([data-empty]) { min-height: ${window.innerHeight - 52}px !important; }`;
+    document.head.appendChild(style);
+  });
   // フォントは使う文字ごとに分けて読み込まれる。読み込みが終わる前に高さを測ると、
   // 代わりのフォントの高さで決まってしまい、環境によって画像の大きさがずれる
   await page.waitForLoadState("networkidle");
@@ -34,6 +39,9 @@ async function settle(page: Page) {
   }
 }
 
+/** 「あなたの番」の、見えている1件（片づけて隠した1件は除く） */
+const CURRENT = "main section[data-skip-target] article:not([data-leaving])";
+
 test.describe("デモの画面", () => {
   test("ホーム", async ({ page }) => {
     await page.goto("/demo");
@@ -49,7 +57,9 @@ test.describe("デモの画面", () => {
 
   test("マージの確認（その場で「マージする／やめる」に変わる）", async ({ page }) => {
     await page.goto(REPO_PAGE);
-    await page.getByRole("button", { name: "マージ…" }).first().click();
+    // 先頭の1件（止まった）を片づけると、マージ待ちの1件が出る
+    await page.locator(CURRENT).getByRole("button", { name: "再開" }).click();
+    await page.locator(CURRENT).getByRole("button", { name: "マージ…" }).click();
     await settle(page);
     await expect(page).toHaveScreenshot("repo-merge.png");
   });
@@ -68,100 +78,44 @@ test.describe("デモの画面", () => {
     await expect(page).toHaveScreenshot("menu-open.png");
   });
 
-  test("巨大な数字と「件」の間は、どの数字でも字面の右端から6px（左端も切れない）", async ({ page }) => {
+  test("あなたの番は常に1件だけ。最初の1画面に収まり、片づけると次の1件に替わって「ほかに N件」が減る", async ({ page }) => {
     await page.goto("/demo");
-    await settle(page);
-    // 描いた画素（不透明なもの）の左右の端と、「件」の左端を測る
-    const measure = () =>
-      page.evaluate(() => {
-        const box = document.querySelector<HTMLElement>("main [role=img]");
-        const canvas = box?.querySelector("canvas") ?? null;
-        const unit = Array.from(document.querySelectorAll<HTMLElement>("main span")).find((e) => e.textContent?.trim() === "件");
-        const ctx = canvas?.getContext("2d");
-        if (!box || !canvas || !unit || !ctx) return null;
-        const { width, height } = canvas;
-        const data = ctx.getImageData(0, 0, width, height).data;
-        let min = width;
-        let max = -1;
-        for (let x = 0; x < width; x++) {
-          for (let y = 0; y < height; y++) {
-            if (data[(y * width + x) * 4 + 3] > 128) {
-              min = Math.min(min, x);
-              max = Math.max(max, x);
-              break;
-            }
-          }
-        }
-        const rect = canvas.getBoundingClientRect();
-        const scale = width / rect.width;
-        return {
-          label: box.getAttribute("aria-label") ?? "",
-          inkLeft: rect.left + min / scale,
-          inkRight: rect.left + (max + 1) / scale,
-          boxLeft: rect.left,
-          unitLeft: unit.getBoundingClientRect().left,
-        };
-      });
-    for (let guard = 0; guard < 40; guard++) {
+    await page.evaluate(() => document.fonts.ready);
+    const current = page.locator(CURRENT);
+    await expect(current).toHaveCount(1);
+    // 1件の題名とボタンが、最初の1画面（上端の帯の下）に収まる
+    const viewport = page.viewportSize();
+    const box = await current.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box || !viewport) return;
+    expect(box.y).toBeGreaterThanOrEqual(52);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+
+    const rest = async () => Number((await page.getByText(/^ほかに/).textContent())?.match(/\d+/)?.[0] ?? "0");
+    const before = await rest();
+    const firstKey = await current.getAttribute("data-key");
+    // キーボードだけで押す：フォーカスしてから Enter
+    await current.getByRole("button", { name: "再開" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator(CURRENT)).toHaveCount(1);
+    await expect.poll(async () => page.locator(CURRENT).getAttribute("data-key")).not.toBe(firstKey);
+    expect(await rest()).toBe(before - 1);
+    // フォーカスは次の1件の最初の操作へ移っている
+    const focusedInCurrent = await page.evaluate(
+      (sel) => document.querySelector(sel)?.contains(document.activeElement) ?? false,
+      CURRENT,
+    );
+    expect(focusedInCurrent).toBe(true);
+  });
+
+  test("横にはみ出さない", async ({ page }) => {
+    for (const path of ["/demo", REPO_PAGE]) {
+      await page.goto(path);
       await page.evaluate(() => document.fonts.ready);
-      // 数字の転がり（460ms）と「件」の動きが終わってから測る
-      await page.waitForTimeout(900);
-      const m = await measure();
-      expect(m, "数字の canvas と「件」が見つかる").not.toBeNull();
-      if (!m) return;
-      const gap = m.unitLeft - m.inkRight;
-      expect(Math.abs(gap - 6), `${m.label}：字面の右端から「件」まで ${gap.toFixed(1)}px`).toBeLessThanOrEqual(1);
-      expect(m.inkLeft, `${m.label}：数字の左端が箱の左で切れていない`).toBeGreaterThanOrEqual(m.boxLeft);
-      // 数を1つ減らす（確認が要る「マージ」以外のボタンを押す）
-      const act = page.locator("main button[data-act]:not([aria-disabled=true])").filter({ hasNotText: "マージ" }).first();
-      if ((await act.count()) === 0) break;
-      await act.click();
-      await page.waitForTimeout(500);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow, path).toBeLessThanOrEqual(0);
     }
   });
-});
-
-type Box = { x0: number; x1: number; y0: number; y1: number };
-
-function overlaps(a: Box, b: Box): boolean {
-  return Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > 0.5 && Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > 0.5;
-}
-
-test.describe("動きを減らす設定×乗せた名札（流れ）", () => {
-  // playwright.config.ts の reducedMotion: "reduce" で、乗せた名札の短い説明が折り返して全文が出る
-  for (const target of ["landing-page#9", "todo-app#22"]) {
-    test(`${target} に乗せると、折り返した全文が題名の札やほかの名札と重ならない`, async ({ page }, testInfo) => {
-      test.skip(testInfo.project.name === "mobile", "名札の流れはPCだけ");
-      await page.goto("/demo");
-      await settle(page);
-      const selector = `button[data-key][aria-label^="${target} "]`;
-      await page.locator(selector).first().hover({ force: true });
-      await page.waitForTimeout(400);
-      const rects = await page.evaluate((sel) => {
-        const box = (el: Element): Box => {
-          const r = el.getBoundingClientRect();
-          return { x0: r.left, x1: r.right, y0: r.top, y1: r.bottom };
-        };
-        const hovered = document.querySelector(sel);
-        const tag = hovered?.querySelector(":scope > span");
-        const l1 = tag?.querySelector(":scope > span:nth-child(1)");
-        const tip = tag?.querySelector(":scope > span:nth-child(2)");
-        if (!hovered || !l1 || !tip) return null;
-        const others = [...document.querySelectorAll("button[data-key][data-pin]")]
-          .filter((b) => b !== hovered)
-          .flatMap((b) => {
-            const t = b.querySelector(":scope > span");
-            return t ? [box(t)] : [];
-          });
-        return { l1: box(l1), tip: box(tip), others };
-      }, selector);
-      expect(rects).not.toBeNull();
-      if (!rects) return;
-      expect(overlaps(rects.l1, rects.tip)).toBe(false);
-      for (const other of rects.others) {
-        expect(overlaps(rects.l1, other)).toBe(false);
-        expect(overlaps(rects.tip, other)).toBe(false);
-      }
-    });
-  }
 });

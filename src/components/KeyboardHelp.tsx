@@ -8,9 +8,6 @@ import styles from "./KeyboardHelp.module.css";
 const ROWS: { keys: string[]; text: string }[] = [
   { keys: ["?"], text: "この一覧を開く・閉じる" },
   { keys: ["Tab"], text: "最初の Tab で「本文へ移る」。押すと、あなたの番の最初のボタンへ移る" },
-  { keys: ["←", "→", "↑", "↓"], text: "流れの名札の間を動く" },
-  { keys: ["Home", "End"], text: "流れの先頭・末尾の名札へ動く" },
-  { keys: ["Enter", "Space"], text: "流れの名札を押す" },
   { keys: ["Esc"], text: "スマホのメニュー・マージの確認を閉じる" },
 ];
 

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { Desk } from "@/components/Desk";
+import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
-import { buildFlowNodes } from "@/lib/flow/nodes";
 import { findWatchedRepo } from "@/lib/config";
 import { loadTurns } from "@/lib/loadTurns";
 import { filterTurnItems } from "@/lib/turn";
@@ -23,9 +23,8 @@ export default async function RepoPage({
 
   return (
     <Desk
-      nodes={buildFlowNodes(results, now, watched)}
       items={filterTurnItems(items, watched.owner, watched.repo)}
-      events={buildTrailEvents(results, now, watched)}
+      messages={buildConversation(results, buildTrailEvents(results, now, watched), now, watched)}
       now={now.toISOString()}
       scope={{
         kind: "repo",
