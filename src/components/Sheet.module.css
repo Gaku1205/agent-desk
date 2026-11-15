@@ -1,17 +1,14 @@
-/* 流れを置かないページの誌面 */
+/* 設定・Issueを書く・見つからないページ：ホームと同じ、読みやすい幅の1本の列（地のまま。すりガラスにしない） */
 
 .sheet {
-  position: relative;
-  z-index: 2;
+  width: min(var(--col), 100% - 2 * var(--gutter));
   min-height: calc(100svh - var(--top-h));
-  padding: 36px var(--gutter) 64px;
-  background: var(--glass);
-  -webkit-backdrop-filter: blur(22px) saturate(1.2);
-  backdrop-filter: blur(22px) saturate(1.2);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 34px);
-  mask-image: linear-gradient(to bottom, transparent, #000 34px);
+  margin: 0 auto;
+  padding: 56px 0 96px;
 }
 
-.narrow > * {
-  max-width: 720px;
+@media (max-width: 899px) {
+  .sheet {
+    padding: 40px 0 72px;
+  }
 }

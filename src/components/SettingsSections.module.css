@@ -5,43 +5,22 @@
 
 .page {
   display: grid;
-  gap: 28px;
-  max-width: 720px;
+  gap: 32px;
 }
 
-/* 見出し：大きさの差でアクセントにする */
+/* 見出し：ホームの 0 件の見出しと同じ大きさ（26px / スマホ 21px） */
 .h1 {
   color: var(--bone);
-  font-size: 56px;
+  font-size: 26px;
   font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1;
+  line-height: 1.4;
 }
 
-/* 幅1180px以上：左に大きい見出し（sticky）、右に節（最大720px）。広い画面でも節は広がらない */
-@media (min-width: 1180px) {
-  .page {
-    grid-template-columns: auto minmax(0, clamp(640px, 34vw, 900px));
-    gap: clamp(48px, 6vw, 140px);
-    align-items: start;
-    justify-content: start;
-    max-width: none;
-  }
-
-  .h1 {
-    position: sticky;
-    top: calc(var(--top-h) + 28px);
-    font-size: clamp(88px, 9vw, 200px);
-  }
-}
-
-/* 幅は中身の幅（最大は列の幅）。節の線の右端が、通知の表の右端にそろう */
+/* 節の並び：列の幅いっぱい */
 .sections {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  width: fit-content;
   min-width: 0;
-  max-width: 100%;
 }
 
 /* 節：箱で囲まず、上に髪の毛の線を引くだけ */
@@ -142,7 +121,7 @@
 }
 
 .saved {
-  color: var(--done-soft);
+  color: var(--bone-2);
   font-size: 12.5px;
 }
 
@@ -226,7 +205,6 @@
 .toggle[data-on] .lamp,
 .toggle[aria-checked="true"] .lamp {
   background: var(--bone);
-  box-shadow: 0 0 8px rgba(236, 232, 223, 0.55);
 }
 
 /* 見えなくした本物のチェックボックス（キーボードと読み上げのため、残す） */
@@ -251,7 +229,7 @@
 
 @media (max-width: 899px) {
   .h1 {
-    font-size: 56px;
+    font-size: 21px;
   }
 
   .button {

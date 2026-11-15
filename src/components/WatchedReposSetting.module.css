@@ -33,7 +33,7 @@
 }
 
 .pipeline[data-pipeline="yes"] {
-  color: var(--done-soft);
+  color: var(--bone-2);
 }
 
 .remove {

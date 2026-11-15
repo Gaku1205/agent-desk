@@ -22,7 +22,6 @@
   --hair: rgba(236, 232, 223, 0.09);
   --hair-2: rgba(236, 232, 223, 0.05);
   --well: rgba(236, 232, 223, 0.06);
-  --glass: rgba(28, 27, 25, 0.62);
 
   /* 文字 */
   --jp: var(--font-latin), var(--font-jp), system-ui, sans-serif;
