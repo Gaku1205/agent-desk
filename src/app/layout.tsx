@@ -18,7 +18,7 @@ const geist = Geist({
   display: "swap",
 });
 
-/** 見出し・巨大な数字・ワードマーク：Bricolage Grotesque 800（opsz 96） */
+/** ワードマーク：Bricolage Grotesque 800（opsz 96） */
 const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
   axes: ["opsz"],
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
 };
 
 /** スマホのアドレスバーの色：docs/design.md の `--bg` */
-export const viewport: Viewport = { themeColor: "#0b0c10" };
+export const viewport: Viewport = { themeColor: "#1c1b19" };
 
 /** 全ページ共通の骨組み。ログインの確認は (app)/layout.tsx、デモは demo/layout.tsx */
 export default function RootLayout({

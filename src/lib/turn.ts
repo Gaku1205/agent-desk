@@ -1,3 +1,4 @@
+import { deployFailureReason } from "./deployFailure";
 import { describeStatus, failureLogUrl, PIPELINE_MISSING_TEXT } from "./describe";
 import { isDeployStatus } from "./deployStatus";
 import { isFactoryIssue } from "./factoryIssue";
@@ -72,6 +73,8 @@ export type TurnItem = {
   issue: { number: number; title: string; url: string };
   status: IssueStatus;
   description: string;
+  /** 説明文の下に出す理由（公開失敗の理由。無ければ null） */
+  note: string | null;
   /** 止まった理由のログのURL（この行のリポジトリの実行のページ。無ければ null） */
   logUrl: string | null;
   /** 人間の番になった時刻（ISO文字列） */
@@ -268,8 +271,8 @@ export function compareTurnItems(a: TurnItem, b: TurnItem): number {
 }
 
 /**
- * 押す列に出す行の説明文（「あなたの番」に出す Issue だけ。出さない物は null）。
- * 流れの下端の説明と同じ文を外すときにも同じ判定を使う（`src/lib/flow/nodes.ts` の `captionOffRow`）
+ * 「あなたの番」に出す1件の説明文（「あなたの番」に出す Issue だけ。出さない物は null）。
+ * 「いまの様子」（会話）は、これが null の物だけを出す（`src/lib/conversation.ts`）
  */
 export function turnRowDescription(
   issue: Pick<IssueData, "title" | "state">,
@@ -301,6 +304,10 @@ export function repoTurnItems(owner: string, repo: string, data: RepoData, now: 
       issue: { number: issue.number, title: issue.title, url: issue.url },
       status,
       description,
+      note:
+        status.stage === "deployFailed" && status.pull
+          ? deployFailureReason(data.pullChecks[status.pull.number]?.statuses ?? [])
+          : null,
       logUrl: failureLogUrl(status, `${owner}/${repo}`),
       waitingSince: waitingSince(issue, status, data),
       buttons,

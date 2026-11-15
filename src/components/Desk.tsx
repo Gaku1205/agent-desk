@@ -1,27 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TrailEvent } from "@/lib/events";
-import type { FlowNode } from "@/lib/flow/nodes";
-import { repoBreakdown } from "@/lib/breakdown";
+import type { ChatMessage } from "@/lib/conversation";
 import { formatWait, turnItemKey, type TurnItem } from "@/lib/turn";
 import type { WatchdogNotice } from "@/lib/watchdogState";
+import { Conversation, type ConversationNotice } from "./Conversation";
 import styles from "./Desk.module.css";
-import type { FlowEngine } from "./flow/engine";
-import { FlowStage, motionReduced } from "./flow/FlowStage";
-import { Trails } from "./Trails";
 import { TurnRow } from "./TurnRow";
 
 export type DeskScope =
-  | { kind: "all"; repos: { repo: string; count: number }[] }
+  | { kind: "all"; repoCount: number }
   | { kind: "repo"; owner: string; repo: string; githubUrl: string | null };
 
 export type DeskError = { repo: string; message: string };
 
 type Props = {
-  nodes: FlowNode[];
   items: TurnItem[];
-  events: TrailEvent[];
+  messages: ChatMessage[];
   /** 「今」（ISO文字列） */
   now: string;
   scope: DeskScope;
@@ -31,48 +26,34 @@ type Props = {
   notices: WatchdogNotice[];
 };
 
+/** 1件の中の、最初のボタン（無ければ最初のリンク） */
+function firstControl(row: Element | null | undefined): HTMLElement | null {
+  return (
+    row?.querySelector<HTMLElement>('[data-act]:not([aria-disabled="true"])') ??
+    row?.querySelector<HTMLElement>("a, button") ??
+    null
+  );
+}
+
 /**
- * ホームとリポジトリのページの中身：上に流れ、下にすりガラスの誌面
- * （巨大な数字 ＋ 押す列 ＋ 出来事）。本物もデモも同じ物（docs/design.md）
+ * ホームとリポジトリのページの中身：1本の列に、上に「あなたの番」の1件、下に「いまの様子」（会話）。
+ * 本物もデモも同じ物（docs/design.md の「構図」）
  */
-export function Desk({ nodes, items, events, now, scope, errors, notices }: Props) {
-  const engineRef = useRef<FlowEngine | null>(null);
-  const bandRef = useRef<HTMLElement>(null);
+export function Desk({ items, messages, now, scope, errors, notices }: Props) {
   const rowsRef = useRef<HTMLDivElement>(null);
-  const giantRef = useRef<HTMLCanvasElement>(null);
-  const ghostRef = useRef<HTMLSpanElement>(null);
-  const unitRef = useRef<HTMLSpanElement>(null);
-  const turnsRef = useRef<HTMLElement>(null);
-  // 操作が通って畳んでいる行。取り直しを待たずに数字を減らす（取り直しで行が消えたら自然に数えなくなる）
+  // 操作が通って片づけた1件。取り直しを待たずに次の1件に替え、件数を減らす（取り直しで消えたら自然に数えなくなる）
   const [leaving, setLeaving] = useState<ReadonlySet<string>>(() => new Set());
-  const count = items.filter((item) => !leaving.has(turnItemKey(item))).length;
+  // 片づけた1件の中にフォーカスがあった（見出しへ移した）。次の1件が出たら、その最初のボタンへ移す
+  const focusNext = useRef(false);
+  const waiting = items.filter((item) => !leaving.has(turnItemKey(item)));
+  const current = waiting[0] ?? null;
+  const currentKey = current ? turnItemKey(current) : null;
+  const rest = Math.max(0, waiting.length - 1);
+  // 開いたときの1件はフェードしない。替わった1件だけ短くフェードする
+  const [firstKey] = useState(currentKey);
 
-  useEffect(() => {
-    const engine = engineRef.current;
-    const canvas = giantRef.current;
-    const ghost = ghostRef.current;
-    if (!engine || !canvas || !ghost) return;
-    // 灯った粒を見せてよい右端：PC は押す列の左端の10px手前、スマホは「件」の右端の6px先（右隣の見出しの手前）
-    const litEdge = () => {
-      const turns = turnsRef.current;
-      const unit = unitRef.current;
-      if (window.innerWidth <= 899) return unit ? unit.getBoundingClientRect().right + 6 : 0;
-      return turns ? turns.getBoundingClientRect().left - 10 : innerWidth;
-    };
-    engine.setGiant({ canvas, ghost, unit: unitRef.current, litEdge });
-    return () => engine.setGiant(null);
-  }, []);
-
-  useEffect(() => {
-    engineRef.current?.setGiantValue(count);
-  }, [count]);
-
-  const hover = useCallback((key: string | null) => engineRef.current?.highlight(key), []);
-  const press =useCallback((key: string, column: number) => engineRef.current?.fly(key, column), []);
-  const settle = useCallback((key: string, ok: boolean) => {
-    if (!ok) engineRef.current?.land(key);
-  }, []);
   const leave = useCallback((key: string, on: boolean) => {
+    if (on && document.activeElement?.id === "turn-title") focusNext.current = true;
     setLeaving((prev) => {
       if (prev.has(key) === on) return prev;
       const next = new Set(prev);
@@ -81,119 +62,73 @@ export function Desk({ nodes, items, events, now, scope, errors, notices }: Prop
       return next;
     });
   }, []);
-  // 流れの名札・スマホの帯の行を押したとき：押す列の、その Issue の行へ。
-  // 流れの名札も同じ data-key を持つので、探すのは押す列の中だけにする（名札に当たらないように）
-  const pick = useCallback((key: string) => {
-    const row = rowsRef.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
-    if (!row) return false;
-    row.scrollIntoView({ block: "center", behavior: motionReduced() ? "auto" : "smooth" });
-    // 最初のボタン。ボタンが無い行（パイプライン未設定の未着手など）は題名のリンク
-    (row.querySelector<HTMLElement>('[data-act]:not([aria-disabled="true"])') ?? row.querySelector<HTMLElement>("a, button"))?.focus({
-      preventScroll: true,
-    });
-    row.setAttribute("data-picked", "");
-    window.setTimeout(() => row.removeAttribute("data-picked"), 1600);
-    return true;
-  }, []);
+
+  useEffect(() => {
+    if (!focusNext.current) return;
+    focusNext.current = false;
+    if (currentKey === null) return;
+    const row = rowsRef.current?.querySelector(`[data-key="${CSS.escape(currentKey)}"]`);
+    firstControl(row)?.focus();
+  }, [currentKey]);
+
+  const at = new Date(now);
+  const conversationNotices: ConversationNotice[] = [
+    ...notices.map((notice) => ({
+      key: `watchdog:${notice.owner}/${notice.repo}`,
+      tone: "warn" as const,
+      text: `${scope.kind === "all" ? `${notice.repo}　` : ""}見張り役が ${notice.hours} 時間動いていません。Actions が止まっていないか確認してください`,
+    })),
+    ...errors.map((error) => ({ key: `error:${error.repo}`, tone: "fail" as const, text: `${error.repo}：${error.message}` })),
+  ];
 
   return (
-    <>
-      <FlowStage nodes={nodes} stage engineRef={engineRef} bandRef={bandRef} onPick={pick} />
-      <main className={styles.band} ref={bandRef} id="main">
-        <div className={styles.hero}>
-          <div className={styles.giant} role="img" aria-label={`あなたの番 ${count}件`}>
-            <canvas ref={giantRef} />
-            <span className={styles.ghost} ref={ghostRef} aria-hidden="true">
-              {count}
-            </span>
-          </div>
-          <span className={styles.unit} ref={unitRef} aria-hidden="true">
-            件
-          </span>
+    <main className={styles.desk} id="main">
+      <section
+        className={styles.turn}
+        data-empty={current ? undefined : ""}
+        aria-labelledby="turn-title"
+        data-skip-target=""
+      >
+        <div className={styles.head}>
           <h1 className={styles.h1} id="turn-title" tabIndex={-1}>
-            あなたの番
-            <small>{count > 0 ? "待ちが長い順" : "今はAIの番です"}</small>
+            {current ? "あなたの番" : "今はAIの番です"}
           </h1>
-          {scope.kind === "all" && <RepoBreakdown repos={scope.repos} />}
-          <p className={styles.split} data-scope={scope.kind}>
-            {scope.kind === "all" ? (
-              scope.repos.map(({ repo, count: n }) => (
-                <span key={repo} className={styles.splitItem}>
-                  {repo} <b className="num">{n}</b>
-                </span>
-              ))
-            ) : (
-              <>
-                <span className={styles.splitItem}>{scope.repo} だけ</span>
-                {scope.githubUrl && (
-                  <a className={styles.splitLink} href={scope.githubUrl} target="_blank" rel="noreferrer">
-                    GitHubで開く ↗
-                  </a>
-                )}
-              </>
-            )}
-          </p>
-          {notices.length > 0 && (
-            <ul className={styles.notices} role="status">
-              {notices.map((notice) => (
-                <li key={`${notice.owner}/${notice.repo}`}>
-                  {scope.kind === "all" && <span className="num">{notice.repo}　</span>}
-                  見張り役が {notice.hours} 時間動いていません。Actions が止まっていないか確認してください
-                </li>
-              ))}
-            </ul>
-          )}
-          {errors.length > 0 && (
-            <ul className={styles.errors}>
-              {errors.map((error) => (
-                <li key={error.repo}>
-                  <span className="num">{error.repo}</span>：{error.message}
-                </li>
-              ))}
-            </ul>
+          {rest > 0 && (
+            <p className={styles.rest}>
+              ほかに <b className="num">{rest}</b>件
+            </p>
           )}
         </div>
-        <section className={styles.turns} ref={turnsRef} aria-labelledby="turn-title" data-skip-target="">
-          <div className={styles.rows} ref={rowsRef}>
-            {items.length === 0 ? (
-              <p className="empty">今はAIの番です。流れの上で光が進んでいます</p>
-            ) : (
-              items.map((item) => (
-                <TurnRow
-                  key={turnItemKey(item)}
-                  item={item}
-                  wait={formatWait(item.waitingSince, new Date(now))}
-                  onHover={hover}
-                  onPress={press}
-                  onSettle={settle}
-                  onLeave={leave}
-                />
-              ))
-            )}
-          </div>
-        </section>
-        <Trails events={events} now={now} hint={scope.kind === "all" ? "直近3日" : "直近3日・このリポジトリ"} />
-      </main>
-    </>
-  );
-}
-
-/**
- * リポジトリごとの内訳（ホームの PC）：件数の多い順に、数の大きさの差で見せる（docs/design.md の「巨大な数字」）。
- * 読み上げは下の1行（スマホで見せる物。PC では見た目だけ隠す）と同じ中身なので、ここは aria-hidden
- */
-function RepoBreakdown({ repos }: { repos: { repo: string; count: number }[] }) {
-  const sorted = repoBreakdown(repos);
-  return (
-    <ul className={styles.breakdown} aria-hidden="true">
-      {sorted.map(({ repo, count, size }) => (
-        <li key={repo} data-zero={count === 0 ? "" : undefined}>
-          <b className="num" style={{ fontSize: `${size}px` }}>
-            {count}
-          </b>
-          <span>{repo}</span>
-        </li>
-      ))}
-    </ul>
+        {!current && <p className={styles.calm}>あなたが答えることはありません。下で、いまの様子を読めます</p>}
+        <div ref={rowsRef}>
+          {items.map((item) => {
+            const key = turnItemKey(item);
+            // 出すのは今の1件と、片づけて隠している1件（取り直しで消えるまで、戻せるように残す）だけ
+            if (key !== currentKey && !leaving.has(key)) return null;
+            return (
+              <TurnRow
+                key={key}
+                item={item}
+                wait={formatWait(item.waitingSince, at)}
+                fresh={key === currentKey && key !== firstKey}
+                onLeave={leave}
+              />
+            );
+          })}
+        </div>
+        {current && (
+          <a className={styles.down} href="#now">
+            いまの様子 ↓
+          </a>
+        )}
+      </section>
+      <Conversation
+        messages={messages}
+        now={now}
+        showRepo={scope.kind === "all" && scope.repoCount > 1}
+        repo={scope.kind === "repo" ? { name: scope.repo, githubUrl: scope.githubUrl } : null}
+        notices={conversationNotices}
+      />
+    </main>
   );
 }

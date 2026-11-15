@@ -84,13 +84,18 @@ function SettingsLabel() {
   );
 }
 
-/** 帯の最初の Tab：押す列の最初のボタンへ移る（無ければ本文の最初の操作へ）。フォーカスしたときだけ見える */
+/** 帯の最初の Tab：「あなたの番」の1件の最初のボタンへ移る（無ければ本文の最初の操作へ）。フォーカスしたときだけ見える */
 function SkipLink() {
   function skip(event: React.MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
+    // 片づけて隠している1件（data-leaving）は飛ばす
     const target =
-      document.querySelector<HTMLElement>('[data-skip-target] [data-act]:not([aria-disabled="true"])') ??
-      document.querySelector<HTMLElement>("[data-skip-target] a, [data-skip-target] button") ??
+      document.querySelector<HTMLElement>(
+        '[data-skip-target] article:not([data-leaving]) [data-act]:not([aria-disabled="true"])',
+      ) ??
+      document.querySelector<HTMLElement>(
+        "[data-skip-target] article:not([data-leaving]) a, [data-skip-target] article:not([data-leaving]) button",
+      ) ??
       document.querySelector<HTMLElement>("main a, main button, main input, main select");
     if (!target) return;
     target.scrollIntoView({ block: "center" });

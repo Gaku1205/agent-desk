@@ -1,5 +1,4 @@
 import { NewIssueForm } from "@/components/NewIssueForm";
-import { Backdrop } from "@/components/Backdrop";
 import { loadTurns } from "@/lib/loadTurns";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
 
@@ -13,10 +12,5 @@ export default async function NewIssuePage({ searchParams }: { searchParams: Pro
     );
     return { name: `${watched.owner}/${watched.repo}`, template: !!found && found.ok && found.data.isTemplate === true };
   });
-  return (
-    <>
-      <Backdrop />
-      <NewIssueForm repos={rows} initialRepo={typeof repo === "string" ? repo : undefined} />
-    </>
-  );
+  return <NewIssueForm repos={rows} initialRepo={typeof repo === "string" ? repo : undefined} />;
 }

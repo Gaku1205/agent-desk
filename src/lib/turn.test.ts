@@ -219,6 +219,18 @@ describe("buildTurnItems", () => {
     expect(items.map((item) => item.status.stage)).toEqual(["deployFailed", "notStarted"]);
   });
 
+  it("公開失敗の1件は、公開ステータスの説明を理由（note）に持つ。ほかの段階は null", () => {
+    const failed = deployFailedIssue(2, "2026-10-25T11:30:00Z");
+    failed.checks.statuses[0].description = "Build failed";
+    const repoData = data({
+      issues: [issue(1, { createdAt: "2026-10-25T08:00:00Z" }), failed.issue],
+      pulls: [failed.pull],
+      pullChecks: { [failed.pull.number]: failed.checks },
+    });
+    const items = buildTurnItems([ok("o", "r", repoData)], NOW);
+    expect(items.map((item) => item.note)).toEqual(["Build failed", null]);
+  });
+
   it("強い色の中（止まった・公開失敗）も、その下も、待ちが長い順", () => {
     const failed = deployFailedIssue(2, "2026-10-25T10:00:00Z");
     const repoData = data({

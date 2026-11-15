@@ -5,7 +5,8 @@
 
 :root {
   /* 色 */
-  --bg: #0b0c10;
+  --bg: #1c1b19;
+  --raise: #22211f;
   --bone: #ece8df;
   --bone-2: #a9a59c;
   --mute: #8c8981;
@@ -21,7 +22,7 @@
   --hair: rgba(236, 232, 223, 0.09);
   --hair-2: rgba(236, 232, 223, 0.05);
   --well: rgba(236, 232, 223, 0.06);
-  --glass: rgba(11, 12, 16, 0.62);
+  --glass: rgba(28, 27, 25, 0.62);
 
   /* 文字 */
   --jp: var(--font-latin), var(--font-jp), system-ui, sans-serif;
@@ -33,9 +34,7 @@
   /* 寸法 */
   --gutter: clamp(20px, 2.2vw, 40px);
   --top-h: 52px;
-  --flow-h: clamp(200px, 26svh, 420px);
-  --nfs: clamp(11.5px, 0.23vw + 9.2px, 15px);
-  --giant: clamp(200px, min(19vw + 10svh - 90px, 46svh), 600px);
+  --col: 680px;
 
   color-scheme: dark;
 }
@@ -43,11 +42,6 @@
 @media (max-width: 899px) {
   :root {
     --gutter: 16px;
-    --giant: 128px;
-    --flow-h: 96px;
-
-    /* 帯の下の行（凡例。折り返しても2行）の高さ。誌面の min-height から引く */
-    --foot-h: 44px;
   }
 }
 
@@ -148,7 +142,7 @@ p {
 
 /*
  * 動きを減らす：端末の設定（prefers-reduced-motion）か、設定の「アニメーション：オフ」（data-motion="reduce"）。
- * 「オン」（data-motion="full"）は端末の設定にかかわらず動かす。映像（canvas）は FlowStage が同じ判定で止める
+ * 「オン」（data-motion="full"）は端末の設定にかかわらず動かす
  */
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="full"]) *,

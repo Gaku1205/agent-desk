@@ -1,11 +1,10 @@
 "use client";
 
 import { DEMO_REPO_OPTIONS, DEMO_REPOS, DEMO_TEMPLATE_REPO } from "@/lib/demo/data";
+import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
-import { buildFlowNodes } from "@/lib/flow/nodes";
 import { parseNotifyEvents } from "@/lib/notifyEvents";
-import { countTurnItems, filterTurnItems } from "@/lib/turn";
-import { Backdrop } from "./Backdrop";
+import { filterTurnItems } from "@/lib/turn";
 import { useDemoState } from "./DemoContext";
 import { Desk } from "./Desk";
 import { NewIssueForm } from "./NewIssueForm";
@@ -14,18 +13,13 @@ import { SettingsSections } from "./SettingsSections";
 /** デモのホーム：本物のホームと同じ部品に、サンプルのデータを渡す */
 export function DemoHome() {
   const { results, items, now } = useDemoState();
-  const counts = countTurnItems(items);
 
   return (
     <Desk
-      nodes={buildFlowNodes(results, now)}
       items={items}
-      events={buildTrailEvents(results, now)}
+      messages={buildConversation(results, buildTrailEvents(results, now), now)}
       now={now.toISOString()}
-      scope={{
-        kind: "all",
-        repos: DEMO_REPOS.map(({ owner, repo }) => ({ repo, count: counts.byRepo[`${owner}/${repo}`] ?? 0 })),
-      }}
+      scope={{ kind: "all", repoCount: DEMO_REPOS.length }}
       errors={[]}
       notices={[]}
     />
@@ -38,9 +32,8 @@ export function DemoRepo({ owner, repo }: { owner: string; repo: string }) {
 
   return (
     <Desk
-      nodes={buildFlowNodes(results, now, { owner, repo })}
       items={filterTurnItems(items, owner, repo)}
-      events={buildTrailEvents(results, now, { owner, repo })}
+      messages={buildConversation(results, buildTrailEvents(results, now, { owner, repo }), now, { owner, repo })}
       now={now.toISOString()}
       scope={{ kind: "repo", owner, repo, githubUrl: null }}
       errors={[]}
@@ -54,33 +47,27 @@ const DEMO_REPO_NAMES = DEMO_REPOS.map(({ owner, repo }) => `${owner}/${repo}`);
 /** デモのIssueを書く画面：GitHub には送らず、サンプルのデータにIssueが増える（landing-page はテンプレートの見本） */
 export function DemoNewIssue() {
   return (
-    <>
-      <Backdrop />
-      <NewIssueForm
-        repos={DEMO_REPOS.map(({ owner, repo }) => ({
-          name: `${owner}/${repo}`,
-          template: repo === DEMO_TEMPLATE_REPO,
-        }))}
-      />
-    </>
+    <NewIssueForm
+      repos={DEMO_REPOS.map(({ owner, repo }) => ({
+        name: `${owner}/${repo}`,
+        template: repo === DEMO_TEMPLATE_REPO,
+      }))}
+    />
   );
 }
 
 /** デモの設定：保存を押しても書き込まない（アニメーションだけは、このブラウザに本当に保存する） */
 export function DemoSettings() {
   return (
-    <>
-      <Backdrop />
-      <SettingsSections
-        repoRows={DEMO_REPO_NAMES.map((name) => ({ name, pipeline: true }))}
-        repoOptions={DEMO_REPO_OPTIONS}
-        editable
-        notifyRows={DEMO_REPO_NAMES.map((name) => ({
-          name,
-          pipeline: true,
-          events: parseNotifyEvents(null),
-        }))}
-      />
-    </>
+    <SettingsSections
+      repoRows={DEMO_REPO_NAMES.map((name) => ({ name, pipeline: true }))}
+      repoOptions={DEMO_REPO_OPTIONS}
+      editable
+      notifyRows={DEMO_REPO_NAMES.map((name) => ({
+        name,
+        pipeline: true,
+        events: parseNotifyEvents(null),
+      }))}
+    />
   );
 }
