@@ -19,6 +19,7 @@ function status(overrides: Partial<IssueStatus>): IssueStatus {
     planned: true,
     fixCount: 0,
     verifyingFix: false,
+    reviewedClean: true,
     grace: null,
     ...overrides,
   };
@@ -95,6 +96,12 @@ describe("getFlow", () => {
     const fixed = getFlow(status({ stage: "mergeWaiting", mergeWait: "hold", fixCount: 2 }));
     expect(fixed.at).toBe(5);
     expect(fixed.steps[5].state).toBe("done");
+  });
+
+  it("マージ待ち（ai:hold）：レビューが指摘なしで終わっていなければ、レビューは待ち", () => {
+    const hold = getFlow(status({ stage: "mergeWaiting", mergeWait: "hold", reviewedClean: false }));
+    expect(hold.at).toBe(4);
+    expect(hold.steps[4].state).toBe("waiting");
   });
 
   it("公開中・公開失敗・公開済み。直していなければ修正は待ち", () => {

@@ -77,7 +77,7 @@ function position(status: IssueStatus, stage: BaseStage): { at: number; state: F
     case "fixing":
       return { at: FIX, state: "running" };
     case "mergeWaiting":
-      if (status.mergeWait === "needsReview") return { at: REVIEW, state: "waiting" };
+      if (status.mergeWait === "needsReview" || !status.reviewedClean) return { at: REVIEW, state: "waiting" };
       return { at: status.fixCount > 0 ? FIX : REVIEW, state: "done" };
     case "deploying":
       return { at: DEPLOY, state: "running" };
