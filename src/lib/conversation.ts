@@ -2,8 +2,10 @@ import type { DeployLink } from "./deployStatus";
 import { describeStatus, failureLogUrl } from "./describe";
 import { groupTrails, type TrailStep } from "./eventGroups";
 import type { TrailEvent } from "./events";
+import { getFlow, type Flow } from "./flow";
 import type { RepoResult } from "./github/types";
 import { buildPipelineRows } from "./pipeline";
+import { isRunningStage } from "./runningPipeline";
 import type { IssueStatus, Stage } from "./status";
 import { turnRowDescription } from "./turn";
 
@@ -106,6 +108,10 @@ export type ChatMessage = {
   latestAt: string | null;
   /** 公開済み（ふだんは隠す） */
   deployed: boolean;
+  /** AIの番で動いている（`isRunningStage`）。進捗図に描く1件を選ぶのに使う */
+  running: boolean;
+  /** 進捗図の7つの工程の状態 */
+  flow: Flow;
 };
 
 /** 順番待ちの理由の中の Issue 番号（`#17`）。無ければ null */
@@ -172,6 +178,8 @@ export function buildConversation(
         steps: trail?.steps ?? [],
         latestAt: trail?.latestAt ?? null,
         deployed: row.status.stage === "deployed",
+        running: isRunningStage(row.status.stage, row.status.grace),
+        flow: getFlow(row.status),
       });
     }
   }

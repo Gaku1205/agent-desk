@@ -78,6 +78,8 @@ export type IssueStatus = {
   fixCount: number;
   /** 直したあとの、CIかレビューの確認中 */
   verifyingFix: boolean;
+  /** レビューが「指摘なし」で終わったか（`ai:hold` でも見る。進捗図のレビューの状態に使う） */
+  reviewedClean: boolean;
   /**
    * パイプラインが自動で進める間の猶予（誰の番は「AI」）。`creatingPull`＝PR作成待ちの15分、
    * `intake`＝未着手の10分。猶予でなければ null
@@ -561,6 +563,7 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
     fixCount: fixes,
     verifyingFix:
       pushedFix && (stage === "reviewing" || stage === "ciRunning" || stage === "ciFailed"),
+    reviewedClean: pull ? reviewedWithoutIssues(input.comments, pull.number) : false,
     grace: null,
     ...extra,
   });

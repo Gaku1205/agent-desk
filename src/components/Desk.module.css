@@ -87,7 +87,61 @@
   color: var(--bone);
 }
 
+/* ───── PCの3ペイン（docs/design.md の「PCの3ペイン」）。スマホでは左・進捗図・入力欄を出さない ───── */
+@media (min-width: 900px) {
+  .panes {
+    display: grid;
+    grid-template-columns: 224px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  /* 左の一覧：上端の帯の下に付いたまま。多ければこの中だけ縦にスクロール */
+  .side {
+    position: sticky;
+    top: var(--top-h);
+    height: calc(100svh - var(--top-h));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-shadow: inset -1px 0 0 var(--hair);
+  }
+
+  /* 入力欄：中央の下端に付いたまま */
+  .composer {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+  }
+
+  .center {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: calc(100svh - var(--top-h));
+  }
+
+  /* 入力欄を中央の下端に置く（中身が少なくても下に付く） */
+  .center > main {
+    flex: 1 0 auto;
+  }
+
+  /* 進捗図と入力欄で最初の1画面が埋まるので、「あなたの番」の場所は画面の高さにしない */
+  .turn {
+    min-height: 0;
+    padding: 40px 0 24px;
+  }
+
+  .down {
+    display: none;
+  }
+}
+
 @media (max-width: 899px) {
+  .side,
+  .flow,
+  .composer {
+    display: none;
+  }
+
   .turn {
     padding: 24px 0 88px;
   }

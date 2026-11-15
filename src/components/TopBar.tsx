@@ -171,6 +171,19 @@ export function RepoTabs({
   );
 }
 
+/** PCの3ペインの左：リポジトリの一覧（上端の帯の札を縦に並べた物。docs/design.md の「PCの3ペイン」） */
+export function SideRepos(props: Pick<Props, "repos" | "counts" | "runningCounts" | "basePath">) {
+  return (
+    <aside className={styles.side} aria-label="リポジトリの一覧">
+      <span className={styles.sideLbl}>
+        リポジトリ
+        <CountsKey />
+      </span>
+      <RepoTabs {...props} />
+    </aside>
+  );
+}
+
 /** 同期の時刻（押すと取り直す）。更新中は点が脈打ち、速い更新の間は点が明滅する */
 export function SyncButton({ className }: { className?: string }) {
   const { syncedAt, refreshing, fastRefresh, refresh } = useShell();
