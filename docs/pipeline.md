@@ -234,6 +234,79 @@ ai-dev-template に、タイトルが **`新サービス：`** で始まるIssue
 - 無い物があっても、作れる所までは作り、元のIssueに「何が無くて何をしなかったか」を書く
 - あとから Vercel につなぐとき（作ったときに VERCEL_TOKEN が無かった物など）：Actions → **Factory Vercel** → Run workflow で、リポジトリの名前を入れる（つないだあと、今の main で本番の公開を1回始め、公開アドレスを Website 欄に入れる。もうつないであるリポジトリなら、公開とアドレスの調べ直しだけ）
 
+## 進捗ログ
+
+各工程が「使ったモデル・所要時間・結果」を、Issue の「進捗ログ」コメントに残す（`.github/scripts/step-log.sh`）。agent-desk の進捗図が、このコメントを機械で読んで表示する。記録するだけで、ラベル・自動修正・マージ・公開・モデルの切り替え方は変わらない。
+
+### コメントの形式
+
+- コメントは Issue ごとに1つだけ。先頭の行が目印 `<!-- ai-step-log -->`。これで探し、あれば編集、無ければ新しく作る（コメントは増えない）
+- 次に、人が読む表（工程・モデル・所要時間・結果・修正）
+- 最後に、機械が読む行を工程ごとに1行：`<!-- ai-step {JSON} -->`（工程の順に並ぶ）
+
+```
+<!-- ai-step {"step":"fix","model":"opus","started":"2026-11-15T07:32:00Z","finished":null,"result":"running","attempt":3,"max_attempts":3} -->
+```
+
+| 項目 | 値 |
+| --- | --- |
+| `step` | `plan` / `mocks` / `implement` / `ci` / `review` / `fix` / `deploy` |
+| `model` | 実行時に `--model` へ渡した値そのまま（`opus`・`sonnet`・`fable` など）。モデルを使わない工程（`ci`・`deploy`）は `null` |
+| `started` | 開始時刻（UTC の ISO 8601。例 `2026-11-15T07:28:00Z`） |
+| `finished` | 終了時刻（同じ形）。未完了なら `null` |
+| `result` | `running`（進行中） / `success` / `failure` |
+| `attempt`・`max_attempts` | 修正（`fix`）のときだけ。何回目 / 最大3回 |
+
+### 更新のしかた
+
+工程の開始前に `--result running`、終了後に `--result success` か `failure` で呼ぶ。同じ工程の行は上書きされる（`running` の行があれば `started` を引き継ぐ。修正は回数が進むので `--attempt` を更新する）。
+
+```
+.github/scripts/step-log.sh --pr 30 --step fix --model sonnet --result running --attempt 1 --max-attempts 3
+```
+
+- `--issue N` か `--pr N`（PR 本文の `Closes #番号` かブランチ名から Issue を引く）のどちらかを渡す
+- `--model` には、そのワークフローが AI に渡している値をそのまま渡す。使わない工程は `null`
+- 記録に失敗しても（gh のエラー・権限など）終了コードは 0。警告を1行出すだけで、パイプラインは止まらない
+
+## 画面案が作れないとき・AIの拒否の見える化
+
+見た目の大きい Issue では、作る前に画面案（`ai:mocks`、`.github/scripts/mocks-publish.sh`）を作る。AIが画面案を1つも書かずに終わったとき（`mocks.json` が無い・形が不正）は、止まらずに次の順で進む。
+
+0. **`MOCKS_RETRY` が無いとき**（やり直しに対応していない古い workflow）：以前どおり、コメントと `ai:stuck` と通知を残して止まる
+1. **1回目**（`MOCKS_RETRY=0`）：`ai:stuck` を付けず、`ai:mocks` も残したまま、`GITHUB_OUTPUT` に `retry=true` を出す。workflow が、もう一度AIの工程を動かす
+2. **やり直し**：workflow が `MOCKS_RETRY=1` を渡して publish を動かす。ここでも作れなければ、`ai:mocks` を外して `ai:plan`（画面案なし）を付け、「画面案は作れなかったので、案なしで進めます」とコメントする（拒否されたツール名も入る）
+3. 画面案が作れたときの動き（`ai:question` で選んでもらう）は変わらない
+
+### denials.sh（拒否の中身を取り出す）
+
+AIの実行記録 `claude-execution-output.json` から、許可されず拒否された操作（`permission_denials`）の `tool_name` と引数（1件あたり約200文字で切り詰め）を取り出す（`.github/scripts/denials.sh`）。
+
+```
+.github/scripts/denials.sh FILE            # 件数と一覧（テキスト）
+.github/scripts/denials.sh --summary FILE  # Summary 用の Markdown。GITHUB_STEP_SUMMARY に追記
+.github/scripts/denials.sh --comment FILE  # コメント用の短い文（拒否されたツール：Write、Bash）
+.github/scripts/denials.sh --check FILE    # 拒否が1以上なら終了コード 0、無ければ 1
+```
+
+`--check` 以外は、ファイルが無い・壊れている・拒否が無いときは何も出さず、終了コード 0。`--check` は、企画・実装・レビューの工程が成果を出さずに終わったとき、拒否が原因かを見て1回だけやり直すかを決めるのに使う。
+
+### 企画・実装・レビューの1回だけのやり直し
+
+`claude-plan.yml`・`claude-implement.yml`・`claude-review.yml` は、AIの工程のあとに `denials.sh --summary` で拒否を Summary に残す。そのうえで、**成果が無く、かつ `denials.sh --check` が拒否ありと言ったときだけ**、同じAIの工程を1回だけもう一度動かす（2回目も同じく Summary に残す。3回目は無い）。成果は次のとおり見る。
+
+| workflow | 成果があるとみなすとき |
+| --- | --- |
+| `claude-plan.yml` | `plan-result.txt` がある |
+| `claude-implement.yml` | 作業ブランチに main より先のコミットがあるか、まだコミットしていない変更がある |
+| `claude-review.yml` | この実行が始まったあとに、`## Code review` で始まるコメントがPRに付いている |
+
+成果が無くても拒否が無ければ（回数の上限・ネットワークなど）、やり直さず今までどおり次の工程に任せる。ジョブの結果（`outcome`）と次のジョブに渡す実行記録は、やり直したときはやり直しの方を使う。
+
+AIが書き換えたかもしれない `denials.sh` は動かさない。企画・実装では AI の工程の前に `denials.sh` と `pipeline-lib.sh` を `$RUNNER_TEMP` に写しておき、それを動かす。レビューでは作業フォルダがPRのコードなので、PRの元（`base.sha`）の版を API で取ってきて動かす（取れなければ、Summary は出さず、やり直さない）。
+
+画面案の publish の鍵は、ほかの workflow と同じく GitHub App の鍵 → `PIPELINE_TOKEN` → `github.token` の順に使う（`github.token` で付けた `ai:plan` では企画が動かないので、そのときは見張り役が拾うまで待つ）。
+
 ## スクリプトのテスト
 
 `.github/scripts/tests/` に、進行役のスクリプトのテストがある。本物の GitHub には触らず、疑似の `gh`（`tests/fake-gh`）が状態をファイルに持つ。
