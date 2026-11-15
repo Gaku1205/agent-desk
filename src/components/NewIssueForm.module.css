@@ -24,7 +24,7 @@
   align-items: baseline;
   width: 100%;
   max-width: 560px;
-  border-bottom: 1px solid rgba(236, 232, 223, 0.22);
+  border-bottom: 1px solid var(--edge-line);
   transition: border-color 0.12s;
 }
 

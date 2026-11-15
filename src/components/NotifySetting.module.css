@@ -52,7 +52,7 @@
 @media (max-width: 899px) {
   .tableWrap[data-scrolled] .kindHead,
   .tableWrap[data-scrolled] .kind {
-    background: rgba(11, 12, 16, 0.92);
+    background: var(--veil);
   }
 }
 

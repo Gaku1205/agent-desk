@@ -48,7 +48,7 @@
 }
 
 .notices li[data-tone="warn"] {
-  color: var(--you-soft);
+  color: var(--accent-soft);
 }
 
 .notices li[data-tone="fail"] {
@@ -160,7 +160,7 @@
 }
 
 .steps li[data-tone="human"] span {
-  color: var(--you-soft);
+  color: var(--accent-soft);
 }
 
 .steps li[data-tone="fail"] span {

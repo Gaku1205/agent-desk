@@ -30,7 +30,7 @@
 }
 
 .h1 {
-  color: var(--you);
+  color: var(--accent);
   font-size: 13px;
   font-weight: 700;
 }
