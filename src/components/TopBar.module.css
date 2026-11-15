@@ -430,6 +430,22 @@
   margin: 0 10px 8px;
   color: var(--mute);
   font-size: 11.5px;
+  white-space: nowrap;
+}
+
+/* 狭い左ペインで1行に収める：凡例の間と点の間を詰める */
+.side .sideLbl {
+  gap: 5px;
+  margin: 0 4px 8px;
+}
+
+.side .key {
+  gap: 6px;
+}
+
+.side .keyTurn,
+.side .keyRunning {
+  gap: 4px;
 }
 
 .side .repos {
