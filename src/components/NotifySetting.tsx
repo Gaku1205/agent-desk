@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { saveNotifyEvents } from "@/app/(app)/settings/actions";
 import { useDemo } from "./DemoContext";
+import { SaveIcon } from "./icons";
 import styles from "./NotifySetting.module.css";
 import settingsStyles from "./SettingsSections.module.css";
 import { changedRepos, formatSaveFailures } from "@/lib/notifyChanges";
@@ -210,6 +211,7 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
           disabled={saving}
           aria-busy={saving}
         >
+          <SaveIcon />
           {saving ? "保存中…" : "通知を保存"}
         </button>
         {dirty && !saving && <span className={settingsStyles.unsaved}>未保存</span>}

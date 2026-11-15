@@ -164,6 +164,10 @@
   min-width: 0;
 }
 
+.mockHead > svg {
+  align-self: center;
+}
+
 .mockLetter {
   color: var(--bone);
   font-family: var(--disp);

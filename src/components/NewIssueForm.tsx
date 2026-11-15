@@ -4,6 +4,7 @@ import { useRef, useState, useTransition, type FormEvent } from "react";
 import { createNewIssue } from "@/app/actions";
 import { checkNewIssueTitle, composeNewIssue, MAX_NEW_ISSUE_TITLE } from "@/lib/newIssue";
 import { useDemo } from "./DemoContext";
+import { FileIcon, RepoIcon, WriteIcon } from "./icons";
 import { Select } from "./Select";
 import { Sheet } from "./Sheet";
 import settingsStyles from "./SettingsSections.module.css";
@@ -97,6 +98,7 @@ export function NewIssueForm({
                     }}
                     label="Issueを書くリポジトリ"
                     disabled={saving}
+                    icon={<RepoIcon />}
                   />
                 </div>
                 <label className={`${styles.field} ${bar ? styles.barMemo : ""}`}>
@@ -141,6 +143,7 @@ export function NewIssueForm({
                 )}
                 <div className={`${settingsStyles.save} ${styles.actions}`}>
                   <button type="submit" className={settingsStyles.button} disabled={saving} aria-busy={saving}>
+                    <WriteIcon />
                     {saving ? "作成中…" : "Issueを作る"}
                   </button>
                   {status.kind === "created" && (
@@ -180,6 +183,7 @@ export function NewIssueForm({
         <div className={settingsStyles.sections}>
           <section className={settingsStyles.section} aria-labelledby="new-issue-title">
             <h2 id="new-issue-title" className={settingsStyles.title}>
+              <FileIcon />
               メモ
             </h2>
             {names.length === 0 ? empty : form}

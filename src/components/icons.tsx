@@ -14,6 +14,7 @@ function LineIcon({ size, children }: { size: number; children: ReactNode }) {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
+      style={{ flexShrink: 0 }}
     >
       {children}
     </svg>
@@ -107,21 +108,16 @@ export function SpinnerIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-export function HomeIcon() {
+/** ラベルの左に置くアイコンの大きさ（docs/design.md の「アイコン」） */
+const LABEL = 16;
+
+type IconProps = { size?: number };
+
+export function HomeIcon({ size = LABEL }: IconProps) {
   return (
-    <svg
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" />
-    </svg>
+    <LineIcon size={size}>
+      <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" />
+    </LineIcon>
   );
 }
 
@@ -153,40 +149,195 @@ export function TriangleUpIcon() {
   );
 }
 
-export function FileIcon() {
+export function FileIcon({ size = LABEL }: IconProps) {
   return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
+    <LineIcon size={size}>
       <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z" />
       <path d="M14 3v5h5" />
-    </svg>
+      <path d="M9 13h6" />
+      <path d="M9 17h6" />
+    </LineIcon>
   );
 }
 
-export function GearIcon() {
+/** 全部＝グリッド */
+export function GridIcon({ size = LABEL }: IconProps) {
   return (
-    <svg
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
+    <LineIcon size={size}>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+    </LineIcon>
+  );
+}
+
+/** リポジトリ＝フォルダ */
+export function RepoIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+    </LineIcon>
+  );
+}
+
+/** Issueを書く＝ペン付きの四角 */
+export function WriteIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z" />
+    </LineIcon>
+  );
+}
+
+/** ログアウト＝出る矢印 */
+export function LogoutIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="m16 17 5-5-5-5" />
+      <path d="M21 12H9" />
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    </LineIcon>
+  );
+}
+
+/** ログイン＝入る矢印 */
+export function LoginIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+      <path d="m10 17 5-5-5-5" />
+      <path d="M15 12H3" />
+    </LineIcon>
+  );
+}
+
+/** GitHubで見る＝枝分かれ */
+export function BranchIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M6 3v12" />
+      <circle cx="18" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M18 9a9 9 0 0 1-9 9" />
+    </LineIcon>
+  );
+}
+
+/** 再生・作る＝三角 */
+export function PlayIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M6 3 20 12 6 21z" />
+    </LineIcon>
+  );
+}
+
+/** 保存＝フロッピー */
+export function SaveIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+      <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
+      <path d="M7 3v4a1 1 0 0 0 1 1h7" />
+    </LineIcon>
+  );
+}
+
+/** 追加＝＋ */
+export function PlusIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M5 12h14" />
+      <path d="M12 5v14" />
+    </LineIcon>
+  );
+}
+
+/** 通知＝ベル */
+export function BellIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M10.268 21a2 2 0 0 0 3.464 0" />
+      <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />
+    </LineIcon>
+  );
+}
+
+/** テーマ＝太陽 */
+export function SunIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.93 4.93 1.41 1.41" />
+      <path d="m17.66 17.66 1.41 1.41" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m6.34 17.66-1.41 1.41" />
+      <path d="m19.07 4.93-1.41 1.41" />
+    </LineIcon>
+  );
+}
+
+/** アニメーション＝波形 */
+export function ActivityIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />
+    </LineIcon>
+  );
+}
+
+/** キーボード操作＝キーボード */
+export function KeyboardIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M6 8h.01" />
+      <path d="M10 8h.01" />
+      <path d="M14 8h.01" />
+      <path d="M18 8h.01" />
+      <path d="M8 12h.01" />
+      <path d="M12 12h.01" />
+      <path d="M16 12h.01" />
+      <path d="M7 16h10" />
+    </LineIcon>
+  );
+}
+
+/** 全部ちがう＝戻す矢印 */
+export function RedoIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+    </LineIcon>
+  );
+}
+
+/** 直す＝レンチ */
+export function WrenchIcon({ size = LABEL }: IconProps) {
+  return <FlowStepIcon step="fix" size={size} />;
+}
+
+/** 質問・相談の選択肢の印：丸（選んだら丸にチェック） */
+export function OptionMarkIcon({ checked, size = LABEL }: IconProps & { checked: boolean }) {
+  return (
+    <LineIcon size={size}>
+      <circle cx="12" cy="12" r="9" />
+      {checked && <path d="m8.5 12.5 2.5 2.5 4.5-5" />}
+    </LineIcon>
+  );
+}
+
+export function GearIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-    </svg>
+    </LineIcon>
   );
 }

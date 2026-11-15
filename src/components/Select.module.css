@@ -44,6 +44,11 @@
   transform: rotate(180deg);
 }
 
+/* 選んでいる項目のアイコンだけアクセント色 */
+.option[aria-selected="true"] > svg {
+  color: var(--accent);
+}
+
 .value {
   flex: 1;
   min-width: 0;

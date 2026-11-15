@@ -12,6 +12,7 @@ import {
   type FactoryStage,
   type FactoryTalk,
 } from "@/lib/factoryTalk";
+import { PlayIcon, RedoIcon, WrenchIcon } from "./icons";
 import { QuestionBlock, useRoving } from "./QuestionForm";
 import q from "./QuestionForm.module.css";
 import styles from "./FactoryForm.module.css";
@@ -146,6 +147,7 @@ function Choices({
                 onKeyDown={(event) => roving.onKeyDown(event, i)}
               >
                 <span className={q.mockHead}>
+                  <RedoIcon />
                   <span className={styles.title}>全部ちがう</span>
                   {selected === FACTORY_REDO && <span className={q.mockPicked}>選んだ案</span>}
                 </span>
@@ -232,6 +234,7 @@ function Confirm({
             onClick={() => roving.onClick(value)}
             onKeyDown={(event) => roving.onKeyDown(event, i)}
           >
+            {value === FACTORY_GO ? <PlayIcon /> : <WrenchIcon />}
             <span>{value === FACTORY_GO ? "作る" : "直す"}</span>
           </button>
         ))}
