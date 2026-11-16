@@ -110,6 +110,30 @@ describe("assignLamps", () => {
   });
 });
 
+describe("assignLamps：急ぎ（priority:high）", () => {
+  it("ai:queue のうち priority:high が先（パイプラインが始める順）。その中は番号順", () => {
+    const lamps = assignLamps([
+      { number: 5, labels: ["ai:queue"], kind: "waiting" },
+      { number: 12, labels: ["ai:queue", "priority:high"], kind: "waiting" },
+      { number: 9, labels: ["priority:high", "ai:queue"], kind: "waiting" },
+      { number: 7, labels: ["ai:queue"], kind: "waiting" },
+    ]);
+    expect(lamps.get(9)).toEqual({ kind: "waiting", position: 1 });
+    expect(lamps.get(12)).toEqual({ kind: "waiting", position: 2 });
+    expect(lamps.get(5)).toEqual({ kind: "waiting", position: 3 });
+    expect(lamps.get(7)).toEqual({ kind: "waiting", position: 4 });
+  });
+
+  it("ai:blocked は priority:high でも、ai:queue の後ろのまま", () => {
+    const lamps = assignLamps([
+      { number: 3, labels: ["ai:blocked", "priority:high"], kind: "waiting" },
+      { number: 8, labels: ["ai:queue"], kind: "waiting" },
+    ]);
+    expect(lamps.get(8)).toEqual({ kind: "waiting", position: 1 });
+    expect(lamps.get(3)).toEqual({ kind: "waiting", position: 2 });
+  });
+});
+
 describe("lampLabel", () => {
   it("読み上げとホバーの文言", () => {
     expect(lampLabel({ kind: "running" })).toBe("動作中");
