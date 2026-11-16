@@ -41,6 +41,25 @@
   margin-top: 22px;
 }
 
+/* スマホ：行の下に開く図。図の枠だけが左右にスクロールする（行の左右の -10px の出っ張りが切れないよう、枠に10pxの余白） */
+.inlineScroll {
+  margin: 14px -10px 0;
+  padding: 0 10px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.inlineSteps {
+  min-width: 320px;
+  margin-top: 0;
+}
+
+@media (min-width: 900px) {
+  .inlineScroll {
+    display: none;
+  }
+}
+
 /* 1工程＝1行。行の左の縦の線で、次の工程とつなぐ */
 .step {
   position: relative;

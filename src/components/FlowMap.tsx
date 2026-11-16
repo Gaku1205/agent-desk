@@ -107,7 +107,19 @@ function Step({ step, flow, index }: { step: FlowStep; flow: Flow; index: number
 }
 
 /** 進捗図：右の列に、上から下へ、7つの工程を縦の線でつなぐ（docs/design.md の「進捗図」） */
-export function FlowMap({ target }: { target: FlowTarget | null }) {
+export function FlowMap({ target, inline = false }: { target: FlowTarget | null; inline?: boolean }) {
+  if (inline && target) {
+    // スマホ：「いまの様子」の行の下に開く。見出しは行にあるので付けない。図だけが横にスクロールする
+    return (
+      <div className={styles.inlineScroll} role="region" aria-label="進捗図" tabIndex={0}>
+        <ol className={`${styles.steps} ${styles.inlineSteps}`} aria-label={`進捗図：${target.label}`}>
+          {target.flow.steps.map((step, index) => (
+            <Step key={step.key} step={step} flow={target.flow} index={index} />
+          ))}
+        </ol>
+      </div>
+    );
+  }
   if (!target) {
     return (
       <section className={styles.flow} aria-label="進捗図">

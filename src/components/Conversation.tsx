@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ChatMessage } from "@/lib/conversation";
+import { applyStepLog } from "@/lib/flow";
+import type { StepInfo } from "@/lib/stepLog";
 import { formatWait } from "@/lib/turn";
+import { FlowMap } from "./FlowMap";
 import { TriangleDownIcon } from "./icons";
 import { lampLabel } from "@/lib/lamp";
 import { LampLabel, LampWait } from "./LampMark";
@@ -32,7 +35,55 @@ type Props = {
   selected?: string | null;
   /** 行を選んだ（同じ行なら外す。決めるのは Desk） */
   onSelect?: (key: string) => void;
+  /** スマホで開いた行の進捗図の「モデル名と所要時間」を読む（デモは渡さない） */
+  loadStepLog?: LoadStepLog;
 };
+
+type LoadStepLog = (owner: string, repo: string, number: number) => Promise<StepInfo[]>;
+
+/** スマホで開いた行の進捗図。開いている間だけ描き、進捗ログ（モデル名と所要時間）もこのときに読む */
+function OpenFlow({
+  message,
+  label,
+  now,
+  loadStepLog,
+}: {
+  message: ChatMessage;
+  label: string;
+  now: string;
+  loadStepLog?: LoadStepLog;
+}) {
+  const [infos, setInfos] = useState<StepInfo[] | null>(null);
+  useEffect(() => {
+    if (!loadStepLog) return;
+    let cancelled = false;
+    loadStepLog(message.owner, message.repo, message.number)
+      .then((result) => {
+        if (!cancelled) setInfos(result);
+      })
+      .catch(() => {
+        if (!cancelled) setInfos(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadStepLog, message.owner, message.repo, message.number, now]);
+  const flow = infos ? applyStepLog(message.flow, infos) : message.flow;
+  return (
+    <FlowMap
+      inline
+      target={{
+        owner: message.owner,
+        repo: message.repo,
+        number: message.number,
+        label,
+        title: message.title,
+        url: message.url,
+        flow,
+      }}
+    />
+  );
+}
 
 /** 行の中の、リンク・ボタン・入力（押したら、それぞれの動きだけにする） */
 function isControl(target: EventTarget | null): boolean {
@@ -40,12 +91,37 @@ function isControl(target: EventTarget | null): boolean {
 }
 
 /** 「いまの様子」：進行中の作業を、会話のメッセージのように縦に並べる（docs/design.md の「いまの様子」） */
-export function Conversation({ messages, now, showRepo, repo, notices, selected = null, onSelect }: Props) {
+export function Conversation({
+  messages,
+  now,
+  showRepo,
+  repo,
+  notices,
+  selected = null,
+  onSelect,
+  loadStepLog,
+}: Props) {
   // 公開済みを開いているか。その画面にいる間だけ覚える
   const [deployedOpen, setDeployedOpen] = useState(false);
+  // スマホで進捗図を開いている行（`owner/repo#番号`）。その画面にいる間だけ覚える
+  const [openFlows, setOpenFlows] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleOpen = (key: string) =>
+    setOpenFlows((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  const isDesktop = () => window.matchMedia("(min-width: 900px)").matches;
   // 前の描画のメッセージ（新しく入った物を見分ける）
   const [seen, setSeen] = useState<{ messages: ChatMessage[]; keys: Set<string> | null }>({ messages, keys: null });
-  if (seen.messages !== messages) setSeen({ messages, keys: new Set(seen.messages.map((m) => m.key)) });
+  if (seen.messages !== messages) {
+    setSeen({ messages, keys: new Set(seen.messages.map((m) => m.key)) });
+    // 取り直しで消えた行の「開いた状態」は捨てる
+    const alive = new Set(messages.map((m) => m.key));
+    if ([...openFlows].some((k) => !alive.has(k))) {
+      setOpenFlows(new Set([...openFlows].filter((k) => alive.has(k))));
+    }
+  }
 
   const active = messages.filter((m) => !m.deployed);
   const deployed = messages.filter((m) => m.deployed);
@@ -55,6 +131,12 @@ export function Conversation({ messages, now, showRepo, repo, notices, selected 
   function renderMessage(message: ChatMessage) {
     const label = showRepo ? `${message.repo}#${message.number}` : `#${message.number}`;
     const isSelected = selected === message.key;
+    const isOpen = openFlows.has(message.key);
+    // PC：右の列の図の対象を選ぶ。スマホ：その行の下の図を開閉する
+    const activate = () => {
+      if (isDesktop()) onSelect?.(message.key);
+      else toggleOpen(message.key);
+    };
     return (
       <article
         key={message.key}
@@ -63,19 +145,16 @@ export function Conversation({ messages, now, showRepo, repo, notices, selected 
         title={lampLabel(message.lamp) ?? undefined}
         data-key={message.key}
         data-fresh={fresh(message.key) ? "" : undefined}
-        data-selectable={onSelect ? "" : undefined}
+        data-selectable=""
         data-selected={isSelected ? "" : undefined}
-        onClick={
-          onSelect
-            ? (event) => {
-                // 行のどこを押しても選べる（リンク・ボタンと、文字を選んでいるときは除く）
-                // スマホは進捗図を出さないので選ばない
-                if (isControl(event.target) || window.getSelection()?.toString()) return;
-                if (!window.matchMedia("(min-width: 900px)").matches) return;
-                onSelect(message.key);
-              }
-            : undefined
-        }
+        data-open={isOpen ? "" : undefined}
+        onClick={(event) => {
+          // 行のどこを押しても使える（リンク・ボタンと、文字を選んでいるときは除く）
+          if (isControl(event.target) || window.getSelection()?.toString()) return;
+          // 開いた図の中を押しても閉じない（図を横にスクロールするため）
+          if (event.target instanceof Element && event.target.closest('[role="region"]')) return;
+          activate();
+        }}
       >
         <p className={styles.meta}>
           <LampLabel lamp={message.lamp} />
@@ -85,19 +164,15 @@ export function Conversation({ messages, now, showRepo, repo, notices, selected 
           <span className={styles.sep} aria-hidden="true">
             ·
           </span>
-          {onSelect ? (
-            <button
-              type="button"
-              className={`${styles.pick} num`}
-              aria-pressed={isSelected}
-              aria-label={`${label} の進捗図を見る`}
-              onClick={() => onSelect(message.key)}
-            >
-              {label}
-            </button>
-          ) : (
-            <span className="num">{label}</span>
-          )}
+          <button
+            type="button"
+            className={`${styles.pick} num`}
+            aria-pressed={isSelected || isOpen}
+            aria-label={`${label} の進捗図を見る`}
+            onClick={activate}
+          >
+            {label}
+          </button>
           {message.latestAt && (
             <>
               <span className={styles.sep} aria-hidden="true">
@@ -141,6 +216,7 @@ export function Conversation({ messages, now, showRepo, repo, notices, selected 
             ))}
           </ul>
         )}
+        {isOpen && <OpenFlow message={message} label={label} now={now} loadStepLog={loadStepLog} />}
       </article>
     );
   }

@@ -256,34 +256,30 @@
   white-space: nowrap;
 }
 
-@media (min-width: 900px) {
-  .msg[data-selectable] {
-    cursor: pointer;
-  }
+.msg[data-selectable] {
+  cursor: pointer;
+}
 
-  .pick {
-    text-decoration: underline dotted var(--edge-strong);
-    text-underline-offset: 3px;
-  }
+.pick {
+  text-decoration: underline dotted var(--edge-strong);
+  text-underline-offset: 3px;
+}
 
-  .pick:hover,
-  .msg[data-selected] .pick {
-    color: var(--bone);
-  }
+.pick:hover,
+.msg[data-selected] .pick,
+.msg[data-open] .pick {
+  color: var(--bone);
+}
 
-  /* 選んだ行：題名の字を --bone に */
-  .msg[data-selected] .title,
-  .msg[data-selected] .title a {
-    color: var(--bone);
-  }
+/* 選んだ行（PC）・開いた行（スマホ）：題名の字を --bone に */
+.msg[data-selected] .title,
+.msg[data-selected] .title a,
+.msg[data-open] .title,
+.msg[data-open] .title a {
+  color: var(--bone);
 }
 
 @media (max-width: 899px) {
-  /* スマホは進捗図を出さないので、選ぶ操作も出さない（見た目は今まで通り） */
-  .pick {
-    pointer-events: none;
-  }
-
   .now {
     padding-top: 40px;
   }
