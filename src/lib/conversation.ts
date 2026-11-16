@@ -3,6 +3,7 @@ import { describeStatus, failureLogUrl } from "./describe";
 import { groupTrails, type TrailStep } from "./eventGroups";
 import type { TrailEvent } from "./events";
 import { getFlow, type Flow } from "./flow";
+import { flowFacts, type FlowExtraSource } from "./flowExtraBranches";
 import type { IssueData, RepoData, RepoResult } from "./github/types";
 import { assignLamps, hasOpenHumanRequest, judgeLamp, runActivity, type Lamp, type LampTarget } from "./lamp";
 import { buildPipelineRows } from "./pipeline";
@@ -113,6 +114,8 @@ export type ChatMessage = {
   running: boolean;
   /** 進捗図の7つの工程の状態 */
   flow: Flow;
+  /** 進捗図のほかの分岐を決める材料（docs/spec.md の「ほかの分岐」。無ければ出さない） */
+  flowExtra?: FlowExtraSource;
   /** 行の左のランプ（緑・赤・紫の数字・無し） */
   lamp: Lamp;
 };
@@ -204,6 +207,7 @@ export function buildConversation(
         deployed: row.status.stage === "deployed",
         running: isRunningStage(row.status.stage, row.status.grace),
         flow: getFlow(row.status),
+        flowExtra: { status: row.status, facts: flowFacts(issue, row.status, result.data.comments) },
         lamp: { kind: "none" },
       });
     }

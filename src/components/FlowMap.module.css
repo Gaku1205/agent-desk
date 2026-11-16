@@ -197,6 +197,20 @@
   }
 }
 
+/* デザインを飛ばした：行を字下げして薄い字にし、縦の線は行の上の端から切らずに通す（企画から実装へ、横を通り抜ける1本の線） */
+.step[data-skipped]::before {
+  top: 0;
+}
+
+.step[data-skipped] > .row {
+  margin-left: 12px;
+}
+
+.step[data-skipped] .icon,
+.step[data-skipped] .name {
+  color: var(--mute);
+}
+
 /* CI失敗時の修正：CIの下に、工程名の左端まで字下げした枠。左の縦線が、修正からCIに戻る線 */
 .branch {
   margin: 6px 0 4px 32px;

@@ -2,6 +2,7 @@ import { deployFailureReason } from "./deployFailure";
 import { describeStatus, failureLogUrl, PIPELINE_MISSING_TEXT } from "./describe";
 import { isDeployStatus } from "./deployStatus";
 import { isFactoryIssue } from "./factoryIssue";
+import { flowFacts, type FlowFacts } from "./flowExtraBranches";
 import type { IssueData, RepoData, RepoResult } from "./github/types";
 import {
   getIssueStatus,
@@ -86,6 +87,8 @@ export type TurnItem = {
   question: ParsedQuestion | null;
   /** 工場の相談（段階が「工場の相談」で、工場の相談のコメントが読めたときだけ） */
   factory: FactoryTalk | null;
+  /** 進捗図のほかの分岐を決める材料（docs/spec.md の「ほかの分岐」。無ければ出さない） */
+  flowFacts?: FlowFacts;
 };
 
 /** 1件のキー（`owner/repo#番号`。流れの光のキーと同じ） */
@@ -323,6 +326,7 @@ export function repoTurnItems(owner: string, repo: string, data: RepoData, now: 
       question: status.stage === "question" ? parseQuestionComment(data.comments, issue.number) : null,
       factory:
         status.stage === "factoryTalk" ? parseFactoryTalk(data.comments, issue.number, `${owner}/${repo}`) : null,
+      flowFacts: flowFacts(issue, status, data.comments),
     });
   }
   return items;
