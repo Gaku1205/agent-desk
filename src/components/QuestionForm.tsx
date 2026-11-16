@@ -3,6 +3,7 @@
 import { useRef, type KeyboardEvent } from "react";
 import type { AnswerInput, MockupOption, ParsedQuestion, QuestionItem } from "@/lib/question";
 import { rovingNext } from "@/lib/roving";
+import { OptionMarkIcon } from "./icons";
 import styles from "./QuestionForm.module.css";
 
 type Props = {
@@ -77,6 +78,7 @@ export function QuestionBlock({
               onClick={() => roving.onClick(option.letter)}
               onKeyDown={(event) => roving.onKeyDown(event, i)}
             >
+              <OptionMarkIcon checked={answer.choice === option.letter} />
               <span className={`${styles.letter} num`}>{option.letter}</span>
               <span>{option.text}</span>
               {option.recommended && <span className={styles.rec}>おすすめ</span>}

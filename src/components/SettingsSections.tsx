@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ActivityIcon, BellIcon, RepoIcon, SunIcon } from "./icons";
 import { MotionSetting } from "./MotionSetting";
 import { Sheet } from "./Sheet";
 import { ThemeSetting } from "./ThemeSetting";
@@ -38,6 +39,7 @@ export function SettingsSections({ repoRows, repoOptions, editable, repoOptionsE
         <div className={styles.sections}>
           <section className={styles.section} aria-labelledby="settings-repos">
             <h2 id="settings-repos" className={styles.title}>
+              <RepoIcon />
               監視するリポジトリ
             </h2>
             <WatchedReposSetting
@@ -50,18 +52,21 @@ export function SettingsSections({ repoRows, repoOptions, editable, repoOptionsE
           </section>
           <section className={`${styles.section} ${styles.notify}`} aria-labelledby="settings-notify">
             <h2 id="settings-notify" className={styles.title}>
+              <BellIcon />
               通知
             </h2>
             <NotifySetting rows={shownNotifyRows} />
           </section>
           <section className={styles.section} aria-labelledby="settings-theme">
             <h2 id="settings-theme" className={styles.title}>
+              <SunIcon />
               テーマ
             </h2>
             <ThemeSetting />
           </section>
           <section className={styles.section} aria-labelledby="settings-motion">
             <h2 id="settings-motion" className={styles.title}>
+              <ActivityIcon />
               アニメーション
             </h2>
             <MotionSetting />

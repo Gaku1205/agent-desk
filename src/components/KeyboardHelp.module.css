@@ -30,12 +30,18 @@
 }
 
 .title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
   color: var(--bone);
   font-size: 15px;
   font-weight: 500;
 }
 
 .close {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
   height: 30px;
   padding: 0 10px;
   border: 0;

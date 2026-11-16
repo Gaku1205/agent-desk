@@ -12,6 +12,12 @@
   border-top: 1px solid var(--hair-2);
 }
 
+/* 行のアイコンは、名前との間を7pxに詰める（行の間 16px − 9px） */
+.row > svg:first-child {
+  margin-right: -9px;
+  color: var(--bone);
+}
+
 .row:first-child {
   border-top-color: transparent;
 }
@@ -37,6 +43,9 @@
 }
 
 .remove {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
   height: 30px;
   padding: 0 6px;
   border-radius: 5px;

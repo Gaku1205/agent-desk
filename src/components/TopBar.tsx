@@ -11,7 +11,7 @@ import { revealScrollLeft } from "@/lib/tabScroll";
 import type { TurnCounts } from "@/lib/turn";
 import { useShell } from "./AppShell";
 import { useDemo } from "./DemoContext";
-import { GearIcon } from "./icons";
+import { GearIcon, GridIcon, LogoutIcon, PlayIcon, RepoIcon, WriteIcon } from "./icons";
 import styles from "./TopBar.module.css";
 
 export type TopBarRepo = { owner: string; repo: string };
@@ -143,6 +143,7 @@ export function RepoTabs({
         aria-current={isCurrent(home) ? "page" : undefined}
         onClick={shouldCloseMenuOnPick(pathname, home) ? onPick : undefined}
       >
+        <GridIcon />
         <span>全部</span>
         <Counts turn={counts.total} running={runningCounts.total} labeled={isCurrent(home)} />
       </Link>
@@ -158,6 +159,7 @@ export function RepoTabs({
             title={`${owner}/${repo}`}
             onClick={shouldCloseMenuOnPick(pathname, href) ? onPick : undefined}
           >
+            <RepoIcon />
             <span className={styles.tabName}>{repo}</span>
             <Counts
               turn={counts.byRepo[key] ?? 0}
@@ -176,6 +178,7 @@ export function SideRepos(props: Pick<Props, "repos" | "counts" | "runningCounts
   return (
     <aside className={styles.side} aria-label="リポジトリの一覧">
       <span className={styles.sideLbl}>
+        <RepoIcon />
         リポジトリ
         <CountsKey />
       </span>
@@ -236,6 +239,7 @@ function DemoControls() {
         disabled={demo.playState === "playing"}
         aria-live="polite"
       >
+        <PlayIcon />
         {PLAY_BUTTON_LABEL[demo.playState]}
       </button>
     </>
@@ -299,6 +303,7 @@ export function TopBar(props: Props) {
             aria-label="Issueを書く"
             aria-current={pathname.toLowerCase() === newIssueHref ? "page" : undefined}
           >
+            <WriteIcon />
             <span className={styles.newFull}>Issueを書く</span>
             <span className={styles.newShort} aria-hidden="true">
               書く
@@ -349,6 +354,7 @@ function MenuSheet(props: Props) {
       <div className={styles.pane} role="dialog" aria-modal="true" aria-label="メニュー" ref={paneRef}>
         <span className={styles.mark}>agent-desk</span>
         <span className={`${styles.lbl} ${styles.lblRow}`}>
+          <RepoIcon />
           リポジトリ
           <CountsKey />
         </span>
@@ -359,6 +365,7 @@ function MenuSheet(props: Props) {
           className={styles.lnk}
           onClick={shouldCloseMenuOnPick(pathname, newIssueHref) ? closeMenu : undefined}
         >
+          <WriteIcon />
           Issueを書く
         </Link>
         <Link
@@ -390,6 +397,7 @@ function LogoutButton() {
   const { pending } = useFormStatus();
   return (
     <button type="submit" className={styles.logout} disabled={pending}>
+      <LogoutIcon />
       {pending ? "ログアウト中…" : "ログアウト"}
     </button>
   );

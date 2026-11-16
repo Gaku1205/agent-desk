@@ -5,6 +5,7 @@ import { DEMO_APP_REPO_URL, DEMO_BASE_PATH, DEMO_REPOS } from "@/lib/demo/data";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
 import { useDemoState } from "./DemoContext";
+import { BranchIcon, LoginIcon } from "./icons";
 import { TopBar } from "./TopBar";
 import styles from "./TopBar.module.css";
 
@@ -21,9 +22,11 @@ export function DemoTopBar() {
       extraLinks={
         <>
           <a className={styles.lnk} href={DEMO_APP_REPO_URL} target="_blank" rel="noreferrer">
+            <BranchIcon />
             GitHubで見る ↗
           </a>
           <Link className={styles.lnk} href="/">
+            <LoginIcon />
             ログイン
           </Link>
         </>

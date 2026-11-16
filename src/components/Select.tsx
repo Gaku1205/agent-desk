@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type Ref } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { typeahead, type TypeaheadState } from "@/lib/typeahead";
 import styles from "./Select.module.css";
 
@@ -15,13 +15,15 @@ type Props = {
   emptyText?: string;
   /** 閉じているときの押せる箱（フォーカスを移すため） */
   buttonRef?: Ref<HTMLButtonElement>;
+  /** 値と各項目の左に置くアイコン（飾り） */
+  icon?: ReactNode;
 };
 
 /**
  * 選択欄（標準の `<select>` は使わない。docs/design.md の「設定」）。
  * 押す・Enter・Space・↓ で開き、↑↓ で動かし、文字を打てばその文字で始まる候補へ移り、Enter で選ぶ、Esc で閉じる。外を押しても閉じる
  */
-export function Select({ options, value, onChange, disabled, label, emptyText, buttonRef }: Props) {
+export function Select({ options, value, onChange, disabled, label, emptyText, buttonRef, icon }: Props) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(() => Math.max(0, options.indexOf(value)));
   const rootRef = useRef<HTMLDivElement>(null);
@@ -123,6 +125,7 @@ export function Select({ options, value, onChange, disabled, label, emptyText, b
         onClick={() => (open ? setOpen(false) : show())}
         onKeyDown={onKeyDown}
       >
+        {icon}
         <span className={styles.value}>{value || emptyText || "（選べる物がありません）"}</span>
         <span className={styles.caret} aria-hidden="true">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
@@ -143,6 +146,7 @@ export function Select({ options, value, onChange, disabled, label, emptyText, b
               onPointerMove={() => setActive(index)}
               onClick={() => choose(index)}
             >
+              {icon}
               {option}
             </li>
           ))}

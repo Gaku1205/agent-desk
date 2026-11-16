@@ -68,6 +68,13 @@
   color: var(--bone);
 }
 
+/* 選択中のアイコンだけアクセント色（docs/design.md の「アイコン」） */
+.tab[aria-current="page"] > svg,
+.gear[aria-current="page"] > .gearIcon,
+.gear[aria-current="page"] > svg {
+  color: var(--accent);
+}
+
 .tabName {
   min-width: 0;
   overflow: hidden;
@@ -235,6 +242,9 @@
 }
 
 .play {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
   height: 30px;
   padding: 0 12px;
   border-radius: 6px;
@@ -326,7 +336,7 @@
 
 .gear {
   display: flex;
-  gap: 6px;
+  gap: 7px;
   align-items: center;
   height: 30px;
   padding: 0 6px;
@@ -368,6 +378,9 @@
 }
 
 .logout {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
   height: 30px;
   padding: 0 6px;
   border-radius: 6px;
@@ -412,10 +425,27 @@
 
 .sideLbl {
   display: flex;
+  gap: 7px;
   align-items: center;
   margin: 0 10px 8px;
   color: var(--mute);
   font-size: 11.5px;
+  white-space: nowrap;
+}
+
+/* 狭い左ペインで1行に収める：凡例の間と点の間を詰める */
+.side .sideLbl {
+  gap: 5px;
+  margin: 0 4px 8px;
+}
+
+.side .key {
+  gap: 6px;
+}
+
+.side .keyTurn,
+.side .keyRunning {
+  gap: 4px;
 }
 
 .side .repos {
@@ -431,6 +461,12 @@
 .side .tab {
   justify-content: space-between;
   height: 36px;
+  min-width: 0;
+}
+
+/* アイコンの右に名前を左揃えで置き、件数を右端へ寄せる */
+.side .tab > span {
+  flex: 1;
   min-width: 0;
 }
 
@@ -533,6 +569,11 @@
     align-items: stretch;
   }
 
+  .sheet .tab > span {
+    flex: 1;
+    min-width: 0;
+  }
+
   .sheet .tab {
     justify-content: space-between;
     height: 44px;
@@ -548,6 +589,7 @@
 
   .lblRow {
     display: flex;
+    gap: 7px;
     align-items: center;
   }
 

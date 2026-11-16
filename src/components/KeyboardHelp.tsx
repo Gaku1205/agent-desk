@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { isHelpToggleKey } from "@/lib/keyboardHelp";
+import { CrossIcon, KeyboardIcon } from "./icons";
 import styles from "./KeyboardHelp.module.css";
 
 /** 一覧に載せるのは、いま実際にある操作だけ（docs/spec.md の「キーボード操作の一覧」） */
@@ -68,8 +69,12 @@ export function KeyboardHelp() {
     <div className={styles.scrim} onClick={onScrimClick}>
       <div className={styles.panel} role="dialog" aria-modal="true" aria-label="キーボード操作の一覧">
         <div className={styles.head}>
-          <h2 className={styles.title}>キーボード操作</h2>
+          <h2 className={styles.title}>
+            <KeyboardIcon />
+            キーボード操作
+          </h2>
           <button type="button" className={styles.close} onClick={close} ref={closeRef}>
+            <CrossIcon size={16} />
             閉じる
           </button>
         </div>

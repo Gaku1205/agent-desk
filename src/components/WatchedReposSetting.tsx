@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { checkPipeline, saveWatchedRepos } from "@/app/(app)/settings/actions";
 import { useDemo } from "./DemoContext";
+import { CrossIcon, PlusIcon, RepoIcon, SaveIcon } from "./icons";
 import { Select } from "./Select";
 import settingsStyles from "./SettingsSections.module.css";
 import styles from "./WatchedReposSetting.module.css";
@@ -122,6 +123,7 @@ export function WatchedReposSetting({
       <ul className={styles.list}>
         {rows.map((row) => (
           <li key={row.name} className={styles.row}>
+            <RepoIcon />
             <span className={styles.name}>{row.name}</span>
             {row.pipeline !== null && (
               <span className={styles.pipeline} data-pipeline={row.pipeline ? "yes" : "no"}>
@@ -140,6 +142,7 @@ export function WatchedReposSetting({
                 onClick={() => remove(row.name)}
                 disabled={saving}
               >
+                <CrossIcon size={16} />
                 外す
               </button>
             )}
@@ -158,6 +161,7 @@ export function WatchedReposSetting({
               disabled={saving}
               buttonRef={selectRef}
               emptyText={optionsError ? "（取得できませんでした）" : undefined}
+              icon={<RepoIcon />}
             />
             <button
               type="button"
@@ -165,6 +169,7 @@ export function WatchedReposSetting({
               onClick={add}
               disabled={saving || !current}
             >
+              <PlusIcon />
               追加
             </button>
           </div>
@@ -184,6 +189,7 @@ export function WatchedReposSetting({
               disabled={saving}
               aria-busy={saving}
             >
+              <SaveIcon />
               {saving ? "保存中…" : "リポジトリを保存"}
             </button>
             {dirty && !saving && <span className={settingsStyles.unsaved}>未保存</span>}
