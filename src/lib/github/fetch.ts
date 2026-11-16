@@ -6,6 +6,7 @@ import { GitHubError, toErrorInfo } from "./errors";
 import {
   convertRepoNodes,
   mainDeployedFrom,
+  mergeMainDeployed,
   readRepoResponse,
   REPO_QUERY,
   type GqlIssue,
@@ -142,14 +143,16 @@ function rememberMainDeployedAt(key: string, value: MainDeployed): void {
 export const mainDeployedCacheForTest = { clear: (): void => lastMainDeployedAt.clear() };
 
 /**
- * main の直近10件のコミットの公開ステータスから、最後に公開が成功した時刻を決める。
+ * main の直近のコミット（30件）の公開ステータスから、最後に公開が成功した時刻を決める。
+ * 前回見つけた context ごとの成功とは、context ごとに新しい方で合わせる（範囲の外に出た成功を捨てない）。
  * main が取れなかった（`commits` が null）ときは、そのリポジトリで前回取れた値を使う（無ければ null）
  */
-function rememberedMainDeployed(key: string, commits: CommitStatusData[][] | null): MainDeployed {
-  if (commits === null) return lastMainDeployedAt.get(key) ?? { at: null, byContext: {} };
-  const found = mainDeployedFrom(commits);
-  rememberMainDeployedAt(key, found);
-  return found;
+export function rememberedMainDeployed(key: string, commits: CommitStatusData[][] | null): MainDeployed {
+  const previous = lastMainDeployedAt.get(key);
+  if (commits === null) return previous ?? { at: null, byContext: {} };
+  const merged = mergeMainDeployed(previous, mainDeployedFrom(commits));
+  rememberMainDeployedAt(key, merged);
+  return merged;
 }
 
 /** Actions の runs（パイプラインの状態・見張り役の最後の実行）を取り直す間隔 */

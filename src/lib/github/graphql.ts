@@ -20,6 +20,9 @@ const LABEL_EVENTS = `timelineItems(last: 50, itemTypes: [LABELED_EVENT, UNLABEL
           }
         }`;
 
+/** main のコミットを見る数（`history(first: …)` と `mainDeployedFrom` の `sample` で共通） */
+export const MAIN_COMMITS_SAMPLE = 30;
+
 /**
  * 同期の GraphQL の問い合わせ（docs/spec.md の「データの取得」）。1リポジトリ1回で、
  * Issue・PR・コメント・ラベル・ラベルの付け外し・チェック・公開ステータス・main の公開・回数制限を取る。
@@ -83,7 +86,7 @@ query RepoData(
     }
     ref(qualifiedName: "refs/heads/main") @include(if: $withMain) {
       target {
-        ... on Commit { history(first: 10) { nodes { oid status { ...Statuses } } } }
+        ... on Commit { history(first: ${MAIN_COMMITS_SAMPLE}) { nodes { oid status { ...Statuses } } } }
       }
     }
   }
@@ -331,7 +334,7 @@ export type MainDeployed = { at: string | null; byContext: Record<string, string
  * main の直近のコミット（新しい順）の公開ステータスから、context ごとに最後に公開が成功した時刻を決める。
  * 見えた公開の context が全部見つかった時点でやめる（docs/spec.md の「main の最後に公開が成功した時刻」）
  */
-export function mainDeployedFrom(commits: CommitStatusData[][], sample = 10): MainDeployed {
+export function mainDeployedFrom(commits: CommitStatusData[][], sample = MAIN_COMMITS_SAMPLE): MainDeployed {
   const byContext: Record<string, string> = {};
   const seen = new Set<string>();
   for (const statuses of commits.slice(0, sample)) {
@@ -341,6 +344,16 @@ export function mainDeployedFrom(commits: CommitStatusData[][], sample = 10): Ma
       byContext[context] ??= at;
     }
     if (seen.size > 0 && [...seen].every((context) => context in byContext)) break;
+  }
+  return { at: Object.values(byContext).sort().at(-1) ?? null, byContext };
+}
+
+/** 前回見つけた成功と今回の結果を、context ごとに新しい方で合わせる。`at` は合わせた byContext の最新 */
+export function mergeMainDeployed(previous: MainDeployed | undefined, found: MainDeployed): MainDeployed {
+  const byContext: Record<string, string> = { ...(previous?.byContext ?? {}) };
+  for (const [context, at] of Object.entries(found.byContext)) {
+    const old = byContext[context];
+    if (old === undefined || old < at) byContext[context] = at;
   }
   return { at: Object.values(byContext).sort().at(-1) ?? null, byContext };
 }
