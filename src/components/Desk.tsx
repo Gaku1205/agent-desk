@@ -18,7 +18,9 @@ import styles from "./Desk.module.css";
 import { FlowMap } from "./FlowMap";
 import { NewIssueForm, type NewIssueRepo } from "./NewIssueForm";
 import { SideRepos, type TopBarRepo } from "./TopBar";
+import { TurnList } from "./TurnList";
 import { TurnRow } from "./TurnRow";
+import { pickTurn } from "@/lib/turnList";
 
 export type DeskScope =
   | { kind: "all"; repoCount: number }
@@ -112,9 +114,12 @@ export function Desk({
   // 片づけた1件の中にフォーカスがあった（見出しへ移した）。次の1件が出たら、その最初のボタンへ移す
   const focusNext = useRef(false);
   const waiting = items.filter((item) => !leaving.has(turnItemKey(item)));
-  const current = waiting[0] ?? null;
+  // 一覧で選んだ1件（`owner/repo#番号`）。その画面にいる間だけ覚え、片づいたら並び順の先頭に戻る
+  const [picked, setPicked] = useState<string | null>(null);
+  const current = pickTurn(waiting, picked);
   const currentKey = current ? turnItemKey(current) : null;
-  const rest = Math.max(0, waiting.length - 1);
+  const others = waiting.filter((item) => turnItemKey(item) !== currentKey);
+  const rest = others.length;
   // 開いたときの1件はフェードしない。替わった1件だけ短くフェードする
   const [firstKey] = useState(currentKey);
 
@@ -127,6 +132,12 @@ export function Desk({
       else next.delete(key);
       return next;
     });
+  }, []);
+
+  // 一覧の行を選んだ：その行は大きい方に移るので、フォーカスも大きい1件の最初のボタンへ移す
+  const pick = useCallback((key: string) => {
+    focusNext.current = true;
+    setPicked(key);
   }, []);
 
   useEffect(() => {
@@ -245,6 +256,8 @@ export function Desk({
           </Link>
         </div>
         {!current && <p className={styles.calm}>あなたが答えることはありません。上で、いまの様子を読めます</p>}
+        <TurnList items={others} now={at} showRepo={showRepo} onPick={pick} />
+
         <div ref={rowsRef}>
           {items.map((item) => {
             const key = turnItemKey(item);
