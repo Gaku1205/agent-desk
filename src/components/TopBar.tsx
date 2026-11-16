@@ -11,7 +11,7 @@ import { revealScrollLeft } from "@/lib/tabScroll";
 import type { TurnCounts } from "@/lib/turn";
 import { useShell } from "./AppShell";
 import { useDemo } from "./DemoContext";
-import { GearIcon, GridIcon, LogoutIcon, PlayIcon, RepoIcon, WriteIcon } from "./icons";
+import { GearIcon, GridIcon, LogoutIcon, PlayIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
 import styles from "./TopBar.module.css";
 
 export type TopBarRepo = { owner: string; repo: string };
@@ -252,6 +252,7 @@ export function TopBar(props: Props) {
   const pathname = usePathname();
   const settingsHref = `${props.basePath ?? ""}/settings`;
   const newIssueHref = `${props.basePath ?? ""}/new`;
+  const newServiceHref = `${props.basePath ?? ""}/new/service`;
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const wasOpenRef = useRef(false);
 
@@ -310,6 +311,18 @@ export function TopBar(props: Props) {
             </span>
           </Link>
           <Link
+            href={newServiceHref}
+            className={styles.gear}
+            aria-label="新しいサービスを作る"
+            aria-current={pathname.toLowerCase() === newServiceHref ? "page" : undefined}
+          >
+            <PlusIcon />
+            <span className={styles.newFull}>新しいサービスを作る</span>
+            <span className={styles.newShort} aria-hidden="true">
+              新サービス
+            </span>
+          </Link>
+          <Link
             href={settingsHref}
             className={styles.gear}
             aria-current={pathname.toLowerCase() === settingsHref ? "page" : undefined}
@@ -336,6 +349,7 @@ function MenuSheet(props: Props) {
   const pathname = usePathname();
   const settingsHref = `${props.basePath ?? ""}/settings`;
   const newIssueHref = `${props.basePath ?? ""}/new`;
+  const newServiceHref = `${props.basePath ?? ""}/new/service`;
   const paneRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!menuOpen) return;
@@ -367,6 +381,14 @@ function MenuSheet(props: Props) {
         >
           <WriteIcon />
           Issueを書く
+        </Link>
+        <Link
+          href={newServiceHref}
+          className={styles.lnk}
+          onClick={shouldCloseMenuOnPick(pathname, newServiceHref) ? closeMenu : undefined}
+        >
+          <PlusIcon />
+          新しいサービスを作る
         </Link>
         <Link
           href={settingsHref}

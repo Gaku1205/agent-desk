@@ -4,7 +4,7 @@ import { useRef, useState, useTransition, type FormEvent } from "react";
 import { createNewIssue } from "@/app/actions";
 import { checkNewIssueTitle, composeNewIssue, MAX_NEW_ISSUE_TITLE } from "@/lib/newIssue";
 import { useDemo } from "./DemoContext";
-import { FileIcon, RepoIcon, WriteIcon } from "./icons";
+import { FileIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
 import { Select } from "./Select";
 import { Sheet } from "./Sheet";
 import settingsStyles from "./SettingsSections.module.css";
@@ -30,12 +30,16 @@ export function NewIssueForm({
   repos,
   initialRepo,
   variant = "page",
+  mode = "issue",
 }: {
   repos: NewIssueRepo[];
   initialRepo?: string;
   variant?: "page" | "bar";
+  /** `service`＝「新しいサービスを作る」（/new/service。送り先はテンプレートリポジトリだけ。渡す repos もテンプレートだけにする） */
+  mode?: "issue" | "service";
 }) {
   const bar = variant === "bar";
+  const service = mode === "service";
   const names = repos.map((repo) => repo.name);
   const [selected, setSelected] = useState(initialRepo && names.includes(initialRepo) ? initialRepo : (names[0] ?? ""));
   const [title, setTitle] = useState("");
@@ -45,7 +49,7 @@ export function NewIssueForm({
   const inputRef = useRef<HTMLInputElement>(null);
   const demo = useDemo();
 
-  const template = repos.find((repo) => repo.name === selected)?.template === true;
+  const template = service || repos.find((repo) => repo.name === selected)?.template === true;
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -79,30 +83,46 @@ export function NewIssueForm({
   }
 
   const empty = (
-    <p className={styles.empty}>監視するリポジトリがありません。設定で追加すると、ここからIssueを書けます</p>
+    <p className={styles.empty}>
+      {service
+        ? "監視リストにテンプレートのリポジトリがありません。設定でテンプレートのリポジトリ（ai-dev-template など）を追加すると、ここから新しいサービスを作れます"
+        : "監視するリポジトリがありません。設定で追加すると、ここからIssueを書けます"}
+    </p>
   );
   const form = (
               <form className={bar ? styles.barForm : styles.form} onSubmit={submit} noValidate>
-                <div className={`${styles.field} ${bar ? styles.barRepo : ""}`}>
-                  {!bar && (
-                    <span className={styles.label} id="new-issue-repo">
-                      リポジトリ
+                {service && names.length === 1 ? (
+                  <div className={styles.field}>
+                    <span className={styles.label}>送り先</span>
+                    <span className={styles.target}>
+                      <RepoIcon />
+                      {selected}
                     </span>
-                  )}
-                  <Select
-                    options={names}
-                    value={selected}
-                    onChange={(next) => {
-                      setSelected(next);
-                      setStatus({ kind: "idle" });
-                    }}
-                    label="Issueを書くリポジトリ"
-                    disabled={saving}
-                    icon={<RepoIcon />}
-                  />
-                </div>
+                  </div>
+                ) : (
+                  <div className={`${styles.field} ${bar ? styles.barRepo : ""}`}>
+                    {!bar && (
+                      <span className={styles.label} id="new-issue-repo">
+                        {service ? "送り先のテンプレート" : "リポジトリ"}
+                      </span>
+                    )}
+                    <Select
+                      options={names}
+                      value={selected}
+                      onChange={(next) => {
+                        setSelected(next);
+                        setStatus({ kind: "idle" });
+                      }}
+                      label={service ? "送り先のテンプレートリポジトリ" : "Issueを書くリポジトリ"}
+                      disabled={saving}
+                      icon={<RepoIcon />}
+                    />
+                  </div>
+                )}
                 <label className={`${styles.field} ${bar ? styles.barMemo : ""}`}>
-                  <span className={bar ? styles.hidden : styles.label}>{template ? "新サービスのメモ" : "1行のメモ"}</span>
+                  <span className={bar ? styles.hidden : styles.label}>
+                    {service ? "どんなサービスを作りたいか" : template ? "新サービスのメモ" : "1行のメモ"}
+                  </span>
                   <span className={styles.memo}>
                     {template && <span className={styles.prefix}>新サービス：</span>}
                     <input
@@ -143,8 +163,8 @@ export function NewIssueForm({
                 )}
                 <div className={`${settingsStyles.save} ${styles.actions}`}>
                   <button type="submit" className={settingsStyles.button} disabled={saving} aria-busy={saving}>
-                    <WriteIcon />
-                    {saving ? "作成中…" : "Issueを作る"}
+                    {service ? <PlusIcon /> : <WriteIcon />}
+                    {saving ? "作成中…" : service ? "サービスを作る" : "Issueを作る"}
                   </button>
                   {status.kind === "created" && (
                     <span className={settingsStyles.saved} role="status">
@@ -165,6 +185,9 @@ export function NewIssueForm({
                     </span>
                   )}
                 </div>
+                {service && status.kind === "created" && (
+                  <p className={styles.after}>工場が新しいリポジトリを作って、公開まで進めます。相談があれば「あなたの番」に出ます</p>
+                )}
               </form>
   );
 
@@ -179,13 +202,18 @@ export function NewIssueForm({
   return (
     <Sheet>
       <div className={settingsStyles.page}>
-        <h1 className={settingsStyles.h1}>Issueを書く</h1>
+        <h1 className={settingsStyles.h1}>{service ? "新しいサービスを作る" : "Issueを書く"}</h1>
         <div className={settingsStyles.sections}>
           <section className={settingsStyles.section} aria-labelledby="new-issue-title">
             <h2 id="new-issue-title" className={settingsStyles.title}>
-              <FileIcon />
-              メモ
+              {service ? <PlusIcon /> : <FileIcon />}
+              {service ? "どんなサービス？" : "メモ"}
             </h2>
+            {service && (
+              <p className={styles.lead}>
+                新しいリポジトリを工場が作ります。今あるリポジトリに頼むときは、「Issueを書く」から
+              </p>
+            )}
             {names.length === 0 ? empty : form}
           </section>
         </div>

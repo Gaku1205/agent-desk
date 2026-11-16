@@ -153,3 +153,27 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* 「新しいサービスを作る」（/new/service）。色・文字は既存のものだけ */
+.lead {
+  margin: -6px 0 22px;
+  max-width: 560px;
+  color: var(--mute);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.target {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  height: 36px;
+  color: var(--bone);
+  font-size: 13.5px;
+}
+
+.after {
+  color: var(--bone-2);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
