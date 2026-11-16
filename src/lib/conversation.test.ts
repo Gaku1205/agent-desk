@@ -32,17 +32,17 @@ function status(overrides: Partial<IssueStatus>): IssueStatus {
 }
 
 describe("chatLine", () => {
-  it("AIの番の段階は「いま〇〇が△△しています」の形", () => {
-    expect(chatLine(status({ stage: "planning" }))).toEqual({ speaker: "企画AI", text: "いま企画AIがIssueを清書しています" });
-    expect(chatLine(status({ stage: "implementing" }))).toEqual({ speaker: "AI", text: "いまAIが実装しています" });
-    expect(chatLine(status({ stage: "ciRunning" }))).toEqual({ speaker: "CI", text: "いまCIが確かめています（3/4 通過）" });
-    expect(chatLine(status({ stage: "reviewing" }))).toEqual({ speaker: "レビューAI", text: "いまレビューAIが確認しています" });
-    expect(chatLine(status({ stage: "fixing", fixCount: 2 }))).toEqual({ speaker: "AI", text: "いまAIが直しています（2/2 回目）" });
-    expect(chatLine(status({ stage: "deploying", turn: "none" }))).toEqual({ speaker: "本番", text: "いま本番に公開しています" });
+  it("AIの番の段階は「〇〇が△△しています」の形（頭に「いま」を付けない）", () => {
+    expect(chatLine(status({ stage: "planning" }))).toEqual({ speaker: "企画AI", text: "企画AIがIssueを清書しています" });
+    expect(chatLine(status({ stage: "implementing" }))).toEqual({ speaker: "AI", text: "AIが実装しています" });
+    expect(chatLine(status({ stage: "ciRunning" }))).toEqual({ speaker: "CI", text: "CIが確かめています（3/4 通過）" });
+    expect(chatLine(status({ stage: "reviewing" }))).toEqual({ speaker: "レビューAI", text: "レビューAIが確認しています" });
+    expect(chatLine(status({ stage: "fixing", fixCount: 2 }))).toEqual({ speaker: "AI", text: "AIが直しています（2/2 回目）" });
+    expect(chatLine(status({ stage: "deploying", turn: "none" }))).toEqual({ speaker: "本番", text: "本番に公開しています" });
   });
 
   it("修正の確認中は、CIとレビューで確かめている文", () => {
-    const text = "直した結果を、いまCIとレビューで確かめています（CI 3/4）";
+    const text = "直した結果を、CIとレビューで確かめています（CI 3/4）";
     expect(chatLine(status({ stage: "ciRunning", verifyingFix: true })).text).toBe(text);
     expect(chatLine(status({ stage: "reviewing", verifyingFix: true })).text).toBe(text);
   });
@@ -73,10 +73,10 @@ describe("chatLine", () => {
   it("猶予の間はパイプラインの番", () => {
     expect(chatLine(status({ stage: "notStarted", grace: "intake" }))).toEqual({
       speaker: "パイプライン",
-      text: "いまパイプラインの受付が、企画に回すか決めています",
+      text: "パイプラインの受付が、企画に回すか決めています",
     });
     expect(chatLine(status({ stage: "prWaiting", grace: "creatingPull" })).text).toBe(
-      "AIの作業が終わりました。いまパイプラインがPRを作っています",
+      "AIの作業が終わりました。パイプラインがPRを作っています",
     );
   });
 

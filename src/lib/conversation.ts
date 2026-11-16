@@ -1,6 +1,7 @@
+import { aiActivity, type AiActivity } from "./aiActivity";
 import type { DeployLink } from "./deployStatus";
 import { describeStatus, failureLogUrl } from "./describe";
-import { groupTrails, type TrailStep } from "./eventGroups";
+import { groupTrails } from "./eventGroups";
 import type { TrailEvent } from "./events";
 import { getFlow, type Flow } from "./flow";
 import { flowFacts, type FlowExtraSource } from "./flowExtraBranches";
@@ -29,23 +30,23 @@ export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): Ch
   const ci = `${status.ci.passed}/${status.ci.total}`;
   switch (status.stage) {
     case "planning":
-      return { speaker: "企画AI", text: "いま企画AIがIssueを清書しています" };
+      return { speaker: "企画AI", text: "企画AIがIssueを清書しています" };
     case "implementing":
-      return { speaker: "AI", text: "いまAIが実装しています" };
+      return { speaker: "AI", text: "AIが実装しています" };
     case "fixing": {
       const n = Math.min(Math.max(status.fixCount, 1), 2);
-      return { speaker: "AI", text: `いまAIが直しています（${n}/2 回目）` };
+      return { speaker: "AI", text: `AIが直しています（${n}/2 回目）` };
     }
     case "ciRunning":
       return status.verifyingFix
-        ? { speaker: "CI", text: `直した結果を、いまCIとレビューで確かめています（CI ${ci}）` }
-        : { speaker: "CI", text: `いまCIが確かめています（${ci} 通過）` };
+        ? { speaker: "CI", text: `直した結果を、CIとレビューで確かめています（CI ${ci}）` }
+        : { speaker: "CI", text: `CIが確かめています（${ci} 通過）` };
     case "ciFailed":
       return { speaker: "CI", text: "CIが失敗しました。このあとAIが直します" };
     case "reviewing":
       return status.verifyingFix
-        ? { speaker: "CI", text: `直した結果を、いまCIとレビューで確かめています（CI ${ci}）` }
-        : { speaker: "レビューAI", text: "いまレビューAIが確認しています" };
+        ? { speaker: "CI", text: `直した結果を、CIとレビューで確かめています（CI ${ci}）` }
+        : { speaker: "レビューAI", text: "レビューAIが確認しています" };
     case "mergeWaiting":
       if (status.mergeWait === "autoMerge") {
         return { speaker: "パイプライン", text: "CIもレビューもOKです。まもなく自動でマージします" };
@@ -55,7 +56,7 @@ export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): Ch
       }
       break;
     case "deploying":
-      return { speaker: "本番", text: "いま本番に公開しています" };
+      return { speaker: "本番", text: "本番に公開しています" };
     case "deployed":
       return status.deployUnknown
         ? { speaker: "本番", text: "マージしました。公開状況は分かりません" }
@@ -71,13 +72,13 @@ export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): Ch
       return { speaker: "パイプライン", text: describeStatus(status).long };
     case "notStarted":
       if (status.grace === "intake") {
-        return { speaker: "パイプライン", text: "いまパイプラインの受付が、企画に回すか決めています" };
+        return { speaker: "パイプライン", text: "パイプラインの受付が、企画に回すか決めています" };
       }
       // 会話に出る未着手は、工場が受け持つ「新サービス：」の Issue だけ（ほかは「あなたの番」に出る）
       return { speaker: "工場", text: "工場が受け持ちます。相談が届くまで待っています" };
     case "prWaiting":
       if (status.grace === "creatingPull") {
-        return { speaker: "パイプライン", text: "AIの作業が終わりました。いまパイプラインがPRを作っています" };
+        return { speaker: "パイプライン", text: "AIの作業が終わりました。パイプラインがPRを作っています" };
       }
       break;
   }
@@ -104,9 +105,9 @@ export type ChatMessage = {
   logUrl: string | null;
   /** 公開済みの、公開先へのリンク */
   links: DeployLink[];
-  /** 直近3日の出来事（古い順） */
-  steps: TrailStep[];
-  /** いちばん新しい出来事の時刻（無ければ null） */
+  /** AIが今していること（ランプが動作中のときだけ。無ければ null。docs/spec.md の「AIが今していること」） */
+  activity: AiActivity | null;
+  /** いちばん新しい出来事の時刻（無ければ null。足あとは「いまの様子」には出さず、並び順だけに使う） */
   latestAt: string | null;
   /** 公開済み（ふだんは隠す） */
   deployed: boolean;
@@ -202,7 +203,7 @@ export function buildConversation(
         note: row.queueReason,
         logUrl: failureLogUrl(row.status, full),
         links: row.deployLinks,
-        steps: trail?.steps ?? [],
+        activity: null,
         latestAt: trail?.latestAt ?? null,
         deployed: row.status.stage === "deployed",
         running: isRunningStage(row.status.stage, row.status.grace),
@@ -215,6 +216,10 @@ export function buildConversation(
     const lamps = assignLamps(lampTargets);
     for (const message of messages.slice(start)) {
       message.lamp = lamps.get(message.number) ?? { kind: "none" };
+      // 動いている物だけ、AIが今していることを出す
+      if (message.lamp.kind === "running") {
+        message.activity = aiActivity(result.data, message.number, result.owner, result.repo);
+      }
     }
   }
   return messages.sort(compareMessages);

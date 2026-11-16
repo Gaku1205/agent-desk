@@ -113,6 +113,12 @@
     flex: 1 0 auto;
   }
 
+  /* 中央の列は --col をやめ、左右の列の間を幅いっぱい（左右の余白は --gutter だけ。入力欄と同じ端。Issue #347） */
+  .desk {
+    width: auto;
+    margin: 0 var(--gutter);
+  }
+
   .turn {
     padding: 40px 0 24px;
   }

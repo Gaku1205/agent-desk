@@ -11,7 +11,7 @@ import type {
 } from "./types";
 
 /** Issue と PR で同じ取り方をする所（共通のインターフェースが無いので、文字のまま両方に入れる） */
-const COMMENTS = `comments(last: 100) { nodes { databaseId body createdAt author { __typename login } } }`;
+const COMMENTS = `comments(last: 100) { nodes { databaseId body createdAt updatedAt url author { __typename login } } }`;
 const LABEL_EVENTS = `timelineItems(last: 50, itemTypes: [LABELED_EVENT, UNLABELED_EVENT]) {
           nodes {
             __typename
@@ -112,6 +112,8 @@ export type GqlComment = {
   databaseId?: number | null;
   body?: string | null;
   createdAt?: string | null;
+  updatedAt?: string | null;
+  url?: string | null;
   author?: { __typename?: string | null; login?: string | null } | null;
 };
 
@@ -260,6 +262,9 @@ export function convertGqlComments(issueNumber: number, raw: GqlIssue): CommentD
       author,
       body: comment.body ?? "",
       createdAt: comment.createdAt,
+      // 「AIが今していること」に使う（無ければ付けない）
+      ...(typeof comment.updatedAt === "string" ? { updatedAt: comment.updatedAt } : {}),
+      ...(typeof comment.url === "string" ? { url: comment.url } : {}),
     });
   }
   return comments;

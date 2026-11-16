@@ -17,7 +17,8 @@ import { judgePipelineState, type PipelineProbe, type PipelineState } from "../p
 import type { WatchdogLastRun } from "../watchdogState";
 import { cachedRepoData, type AppRepoData } from "./repoCache";
 import { PIPELINE_WORKFLOW_PATH } from "./settings";
-import type { CommitStatusData, RepoData, RepoResult, WorkflowRunData } from "./types";
+import type { CommitStatusData, RepoData, RepoResult, RunStepData, WorkflowRunData } from "./types";
+import { currentStepFromJobs, stepProbeRunIds } from "../aiActivity";
 
 const WINDOW_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -46,7 +47,7 @@ export async function fetchRepoData(
   ]);
   const mainDeployed = rememberedMainDeployed(client.memoKey(base), nodes.mainCommits);
 
-  return {
+  const data: RepoData = {
     ...convertRepoNodes(nodes.issues, nodes.pulls, cutoffMs),
     pipeline: actions.pipeline,
     mainDeployedAt: mainDeployed.at,
@@ -55,6 +56,26 @@ export async function fetchRepoData(
     runs: actions.runs,
     ...(nodes.isTemplate === undefined ? {} : { isTemplate: nodes.isTemplate }),
   };
+  const runSteps = await fetchRunSteps(client, base, stepProbeRunIds(data));
+  return runSteps.length > 0 ? { ...data, runSteps } : data;
+}
+
+/**
+ * 動いている実行の今のステップ名（「AIが今していること」。作業中のコメントが無い物だけ）。
+ * ETag つきで取る（変わっていなければ回数制限に数えられない）。取れなかった物は捨てる（ほかは落とさない）
+ */
+async function fetchRunSteps(client: GitHubClient, base: string, runIds: number[]): Promise<RunStepData[]> {
+  const steps = await Promise.all(
+    runIds.map(async (runId) => {
+      try {
+        const raw = await client.get<unknown>(`${base}/actions/runs/${runId}/jobs?filter=latest&per_page=30`);
+        return currentStepFromJobs(runId, raw);
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return steps.filter((step): step is RunStepData => step !== null);
 }
 
 /**
@@ -225,6 +246,7 @@ async function fetchWatchdogLastRun(client: GitHubClient, base: string): Promise
 export function toWorkflowRun(raw: unknown): WorkflowRunData | null {
   if (typeof raw !== "object" || raw === null) return null;
   const run = raw as {
+    id?: unknown;
     status?: unknown;
     head_branch?: unknown;
     display_title?: unknown;
@@ -239,6 +261,7 @@ export function toWorkflowRun(raw: unknown): WorkflowRunData | null {
         .filter((number): number is number => typeof number === "number")
     : [];
   return {
+    ...(typeof run.id === "number" ? { id: run.id } : {}),
     status: run.status,
     headBranch: typeof run.head_branch === "string" ? run.head_branch : null,
     displayTitle: typeof run.display_title === "string" ? run.display_title : "",
