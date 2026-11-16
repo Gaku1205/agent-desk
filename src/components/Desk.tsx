@@ -151,7 +151,7 @@ export function Desk({
   }, [loadStepLog, targetKey, now]);
   const flowTarget =
     pickedTarget && stepLog?.key === targetKey
-      ? { ...pickedTarget, flow: applyStepLog(pickedTarget.flow, stepLog.infos) }
+      ? { ...pickedTarget, flow: applyStepLog(pickedTarget.flow, stepLog.infos), stepLog: stepLog.infos }
       : pickedTarget;
 
   const column = (

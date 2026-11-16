@@ -80,6 +80,8 @@ function OpenFlow({
         title: message.title,
         url: message.url,
         flow,
+        extra: message.flowExtra,
+        stepLog: infos,
       }}
     />
   );

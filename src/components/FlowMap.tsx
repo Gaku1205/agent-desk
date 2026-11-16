@@ -1,6 +1,14 @@
 import { isExternalUrl } from "@/lib/externalUrl";
 import { FLOW_STATE_LABEL, flowStepLabel, isSolidLink, type Flow, type FlowState, type FlowStep } from "@/lib/flow";
 import { fixLabel } from "@/lib/flowBranch";
+import {
+  DESIGN_SKIPPED_LABEL,
+  extraRowLabel,
+  getFlowExtras,
+  NO_FLOW_EXTRAS,
+  type ExtraBranch,
+  type FlowExtras,
+} from "@/lib/flowExtraBranches";
 import type { FlowTargetData as FlowTarget } from "@/lib/flowTarget";
 import { CheckIcon, CrossIcon, FlowStepIcon, SpinnerIcon } from "./icons";
 import styles from "./FlowMap.module.css";
@@ -76,45 +84,103 @@ function Branch({ flow }: { flow: Flow }) {
   );
 }
 
-function Step({ step, flow, index }: { step: FlowStep; flow: Flow; index: number }) {
+/** ほかの分岐（企画の待ち・審査・レビューの指摘・マージ・止まった）：工程の下に字下げした枠（docs/design.md の「ほかの分岐」） */
+function ExtraBranchBox({ branch }: { branch: ExtraBranch }) {
+  return (
+    <div
+      className={styles.branch}
+      data-kind={branch.kind}
+      data-return={branch.returnLine ? "" : undefined}
+      role="group"
+      aria-label={branch.head}
+    >
+      <p className={styles.branchHead} aria-hidden="true">
+        {branch.head}
+      </p>
+      <ol className={styles.tries}>
+        {branch.rows.map((row) => (
+          <li key={row.label}>
+            <span className={styles.try} role="img" aria-label={extraRowLabel(row)}>
+              <StateMark state={row.state} />
+              <span className={styles.tryName} aria-hidden="true">
+                {row.label}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function Step({
+  step,
+  flow,
+  index,
+  extras,
+}: {
+  step: FlowStep;
+  flow: Flow;
+  index: number;
+  extras: FlowExtras;
+}) {
   const last = index === flow.steps.length - 1;
-  const sub = [step.model, step.duration].filter(Boolean).join(" · ");
+  // デザインの行：画面案ありは成功、通らなかったときは「飛ばした」（docs/spec.md の「ほかの分岐」）
+  const skipped = step.key === "design" && extras.design === "skipped";
+  const shown: FlowStep = step.key === "design" && extras.design === "made" ? { ...step, state: "done" } : step;
+  const sub = skipped ? DESIGN_SKIPPED_LABEL : [shown.model, shown.duration].filter(Boolean).join(" · ");
+  const branches = extras.branches.filter((branch) => branch.anchor === step.key);
   return (
     <li
       className={styles.step}
-      data-current={step.current ? "" : undefined}
-      data-state={step.state}
+      data-current={shown.current ? "" : undefined}
+      data-state={shown.state}
       data-solid={!last && isSolidLink(flow, index) ? "" : undefined}
       data-last={last ? "" : undefined}
-      aria-current={step.current ? "step" : undefined}
+      data-skipped={skipped ? "" : undefined}
+      aria-current={shown.current ? "step" : undefined}
     >
-      <div className={styles.row} role="img" aria-label={flowStepLabel(step)}>
+      <div
+        className={styles.row}
+        role="img"
+        aria-label={skipped ? `${shown.name}　${DESIGN_SKIPPED_LABEL}` : flowStepLabel(shown)}
+      >
         <span className={styles.icon} aria-hidden="true">
-          <FlowStepIcon step={step.key} />
+          <FlowStepIcon step={shown.key} />
         </span>
         <span className={styles.text} aria-hidden="true">
-          <span className={styles.name}>{step.name}</span>
+          <span className={styles.name}>{shown.name}</span>
           <span className={`${styles.model} num`}>{sub}</span>
         </span>
-        <span className={styles.side} aria-hidden="true">
-          {step.started && <span className={`${styles.time} num`}>{step.started}</span>}
-          <StateMark state={step.state} />
-        </span>
+        {!skipped && (
+          <span className={styles.side} aria-hidden="true">
+            {shown.started && <span className={`${styles.time} num`}>{shown.started}</span>}
+            <StateMark state={shown.state} />
+          </span>
+        )}
       </div>
       {step.key === "ci" && <Branch flow={flow} />}
+      {branches.map((branch) => (
+        <ExtraBranchBox key={branch.kind} branch={branch} />
+      ))}
     </li>
   );
+}
+
+function extrasOf(target: FlowTarget): FlowExtras {
+  return target.extra ? getFlowExtras({ ...target.extra, stepLog: target.stepLog ?? null }) : NO_FLOW_EXTRAS;
 }
 
 /** 進捗図：右の列に、上から下へ、7つの工程を縦の線でつなぐ（docs/design.md の「進捗図」） */
 export function FlowMap({ target, inline = false }: { target: FlowTarget | null; inline?: boolean }) {
   if (inline && target) {
     // スマホ：「いまの様子」の行の下に開く。見出しは行にあるので付けない。図だけが横にスクロールする
+    const extras = extrasOf(target);
     return (
       <div className={styles.inlineScroll} role="region" aria-label="進捗図" tabIndex={0}>
         <ol className={`${styles.steps} ${styles.inlineSteps}`} aria-label={`進捗図：${target.label}`}>
           {target.flow.steps.map((step, index) => (
-            <Step key={step.key} step={step} flow={target.flow} index={index} />
+            <Step key={step.key} step={step} flow={target.flow} index={index} extras={extras} />
           ))}
         </ol>
       </div>
@@ -128,6 +194,7 @@ export function FlowMap({ target, inline = false }: { target: FlowTarget | null;
     );
   }
   const external = isExternalUrl(target.url);
+  const extras = extrasOf(target);
   return (
     <section className={styles.flow} aria-label="進捗図">
       <div className={styles.head}>
@@ -143,7 +210,7 @@ export function FlowMap({ target, inline = false }: { target: FlowTarget | null;
       </div>
       <ol className={styles.steps} aria-label={`進捗図：${target.label}`}>
         {target.flow.steps.map((step, index) => (
-          <Step key={step.key} step={step} flow={target.flow} index={index} />
+          <Step key={step.key} step={step} flow={target.flow} index={index} extras={extras} />
         ))}
       </ol>
     </section>

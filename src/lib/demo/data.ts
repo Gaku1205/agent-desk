@@ -114,12 +114,14 @@ function addPull(
     mergedAt?: string;
     checkRuns: CheckRunData[];
     statuses?: CommitStatusData[];
+    /** `Closes #番号` の後ろに足す本文（審査役の採点など） */
+    body?: string;
   },
 ): PullData {
   const pull: PullData = {
     number,
     title: issue.title,
-    body: `Closes #${issue.number}`,
+    body: options.body ? `Closes #${issue.number}\n\n${options.body}` : `Closes #${issue.number}`,
     state: options.mergedAt ? "closed" : "open",
     merged: Boolean(options.mergedAt),
     labels: options.labels ?? [],
@@ -199,6 +201,16 @@ const QUESTION_COMMENT = [
   '<img src="/mockups/b-mobile.svg" alt="B スマホ">',
 ].join("\n");
 const REVIEW_ISSUES = "## Code review\n\n指摘が1件あります：空のときの表示がありません";
+/** 審査役の採点（パイプラインがPRの本文に入れる形。8点未満で、実装に1回戻った） */
+const CRITIQUE_BODY = [
+  "## 審査役（画面の画像だけを見る別のAI）の採点",
+  "",
+  "点数: 7.5",
+  "判定: 直す",
+  "",
+  "## 直すこと",
+  "1. 絞り込みの札の間が狭く、押しにくい",
+].join("\n");
 
 function autoFixComment(sha: string, reason: string): string {
   return `<!-- auto-fix -->\n<!-- auto-fix-sha: ${sha} -->\n@claude ${reason}を直してください`;
@@ -386,7 +398,7 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
     checkRuns: ciRuns(4, ago(ctx, 24 * 60 + 40)),
   });
 
-  // レビュー中
+  // レビュー中（審査役の採点が8点未満で、実装に1回戻った）
   const reviewing = addIssue(ctx, 20, "タスクの検索に絞り込みを足す", {
     createdAt: ago(ctx, 70),
     labels: ["ai:implement"],
@@ -398,6 +410,7 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
     headSha: "7b8c9d0",
     labels: ["ai:review"],
     checkRuns: [...ciRuns(4, ago(ctx, 4)), run("review", null)],
+    body: CRITIQUE_BODY,
   });
   addLabeled(ctx, 35, "ai:review", ago(ctx, 4));
 
