@@ -153,7 +153,61 @@
   }
 }
 
+/*
+ * 左のバーの開く・畳むボタン（docs/design.md の「左のバーの折り畳み」）。
+ * 開いていても畳んでいても、上端の帯の下の左上の同じ所に置く。
+ * 畳んだ状態は <html data-side="closed">（描く前のスクリプトが付ける。ちらつかない）
+ */
+@media (min-width: 900px) {
+  .panes {
+    transition: grid-template-columns 150ms var(--ease);
+  }
+
+  .sideToggle {
+    position: fixed;
+    top: calc(var(--top-h) + 8px);
+    left: 12px;
+    z-index: 6;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    color: var(--mute);
+  }
+
+  .sideToggle:hover {
+    color: var(--bone);
+  }
+
+  /* ボタンの分、左の一覧の中身を下げる */
+  .side > aside {
+    width: 224px;
+    padding-top: 44px;
+  }
+
+  :global(:root[data-side="closed"]) .panes {
+    grid-template-columns: 0 minmax(0, 1fr) 320px;
+  }
+
+  /* 畳んだ左のバーは完全に消す。visibility で Tab・読み上げからも外す（幅が0になってから） */
+  :global(:root[data-side="closed"]) .side {
+    overflow: hidden;
+    visibility: hidden;
+    box-shadow: none;
+    transition: visibility 0s linear 150ms;
+  }
+}
+
+@media (min-width: 900px) and (max-width: 1179px) {
+  :global(:root[data-side="closed"]) .panes {
+    grid-template-columns: 0 minmax(0, 1fr) 280px;
+  }
+}
+
 @media (max-width: 899px) {
+  .sideToggle,
   .side,
   .flow,
   .composer {
