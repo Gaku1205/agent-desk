@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@/lib/conversation";
 import { applyStepLog } from "@/lib/flow";
-import { pickFlowTarget } from "@/lib/flowTarget";
+import { pickFlowTarget, toggleFlowSelection } from "@/lib/flowTarget";
 import type { StepInfo } from "@/lib/stepLog";
 import { formatWait, turnItemKey, type TurnCounts, type TurnItem } from "@/lib/turn";
 import type { WatchdogNotice } from "@/lib/watchdogState";
@@ -104,7 +104,12 @@ export function Desk({ items, messages, now, scope, errors, notices, nav, newIss
   ];
 
   const showRepo = scope.kind === "all" && scope.repoCount > 1;
-  const pickedTarget = pickFlowTarget(current, messages, showRepo);
+  // 「いまの様子」で選んだ行（`owner/repo#番号`）。同じ行をもう一度選ぶと外す。選んでいなければ今まで通りの1件を描く
+  const [selected, setSelected] = useState<string | null>(null);
+  const select = useCallback((key: string) => setSelected((prev) => toggleFlowSelection(prev, key)), []);
+  const pickedTarget = pickFlowTarget(current, messages, showRepo, selected);
+  // 選んだ行がもう無い（取り直しで消えた）ときは、選んでいない扱い
+  const selectedKey = selected !== null && messages.some((message) => message.key === selected) ? selected : null;
   const targetKey = pickedTarget ? `${pickedTarget.owner}/${pickedTarget.repo}#${pickedTarget.number}` : null;
   // 進捗ログ（モデル名と所要時間）。取れるまで・取れないときは「不明」のまま。データを取り直したら読み直す
   const [stepLog, setStepLog] = useState<{ key: string; infos: StepInfo[] } | null>(null);
@@ -181,20 +186,19 @@ export function Desk({ items, messages, now, scope, errors, notices, nav, newIss
         showRepo={showRepo}
         repo={scope.kind === "repo" ? { name: scope.repo, githubUrl: scope.githubUrl } : null}
         notices={conversationNotices}
+        selected={selectedKey}
+        onSelect={select}
       />
     </main>
   );
 
-  // PC（幅900px以上）は3ペイン：左に一覧、中央の上に進捗図、中央の下に入力欄。スマホでは列だけ（docs/design.md の「PCの3ペイン」）
+  // PC（幅900px以上）は3ペイン：左に一覧、中央に列と下の入力欄、右に進捗図の列。スマホでは列だけ（docs/design.md の「PCの3ペイン」）
   return (
     <div className={styles.panes} data-panes="">
       <div className={styles.side}>
         <SideRepos {...nav} />
       </div>
       <div className={styles.center}>
-        <div className={styles.flow}>
-          <FlowMap target={flowTarget} />
-        </div>
         {column}
         <div className={styles.composer}>
           <NewIssueForm
@@ -203,6 +207,9 @@ export function Desk({ items, messages, now, scope, errors, notices, nav, newIss
             initialRepo={scope.kind === "repo" ? `${scope.owner}/${scope.repo}` : undefined}
           />
         </div>
+      </div>
+      <div className={styles.flow}>
+        <FlowMap target={flowTarget} />
       </div>
     </div>
   );

@@ -35,6 +35,8 @@ export type FlowStep = {
   model: string;
   /** 所要時間（`3分12秒`。出せなければ null） */
   duration: string | null;
+  /** 開始時刻（`16:57`。出せなければ null） */
+  started: string | null;
   state: FlowState;
   /** 今の位置の工程 */
   current: boolean;
@@ -119,6 +121,7 @@ export function getFlow(status: IssueStatus): Flow {
     name,
     model: UNKNOWN_MODEL,
     duration: null,
+    started: null,
     state: index < at ? (unknownBefore(status, index) ? "waiting" : "done") : index === at ? state : "waiting",
     current: index === at,
   }));
@@ -150,7 +153,7 @@ function ciResult(stage: BaseStage): CiResult {
   }
 }
 
-/** 進捗ログの記録を工程に渡す。記録が無い工程・モデルを使わない工程（null）は「不明」、所要時間は出せなければ null */
+/** 進捗ログの記録を工程に渡す。記録が無い工程・モデルを使わない工程（null）は「不明」、所要時間・開始時刻は出せなければ null */
 export function applyStepLog(flow: Flow, infos: readonly StepInfo[]): Flow {
   if (infos.length === 0) return flow;
   const byKey = new Map(infos.map((info) => [info.key, info]));
@@ -158,7 +161,9 @@ export function applyStepLog(flow: Flow, infos: readonly StepInfo[]): Flow {
     ...flow,
     steps: flow.steps.map((step) => {
       const info = byKey.get(step.key);
-      return info ? { ...step, model: info.model ?? UNKNOWN_MODEL, duration: info.duration } : step;
+      return info
+        ? { ...step, model: info.model ?? UNKNOWN_MODEL, duration: info.duration, started: info.started }
+        : step;
     }),
   };
 }
@@ -168,8 +173,11 @@ export function isSolidLink(flow: Pick<Flow, "at">, index: number): boolean {
   return index + 1 <= flow.at;
 }
 
-/** ブロックの読み上げの文（`企画　成功　モデル 不明`） */
-export function flowStepLabel(step: Pick<FlowStep, "name" | "state" | "model"> & { duration?: string | null }): string {
+/** 工程の読み上げの文（`企画　成功　モデル 不明`。開始時刻・所要時間があれば続ける） */
+export function flowStepLabel(
+  step: Pick<FlowStep, "name" | "state" | "model"> & { duration?: string | null; started?: string | null },
+): string {
+  const start = step.started ? `　開始 ${step.started}` : "";
   const time = step.duration ? `　所要時間 ${step.duration}` : "";
-  return `${step.name}　${FLOW_STATE_LABEL[step.state]}　モデル ${step.model}${time}`;
+  return `${step.name}　${FLOW_STATE_LABEL[step.state]}　モデル ${step.model}${start}${time}`;
 }

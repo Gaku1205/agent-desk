@@ -1,5 +1,7 @@
 /** 進捗ログ（Issue のコメント）の読み取り。形式は docs/pipeline.md の「進捗ログ」 */
 
+import { formatEventTime } from "./events";
+
 /** 進捗ログの `step` と、進捗図の工程の対応（`mocks` はデザイン） */
 const STEP_KEYS = {
   plan: "plan",
@@ -21,6 +23,8 @@ export type StepInfo = {
   key: StepLogKey;
   model: string | null;
   duration: string | null;
+  /** 開始時刻（日本時間の `16:57`） */
+  started: string;
 };
 
 /** そのコメントが進捗ログか（先頭の行が目印） */
@@ -76,6 +80,7 @@ function parseLine(json: string, now: Date): StepInfo | null {
     key: STEP_KEYS[step as keyof typeof STEP_KEYS],
     model: model === null || model.trim() === "" ? null : model.trim(),
     duration: formatDuration(end - started),
+    started: formatEventTime(row.started as string),
   };
 }
 
