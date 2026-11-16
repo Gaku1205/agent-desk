@@ -6,6 +6,24 @@
 /** いちばん下から、これ以内（px）ならいちばん下にいるとみなす */
 export const FOLLOW_THRESHOLD = 80;
 
+/** 開いたとき・切り替えたときに始める位置 */
+export type OpenPosition = "top" | "answer" | "bottom";
+
+/**
+ * 開いたとき・切り替えたときの位置。
+ * 中身が画面に収まるなら上から（下に余白を残す）、答える欄のある1件があればその1件の上端、
+ * それ以外で中身が多いときだけ最新（いちばん下）。
+ */
+export function openPosition(scrollHeight: number, clientHeight: number, hasAnswer: boolean): OpenPosition {
+  if (scrollHeight <= clientHeight) return "top";
+  return hasAnswer ? "answer" : "bottom";
+}
+
+/** 追従するか：いちばん下の近くにいて、答える欄を読んでいる・書いている途中ではないとき */
+export function shouldFollow(nearBottom: boolean, answering: boolean): boolean {
+  return nearBottom && !answering;
+}
+
 /** いちばん下までの残りの距離（px）。0 未満にはしない */
 export function distanceFromBottom(scrollHeight: number, scrollTop: number, clientHeight: number): number {
   return Math.max(0, scrollHeight - scrollTop - clientHeight);

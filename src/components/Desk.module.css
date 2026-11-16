@@ -108,15 +108,11 @@
     min-height: calc(100svh - var(--top-h));
   }
 
-  /* 入力欄を中央の下端に置く（中身が少なくても下に付く）。「あなたの番」は入力欄のすぐ上に寄せる */
+  /* 入力欄を中央の下端に置く（中身が少なくても下に付く）。中身は上から詰め、足りない分は下に余白で残す */
   .center > main {
-    display: flex;
     flex: 1 0 auto;
-    flex-direction: column;
-    justify-content: flex-end;
   }
 
-  /* 入力欄のすぐ上に置くので、下の余白は小さめ */
   .turn {
     padding: 40px 0 24px;
   }
