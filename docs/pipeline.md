@@ -31,6 +31,7 @@ Issueを作る（メモ）。ラベルが無ければ自動で ai:plan が付く
 | `ai:review` | パイプライン（人間も可） | レビューAIが確認する |
 | `ai:queue` | 企画AI（進行中の作業とぶつかると判断したとき）か人間 | 順番待ち。前のPRが自動でマージされ、実装中の物・openのPRが無くなったら（企画の段階で止まった物は待たない）、番号の小さい順に実装が始まる。まとめて頼んで寝ておける |
 | `ai:blocked` | 企画AI（`BLOCKED`） | 他の Issue・PR の完了待ち（その結果や決まりを使う作業。別のリポジトリの作業でもよい）。待ち先はコメントの印 `<!-- blocked-by: owner/repo#N -->`（待ち先ごとに1つ）。見張り役が待ち先を見て、全部閉じたら（マージ・クローズ）`ai:blocked` を外して `ai:plan` に戻す。人間は何もしなくてよい（下の「他の Issue・PR の完了待ち」） |
+| `ai:found` | 使ってみる役・監査役（`found-report.sh`） | 使ってみる役（公開後に本番を試す）・監査役（仕様書の食い違いを探す）が見つけて作った Issue の印。`ai:plan` も一緒に付き、いつもの流れに乗る（下の「使ってみる役・監査役」） |
 | `ai:hold` | 人間か進行役 | 最後のマージだけ人間が押す（大事な変更用）。`.github/`・`docs/pipeline.md`・`CLAUDE.md`・`AGENTS.md` を触るPRには、進行役が自動で付ける（ただし ai-dev-template 自身は、スクリプト・テスト・`docs/pipeline.md` だけの変更なら付けず、自動でマージする。下の「安全のしくみ」） |
 | `ai:retry` | パイプライン | AIが一時的に止まった（使用量の上限など）。見張り役が30分以上あけて自動でやり直す（失敗のコメントに、原因の分類とログのURLが付く）。人間は何もしなくてよい |
 | `ai:stuck` | パイプライン | 自動で進められず止まった。人間が確認して、続けるなら外す（外すと自動で再開） |
@@ -78,11 +79,11 @@ Issueを作る（メモ）。ラベルが無ければ自動で ai:plan が付く
 - **分類できない**（質問した、など）：今までどおり、やり直さず人間に回す（`ai:stuck`）
 
 ## 安全のしくみ
+- **閉じた Issue では進めない**：企画・実装・画面案は、開いている Issue でだけ始まる。作業中に Issue が閉じられたら、企画のあと（`after-plan.sh`）は清書の結果を使わず、実装のあと（`open-pr.sh`）はPRを作らない（閉じた Issue の企画の結果で実装が始まり、同じ作業のPRがもう1つできたことがある）
 - レビューAIは、画面のファイルが変わったPRでは web-design-guidelines（`.claude/skills/web-design-guidelines/guidelines.md`）も当て、使う人が実際に困る物（キーボードで操作できない・フォーカスが見えない・ラベルが無い・`prefers-reduced-motion` を無視・ズームの禁止・長い文字や空で崩れる・取り消せない削除など）だけを指摘する。`docs/design.md` が決めていることは、そちらが正しい
 - レビューAIは普段 sonnet。追加＋削除が300行を超える変更と、ログイン・トークン・秘密・権限・依存（`package.json`）・ワークフローを触る変更は opus でレビューする（`claude-review.yml` の「レビューのモデルを決める」）
 - AIが動くジョブには `PIPELINE_TOKEN` を渡さない。企画・実装のあとの処理（次へ進める・PRを作る）は別のジョブで、main から取り直したスクリプトを動かす。AIが作業フォルダのスクリプトを書き換えても、強いトークンでは動かない（AIの結果は、実行記録と `plan-result.txt` をデータとして受け渡すだけ）
 - パイプラインの更新を配る（`sync.yml`）のは、テンプレートの main でCIが通った版だけ。CIが通ってから15分待ち（変数 `SYNC_DELAY_MIN` で変えられる。手で動かしたときは待たない）、その間に main がまた更新されたら新しい方だけを配る（続けてマージしても、配り先のPRは1つで済む）。配り先は、このテンプレートから作られ、パイプラインの鍵（App）が見えるリポジトリ（自動。新しいアプリを作っても書き足さなくてよい）と、`.github/sync-targets` に書いた物（テンプレートより前からあるリポジトリなど）。配りたくない物は `.github/sync-targets` に `!owner/repo` と書く（`sync-targets.sh`）。配るときは配り先の `.github/` をテンプレートの物で置き換える（テンプレートに無いファイルは消える）。配り先で自分で足したワークフローなどを残したいときは、配り先の `.github/sync-keep` に、そのファイルの名前を1行に1つ書く（例：`workflows/my-job.yml`）。配り先の main には直接入れず、`pipeline-sync/<sha>` のPRを作る。配り先のCIが通ったら、進行役がレビューなしでマージする（落ちたら `ai:stuck` で人間に回す。AIが作ったPRや、印の無いPRはこの扱いにしない）
-
 - `.github/`・`docs/pipeline.md`・CLAUDE.md・AGENTS.md・`pipeline.json` を変えるPRは、CIとレビューが通っても自動でマージしない（マージを人間に任せて通知する）。仕組みそのものが、AIの判断だけで書き換わらないようにするため。普通のIssueは今までどおり全自動
 - 合否を決めるのはCI。AIの「できました」は信じない
 - 進行役（pipeline.yml）は `workflow_run` で main にある版が動くので、PRの中身で判断を書き換えられない
@@ -128,6 +129,8 @@ Issueを作る（メモ）。ラベルが無ければ自動で ai:plan が付く
 | --- | --- | --- |
 | 企画AI（`claude-plan.yml`） | `Bash(gh issue view:*)`、`Bash(gh issue edit:*)`、`Bash(gh issue comment:*)`、`Bash(gh issue create:*)`、`Bash(gh issue list:*)`、`Bash(gh pr list:*)`、`Bash(gh pr diff:*)`、`Read`、`Glob`、`Grep`、`Write` | コードを変えるgit操作・npm（企画はIssueを書くだけ。`Write` は結果ファイル `plan-result.txt` のため） |
 | 画面案（`claude-mocks.yml`） | `Read`、`Write`、`Edit`、`Glob`、`Grep`、`Bash(node .github/scripts/shot.mjs:*)` | git・gh・npm・ネット（今の画面とデザイン仕様を見て、`mocks/` にざっくり画面の HTML を書いて撮るだけ。Issue は前のステップが `mocks/issue.txt` に書いておく。鍵は持たない） |
+| 使ってみる役（`claude-try.yml`） | `Read`、`Write`、`Glob`、`Grep`、`Bash(node .github/scripts/shot.mjs:*)` | git・gh・npm（本番のサイトを撮って試し、見つけた問題を `.try/result.json` に書くだけ。Issue は鍵を持つ別のジョブが作る） |
+| 監査役（`claude-audit.yml`） | `Read`、`Write`、`Glob`、`Grep` | コマンドは全部（仕様書とコードを読んで、食い違いを `.audit/result.json` に書くだけ。Issue は鍵を持つ別のジョブが作る） |
 | 実装AI（`claude-implement.yml`） | pipeline.json の checks のコマンド（無ければ npm run typecheck・lint・test・build。下の「言語と公開先」）、`Bash(.github/scripts/tests/run-all.sh)`、`Bash(git status:*)`、`Bash(git diff:*)`、`Bash(git add:*)`、`Bash(git commit:*)`、`Bash(git fetch:*)`、`Bash(git merge:*)`、`Bash(git checkout --ours:*)`、`Bash(git checkout --theirs:*)`、`Bash(git push:*)`、`Bash(bash .github/scripts/tests/run-all.sh)`、`Bash(shellcheck:*)`、見た目のテストがあるアプリでは `Bash(npm run test:visual)`・`Bash(npm run test:visual -- -g:*)`・`Bash(npx playwright test:*)`（手元で動かして、位置や数値を確かめるため。基準の画像の撮り直し（--update-snapshots・-u）は許さない）、画面のあるアプリでは `Bash(npm run build)`・`Bash(node .github/scripts/shot.mjs:*)`・`Bash(.github/scripts/fetch-photos.sh:*)`（作った画面を本物のブラウザで 390・1440・1920 の幅で撮り、画像を見て直すため。下の「撮って見て直す」）、`Skill`（.claude/skills/ のスキル。画面を作るときの frontend-design・taste-skill・web-design-guidelines、GSAP・Lenis が入っているアプリでの motion-gsap-lenis。taste-skill のスクリプトは、測る inspect.mjs だけ動かしてよい） | `gh`（PRやコメントは進行役が作る）、`npm run readme:shots` などの重い物（README の撮影はCIのワークフローでやる）。ファイルの編集は、このツールの標準で許可される。gitは、標準に任せると拒否されて止まったことがあるので、明示して許可している。`git push --force`・`git rebase` は許可しない |
 | レビューAI（`claude-review.yml`） | `Bash(gh pr view:*)`、`Bash(gh pr diff:*)`、`Bash(gh issue view:*)`、`Bash(gh pr comment:*)`、`Read`、`Glob`、`Grep`、`Write`、`mcp__github_inline_comment__create_inline_comment` | コードの変更・git操作・npm（レビューは読むだけ。コードは直さない） |
 | 修正AI（`claude-mention.yml`） | `Bash(gh pr view:*)`、`Bash(gh pr edit:*)`、`Bash(gh issue view:*)`、`Bash(gh pr comment:*)`、`Bash(git fetch:*)`、`Bash(git merge:*)`、`Bash(git checkout --ours:*)`、`Bash(git checkout --theirs:*)`、`Bash(git status:*)`、`Bash(git diff:*)`、`Bash(git add:*)`、`Bash(git commit:*)`、`Bash(git push:*)`、pipeline.json の checks のコマンド（無ければ npm run typecheck・lint・test・build）、`Bash(.github/scripts/tests/run-all.sh)`、`Bash(bash .github/scripts/tests/run-all.sh)`、`Bash(shellcheck:*)`、見た目のテストがあるアプリでは `Bash(npm run test:visual)`・`Bash(npm run test:visual -- -g:*)`・`Bash(npx playwright test:*)`（基準の画像の撮り直しは許さない）、`Skill` | `git rebase`・`git push --force`（履歴を書き換えない）、`gh pr merge`（マージは進行役だけ）。`gh pr edit` はPRの説明の直し（本文はファイルに書いて `--body-file` で渡す）、`gh issue view` はIssueを読むため、`git merge` はコンフリクトの解消のために許可している |
@@ -378,6 +381,23 @@ AIの実行記録から、許可されず拒否された操作（`permission_den
 | 実装AI | 拒否があれば、手がかりを書いて1回だけやり直す。拒否が無ければ、AIが最後に言ったことを書いて人間に回す（`open-pr.sh`） |
 | レビューAI | まとめのコメントが無ければ、2回まで自動でやり直し、続くなら人間に回す（`after-review.sh`・見張り役） |
 | 修正AI | 理由を分けて動く（上の `classify_no_change`）。実行記録は `claude-mention.yml` が成果物 `ai-result` で `after-mention` に渡す |
+
+## 使ってみる役・監査役（`claude-try.yml`・`claude-audit.yml`）
+
+「他人が一人で、会話なしで使える」と「仕様書が食い違っていない」を、パイプラインが自分で確かめる。見つけた問題は Issue（`ai:found`・`ai:plan`）にして、いつもの流れ（企画→実装→…）で直す。
+
+| 役 | いつ動く | 何をする | 上限 |
+| --- | --- | --- | --- |
+| 使ってみる役（`claude-try.yml`） | 毎日 21:13（日本時間）。ただし公開しているサイトの URL があり、main が直近24時間に変わった日だけ（＝公開があった日。1日1回まで） | 初めて使う利用者として、本番のサイトを本物のブラウザ（`shot.mjs`）で 390・1440 の幅で開き、`docs/spec.md` の主な使い方を試す。壊れている・迷う・崩れている所を探す（好みの問題は書かない。ログインが要るサービスでは、ログインの手前の画面だけ） | 1回に最大3件 |
+| 監査役（`claude-audit.yml`） | 毎週月曜 3:41（日本時間）。ただし進行中の作業（`ai:plan`・`ai:implement`・`ai:review`・`ai:queue` の Issue、`claude/` のPR）が無いときだけ。`docs/spec.md` が無いリポジトリでは動かない | 仕様書の中・仕様書とデザイン仕様・仕様書とコードの食い違いを探す。どちらに合わせるかと、直すときに触るファイルも書く（誤字・好み・まだ作っていない機能は書かない） | 1回に最大3件 |
+
+- 動かすかは `found-gate.sh try|audit` が決める。公開先の URL は、GitHub Pages の公開があればその URL、無ければリポジトリの「Website」（工場が公開先を書く）。Actions の画面から手で動かすと（`force`）、日付・進行中の条件を見ずに動く
+- AIは結果を `.try/result.json`・`.audit/result.json`（`{"findings":[{"title","body"}]}`）に書くだけ。Issue は、別のジョブ（`report`）が main の版の `found-report.sh` で作る（AIのジョブにはパイプラインの鍵を渡さない）。同じ題名の `ai:found` の Issue が開いていれば作らない（空白の違いは無視）
+- 撮った画像は、その実行の artifact（`try-out`・14日）に残り、Issue の本文にログの場所を書く
+- モデルは sonnet（使う量を抑えるため）。手数の上限は 使ってみる役 60・監査役 80
+- 長くなりすぎた節（目安：1つの節が約40行を超え、重複や言い換えが多い）を、意味を変えずに短くまとめる提案も、監査役が出せる。結果の `findings` の要素に `"kind":"shorten"` を書く（`body` には元の節の見出し＝ファイルと見出しの文字と、短くした文案）。`found-report.sh` は、この案に `ai:found` と `ai:skip` を付けて作る（`ai:plan` は付けない）。本文の最後に `<!-- ai-found-kind: shorten -->` の印が付く
+  - 人間が確認するまで、実装には回らない。**意味を変えない**（決まり・数値・例外を落とさない）案だけを出し、迷う節は出さない。人間が案を読んで良ければ `ai:skip` を外すと、企画に回る
+  - 枠は食い違いと合わせて1回に最大3件（`FOUND_MAX`）。同じ題名の重複チェックも同じ
 
 ## 他の Issue・PR の完了待ち（`ai:blocked`）
 
