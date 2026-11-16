@@ -1,4 +1,4 @@
-import type { GqlIssue, GqlPull, GqlStatusContext } from "./graphql";
+import { WAITING_LABELS, type GqlIssue, type GqlPull, type GqlStatusContext } from "./graphql";
 
 // テスト用：GitHub の GraphQL と REST の偽物。本番のコードからは使わない
 
@@ -76,6 +76,17 @@ export function graphqlData(repo: FakeRepo, variables: Record<string, unknown>):
       ...(variables.withPulls ? { pullRequests: page(repo.pulls ?? [], variables.pullsAfter) } : {}),
       ...(variables.withMain
         ? {
+            ...Object.fromEntries(
+              WAITING_LABELS.map((label, index) => [
+                `waiting${index}`,
+                {
+                  nodes: (repo.issues ?? []).filter(
+                    (issue) =>
+                      issue.state === "OPEN" && (issue.labels?.nodes ?? []).some((l) => l?.name === label),
+                  ),
+                },
+              ]),
+            ),
             ref:
               main === null
                 ? null

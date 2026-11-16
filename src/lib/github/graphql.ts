@@ -20,6 +20,30 @@ const LABEL_EVENTS = `timelineItems(last: 50, itemTypes: [LABELED_EVENT, UNLABEL
           }
         }`;
 
+const ISSUE_FIELDS = `number title body state url createdAt updatedAt closedAt
+        labels(first: 100) { nodes { name } }
+        ${COMMENTS}
+        ${LABEL_EVENTS}`;
+
+/** 人間の判断を待つラベル。開いている物は、更新日で絞らずに取る（別名は `waiting<番号>`） */
+export const WAITING_LABELS = ["ai:stuck", "ai:skip", "ai:question", "factory:wait"] as const;
+
+const waitingAlias = (index: number): string => `waiting${index}`;
+
+/** ラベルの絞り込みは「すべて付いている」なので、ラベルごとの一覧を別名で足す（1回目の問い合わせだけ） */
+const WAITING_ISSUES = WAITING_LABELS.map(
+  (label, index) => `${waitingAlias(index)}: issues(
+      first: 100
+      states: OPEN
+      labels: ["${label}"]
+      orderBy: { field: UPDATED_AT, direction: DESC }
+    ) @include(if: $withMain) {
+      nodes {
+        ${ISSUE_FIELDS}
+      }
+    }`,
+).join("\n    ");
+
 /** main のコミットを見る数（`history(first: …)` と `mainDeployedFrom` の `sample` で共通） */
 export const MAIN_COMMITS_SAMPLE = 30;
 
@@ -50,12 +74,10 @@ query RepoData(
     ) @include(if: $withIssues) {
       pageInfo { hasNextPage endCursor }
       nodes {
-        number title body state url createdAt updatedAt closedAt
-        labels(first: 100) { nodes { name } }
-        ${COMMENTS}
-        ${LABEL_EVENTS}
+        ${ISSUE_FIELDS}
       }
     }
+    ${WAITING_ISSUES}
     pullRequests(
       first: 100
       after: $pullsAfter
@@ -165,6 +187,7 @@ export type GqlRepoResponse = {
     isTemplate?: boolean | null;
     issues?: GqlConnection<GqlIssue>;
     pullRequests?: GqlConnection<GqlPull>;
+    [alias: `waiting${number}`]: GqlConnection<GqlIssue> | undefined;
     ref?: {
       target?: { history?: Nodes<{ oid?: string | null; status?: GqlStatus }> } | null;
     } | null;
@@ -179,6 +202,8 @@ export function readRepoResponse(data: unknown): {
   isTemplate: boolean | undefined;
   issues: GqlPage<GqlIssue> | null;
   pulls: GqlPage<GqlPull> | null;
+  /** 人間待ちのラベルが付いた、開いている Issue（4つの一覧を合わせた物。1回目の返事だけ） */
+  waiting: GqlIssue[];
   mainCommits: CommitStatusData[][] | null;
 } | null {
   const repository = (data as GqlRepoResponse | null)?.repository;
@@ -195,6 +220,7 @@ export function readRepoResponse(data: unknown): {
     isTemplate: typeof repository.isTemplate === "boolean" ? repository.isTemplate : undefined,
     issues: page(repository.issues),
     pulls: page(repository.pullRequests),
+    waiting: WAITING_LABELS.flatMap((_, index) => page(repository[waitingAlias(index) as `waiting${number}`])?.nodes ?? []),
     mainCommits: history
       ? (history.nodes ?? []).map((commit) => convertStatuses(commit?.status ?? null))
       : null,
@@ -363,11 +389,21 @@ export function mergeMainDeployed(previous: MainDeployed | undefined, found: Mai
   return { at: Object.values(byContext).sort().at(-1) ?? null, byContext };
 }
 
-/** 取った Issue・PR のノードを今の型にして、直近14日（`cutoffMs` 以降）に絞る */
+/** 人間の判断を待つ、開いている Issue か（更新日で絞らない物） */
+function isWaitingIssue(issue: IssueData): boolean {
+  return issue.state === "open" && issue.labels.some((label) => (WAITING_LABELS as readonly string[]).includes(label));
+}
+
+/**
+ * 取った Issue・PR のノードを今の型にして、直近14日（`cutoffMs` 以降）に絞る。
+ * 人間待ちの Issue（`waitingNodes`、または人間待ちのラベルが付いた開いている Issue）は絞らない
+ * （コメント・ラベルの付け外しも同じ）。同じ番号は1件にする
+ */
 export function convertRepoNodes(
   issueNodes: GqlIssue[],
   pullNodes: GqlPull[],
   cutoffMs: number,
+  waitingNodes: GqlIssue[] = [],
 ): {
   issues: IssueData[];
   pulls: PullData[];
@@ -380,9 +416,15 @@ export function convertRepoNodes(
   const comments: CommentData[] = [];
   const pullChecks: Record<number, PullChecks> = {};
   const events: IssueEventData[] = [];
-  for (const raw of issueNodes) {
+  const seen = new Set<number>();
+  const waitingNumbers = new Set<number>();
+  for (const raw of [...issueNodes, ...waitingNodes]) {
     const issue = convertGqlIssue(raw);
-    if (Date.parse(issue.updatedAt) < cutoffMs) continue;
+    if (seen.has(issue.number)) continue;
+    const waiting = isWaitingIssue(issue);
+    if (!waiting && Date.parse(issue.updatedAt) < cutoffMs) continue;
+    seen.add(issue.number);
+    if (waiting) waitingNumbers.add(issue.number);
     issues.push(issue);
     comments.push(...convertGqlComments(issue.number, raw));
     events.push(...convertGqlLabelEvents(issue.number, raw));
@@ -400,7 +442,9 @@ export function convertRepoNodes(
     issues,
     pulls,
     comments: comments
-      .filter((comment) => Date.parse(comment.createdAt) >= cutoffMs)
+      .filter(
+        (comment) => Date.parse(comment.createdAt) >= cutoffMs || waitingNumbers.has(comment.issueNumber),
+      )
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id - b.id),
     pullChecks,
     events: events.sort((a, b) => b.createdAt.localeCompare(a.createdAt)),

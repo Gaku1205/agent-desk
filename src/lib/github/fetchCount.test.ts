@@ -104,6 +104,52 @@ describe("ページ送り", () => {
   });
 });
 
+describe("人間待ちの Issue は直近14日で絞らない", () => {
+  const FIFTEEN_DAYS_AGO = "2026-10-10T00:00:00Z";
+  const stuck = { labels: { nodes: [{ name: "ai:stuck" }] }, updatedAt: FIFTEEN_DAYS_AGO };
+
+  async function fetchNumbers(issues: FakeRepo["issues"]): Promise<number[]> {
+    const { fetcher } = fakeGitHub({ "o/r": { issues } });
+    const [result] = await fetchAllRepos(TOKEN, [{ owner: "o", repo: "r" }], { fetcher, now: NOW });
+    if (!result.ok) throw new Error("取れるはず");
+    return result.data.issues.map((issue) => issue.number).sort((a, b) => a - b);
+  }
+
+  it("15日前に更新された、開いている ai:stuck の Issue は取る", async () => {
+    expect(await fetchNumbers([gqlIssue(1, stuck)])).toEqual([1]);
+  });
+
+  it("4つのラベルのどれでも取る", async () => {
+    const labelled = ["ai:skip", "ai:question", "factory:wait"].map((name, i) =>
+      gqlIssue(i + 1, { labels: { nodes: [{ name }] }, updatedAt: FIFTEEN_DAYS_AGO }),
+    );
+    expect(await fetchNumbers(labelled)).toEqual([1, 2, 3]);
+  });
+
+  it("15日前の閉じた Issue・ラベルの無い Issue は今までどおり取らない", async () => {
+    expect(
+      await fetchNumbers([
+        gqlIssue(1, { ...stuck, state: "CLOSED", closedAt: FIFTEEN_DAYS_AGO }),
+        gqlIssue(2, { updatedAt: FIFTEEN_DAYS_AGO }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("同じ Issue が直近14日の一覧と人間待ちの一覧の両方に入っても1件", async () => {
+    expect(await fetchNumbers([gqlIssue(1, { labels: { nodes: [{ name: "ai:stuck" }] } })])).toEqual([1]);
+  });
+
+  it("呼び出しは増えない（人間待ちの一覧は1回目だけ。続きの問い合わせには入れない）", async () => {
+    const many = Array.from({ length: 150 }, (_, i) => gqlIssue(i + 1));
+    const { fetcher, calls } = fakeGitHub({ "o/r": { issues: [...many, gqlIssue(500, stuck)] } });
+    await fetchAllRepos(TOKEN, [{ owner: "o", repo: "r" }], { fetcher, now: NOW });
+    const gql = graphqlCalls(calls);
+    expect(gql).toHaveLength(2);
+    expect(gql[0].variables).toMatchObject({ withMain: true });
+    expect(gql[1].variables).toMatchObject({ withMain: false });
+  });
+});
+
 describe("チェックを持たせるPR（取る量を減らした時の決まりを引き継ぐ）", () => {
   it("閉じた（未マージ）PRとIssueに紐づかないPRは持たない。マージ済みは公開ステータスだけ", async () => {
     const { fetcher } = fakeGitHub({
