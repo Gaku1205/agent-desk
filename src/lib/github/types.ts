@@ -78,6 +78,20 @@ export type PullChecks = {
   statuses: CommitStatusData[];
 };
 
+/** Actions の実行（`GET /repos/{owner}/{repo}/actions/runs` の1件） */
+export type WorkflowRunData = {
+  /** `queued`・`in_progress`・`completed` など */
+  status: string;
+  /** 実行したブランチ（無ければ null） */
+  headBranch: string | null;
+  /** 実行の題名（`display_title`。無ければ空文字） */
+  displayTitle: string;
+  /** 実行に紐づく PR の番号（`pull_requests[].number`） */
+  pullNumbers: number[];
+  /** 最後の更新（`updated_at`） */
+  updatedAt: string;
+};
+
 export type RepoData = {
   issues: IssueData[];
   pulls: PullData[];
@@ -95,6 +109,8 @@ export type RepoData = {
   isTemplate?: boolean;
   /** 見張り役（watchdog.yml）の最後の実行。調べていなければ無し＝分からない */
   watchdog?: WatchdogLastRun;
+  /** 直近の Actions の実行（実行中・待機中と、最近の物）。取れなかったときは null、調べていなければ無し */
+  runs?: WorkflowRunData[] | null;
 };
 
 export type GitHubErrorKind =

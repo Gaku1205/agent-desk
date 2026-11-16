@@ -362,6 +362,72 @@ describe("fetchAllRepos", () => {
     });
   });
 
+  describe("ランプ用の Actions の実行", () => {
+    async function runsOf(respond: (url: URL) => Response | undefined) {
+      const { fetcher, calls } = fakeGitHub({ "ok/repo": okRepo() }, (url) =>
+        url.pathname.endsWith("/actions/runs") ? respond(url) : undefined,
+      );
+      actionsCacheForTest.clear();
+      const [result] = await fetchAllRepos(TOKEN, [{ owner: "ok", repo: "repo" }], { fetcher, now: NOW });
+      if (!result.ok) throw new Error("取れるはず");
+      return { data: result.data, calls };
+    }
+
+    it("実行中・待機中・最近の物を取り、今の型に変える", async () => {
+      const { data, calls } = await runsOf((url) =>
+        json({
+          workflow_runs:
+            url.searchParams.get("status") === "in_progress"
+              ? [
+                  {
+                    status: "in_progress",
+                    head_branch: "claude/issue-1-x",
+                    display_title: "実装 #1",
+                    pull_requests: [{ number: 5 }],
+                    updated_at: "2026-10-21T00:00:00Z",
+                  },
+                ]
+              : [],
+        }),
+      );
+      const queries = calls
+        .filter((call) => new URL(call.url).pathname.endsWith("/actions/runs"))
+        .map((call) => new URL(call.url).search)
+        .sort();
+      expect(queries).toEqual(["?per_page=100", "?status=in_progress&per_page=100", "?status=queued&per_page=100"]);
+      expect(data.runs).toEqual([
+        {
+          status: "in_progress",
+          headBranch: "claude/issue-1-x",
+          displayTitle: "実装 #1",
+          pullNumbers: [5],
+          updatedAt: "2026-10-21T00:00:00Z",
+        },
+      ]);
+    });
+
+    it("1つでも取れない・形が違うときは null（ほかのデータは取れる）", async () => {
+      for (const respond of [() => json({ message: "x" }, { status: 500 }), () => json({ foo: 1 })]) {
+        const { data } = await runsOf(respond);
+        expect(data.runs).toBeNull();
+        expect(data.issues.map((i) => i.number)).toEqual([1]);
+      }
+    });
+
+    it("形が違う1件は読み飛ばす", async () => {
+      const { data } = await runsOf((url) =>
+        json({
+          workflow_runs: url.searchParams.has("status")
+            ? []
+            : [{ status: "completed", updated_at: "x" }, { status: 1 }, { status: "completed", updated_at: "2026-10-21T00:00:00Z" }],
+        }),
+      );
+      expect(data.runs).toEqual([
+        { status: "completed", headBranch: null, displayTitle: "", pullNumbers: [], updatedAt: "2026-10-21T00:00:00Z" },
+      ]);
+    });
+  });
+
   it("パイプラインの pipeline.yml が無い（404）なら「動いていない」", async () => {
     const { fetcher } = fakeGitHub({ "ok/repo": okRepo() }, (url) =>
       url.pathname.endsWith("/actions/workflows/pipeline.yml/runs")

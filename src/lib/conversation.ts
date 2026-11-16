@@ -3,10 +3,11 @@ import { describeStatus, failureLogUrl } from "./describe";
 import { groupTrails, type TrailStep } from "./eventGroups";
 import type { TrailEvent } from "./events";
 import { getFlow, type Flow } from "./flow";
-import type { RepoResult } from "./github/types";
+import type { IssueData, RepoData, RepoResult } from "./github/types";
+import { assignLamps, hasOpenHumanRequest, judgeLamp, runActivity, type Lamp, type LampTarget } from "./lamp";
 import { buildPipelineRows } from "./pipeline";
 import { isRunningStage } from "./runningPipeline";
-import type { IssueStatus, Stage } from "./status";
+import { findLinkedPull, isLinkedPull, type IssueStatus, type Stage } from "./status";
 import { turnRowDescription } from "./turn";
 
 /**
@@ -112,7 +113,27 @@ export type ChatMessage = {
   running: boolean;
   /** 進捗図の7つの工程の状態 */
   flow: Flow;
+  /** 行の左のランプ（緑・赤・紫の数字・無し） */
+  lamp: Lamp;
 };
+
+/** ランプを決めるための、1件の入力（Issue と紐づく PR のラベル・お願いのコメント・実行） */
+function lampTarget(issue: IssueData, data: RepoData, now: Date): LampTarget {
+  const pull = findLinkedPull(data.pulls, issue.number);
+  const linked = data.pulls.filter((candidate) => isLinkedPull(candidate, issue.number));
+  const labels = [...issue.labels, ...(pull?.labels ?? [])];
+  const numbers = [issue.number, ...(pull ? [pull.number] : [])];
+  const touchedAt = [issue.updatedAt, pull?.updatedAt ?? ""].reduce((a, b) => (b > a ? b : a));
+  const kind = judgeLamp({
+    labels,
+    humanRequest: hasOpenHumanRequest(data.comments, numbers),
+    done: issue.state === "closed" || pull?.merged === true,
+    runs: runActivity(data.runs, issue.number, linked),
+    touchedAt: touchedAt === "" ? null : touchedAt,
+    now,
+  });
+  return { number: issue.number, labels, kind };
+}
 
 /** 順番待ちの理由の中の Issue 番号（`#17`）。無ければ null */
 export function queueAfterNumber(reason: string | null): number | null {
@@ -153,6 +174,8 @@ export function buildConversation(
     }
     const full = `${result.owner}/${result.repo}`;
     const issues = new Map(result.data.issues.map((issue) => [issue.number, issue]));
+    const start = messages.length;
+    const lampTargets: LampTarget[] = [];
     for (const row of buildPipelineRows(result.data, now, full)) {
       const issue = issues.get(row.issue.number);
       if (!issue) continue;
@@ -161,6 +184,7 @@ export function buildConversation(
       const key = `${full}#${row.issue.number}`;
       const trail = trails.get(key);
       const line = chatLine(row.status, { queueAfter: queueAfterNumber(row.queueReason) });
+      lampTargets.push(lampTarget(issue, result.data, now));
       messages.push({
         key,
         owner: result.owner,
@@ -180,7 +204,13 @@ export function buildConversation(
         deployed: row.status.stage === "deployed",
         running: isRunningStage(row.status.stage, row.status.grace),
         flow: getFlow(row.status),
+        lamp: { kind: "none" },
       });
+    }
+    // 紫の数字は、このリポジトリで順番待ちになった物の中での位置
+    const lamps = assignLamps(lampTargets);
+    for (const message of messages.slice(start)) {
+      message.lamp = lamps.get(message.number) ?? { kind: "none" };
     }
   }
   return messages.sort(compareMessages);

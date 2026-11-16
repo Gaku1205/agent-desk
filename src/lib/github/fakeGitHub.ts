@@ -128,6 +128,9 @@ export function fakeGitHub(
     if (url.pathname.includes("/actions/workflows/")) {
       return jsonResponse({ total_count: 1, workflow_runs: [{ created_at: ISO }] });
     }
+    if (url.pathname.endsWith("/actions/runs")) {
+      return jsonResponse({ total_count: 0, workflow_runs: [] });
+    }
     return jsonResponse({ message: "unexpected" }, { status: 500 });
   };
   return { fetcher, calls };

@@ -6,7 +6,10 @@ import type {
   PullData,
   RepoData,
   RepoResult,
+  WorkflowRunData,
 } from "../github/types";
+import { isRunningStage } from "../runningPipeline";
+import { getIssueStatus, shouldShowIssue } from "../status";
 import type { OperationKind } from "../turn";
 import { FACTORY_BOT } from "../factoryTalk";
 import { demoFactoryBody, demoFactoryState } from "./factory";
@@ -636,10 +639,36 @@ function landingPage(base: Date): RepoData {
 /** デモの全リポジトリのデータ。base はサンプルの時刻の基準、playback は再生の状態（押した操作を含む） */
 export function buildDemoResults(base: Date, playback: DemoPlayback): RepoResult[] {
   const [todo, landing] = DEMO_REPOS;
+  const todoData = applyDemoOps(todoApp(base, playback), playback.ops, todo.owner, todo.repo);
+  const landingData = applyDemoOps(landingPage(base), playback.ops, landing.owner, landing.repo);
   return [
-    { ...todo, ok: true, data: applyDemoOps(todoApp(base, playback), playback.ops, todo.owner, todo.repo) },
-    { ...landing, ok: true, data: applyDemoOps(landingPage(base), playback.ops, landing.owner, landing.repo) },
+    { ...todo, ok: true, data: { ...todoData, runs: demoRuns(todoData, base) } },
+    { ...landing, ok: true, data: { ...landingData, runs: demoRuns(landingData, base, DEMO_STALLED) } },
   ];
+}
+
+/** ランプの「止まっているかも」（赤）の見本：ラベルは実装中のまま、実行が動いていない（landing-page） */
+const DEMO_STALLED = [16];
+
+/**
+ * デモの Actions の実行：AIの番の段階（公開中を除く）の Issue ごとに、実行中の実行を1つ作る（ランプの緑）。
+ * stalled の番号は作らない（ラベルだけが残った見本）
+ */
+function demoRuns(data: RepoData, base: Date, stalled: number[] = []): WorkflowRunData[] {
+  const updatedAt = new Date(base.getTime() - MINUTE_MS).toISOString();
+  return data.issues
+    .filter((issue) => shouldShowIssue(issue, data.pulls) && !stalled.includes(issue.number))
+    .filter((issue) => {
+      const status = getIssueStatus(issue, data, base);
+      return (isRunningStage(status.stage, status.grace) || status.turn === "ai") && status.stage !== "deploying";
+    })
+    .map((issue) => ({
+      status: "in_progress",
+      headBranch: `claude/issue-${issue.number}-demo`,
+      displayTitle: issue.title,
+      pullNumbers: [],
+      updatedAt,
+    }));
 }
 
 /**
