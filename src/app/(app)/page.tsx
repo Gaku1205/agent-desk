@@ -1,5 +1,6 @@
 import { loadStepLog } from "@/app/actions";
 import { Desk } from "@/components/Desk";
+import { getSignedInLogin } from "@/lib/auth";
 import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
 import { loadTurns } from "@/lib/loadTurns";
@@ -8,6 +9,7 @@ import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { buildWatchdogNotices } from "@/lib/watchdogState";
+import { logout } from "./logout";
 
 export default async function Home() {
   const { results, items, now, addedNotices } = await loadTurns();
@@ -22,7 +24,13 @@ export default async function Home() {
       errors={results.flatMap((result) => (result.ok ? [] : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }]))}
       notices={buildWatchdogNotices(results, now)}
       addedNotices={addedNotices}
-      nav={{ repos, counts: countTurnItems(items), runningCounts: countRunningPipelineRows(results, now) }}
+      nav={{
+        repos,
+        counts: countTurnItems(items),
+        runningCounts: countRunningPipelineRows(results, now),
+        login: (await getSignedInLogin()) ?? undefined,
+        logout,
+      }}
       newIssueRepos={newIssueRepos(repos, results)}
       loadStepLog={loadStepLog}
     />

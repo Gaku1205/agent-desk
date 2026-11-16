@@ -69,9 +69,7 @@
 }
 
 /* 選択中のアイコンだけアクセント色（docs/design.md の「アイコン」） */
-.tab[aria-current="page"] > svg,
-.gear[aria-current="page"] > .gearIcon,
-.gear[aria-current="page"] > svg {
+.tab[aria-current="page"] > svg {
   color: var(--accent);
 }
 
@@ -115,7 +113,6 @@
   white-space: nowrap;
 }
 
-.newShort,
 .demoShort {
   display: none;
 }
@@ -130,11 +127,6 @@
     gap: 8px;
   }
 
-  .newFull {
-    display: none;
-  }
-
-  .newShort,
   .demoShort {
     display: inline;
   }
@@ -334,32 +326,12 @@
   white-space: nowrap;
 }
 
-.gear {
-  display: flex;
-  gap: 7px;
-  align-items: center;
-  height: 30px;
-  padding: 0 6px;
-  border-radius: 6px;
-  color: var(--mute);
-  font-size: 12.5px;
-}
-
 .gearIcon {
   display: inline-flex;
 }
 
 .gearIcon[data-pending] {
   animation: sync-pulse 0.8s ease-in-out infinite;
-}
-
-.gear:has(.gearIcon[data-pending]) {
-  color: var(--bone);
-}
-
-.gear:hover,
-.gear[aria-current="page"] {
-  color: var(--bone);
 }
 
 .user {
@@ -475,6 +447,46 @@
   display: none;
 }
 
+/* 左のバー：高さいっぱいの縦並びで、ユーザー名のボタンをいちばん下に置く */
+.side {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+.sideNew {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  flex-shrink: 0;
+  height: 36px;
+  margin: 12px 0;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--mute);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    color 0.15s var(--ease),
+    background 0.15s var(--ease);
+}
+
+.sideNew:hover {
+  background: var(--hair-2);
+  color: var(--bone-2);
+}
+
+.sideNew[aria-current="page"] {
+  background: var(--well);
+  color: var(--bone);
+}
+
+.sideNew[aria-current="page"] > svg {
+  color: var(--accent);
+}
+
 /* 3ペインのページでは、帯に札を出さない（左の一覧と同じ物を2か所に置かない） */
 @media (min-width: 900px) {
   :global(body:has([data-panes])) .top .repos {
@@ -495,8 +507,6 @@
   .top .repos,
   .top .syncTop,
   .top .pausedTop,
-  .top .gear,
-  .top .user,
   .top .demo {
     display: none;
   }

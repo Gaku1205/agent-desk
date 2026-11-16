@@ -51,6 +51,9 @@ export type DeskNav = {
   runningCounts: TurnCounts;
   /** リンクの頭（デモでは `/demo`） */
   basePath?: string;
+  /** 左のバーのいちばん下：ログイン中のユーザー名とログアウト（デモでは無し） */
+  login?: string;
+  logout?: () => Promise<void>;
 };
 
 /** 左のバーを畳んだか：<html> の data-side が正（描く前のスクリプトが保存から付ける） */
