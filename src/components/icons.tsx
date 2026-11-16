@@ -255,6 +255,16 @@ export function PlusIcon({ size = LABEL }: IconProps) {
   );
 }
 
+/** 左のバーを畳む・開く＝左に縦線のある四角（Lucide の panel-left） */
+export function PanelLeftIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M9 3v18" />
+    </LineIcon>
+  );
+}
+
 /** 通知＝ベル */
 export function BellIcon({ size = LABEL }: IconProps) {
   return (
