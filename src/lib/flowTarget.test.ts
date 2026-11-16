@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getFlow } from "./flow";
-import { pickFlowTarget } from "./flowTarget";
+import { pickFlowTarget, toggleFlowSelection } from "./flowTarget";
 import type { IssueStatus } from "./status";
 
 function status(overrides: Partial<IssueStatus>): IssueStatus {
@@ -27,6 +27,7 @@ function status(overrides: Partial<IssueStatus>): IssueStatus {
 }
 
 const message = (number: number, running: boolean) => ({
+  key: `demo/todo-app#${number}`,
   owner: "demo",
   repo: "todo-app",
   number,
@@ -62,5 +63,31 @@ describe("pickFlowTarget", () => {
   it("どちらも無ければ null", () => {
     expect(pickFlowTarget(null, [], true)).toBeNull();
     expect(pickFlowTarget(null, [message(30, false)], true)).toBeNull();
+  });
+
+  const current = {
+    owner: "demo",
+    repo: "todo-app",
+    issue: { number: 23, title: "通知の音", url: "https://github.com/demo/todo-app/issues/23" },
+    status: status({ stage: "ciFailed" }),
+  };
+
+  it("いまの様子で選んだ行があれば、あなたの番より先にそれを描く（動いていない行でも）", () => {
+    const target = pickFlowTarget(current, [message(21, true), message(30, false)], false, "demo/todo-app#30");
+    expect(target?.label).toBe("#30");
+    expect(target?.flow.at).toBe(6);
+  });
+
+  it("選んだ行がもう無ければ、今まで通り", () => {
+    expect(pickFlowTarget(current, [message(21, true)], false, "demo/todo-app#99")?.label).toBe("#23");
+    expect(pickFlowTarget(null, [message(21, true)], false, "demo/todo-app#99")?.label).toBe("#21");
+  });
+});
+
+describe("toggleFlowSelection", () => {
+  it("ほかの行を選ぶとその行に、同じ行をもう一度選ぶと外す", () => {
+    expect(toggleFlowSelection(null, "a#1")).toBe("a#1");
+    expect(toggleFlowSelection("a#1", "a#2")).toBe("a#2");
+    expect(toggleFlowSelection("a#1", "a#1")).toBeNull();
   });
 });

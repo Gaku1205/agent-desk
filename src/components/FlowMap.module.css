@@ -1,112 +1,97 @@
-/* 進捗図（docs/design.md の「進捗図」）。PCの3ペインの中央の上だけで使う */
+/* 進捗図（docs/design.md の「進捗図」）。PCの3ペインの右の列だけで使う。上から下へ、工程を縦に読む */
 
 .flow {
-  padding: 24px var(--gutter) 22px;
-  box-shadow: inset 0 -1px 0 var(--hair);
-}
-
-/* 見出しと図の塊を、中央の真ん中に置く（下の列と左右の片寄りをそろえる）。狭いときは幅いっぱいで、図だけが横にスクロール */
-.inner {
-  width: max-content;
-  max-width: 100%;
-  margin: 0 auto;
+  padding: 28px 24px 32px;
 }
 
 .empty {
-  text-align: center;
   color: var(--mute);
   font-size: 14px;
+  line-height: 1.7;
 }
 
 .head {
-  margin-bottom: 14px;
   min-width: 0;
 }
 
-.link {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  min-width: 0;
-  max-width: 100%;
-  width: fit-content;
-}
-
-.ref {
-  flex: none;
+.label {
   color: var(--mute);
-  font-size: 13px;
+  font-size: 12.5px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .title {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--bone-2);
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.link:hover .title {
+  display: block;
+  margin-top: 6px;
   color: var(--bone);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
-/* 幅が足りないときは、図だけが横にスクロールする */
-.scroll {
-  overflow-x: auto;
-  scrollbar-width: thin;
-  /* フォーカスの輪と今の位置の縁が切れないよう、少しだけ余白 */
-  padding: 2px;
-  margin: -2px;
+.title:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .steps {
-  display: flex;
-  align-items: center;
-  width: max-content;
+  margin-top: 22px;
 }
 
-/* ブロックの上の所要時間のぶんを、いつもあけておく（記録が無くても崩れない） */
-.steps {
-  padding-top: 20px;
-}
-
+/* 1工程＝1行。行の左の縦の線で、次の工程とつなぐ */
 .step {
   position: relative;
-  flex: none;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  width: 144px;
-  height: 60px;
-  padding: 0 12px;
-  border-radius: 8px;
-  background: var(--raise);
-  box-shadow: inset 0 0 0 1px var(--hair);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  padding-bottom: 12px;
 }
 
-.step[data-current] {
+/* 工程の間の線：アイコンの真ん中から下へ。完了までは実線（アクセント）、まだは点線（グレー） */
+.step::before {
+  content: "";
+  position: absolute;
+  top: 32px;
+  bottom: 2px;
+  left: 9px;
+  border-left: 2px dotted var(--mute);
+}
+
+.step[data-solid]::before {
+  border-left-style: solid;
+  border-left-color: var(--accent);
+}
+
+.step[data-last]::before {
+  display: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  column-gap: 12px;
+  align-items: start;
+  margin: 0 -10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+/* 今の位置：面（--raise）と縁（--edge）で囲み、アイコンを --accent に */
+.step[data-current] > .row {
+  /* 下へ伸びる線を、面の下の縁から出す（面の中には通さない） */
+  position: relative;
+  z-index: 1;
+  background: var(--raise);
   box-shadow: inset 0 0 0 1px var(--edge);
 }
 
-/* ブロックの上の所要時間（ブロックの左端にそろえる） */
-.duration {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  left: 2px;
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--mute);
-  font-size: 12px;
-  line-height: 1.3;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .icon {
-  display: inline-flex;
-  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
   color: var(--bone-2);
 }
 
@@ -124,9 +109,9 @@
 .name {
   overflow: hidden;
   color: var(--bone);
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 500;
-  line-height: 1.3;
+  line-height: 20px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -135,8 +120,22 @@
   overflow: hidden;
   color: var(--mute);
   font-size: 12px;
-  line-height: 1.3;
+  line-height: 1.4;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 右端：開始時刻と状態の印。時刻が無くても高さは同じ */
+.side {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: 20px;
+}
+
+.time {
+  color: var(--mute);
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -147,7 +146,6 @@
   justify-content: center;
   width: 14px;
   height: 14px;
-  margin-left: auto;
   color: var(--bone-2);
 }
 
@@ -180,54 +178,51 @@
   }
 }
 
-/* ブロックの間の線：完了までは実線（アクセント）、まだは点線（グレー） */
-.line {
-  flex: none;
-  width: 20px;
-  border-top: 2px dotted var(--mute);
-}
-
-.line[data-solid] {
-  border-top-style: solid;
-  border-top-color: var(--accent);
-}
-
-/* CI失敗時の分岐：CIブロックの下に開く点線の枠（docs/design.md の「CI失敗時の分岐」） */
+/* CI失敗時の修正：CIの下に、工程名の左端まで字下げした枠。左の縦線が、修正からCIに戻る線 */
 .branch {
-  width: max-content;
-  margin-top: 0;
+  margin: 6px 0 4px 32px;
+  padding: 2px 0 2px 14px;
+  border-left: 2px dotted var(--mute);
 }
 
-/* 修正からCIに戻る線：枠の上の辺からCIブロックの下まで、縦に（CIブロックの真ん中） */
-.back {
-  display: block;
-  width: 0;
-  height: 16px;
-  margin-left: 72px;
-  border-left: 2px solid var(--accent);
+.branch[data-return] {
+  border-left-style: solid;
+  border-left-color: var(--accent);
 }
 
-.frame {
-  width: max-content;
-  padding: 12px;
-  margin-left: -30px;
-  border: 2px dotted var(--mute);
-  border-radius: 12px;
+.branchHead {
+  margin-bottom: 4px;
+  color: var(--mute);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
-/* 「修正 3回目 / 3」が切れないよう、枠の中のブロックだけ少し広くする */
-.frame .step {
-  width: 176px;
+.try {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: 26px;
 }
 
-/* 通らなかった枝（CIが通ったあとの、失敗したCIと修正）はグレー */
-.branch[data-branch="notTaken"] .back {
+.tryName {
+  overflow: hidden;
+  color: var(--bone-2);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.try .time {
+  margin-left: auto;
+}
+
+/* 通らなかった枝（CIが通ったあと）は、線も文字も印もグレー */
+.branch[data-branch="notTaken"] {
   border-left-style: dotted;
   border-left-color: var(--mute);
 }
 
-.branch[data-branch="notTaken"] .step .icon,
-.branch[data-branch="notTaken"] .step .name,
-.branch[data-branch="notTaken"] .step .mark {
+.branch[data-branch="notTaken"] .tryName,
+.branch[data-branch="notTaken"] .mark {
   color: var(--mute);
 }
