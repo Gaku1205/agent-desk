@@ -20,10 +20,19 @@ type Props = {
   repo: { name: string; githubUrl: string | null } | null;
   /** いちばん上のお知らせ（見張り役・取れなかったリポジトリ） */
   notices: ConversationNotice[];
+  /** PCの進捗図に描くため選んでいる行（`owner/repo#番号`）。選んでいなければ null */
+  selected?: string | null;
+  /** 行を選んだ（同じ行なら外す。決めるのは Desk） */
+  onSelect?: (key: string) => void;
 };
 
+/** 行の中の、リンク・ボタン・入力（押したら、それぞれの動きだけにする） */
+function isControl(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest("a, button, input, textarea, select, summary") !== null;
+}
+
 /** 「いまの様子」：進行中の作業を、会話のメッセージのように縦に並べる（docs/design.md の「いまの様子」） */
-export function Conversation({ messages, now, showRepo, repo, notices }: Props) {
+export function Conversation({ messages, now, showRepo, repo, notices, selected = null, onSelect }: Props) {
   // 公開済みを開いているか。その画面にいる間だけ覚える
   const [deployedOpen, setDeployedOpen] = useState(false);
   // 前の描画のメッセージ（新しく入った物を見分ける）
@@ -37,8 +46,27 @@ export function Conversation({ messages, now, showRepo, repo, notices }: Props) 
 
   function renderMessage(message: ChatMessage) {
     const label = showRepo ? `${message.repo}#${message.number}` : `#${message.number}`;
+    const isSelected = selected === message.key;
     return (
-      <article key={message.key} className={styles.msg} data-key={message.key} data-fresh={fresh(message.key) ? "" : undefined}>
+      <article
+        key={message.key}
+        className={styles.msg}
+        data-key={message.key}
+        data-fresh={fresh(message.key) ? "" : undefined}
+        data-selectable={onSelect ? "" : undefined}
+        data-selected={isSelected ? "" : undefined}
+        onClick={
+          onSelect
+            ? (event) => {
+                // 行のどこを押しても選べる（リンク・ボタンと、文字を選んでいるときは除く）
+                // スマホは進捗図を出さないので選ばない
+                if (isControl(event.target) || window.getSelection()?.toString()) return;
+                if (!window.matchMedia("(min-width: 900px)").matches) return;
+                onSelect(message.key);
+              }
+            : undefined
+        }
+      >
         <p className={styles.meta}>
           <LampMark lamp={message.lamp} />
           <span className={styles.who} data-fail={message.failed ? "" : undefined}>
@@ -47,7 +75,19 @@ export function Conversation({ messages, now, showRepo, repo, notices }: Props) 
           <span className={styles.sep} aria-hidden="true">
             ·
           </span>
-          <span className="num">{label}</span>
+          {onSelect ? (
+            <button
+              type="button"
+              className={`${styles.pick} num`}
+              aria-pressed={isSelected}
+              aria-label={`${label} の進捗図を見る`}
+              onClick={() => onSelect(message.key)}
+            >
+              {label}
+            </button>
+          ) : (
+            <span className="num">{label}</span>
+          )}
           {message.latestAt && (
             <>
               <span className={styles.sep} aria-hidden="true">

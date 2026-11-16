@@ -91,8 +91,19 @@
 @media (min-width: 900px) {
   .panes {
     display: grid;
-    grid-template-columns: 224px minmax(0, 1fr);
+    grid-template-columns: 224px minmax(0, 1fr) 320px;
     align-items: start;
+  }
+
+  /* 右の進捗図の列：上端の帯の下に付いたまま。長ければこの中だけ縦にスクロール */
+  .flow {
+    position: sticky;
+    top: var(--top-h);
+    height: calc(100svh - var(--top-h));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    box-shadow: inset 1px 0 0 var(--hair);
   }
 
   /* 左の一覧：上端の帯の下に付いたまま。多ければこの中だけ縦にスクロール */
@@ -124,7 +135,7 @@
     flex: 1 0 auto;
   }
 
-  /* 進捗図と入力欄で最初の1画面が埋まるので、「あなたの番」の場所は画面の高さにしない */
+  /* 下の入力欄があるので、「あなたの番」の場所は画面の高さにしない */
   .turn {
     min-height: 0;
     padding: 40px 0 24px;
@@ -132,6 +143,13 @@
 
   .down {
     display: none;
+  }
+}
+
+/* 中央が狭くならないよう、1180px未満では右の列を280pxにする */
+@media (min-width: 900px) and (max-width: 1179px) {
+  .panes {
+    grid-template-columns: 224px minmax(0, 1fr) 280px;
   }
 }
 

@@ -161,19 +161,24 @@ describe("flowStepLabel", () => {
       "実装　成功　モデル opus　所要時間 3分12秒",
     );
   });
+  it("開始時刻があれば足す", () => {
+    expect(
+      flowStepLabel({ name: "実装", state: "done", model: "opus", started: "10:01", duration: "52分" }),
+    ).toBe("実装　成功　モデル opus　開始 10:01　所要時間 52分");
+  });
 });
 
 describe("applyStepLog", () => {
   const base = () => getFlow(status({ stage: "ciRunning" }));
   it("記録のある工程にモデル名と所要時間を渡す。null のモデルは不明", () => {
     const flow = applyStepLog(base(), [
-      { key: "implement", model: "opus", duration: "3分12秒" },
-      { key: "ci", model: null, duration: "45秒" },
+      { key: "implement", model: "opus", duration: "3分12秒", started: "10:01" },
+      { key: "ci", model: null, duration: "45秒", started: "10:06" },
     ]);
     const get = (key: string) => flow.steps.find((step) => step.key === key);
-    expect(get("implement")).toMatchObject({ model: "opus", duration: "3分12秒" });
-    expect(get("ci")).toMatchObject({ model: "不明", duration: "45秒" });
-    expect(get("plan")).toMatchObject({ model: "不明", duration: null });
+    expect(get("implement")).toMatchObject({ model: "opus", duration: "3分12秒", started: "10:01" });
+    expect(get("ci")).toMatchObject({ model: "不明", duration: "45秒", started: "10:06" });
+    expect(get("plan")).toMatchObject({ model: "不明", duration: null, started: null });
   });
   it("記録が無ければそのまま", () => {
     const flow = base();

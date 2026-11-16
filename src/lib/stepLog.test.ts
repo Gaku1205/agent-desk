@@ -45,19 +45,19 @@ describe("parseStepLog", () => {
       line(row({})),
     ].join("\n");
     expect(parseStepLog(body, NOW)).toEqual([
-      { key: "design", model: "sonnet", duration: "3分12秒" },
-      { key: "implement", model: "opus", duration: "3分12秒" },
+      { key: "design", model: "sonnet", duration: "3分12秒", started: "16:28" },
+      { key: "implement", model: "opus", duration: "3分12秒", started: "16:28" },
     ]);
   });
 
   it("model が null の工程は model を null で返す", () => {
     const body = line(row({ step: "ci", model: null, finished: "2026-11-15T07:28:45Z" }));
-    expect(parseStepLog(body, NOW)).toEqual([{ key: "ci", model: null, duration: "45秒" }]);
+    expect(parseStepLog(body, NOW)).toEqual([{ key: "ci", model: null, duration: "45秒", started: "16:28" }]);
   });
 
   it("進行中（finished が null）は now までの経過時間", () => {
     const body = line(row({ step: "fix", finished: null, result: "running", attempt: 1, max_attempts: 3 }));
-    expect(parseStepLog(body, NOW)).toEqual([{ key: "fix", model: "opus", duration: "32分" }]);
+    expect(parseStepLog(body, NOW)).toEqual([{ key: "fix", model: "opus", duration: "32分", started: "16:28" }]);
   });
 
   it("壊れた JSON・知らない step・欠けた項目は読み飛ばす", () => {
@@ -72,12 +72,12 @@ describe("parseStepLog", () => {
       line(row({ step: "review", model: 3 })),
       line(row({ step: "deploy", model: null })),
     ].join("\n");
-    expect(parseStepLog(body, NOW)).toEqual([{ key: "deploy", model: null, duration: "3分12秒" }]);
+    expect(parseStepLog(body, NOW)).toEqual([{ key: "deploy", model: null, duration: "3分12秒", started: "16:28" }]);
   });
 
   it("同じ工程が複数あれば最後の行を使う", () => {
     const body = [line(row({ model: "sonnet" })), line(row({ model: "opus" }))].join("\n");
-    expect(parseStepLog(body, NOW)).toEqual([{ key: "implement", model: "opus", duration: "3分12秒" }]);
+    expect(parseStepLog(body, NOW)).toEqual([{ key: "implement", model: "opus", duration: "3分12秒", started: "16:28" }]);
   });
 
   it("行が無ければ空", () => {
