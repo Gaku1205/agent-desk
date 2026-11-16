@@ -189,6 +189,7 @@ export function TurnRow({ item, wait, fresh, onLeave }: Props) {
       ref={rowRef}
       className={styles.row}
       data-key={key}
+      data-answer={asking || talking ? "" : undefined}
       data-fresh={fresh ? "" : undefined}
       data-leaving={leaving ? "" : undefined}
       inert={leaving}

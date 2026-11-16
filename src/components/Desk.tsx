@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import { addedNoticeText, type AddedNotice } from "@/lib/autoAdd";
 import type { ChatMessage } from "@/lib/conversation";
 import { applyStepLog } from "@/lib/flow";
-import { isNearBottom } from "@/lib/followScroll";
+import { isNearBottom, openPosition, shouldFollow } from "@/lib/followScroll";
 import { pickFlowTarget, toggleFlowSelection } from "@/lib/flowTarget";
 import type { StepInfo } from "@/lib/stepLog";
 import { getBrowserStorage } from "@/lib/motion";
@@ -161,14 +161,33 @@ export function Desk({
     return () => window.removeEventListener("scroll", update);
   }, []);
   useLayoutEffect(() => {
-    scrollToBottom();
-    followBottom.current = true;
+    const place = () => {
+      const root = document.documentElement;
+      const answer = rowsRef.current?.querySelector<HTMLElement>("[data-answer]") ?? null;
+      const position = openPosition(root.scrollHeight, window.innerHeight, answer !== null);
+      if (position === "answer" && answer) {
+        // 上端の帯の下（scroll-padding-top）に、その1件の上端（種類の札と題名）を置く
+        answer.scrollIntoView({ block: "start", behavior: "instant" });
+      } else if (position === "bottom") {
+        scrollToBottom();
+      } else {
+        window.scrollTo({ top: 0, behavior: "instant" });
+      }
+      followBottom.current = position === "bottom" || position === "top";
+    };
+    place();
+    // 答える欄がある1件は、最初の選択肢（キー操作の決まりで Tab が止まる物）にフォーカスを置く
+    rowsRef.current
+      ?.querySelector<HTMLElement>('[data-answer] [role="radio"][tabindex="0"]')
+      ?.focus({ preventScroll: true });
     // ページを移ったあとの、Next の「上へ戻す」より後にもう一度送る
-    const frame = requestAnimationFrame(scrollToBottom);
+    const frame = requestAnimationFrame(place);
     return () => cancelAnimationFrame(frame);
   }, [scopeKey]);
   useLayoutEffect(() => {
-    if (followBottom.current) scrollToBottom();
+    const answering = rowsRef.current?.contains(document.activeElement) === true &&
+      document.activeElement?.closest("[data-answer]") != null;
+    if (shouldFollow(followBottom.current, answering)) scrollToBottom();
   }, [messages, items]);
 
   const at = new Date(now);
