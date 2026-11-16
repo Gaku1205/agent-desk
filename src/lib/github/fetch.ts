@@ -48,7 +48,7 @@ export async function fetchRepoData(
   const mainDeployed = rememberedMainDeployed(client.memoKey(base), nodes.mainCommits);
 
   const data: RepoData = {
-    ...convertRepoNodes(nodes.issues, nodes.pulls, cutoffMs),
+    ...convertRepoNodes(nodes.issues, nodes.pulls, cutoffMs, nodes.waiting),
     pipeline: actions.pipeline,
     mainDeployedAt: mainDeployed.at,
     mainDeployedByContext: mainDeployed.byContext,
@@ -92,9 +92,11 @@ async function fetchRepoNodes(
   isTemplate: boolean | undefined;
   issues: GqlIssue[];
   pulls: GqlPull[];
+  waiting: GqlIssue[];
   mainCommits: CommitStatusData[][] | null;
 }> {
   const issues: GqlIssue[] = [];
+  let waiting: GqlIssue[] = [];
   const pulls: GqlPull[] = [];
   let isTemplate: boolean | undefined;
   let mainCommits: CommitStatusData[][] | null = null;
@@ -121,6 +123,7 @@ async function fetchRepoNodes(
     if (first) {
       isTemplate = read.isTemplate;
       mainCommits = read.mainCommits;
+      waiting = read.waiting;
     }
     if (withIssues) {
       issuePages++;
@@ -141,7 +144,7 @@ async function fetchRepoNodes(
         Date.parse(oldest.updatedAt) >= cutoffMs;
     }
   }
-  return { isTemplate, issues, pulls, mainCommits };
+  return { isTemplate, issues, pulls, waiting, mainCommits };
 }
 
 /** 前回取れた「main の最後の公開の成功の時刻」を覚えておく件数の上限（超えたら古い物から捨てる） */

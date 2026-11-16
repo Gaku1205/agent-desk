@@ -494,11 +494,12 @@ CIが失敗したとき、CIの行の下に字下げした枠が開き、中に�
 - 1回の問い合わせで取る物（`repository(owner, name)` の中）
   - `isTemplate`
   - Issue：`issues(first: 100, filterBy: { since: 直近14日の境目 }, orderBy: { field: UPDATED_AT, direction: DESC })` の番号・題名・本文・状態・ラベル・URL・作成・更新・閉じた時刻、コメント（`comments(last: 100)`。本文・作成と更新の時刻・URL・作者。更新の時刻とURLは「AIが今していること」に使う）、ラベルの付け外し（`timelineItems(last: 50, itemTypes: [LABELED_EVENT, UNLABELED_EVENT])`）
+  - 人間待ちの Issue（Issue #356）：開いている Issue のうち、`ai:stuck`・`ai:skip`・`ai:question`・`factory:wait` のどれかが付いている物は、更新日で絞らずに取る。ラベルの絞り込みは「すべて付いている」なので、ラベルごとに `issues(first: 100, states: OPEN, labels: ["ai:stuck"], orderBy: { field: UPDATED_AT, direction: DESC })` を別名（alias）で4つ、同じ問い合わせの中に足す（`since` は付けない。取る項目は上の Issue と同じ）。HTTP の呼び出しは増えない。ページ送りはしない（各100件まで）。続きの問い合わせ（`withMain: false`）には入れない
   - PR：`pullRequests(first: 100, orderBy: { field: UPDATED_AT, direction: DESC })` の番号・題名・本文・状態・マージの時刻・ラベル・URL・ブランチ名（`headRefName`）・先頭コミット（`headRefOid`）・作成・更新の時刻、コメント・ラベルの付け外し（Issue と同じ）、先頭コミットのチェック（`commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) } } } }` の CheckRun の名前・状態・結果・作ったアプリ・完了時刻）、マージコミット（`mergeCommit { oid status { contexts } }` の context・状態・説明・リンク先・時刻）
   - main の直近30コミットの公開ステータス（「main の最後に公開が成功した時刻」）
   - 回数制限：`rateLimit { cost remaining resetAt }`（「更新」）
 - ページ送り：Issue は `pageInfo` に続きがあれば、PR は続きがあり、かつそのページのいちばん古いPRの更新が直近14日の中なら、続きだけ（`after` に `endCursor`）をもう1回問い合わせる。Issue・PR それぞれ最大5ページ（500件）まで。続きの問い合わせには、main は入れない
-- 取ったあとで直近14日に絞る：Issue と PR は更新時刻、コメントは作成時刻
+- 取ったあとで直近14日に絞る：Issue と PR は更新時刻、コメントは作成時刻。ただし人間待ちの Issue（開いていて、上の4ラベルのどれかが付いている物）は絞らない（コメント・ラベルの付け外しも同じ）。直近14日の Issue と人間待ちの Issue は、番号で重複を除いて合わせる。閉じた Issue は、ラベルが付いていても14日より前なら取らない
 - 今の型への変え方（REST から変えていたときと同じ結果にする。`src/lib/github/graphql.test.ts` で REST からの変換と比べる）
   - 状態・結果の英字（`OPEN`・`COMPLETED`・`SUCCESS` など）は小文字にする。PRの `MERGED` は `closed`（マージ済みかはマージの時刻で決める）
   - コメントの作者が Bot（`__typename` が `Bot`）のときは、ログイン名の後ろに `[bot]` を付ける（GraphQL は `claude`、REST は `claude[bot]` で返すため）。コメントの `id` は `databaseId`。コメントは作成時刻の順に並べる
@@ -509,7 +510,7 @@ CIが失敗したとき、CIの行の下に字下げした枠が開き、中に�
 - GraphQL の返事に `errors` があるときは、そのリポジトリを取れなかったことにする（`type` が `RATE_LIMITED` ならレート制限、`NOT_FOUND` なら見つからない、`FORBIDDEN` なら権限なし、ほかは「取れませんでした」。HTTP の 401・403・404・429 は REST と同じ分け方）
 - GraphQL で取れない物（パイプラインの状態＝`pipeline.yml` の実行、見張り役の最後の実行＝`watchdog.yml` の実行、ランプの実行＝`actions/runs` の3つ。Actions の runs）は REST のまま。ただしリポジトリごとに5分に1回だけ取り直し、間はサーバーのメモリに覚えた前の値を使う（キーはトークンのハッシュ＋リポジトリ、件数に上限あり、再起動で消えてよい）
 - **今のステップ名**（「AIが今していること」。2026年11月16日、Issue #347）：作業中のコメントが無い、開いている Issue のうち、関わる実行が実行中（`in_progress`）の物だけ、その中でいちばん新しく更新された実行1つについて `GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs?filter=latest&per_page=30` を呼ぶ（リポジトリごとに最大3つ。選び方は `src/lib/aiActivity.ts` の `stepProbeRunIds`、返事の読み方は `currentStepFromJobs`）。ETag つき（下の箇条書き）で、同期のたびに取る（間隔は「更新」のまま）。実行の一覧（`actions/runs`）は今までどおり5分に1回。取れなかったときは、その実行のステップ名だけを出さない（ほかは落とさない）
-- 呼ぶ数の目安：監視リポジトリ3つ・直近14日のPRが100件で、1回の同期が GraphQL 6回以内、REST 0回（5分ごとの Actions の runs と、5分に1回までの「新しいサービスを自動で足す」の探し方を除く）
+- 呼ぶ数の目安：監視リポジトリ3つ・直近14日のPRが100件で、1回の同期が GraphQL 6回以内、REST 0回（人間待ちの一覧は同じ問い合わせの中なので増えない。5分ごとの Actions の runs と、5分に1回までの「新しいサービスを自動で足す」の探し方を除く）
 - REST の問い合わせ（Actions の runs など）は、前回の返事の `ETag` を `If-None-Match` に付けて送る。変わっていなければ 304 が返り、GitHubの回数制限に数えられない。304 のときは前回の中身を使う（サーバーのメモリに、トークンとURLごとに覚えておく。トークンそのものはキーにせず、ハッシュにする）。GraphQL（POST）には ETag は無い
 
 ### Webhook で取り直す
