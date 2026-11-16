@@ -1,5 +1,6 @@
 import { getFlowBranch, type CiResult, type FlowBranch } from "./flowBranch";
 import type { BaseStage, IssueStatus } from "./status";
+import type { StepInfo } from "./stepLog";
 
 /** 進捗図の工程（左から右。docs/spec.md の「進捗図」） */
 export const FLOW_STEPS = [
@@ -32,6 +33,8 @@ export type FlowStep = {
   name: string;
   /** モデル名（記録が無ければ「不明」） */
   model: string;
+  /** 所要時間（`3分12秒`。出せなければ null） */
+  duration: string | null;
   state: FlowState;
   /** 今の位置の工程 */
   current: boolean;
@@ -115,6 +118,7 @@ export function getFlow(status: IssueStatus): Flow {
     key,
     name,
     model: UNKNOWN_MODEL,
+    duration: null,
     state: index < at ? (unknownBefore(status, index) ? "waiting" : "done") : index === at ? state : "waiting",
     current: index === at,
   }));
@@ -146,12 +150,26 @@ function ciResult(stage: BaseStage): CiResult {
   }
 }
 
+/** 進捗ログの記録を工程に渡す。記録が無い工程・モデルを使わない工程（null）は「不明」、所要時間は出せなければ null */
+export function applyStepLog(flow: Flow, infos: readonly StepInfo[]): Flow {
+  if (infos.length === 0) return flow;
+  const byKey = new Map(infos.map((info) => [info.key, info]));
+  return {
+    ...flow,
+    steps: flow.steps.map((step) => {
+      const info = byKey.get(step.key);
+      return info ? { ...step, model: info.model ?? UNKNOWN_MODEL, duration: info.duration } : step;
+    }),
+  };
+}
+
 /** 左から index 番目の線（index と index+1 のブロックの間）が実線か。右のブロックが今の位置までなら実線 */
 export function isSolidLink(flow: Pick<Flow, "at">, index: number): boolean {
   return index + 1 <= flow.at;
 }
 
 /** ブロックの読み上げの文（`企画　成功　モデル 不明`） */
-export function flowStepLabel(step: Pick<FlowStep, "name" | "state" | "model">): string {
-  return `${step.name}　${FLOW_STATE_LABEL[step.state]}　モデル ${step.model}`;
+export function flowStepLabel(step: Pick<FlowStep, "name" | "state" | "model"> & { duration?: string | null }): string {
+  const time = step.duration ? `　所要時間 ${step.duration}` : "";
+  return `${step.name}　${FLOW_STATE_LABEL[step.state]}　モデル ${step.model}${time}`;
 }

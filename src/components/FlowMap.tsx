@@ -94,6 +94,11 @@ function Steps({ target }: { target: FlowTarget }) {
               <span className={styles.model}>{step.model}</span>
             </span>
             <StateMark step={step} />
+            {step.duration && (
+              <span className={`${styles.duration} num`} aria-hidden="true">
+                {step.duration}
+              </span>
+            )}
           </li>
         </Fragment>
       ))}
