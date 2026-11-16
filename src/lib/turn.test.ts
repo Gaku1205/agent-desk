@@ -417,6 +417,24 @@ describe("waitingSince", () => {
   });
 });
 
+describe("waitingSince：PR作成待ち", () => {
+  it("実装AIが終わった時刻（コメントの書き換え）から数える。作成時刻（始めた時刻）ではない", () => {
+    const target = issue(1, { labels: ["ai:implement"] });
+    const repoData = data({
+      issues: [target],
+      comments: [
+        comment(1, "**Claude finished @x's task in 20m**", {
+          createdAt: "2026-10-25T09:00:00Z",
+          updatedAt: "2026-10-25T09:20:00Z",
+        }),
+      ],
+    });
+    const status = getIssueStatus(target, repoData, NOW);
+    expect(status.stage).toBe("prWaiting");
+    expect(waitingSince(target, status, repoData)).toBe("2026-10-25T09:20:00Z");
+  });
+});
+
 describe("formatWait", () => {
   it.each([
     ["2026-10-25T11:59:40Z", "1分"],
