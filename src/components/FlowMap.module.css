@@ -171,3 +171,43 @@
   border-top-style: solid;
   border-top-color: var(--accent);
 }
+
+/* CI失敗時の分岐：CIブロックの下に開く点線の枠（docs/design.md の「CI失敗時の分岐」） */
+.branch {
+  width: max-content;
+  margin-top: 0;
+}
+
+/* 修正からCIに戻る線：枠の上の辺からCIブロックの下まで、縦に（CIブロックの真ん中） */
+.back {
+  display: block;
+  width: 0;
+  height: 16px;
+  margin-left: 72px;
+  border-left: 2px solid var(--accent);
+}
+
+.frame {
+  width: max-content;
+  padding: 12px;
+  margin-left: -30px;
+  border: 2px dotted var(--mute);
+  border-radius: 12px;
+}
+
+/* 「修正 3回目 / 3」が切れないよう、枠の中のブロックだけ少し広くする */
+.frame .step {
+  width: 176px;
+}
+
+/* 通らなかった枝（CIが通ったあとの、失敗したCIと修正）はグレー */
+.branch[data-branch="notTaken"] .back {
+  border-left-style: dotted;
+  border-left-color: var(--mute);
+}
+
+.branch[data-branch="notTaken"] .step .icon,
+.branch[data-branch="notTaken"] .step .name,
+.branch[data-branch="notTaken"] .step .mark {
+  color: var(--mute);
+}

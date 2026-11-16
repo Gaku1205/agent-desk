@@ -1,3 +1,4 @@
+import { getFlowBranch, type CiResult, type FlowBranch } from "./flowBranch";
 import type { BaseStage, IssueStatus } from "./status";
 
 /** 進捗図の工程（左から右。docs/spec.md の「進捗図」） */
@@ -40,6 +41,8 @@ export type Flow = {
   /** 今の位置（0〜6） */
   at: number;
   steps: FlowStep[];
+  /** CI失敗時の分岐（無ければ null。docs/spec.md の「CI失敗時の分岐」） */
+  branch: FlowBranch | null;
 };
 
 const PLAN = 0;
@@ -115,7 +118,32 @@ export function getFlow(status: IssueStatus): Flow {
     state: index < at ? (unknownBefore(status, index) ? "waiting" : "done") : index === at ? state : "waiting",
     current: index === at,
   }));
-  return { at, steps };
+  const branch = getFlowBranch({
+    ci: ciResult(stage),
+    fixCount: status.fixCount,
+    fixing: stage === "fixing",
+    stuck: status.stage === "stuck",
+  });
+  return { at, steps, branch };
+}
+
+/** 段階から見たCIの結果。CIより前は「まだ」、CIより後（レビュー以降）は「通った」 */
+function ciResult(stage: BaseStage): CiResult {
+  switch (stage) {
+    case "ciRunning":
+      return "running";
+    case "ciFailed":
+    case "fixing":
+      return "failed";
+    case "reviewing":
+    case "mergeWaiting":
+    case "deploying":
+    case "deployFailed":
+    case "deployed":
+      return "passed";
+    default:
+      return "none";
+  }
 }
 
 /** 左から index 番目の線（index と index+1 のブロックの間）が実線か。右のブロックが今の位置までなら実線 */
