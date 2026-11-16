@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { loadStepLog } from "@/app/actions";
 import { Desk } from "@/components/Desk";
+import { getSignedInLogin } from "@/lib/auth";
 import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
 import { findWatchedRepo } from "@/lib/config";
@@ -10,6 +11,7 @@ import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems, filterTurnItems } from "@/lib/turn";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { buildWatchdogNotices } from "@/lib/watchdogState";
+import { logout } from "../../../logout";
 
 export default async function RepoPage({
   params,
@@ -43,7 +45,13 @@ export default async function RepoPage({
       )}
       notices={buildWatchdogNotices(results, now).filter((notice) => same(notice.owner, notice.repo))}
       addedNotices={addedNotices.filter((notice) => same(notice.owner, notice.repo))}
-      nav={{ repos, counts: countTurnItems(items), runningCounts: countRunningPipelineRows(results, now) }}
+      nav={{
+        repos,
+        counts: countTurnItems(items),
+        runningCounts: countRunningPipelineRows(results, now),
+        login: (await getSignedInLogin()) ?? undefined,
+        logout,
+      }}
       newIssueRepos={newIssueRepos(repos, results)}
       loadStepLog={loadStepLog}
     />

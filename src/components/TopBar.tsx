@@ -12,6 +12,7 @@ import type { TurnCounts } from "@/lib/turn";
 import { useShell } from "./AppShell";
 import { useDemo } from "./DemoContext";
 import { GearIcon, GridIcon, LogoutIcon, PlayIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
+import { SideUser } from "./SideUser";
 import styles from "./TopBar.module.css";
 
 export type TopBarRepo = { owner: string; repo: string };
@@ -174,7 +175,9 @@ export function RepoTabs({
 }
 
 /** PCの3ペインの左：リポジトリの一覧（上端の帯の札を縦に並べた物。docs/design.md の「PCの3ペイン」） */
-export function SideRepos(props: Pick<Props, "repos" | "counts" | "runningCounts" | "basePath">) {
+export function SideRepos(props: Pick<Props, "repos" | "counts" | "runningCounts" | "basePath" | "login" | "logout">) {
+  const pathname = usePathname();
+  const newServiceHref = `${props.basePath ?? ""}/new/service`;
   return (
     <aside className={styles.side} aria-label="リポジトリの一覧">
       <span className={styles.sideLbl}>
@@ -183,6 +186,16 @@ export function SideRepos(props: Pick<Props, "repos" | "counts" | "runningCounts
         <CountsKey />
       </span>
       <RepoTabs {...props} />
+      <Link
+        href={newServiceHref}
+        className={styles.sideNew}
+        aria-label="新しいサービスを作る"
+        aria-current={pathname.toLowerCase() === newServiceHref ? "page" : undefined}
+      >
+        <PlusIcon />
+        <span aria-hidden="true">新サービス</span>
+      </Link>
+      <SideUser login={props.login} logout={props.logout} basePath={props.basePath} />
     </aside>
   );
 }
@@ -250,9 +263,6 @@ function DemoControls() {
 export function TopBar(props: Props) {
   const { menuOpen, openMenu, closeMenu } = useShell();
   const pathname = usePathname();
-  const settingsHref = `${props.basePath ?? ""}/settings`;
-  const newIssueHref = `${props.basePath ?? ""}/new`;
-  const newServiceHref = `${props.basePath ?? ""}/new/service`;
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const wasOpenRef = useRef(false);
 
@@ -298,43 +308,6 @@ export function TopBar(props: Props) {
           <DemoControls />
           <PausedNote className={styles.pausedTop} />
           <SyncButton className={styles.syncTop} />
-          <Link
-            href={newIssueHref}
-            className={styles.gear}
-            aria-label="Issueを書く"
-            aria-current={pathname.toLowerCase() === newIssueHref ? "page" : undefined}
-          >
-            <WriteIcon />
-            <span className={styles.newFull}>Issueを書く</span>
-            <span className={styles.newShort} aria-hidden="true">
-              書く
-            </span>
-          </Link>
-          <Link
-            href={newServiceHref}
-            className={styles.gear}
-            aria-label="新しいサービスを作る"
-            aria-current={pathname.toLowerCase() === newServiceHref ? "page" : undefined}
-          >
-            <PlusIcon />
-            <span className={styles.newFull}>新しいサービスを作る</span>
-            <span className={styles.newShort} aria-hidden="true">
-              新サービス
-            </span>
-          </Link>
-          <Link
-            href={settingsHref}
-            className={styles.gear}
-            aria-current={pathname.toLowerCase() === settingsHref ? "page" : undefined}
-          >
-            <SettingsLabel />
-          </Link>
-          {props.login && props.logout && (
-            <form action={props.logout} className={styles.user}>
-              <span className={`${styles.login} num`}>{props.login}</span>
-              <LogoutButton />
-            </form>
-          )}
         </div>
       </header>
       <MenuSheet {...props} />
@@ -375,20 +348,20 @@ function MenuSheet(props: Props) {
         <RepoTabs {...props} onPick={closeMenu} />
         <span className={styles.lbl}>ほか</span>
         <Link
-          href={newIssueHref}
-          className={styles.lnk}
-          onClick={shouldCloseMenuOnPick(pathname, newIssueHref) ? closeMenu : undefined}
-        >
-          <WriteIcon />
-          Issueを書く
-        </Link>
-        <Link
           href={newServiceHref}
           className={styles.lnk}
           onClick={shouldCloseMenuOnPick(pathname, newServiceHref) ? closeMenu : undefined}
         >
           <PlusIcon />
           新しいサービスを作る
+        </Link>
+        <Link
+          href={newIssueHref}
+          className={styles.lnk}
+          onClick={shouldCloseMenuOnPick(pathname, newIssueHref) ? closeMenu : undefined}
+        >
+          <WriteIcon />
+          Issueを書く
         </Link>
         <Link
           href={settingsHref}
@@ -400,14 +373,14 @@ function MenuSheet(props: Props) {
         {props.extraLinks}
         <div className={styles.foot}>
           {demo && <span className={styles.demo}>デモ（サンプルのデータ）</span>}
-          <SyncButton />
-          <PausedNote />
           {props.login && props.logout && (
             <form action={props.logout} className={styles.user}>
               <span className={`${styles.login} num`}>{props.login}</span>
               <LogoutButton />
             </form>
           )}
+          <SyncButton />
+          <PausedNote />
         </div>
       </div>
     </div>

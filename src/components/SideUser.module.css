@@ -1,0 +1,85 @@
+/* PCの左のバーのいちばん下：ユーザー名のボタンと、その上に開くメニュー（docs/design.md の「左のバーの新サービスとユーザーのメニュー」） */
+.wrap {
+  position: relative;
+  margin-top: auto;
+}
+
+.button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--mute);
+  font-size: 12px;
+  text-align: left;
+  transition:
+    color 0.15s var(--ease),
+    background 0.15s var(--ease);
+}
+
+.button:hover,
+.button[data-open] {
+  background: var(--hair-2);
+  color: var(--bone);
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ボタンのすぐ上に重ねて開く。影・動きは付けない */
+.menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--hair);
+}
+
+.menu form {
+  display: contents;
+}
+
+.item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--bone-2);
+  font-size: 12.5px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.item:hover,
+.item:focus-visible {
+  background: var(--hair-2);
+  color: var(--bone);
+}
+
+/* ログアウトの最中：押した直後の220msは不透明度を下げない。乗せても色を変えない */
+.item:disabled {
+  opacity: 0.7;
+  transition: opacity 0s 0.22s;
+  color: var(--mute);
+  cursor: default;
+}
+
+.item:disabled:hover {
+  background: none;
+  color: var(--mute);
+}
