@@ -111,14 +111,60 @@ echo "== AIのアクションは、パイプラインの App が起こした実�
 for name in claude-plan.yml claude-implement.yml claude-review.yml claude-mention.yml; do
   wf="$(cat "$WORKFLOWS/$name")"
   assert_contains "$name：allowed_bots を渡す" "$wf" "allowed_bots: \${{ steps.bots.outputs.list }}"
-  assert_contains "$name：claude[bot] は許可しない" "$wf" '"$SENDER" != "claude[bot]"'
+done
+for name in claude-plan.yml claude-implement.yml claude-review.yml; do
+  assert_contains "$name：claude[bot] は許可しない" "$(cat "$WORKFLOWS/$name")" '"$SENDER" != "claude[bot]"'
 done
 
-echo "== @claude を呼べるのは、オーナー・メンバー・共同作業者とパイプラインのボットだけ"
-wf="$(cat "$WORKFLOWS/claude-mention.yml")"
-assert_contains "claude-mention.yml：コメントした人の立場を見る" "$wf" "github.event.comment.author_association"
-assert_contains "claude-mention.yml：OWNER・MEMBER・COLLABORATOR だけ" "$wf" "fromJSON('[\"OWNER\",\"MEMBER\",\"COLLABORATOR\"]')"
-assert_contains "claude-mention.yml：ボットは claude[bot] 以外" "$wf" "github.event.comment.user.login != 'claude[bot]'"
+echo "== @claude を呼べるのは、人間のオーナー・メンバー・共同作業者と、このパイプラインの App だけ（ほかのボットは呼べない）"
+# ジョブの条件（if）を、GitHub と同じ比べ方で評価する（gha-expr.py）。誰のどのイベントで動くかを、場面ごとに確かめる
+mention_if=$(python3 -c "
+import sys, yaml
+print(' '.join(yaml.safe_load(open(sys.argv[1]))['jobs']['claude']['if'].split()))" "$WORKFLOWS/claude-mention.yml")
+# 引数：イベント 書いた人 種類（User/Bot） 立場 書いた App の番号（無ければ null） PIPELINE_APP_ID [本文] [App の client_id]
+mention_runs() {
+  local app="null"
+  if [ "$5" != null ]; then app='{"id":'"$5"',"client_id":"'"${8:-Iv1.other}"'"}'; fi
+  local comment='{"body":"'"${7:-@claude 直して}"'","user":{"login":"'"$2"'","type":"'"$3"'"},"author_association":"'"$4"'"'
+  # 行へのコメント（pull_request_review_comment）のイベントには、どの App が書いたかの項目が無い
+  if [ "$1" = issue_comment ]; then comment="$comment"',"performed_via_github_app":'"$app"; fi
+  python3 "$TESTS_DIR/gha-expr.py" "$mention_if" '{"github":{"event_name":"'"$1"'","event":{"comment":'"$comment"'}}},"vars":{"PIPELINE_APP_ID":"'"$6"'"}}'
+}
+assert_eq "オーナー（人間）のコメント" "true" "$(mention_runs issue_comment gaku User OWNER null 5506863)"
+assert_eq "オーナーの、行へのコメント" "true" "$(mention_runs pull_request_review_comment gaku User OWNER null 5506863)"
+assert_eq "共同作業者" "true" "$(mention_runs issue_comment friend User COLLABORATOR null 5506863)"
+assert_eq "App を使っていない（PIPELINE_TOKEN だけ）リポジトリのオーナー" "true" "$(mention_runs issue_comment gaku User OWNER null "")"
+assert_eq "@claude が無いコメントでは動かない" "false" "$(mention_runs issue_comment gaku User OWNER null 5506863 "直して")"
+assert_eq "通りすがりの人は呼べない" "false" "$(mention_runs issue_comment stranger User NONE null 5506863)"
+assert_eq "前にPRを出しただけの人は呼べない" "false" "$(mention_runs issue_comment someone User CONTRIBUTOR null 5506863)"
+assert_eq "パイプラインの App（番号が PIPELINE_APP_ID と同じ）" "true" "$(mention_runs issue_comment 'gaku-ai-pipeline[bot]' Bot CONTRIBUTOR 5506863 5506863)"
+assert_eq "PIPELINE_APP_ID に Client ID を入れていても見分けられる" "true" "$(mention_runs issue_comment 'gaku-ai-pipeline[bot]' Bot CONTRIBUTOR 5506863 Iv23liABC "@claude 直して" Iv23liABC)"
+assert_eq "ほかの App のボットは呼べない" "false" "$(mention_runs issue_comment 'dependabot[bot]' Bot NONE 29110 5506863)"
+assert_eq "名前だけ似せたボットは呼べない（番号で見る）" "false" "$(mention_runs issue_comment 'gaku-ai-pipeline[bot]' Bot CONTRIBUTOR 999 5506863)"
+assert_eq "共同作業者の立場が付いたボットでも、ほかの App なら呼べない" "false" "$(mention_runs issue_comment 'helper[bot]' Bot COLLABORATOR 4242 5506863)"
+assert_eq "AI自身（claude[bot]）は呼べない" "false" "$(mention_runs issue_comment 'claude[bot]' Bot NONE 1236702 5506863)"
+assert_eq "AI自身は、番号が同じに設定されていても呼べない" "false" "$(mention_runs issue_comment 'claude[bot]' Bot NONE 1236702 1236702)"
+assert_eq "ボットは、行へのコメントでは呼べない（パイプラインの App でも）" "false" "$(mention_runs pull_request_review_comment 'gaku-ai-pipeline[bot]' Bot CONTRIBUTOR 5506863 5506863)"
+assert_eq "PIPELINE_APP_ID が空なら、どのボットも呼べない（App の印が無いボット）" "false" "$(mention_runs issue_comment 'some[bot]' Bot NONE null "")"
+assert_eq "PIPELINE_APP_ID が空なら、どのボットも呼べない（行へのコメント）" "false" "$(mention_runs pull_request_review_comment 'some[bot]' Bot NONE null "")"
+assert_eq "App の印が無いボットは呼べない" "false" "$(mention_runs issue_comment 'some[bot]' Bot NONE null 5506863)"
+
+# AIのアクションに渡す許可（allowed_bots）も、同じ決まり：ワークフローの「起こしたボットを許可に入れる」の中身を、そのまま動かす
+bots_run=$(python3 -c "
+import sys, yaml
+steps = yaml.safe_load(open(sys.argv[1]))['jobs']['claude']['steps']
+print(next(st['run'] for st in steps if st.get('id') == 'bots'))" "$WORKFLOWS/claude-mention.yml")
+bots_list() { # イベント 書いた人 種類 書いた App の番号 PIPELINE_APP_ID
+  local f; f=$(mktemp)
+  EVENT="$1" AUTHOR="$2" AUTHOR_TYPE="$3" COMMENT_APP_ID="$4" COMMENT_APP_CLIENT_ID="" PIPELINE_APP_ID="$5" GITHUB_OUTPUT="$f" bash -c "$bots_run" > /dev/null 2>&1
+  cat "$f"; rm -f "$f"
+}
+assert_eq "許可：パイプラインの App" "list=gaku-ai-pipeline[bot],gaku-ai-pipeline" "$(bots_list issue_comment 'gaku-ai-pipeline[bot]' Bot 5506863 5506863)"
+assert_eq "許可：人間のコメントでは空" "list=" "$(bots_list issue_comment gaku User "" 5506863)"
+assert_eq "許可：ほかの App のボットは入れない" "list=" "$(bots_list issue_comment 'dependabot[bot]' Bot 29110 5506863)"
+assert_eq "許可：AI自身は入れない" "list=" "$(bots_list issue_comment 'claude[bot]' Bot 1236702 1236702)"
+assert_eq "許可：行へのコメントのボットは入れない" "list=" "$(bots_list pull_request_review_comment 'gaku-ai-pipeline[bot]' Bot "" 5506863)"
+assert_eq "許可：PIPELINE_APP_ID が空なら入れない" "list=" "$(bots_list issue_comment 'some[bot]' Bot "" "")"
 
 echo "== 清書AIの質問には、ダッシュボードが拾う印を付けさせる"
 wf="$(cat "$WORKFLOWS/claude-plan.yml")"
@@ -152,13 +198,27 @@ assert_contains "修正AI：部品を main から取る" "$(cat "$WORKFLOWS/clau
 
 echo "== 修正AIは、見た目のテストの差分の画像を見てから決める"
 wf="$(cat "$WORKFLOWS/claude-mention.yml")"
-assert_contains "claude-mention.yml：差分の画像を取ってくる" "$wf" ".github/scripts/fetch-visual-diff.sh"
+assert_contains "claude-mention.yml：差分の画像を取ってくる（main から取った版で）" "$wf" 'bash "$RUNNER_TEMP/pipeline-tools/fetch-visual-diff.sh"'
+assert_not_contains "claude-mention.yml：作業フォルダ（PRのコード）の版では取らない" "$wf" "run: .github/scripts/fetch-visual-diff.sh"
 assert_contains "部品：画像を見る指示" "$(cat "$SCRIPTS_DIR/prompts/visual-diff.md")" "Read で開いて見る"
 assert_contains "claude-mention.yml：artifact を読む権限" "$wf" "actions: read"
 
 echo "== 見張り役は、何もしなかった実行（skipped）の後には動かない"
 wf="$(cat "$WORKFLOWS/watchdog.yml")"
 assert_contains "watchdog.yml：skipped の後は動かない" "$wf" "github.event.workflow_run.conclusion != 'skipped'"
+
+echo "== CI 以外のチェック（Vercel など）を読める：レビューのあとの処理と、マージをやり直す見張り役に、checks・statuses の読み取りがある"
+result=$(python3 - "$WORKFLOWS" <<'PYX'
+import sys, yaml
+w = sys.argv[1]
+out = []
+for f, job in (("pipeline.yml", "after-review"), ("watchdog.yml", "watch")):
+    perms = yaml.safe_load(open(f"{w}/{f}"))["jobs"][job].get("permissions") or {}
+    out.append(f"{f}:" + ("ok" if perms.get("checks") == "read" and perms.get("statuses") == "read" else "ng"))
+print(",".join(out))
+PYX
+)
+assert_eq "読み取りの権限" "pipeline.yml:ok,watchdog.yml:ok" "$result"
 
 echo "== 配る（sync.yml）は、待ってから。新しい方が来たら古い待ちは止まり、配る本体は途中で止めない"
 result=$(python3 - "$WORKFLOWS/sync.yml" <<'PY2'
@@ -413,6 +473,57 @@ print(",".join(f"{k}:" + ("ok" if found.get(k) and all(t == "${{ github.token }}
 PY6
 )
 assert_eq "進捗ログの呼び出し" "plan:ok,mocks:ok,implement:ok,ci:ok,review:ok,fix:ok" "$result"
+
+echo "== 企画：作業回数の上限に届いて結果が無いときだけ、その場で1回だけ、上限を増やしてやり直す（いつもの上限は増やさない）"
+result=$(python3 - "$WORKFLOWS/claude-plan.yml" <<'PYT'
+import re, sys, yaml
+d = yaml.safe_load(open(sys.argv[1]))
+job = d["jobs"]["plan"]
+steps = job["steps"]
+ids = [st.get("id") for st in steps]
+ai = [st for st in steps if str(st.get("uses", "")).startswith("anthropics/claude-code-action")]
+first = next(st for st in steps if st.get("id") == "claude")
+more = next(st for st in steps if st.get("id") == "claude_more")
+turns = lambda st: int(re.search(r"--max-turns (\d+)", st["with"]["claude_args"]).group(1))
+tools = lambda st: re.search(r'--allowedTools "([^"]*)"', st["with"]["claude_args"]).group(1)
+out = []
+# AIが動くのは2回まで（3回目は無い）。順番は、1回目 → 上限に届いたかの確認 → やり直し
+out.append("twice:" + ("ok" if len(ai) == 2 and ids.index("claude") < ids.index("turns") < ids.index("claude_more") else "ng"))
+# やり直しは、上限に届いたと分かったときだけ動く。1回目には条件が無い（いつも動く）
+out.append("only-when-hit:" + ("ok" if "steps.turns.outputs.more == 'true'" in str(more.get("if", "")) and "if" not in first else "ng"))
+# いつもの上限は 30 のまま。やり直しは増やすが、2倍まで
+out.append("turns:" + ("ok" if turns(first) == 30 and turns(first) < turns(more) <= 60 else "ng"))
+# 指示と許可は同じ（やり直しには、2回目であることの注意が足してあるだけ）
+out.append("same:" + ("ok" if more["with"]["prompt"].startswith(first["with"]["prompt"].rstrip()) and "これは2回目です" in more["with"]["prompt"] and "これは2回目です" not in first["with"]["prompt"] and tools(first) == tools(more) and more.get("continue-on-error") else "ng"))
+# 次のジョブへ：やり直したならその結果・実行記録を渡し、やり直したことも伝える
+env_after = next(st for st in d["jobs"]["after-plan"]["steps"] if st.get("run") == ".github/scripts/after-plan.sh")["env"]
+keep = next(st for st in steps if st.get("name") == "AIの結果を取っておく")["env"]["EXECUTION_FILE"]
+out.append("handoff:" + ("ok" if "steps.claude_more.outcome != 'skipped' && steps.claude_more.outcome || steps.claude.outcome" in job["outputs"]["outcome"]
+    and job["outputs"]["raised"] == "${{ steps.turns.outputs.more }}" and env_after.get("PLAN_TURNS_RAISED") == "${{ needs.plan.outputs.raised }}"
+    and keep.startswith("${{ steps.claude_more.outputs.execution_file ||") else "ng"))
+# 見張り役が「企画が止まった」とみなす30分より、ジョブの時間の上限を短くする
+out.append("timeout:" + ("ok" if job["timeout-minutes"] < 30 else "ng"))
+print(",".join(out))
+PYT
+)
+assert_eq "企画のやり直しの形" "twice:ok,only-when-hit:ok,turns:ok,same:ok,handoff:ok,timeout:ok" "$result"
+# 「上限に届いたか」の中身を、そのまま動かして確かめる
+turns_run=$(python3 -c "
+import sys, yaml
+print(next(st['run'] for st in yaml.safe_load(open(sys.argv[1]))['jobs']['plan']['steps'] if st.get('id') == 'turns'))" "$WORKFLOWS/claude-plan.yml")
+plan_more() { # 実行記録の中身（空なら、ファイル無し） plan-result.txt の中身（空なら、無し）
+  local d; d=$(mktemp -d)
+  if [ -n "$1" ]; then printf '%s' "$1" > "$d/exec.json"; fi
+  if [ -n "${2:-}" ]; then printf '%s\n' "$2" > "$d/plan-result.txt"; fi
+  (cd "$d" && EXECUTION_FILE="$d/exec.json" GITHUB_OUTPUT="$d/out" bash -c "$turns_run" > /dev/null 2>&1; cat "$d/out")
+  rm -rf "$d"
+}
+assert_eq "上限に届いて、結果が無い：やり直す" "more=true" "$(plan_more '[{"type":"system"},{"type":"result","subtype":"error_max_turns","result":""}]')"
+assert_eq "上限に届いたが、結果は書けている：やり直さない" "more=false" "$(plan_more '[{"type":"result","subtype":"error_max_turns","result":""}]' "READY")"
+assert_eq "正常に終わった：やり直さない" "more=false" "$(plan_more '[{"type":"result","subtype":"success","result":"ok"}]')"
+assert_eq "別のエラー：やり直さない" "more=false" "$(plan_more '[{"type":"result","subtype":"error_during_execution","result":""}]')"
+assert_eq "実行記録が無い：やり直さない" "more=false" "$(plan_more '')"
+assert_eq "実行記録が壊れている：やり直さない" "more=false" "$(plan_more 'こわれた')"
 
 echo "== 企画：置き換えられて取り消された実行は、あとの工程（after-plan）を動かさない（先へ進んだ Issue に ai:retry を付けない）"
 assert_contains "after-plan の条件" "$(grep -n "needs.plan.result" "$WORKFLOWS/claude-plan.yml")" "needs.plan.result != 'cancelled'"
