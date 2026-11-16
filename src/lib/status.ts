@@ -3,7 +3,7 @@ import { isFactoryAnswered } from "./factoryTalk";
 import type { PipelineState } from "./pipelineState";
 import { isCountedDeploySuccess, isFailedState, latestCountedPerContext } from "./deployStatus";
 import { holdRequestText, humanRequestReason } from "./humanRequest";
-import { isQuestionAnswered } from "./question";
+import { isQuestionAnswered, latestQuestionComment } from "./question";
 import type { CheckRunData, CommentData, CommitStatusData, IssueData, PullChecks, PullData } from "./github/types";
 
 /** 各Issueの段階（docs/spec.md の「状態の判定」） */
@@ -629,7 +629,13 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   if (issue.labels.includes(LABEL.queue) || issue.labels.includes(LABEL.blocked)) {
     return result("queued");
   }
-  if (issue.state === "open" && issue.labels.includes(LABEL.skip)) return result("skipped");
+  if (issue.state === "open" && issue.labels.includes(LABEL.skip)) {
+    // 保留でも、答えていない企画AIの質問が残っていれば、質問として答えられるようにする
+    const unanswered =
+      latestQuestionComment(input.comments, issue.number) !== null &&
+      !isQuestionAnswered(input.comments, issue.number);
+    return result(unanswered ? "question" : "skipped");
+  }
   const intake =
     graceApplies &&
     issue.state === "open" &&

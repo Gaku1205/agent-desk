@@ -160,6 +160,11 @@ export async function executeOperation(
         }
         // コメントすると、パイプラインが自動で続き（企画）を始める
         await addComment(client, target, issue.number, input.answer);
+        // 保留（ai:skip）の質問に答えたときは、保留を外して企画AIに読ませる
+        if (issue.labels.includes(LABEL.skip)) {
+          await removeLabel(client, target, issue.number, LABEL.skip);
+          await addLabel(client, target, issue.number, LABEL.plan);
+        }
         break;
       case "merge":
         if (!pull) return CHANGED;
