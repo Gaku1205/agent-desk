@@ -7,6 +7,7 @@ import {
   getIssueStatus,
   hasFinishedReviewCheck,
   isClaudeReviewCheck,
+  implementFinishedAt,
   isImplementDoneComment,
   isImplementErrorComment,
   LABEL,
@@ -130,7 +131,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
       if (isImplementDoneComment(comment)) {
         drafts.push({
           key: `done-${comment.id}`,
-          at: comment.createdAt,
+          at: implementFinishedAt(comment),
           tone: "human",
           icon: "check",
           text: "AIが実装を終えました。PRを作れます",
@@ -140,7 +141,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
       } else if (isImplementErrorComment(comment)) {
         drafts.push({
           key: `error-${comment.id}`,
-          at: comment.createdAt,
+          at: implementFinishedAt(comment),
           tone: "human",
           icon: "x",
           text: "AIがエラーで止まりました",

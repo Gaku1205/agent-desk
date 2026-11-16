@@ -134,6 +134,18 @@ describe("buildRecentEvents の種類", () => {
     });
   });
 
+  it("実装AIの完了・エラーの時刻は、終わった時刻（コメントの書き換え）。作成時刻（始めた時刻）ではない", () => {
+    const events = build({
+      issues: [issue(3)],
+      comments: [
+        { ...comment(3, "**Claude finished @x's task**", "2026-10-25T01:00:00Z"), updatedAt: "2026-10-25T01:12:00Z" },
+        { ...comment(3, "**Claude encountered an error**", "2026-10-25T00:10:00Z"), updatedAt: "2026-10-25T00:30:00Z" },
+      ],
+    });
+    expect(find(events, "AIが実装を終えました")?.at).toBe("2026-10-25T01:12:00Z");
+    expect(find(events, "AIがエラーで止まりました")?.at).toBe("2026-10-25T00:30:00Z");
+  });
+
   it("実装AIのエラーコメント：人間の番になった（×）", () => {
     const events = build({
       issues: [issue(3)],

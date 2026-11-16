@@ -127,7 +127,7 @@ const CLAUDE_BOT = "claude[bot]";
 const GITHUB_ACTIONS_APP = "github-actions";
 /** 公開ステータスが無いまま、これだけたったら「公開済み（状況は不明）」にする */
 export const DEPLOY_UNKNOWN_AFTER_MS = 30 * 60 * 1000;
-/** 実装AIの完了コメントから、パイプラインが自動でPRを作るのを待つ間（この間は誰の番も「AI」） */
+/** 実装AIが終わってから（完了コメントの書き換えの時刻）、パイプラインが自動でPRを作るのを待つ間（この間は誰の番も「AI」） */
 export const PULL_GRACE_MS = 15 * 60 * 1000;
 /** Issueを作ってから、パイプラインの受付が `ai:` ラベルを付けるのを待つ間（この間は誰の番も「AI」） */
 export const INTAKE_GRACE_MS = 10 * 60 * 1000;
@@ -232,6 +232,41 @@ export function isImplementErrorComment(comment: CommentData): boolean {
   return comment.author === CLAUDE_BOT && comment.body.includes("Claude encountered an error");
 }
 
+/** 実装AIが作業の始めに書くコメントの印（終わると、同じコメントを完了／エラーの文に書き換える） */
+const IMPLEMENT_WORKING_MARK = "Claude Code is working";
+
+/** 実装AIの作業中のコメント：`claude[bot]` のコメントで `Claude Code is working` を含み、まだ結果に書き換わっていない */
+export function isImplementWorkingComment(comment: CommentData): boolean {
+  return (
+    comment.author === CLAUDE_BOT &&
+    comment.body.includes(IMPLEMENT_WORKING_MARK) &&
+    !isImplementDoneComment(comment) &&
+    !isImplementErrorComment(comment)
+  );
+}
+
+/**
+ * 実装AIの結果のコメントの「終わった時刻」。AIのアクションは、作業の始めに書いたコメントを、
+ * 終わったときに完了／エラーの文に書き換えるので、作成時刻（`createdAt`）は始めた時刻。
+ * 終わった時刻は書き換えた時刻（`updatedAt`。無ければ作成時刻）
+ */
+export function implementFinishedAt(comment: Pick<CommentData, "createdAt" | "updatedAt">): string {
+  return comment.updatedAt ?? comment.createdAt;
+}
+
+/**
+ * 実装をやり直している最中か：最後の結果のコメントより後に作られた、作業中のコメントがある
+ * （やり直し・再開で `ai:implement` が付け直されると、新しい実行が新しいコメントを書く）
+ */
+function isImplementRerunning(comments: CommentData[], issueNumber: number, last: CommentData): boolean {
+  return comments.some(
+    (comment) =>
+      comment.issueNumber === issueNumber &&
+      isImplementWorkingComment(comment) &&
+      comment.createdAt > last.createdAt,
+  );
+}
+
 /** 実装AIの最後の結果のコメント（完了／エラー。まだ無ければ null） */
 function lastImplementComment(comments: CommentData[], issueNumber: number): CommentData | null {
   return (
@@ -284,7 +319,7 @@ export function issueGraceEndsAt(
   if (grace === "intake") return graceEndsAt(issue.createdAt, now, INTAKE_GRACE_MS);
   if (grace === "creatingPull") {
     const implement = lastImplementComment(comments, issue.number);
-    return implement ? graceEndsAt(implement.createdAt, now, PULL_GRACE_MS) : null;
+    return implement ? graceEndsAt(implementFinishedAt(implement), now, PULL_GRACE_MS) : null;
   }
   return null;
 }
@@ -612,10 +647,15 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
       return result("queued");
     }
   }
+  // 前の結果のコメントが残ったまま、やり直しの実装が動いている：AIの番（「PRを作る」を出さない）
+  if (implement && hasImplementLabel && isImplementRerunning(input.comments, issue.number, implement)) {
+    return result("implementing");
+  }
   if (implement) {
     const implementError = isImplementErrorComment(implement);
+    // 猶予は、実装AIが終わった時刻から数える（コメントの作成時刻は、始めた時刻）
     const creatingPull =
-      graceApplies && !implementError && isWithinGrace(implement.createdAt, now, PULL_GRACE_MS);
+      graceApplies && !implementError && isWithinGrace(implementFinishedAt(implement), now, PULL_GRACE_MS);
     return result("prWaiting", {
       implementError,
       ...(creatingPull ? { turn: "ai", grace: "creatingPull" } : {}),

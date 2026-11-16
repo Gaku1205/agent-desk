@@ -11,8 +11,11 @@ import {
   getIssueStatus,
   hasFinishedReviewCheck,
   hasNoDeploys,
+  implementFinishedAt,
   implementResult,
   isClaudeReviewCheck,
+  isImplementWorkingComment,
+  issueGraceEndsAt,
   latestSuccessDeployAt,
   reviewedWithoutIssues,
   shouldShowIssue,
@@ -675,6 +678,72 @@ describe("shouldShowIssue", () => {
   });
 });
 
+describe("実装のやり直し中（前の結果のコメントより後に、作業中のコメントがある）", () => {
+  const working = (createdAt: string, overrides: Partial<CommentData> = {}) =>
+    comment({ body: "Claude Code is working… <img src=\"spinner.gif\" />\n\n- [ ] 仕様を読む", createdAt, ...overrides });
+  const oldError = comment({ body: "**Claude encountered an error after 3m**", createdAt: "2026-10-25T10:00:00Z" });
+  const oldDone = comment({ body: "**Claude finished @Gaku1205's task in 5m**", createdAt: "2026-10-25T10:00:00Z" });
+
+  it("前のエラーコメント＋新しい作業中のコメント＋ai:implement → AI作業中（PRを作るを出さない）", () => {
+    const status = getIssueStatus(
+      issue({ labels: ["ai:implement"] }),
+      input([], {}, [oldError, working("2026-10-25T11:50:00Z")]),
+      NOW,
+    );
+    expect(status.stage).toBe("implementing");
+    expect(status.turn).toBe("ai");
+    expect(status.implementError).toBe(false);
+  });
+
+  it("前の完了コメントでも同じ", () => {
+    const status = getIssueStatus(
+      issue({ labels: ["ai:implement"] }),
+      input([], {}, [oldDone, working("2026-10-25T11:50:00Z")]),
+      NOW,
+    );
+    expect(status.stage).toBe("implementing");
+  });
+
+  it("作業中のコメントが結果より前（古い）なら、今までどおりPR作成待ち", () => {
+    const status = getIssueStatus(
+      issue({ labels: ["ai:implement"] }),
+      input([], {}, [working("2026-10-25T09:00:00Z"), oldError]),
+      NOW,
+    );
+    expect(status.stage).toBe("prWaiting");
+    expect(status.implementError).toBe(true);
+  });
+
+  it("作業中のコメントが結果に書き換わったら、その結果で決める", () => {
+    const rewritten = working("2026-10-25T11:50:00Z", { body: "**Claude finished @Gaku1205's task in 4m**" });
+    const status = getIssueStatus(issue({ labels: ["ai:implement"] }), input([], {}, [oldError, rewritten]), NOW);
+    expect(status.stage).toBe("prWaiting");
+    expect(status.implementError).toBe(false);
+  });
+
+  it("ai:implement が無い・claude[bot] 以外・ほかのIssueの作業中のコメントは見ない", () => {
+    const later = "2026-10-25T11:50:00Z";
+    expect(getIssueStatus(issue(), input([], {}, [oldError, working(later)]), NOW).stage).toBe("prWaiting");
+    expect(
+      getIssueStatus(issue({ labels: ["ai:implement"] }), input([], {}, [oldError, working(later, { author: "Gaku1205" })]), NOW).stage,
+    ).toBe("prWaiting");
+    expect(
+      getIssueStatus(issue({ labels: ["ai:implement"] }), input([], {}, [oldError, working(later, { issueNumber: 4 })]), NOW).stage,
+    ).toBe("prWaiting");
+  });
+
+  it("isImplementWorkingComment：結果に書き換わった物は作業中ではない", () => {
+    expect(isImplementWorkingComment(working("2026-10-25T11:50:00Z"))).toBe(true);
+    expect(isImplementWorkingComment(oldDone)).toBe(false);
+    expect(isImplementWorkingComment(oldError)).toBe(false);
+  });
+
+  it("implementFinishedAt：書き換えた時刻（無ければ作成時刻）", () => {
+    expect(implementFinishedAt({ createdAt: "2026-10-25T10:00:00Z", updatedAt: "2026-10-25T10:11:00Z" })).toBe("2026-10-25T10:11:00Z");
+    expect(implementFinishedAt({ createdAt: "2026-10-25T10:00:00Z" })).toBe("2026-10-25T10:00:00Z");
+  });
+});
+
 describe("実装AIのコメント", () => {
   it("claude[bot] の完了コメントとエラーコメントを見分ける", () => {
     expect(implementResult([doneComment], 3)).toBe("done");
@@ -1090,6 +1159,22 @@ describe("getIssueStatus：パイプラインが自動で進める間の猶予",
     const status = getIssueStatus(issue({ labels: ["ai:implement"] }), running([done(ago(40))]), NOW);
     expect(status.turn).toBe("human");
     expect(status.grace).toBeNull();
+  });
+
+  it("PR作成待ち：猶予は、実装AIが終わった時刻（コメントの書き換え）から数える", () => {
+    // 20分前に始めて（作成）、1分前に終わった（書き換え）：作成から数えると、もう猶予が切れている
+    const finished = { ...done(ago(20)), updatedAt: ago(1) };
+    const status = getIssueStatus(issue({ labels: ["ai:implement"] }), running([finished]), NOW);
+    expect(status.stage).toBe("prWaiting");
+    expect(status.turn).toBe("ai");
+    expect(status.grace).toBe("creatingPull");
+    // 猶予が終わるのは、終わった時刻の15分後
+    expect(issueGraceEndsAt(issue(), [finished], "creatingPull", NOW)?.toISOString()).toBe(
+      new Date(NOW.getTime() + 14 * MIN).toISOString(),
+    );
+    // 終わってから15分たてば人間の番
+    const late = { ...done(ago(40)), updatedAt: ago(15) };
+    expect(getIssueStatus(issue({ labels: ["ai:implement"] }), running([late]), NOW).turn).toBe("human");
   });
 
   it("PR作成待ち：実装AIがエラーで止まったときは猶予なし", () => {

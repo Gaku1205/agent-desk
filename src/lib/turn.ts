@@ -6,6 +6,7 @@ import { flowFacts, type FlowFacts } from "./flowExtraBranches";
 import type { IssueData, RepoData, RepoResult } from "./github/types";
 import {
   getIssueStatus,
+  implementFinishedAt,
   isClaudeReviewCheck,
   isImplementDoneComment,
   isImplementErrorComment,
@@ -230,7 +231,7 @@ export function waitingSince(issue: IssueData, status: IssueStatus, data: RepoDa
               comment.issueNumber === issue.number &&
               (isImplementDoneComment(comment) || isImplementErrorComment(comment)),
           )
-          .map((comment) => comment.createdAt),
+          .map(implementFinishedAt),
       );
       break;
     case "mergeWaiting":
