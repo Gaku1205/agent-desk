@@ -49,6 +49,7 @@ function Branch({ flow }: { flow: Flow }) {
         <div
           className={styles.step}
           data-state={branch.fixState}
+          role="img"
           aria-label={`${label}　${FLOW_STATE_LABEL[branch.fixState]}　モデル ${fix?.model ?? ""}`}
         >
           <span className={styles.icon}>
