@@ -78,9 +78,17 @@ function isStale(input: LampInput): boolean {
   return input.now.getTime() - Math.max(...times) >= LAMP_STALE_MS;
 }
 
-/** 順番待ちの並び：`ai:queue` が先（番号順）、`ai:blocked` がその後（番号順） */
+/** 急ぎのラベル。パイプラインは、順番待ち（`ai:queue`）からこれが付いた物を先に始める */
+const PRIORITY_LABEL = "priority:high";
+
+/**
+ * 順番待ちの並び：`ai:queue` で `priority:high` の物が先、次にほかの `ai:queue`、`ai:blocked` がその後（それぞれ番号順）。
+ * パイプラインの始める順（`docs/pipeline.md` の「順番待ちの進め方」）に合わせる。
+ * `ai:blocked` は待ち先が閉じるまで動かないので、`priority:high` でも前に出さない
+ */
 function waitingRank(labels: string[]): number {
-  return labels.includes(QUEUE_LABEL) ? 0 : 1;
+  if (!labels.includes(QUEUE_LABEL)) return 2;
+  return labels.includes(PRIORITY_LABEL) ? 0 : 1;
 }
 
 export type LampTarget = { number: number; labels: string[]; kind: LampKind };
