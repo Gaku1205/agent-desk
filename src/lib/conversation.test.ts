@@ -130,6 +130,15 @@ describe("buildConversation（デモのデータ）", () => {
     expect(withTime).toEqual([...withTime].sort().reverse());
   });
 
+  it("ランプ：動いている行は緑、順番待ちは紫の数字（番号順）、止まった実装中は赤、公開済みは無し", () => {
+    const lampOf = (key: string) => messages.find((m) => m.key === key)?.lamp;
+    expect(lampOf("demo/todo-app#16")).toEqual({ kind: "running" });
+    expect(lampOf("demo/todo-app#14")).toEqual({ kind: "waiting", position: 1 });
+    expect(lampOf("demo/todo-app#15")).toEqual({ kind: "waiting", position: 2 });
+    expect(lampOf("demo/landing-page#16")).toEqual({ kind: "needsHuman" });
+    for (const m of messages.filter((m) => m.deployed)) expect(m.lamp).toEqual({ kind: "none" });
+  });
+
   it("リポジトリを絞ると、そのリポジトリの物だけ", () => {
     const only = buildConversation(results, events, NOW, { owner: "demo", repo: "todo-app" });
     expect(only.length).toBeGreaterThan(0);

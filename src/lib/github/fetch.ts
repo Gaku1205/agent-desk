@@ -16,7 +16,7 @@ import { judgePipelineState, type PipelineProbe, type PipelineState } from "../p
 import type { WatchdogLastRun } from "../watchdogState";
 import { cachedRepoData, type AppRepoData } from "./repoCache";
 import { PIPELINE_WORKFLOW_PATH } from "./settings";
-import type { CommitStatusData, RepoData, RepoResult } from "./types";
+import type { CommitStatusData, RepoData, RepoResult, WorkflowRunData } from "./types";
 
 const WINDOW_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -51,6 +51,7 @@ export async function fetchRepoData(
     mainDeployedAt: mainDeployed.at,
     mainDeployedByContext: mainDeployed.byContext,
     watchdog: actions.watchdog,
+    runs: actions.runs,
     ...(nodes.isTemplate === undefined ? {} : { isTemplate: nodes.isTemplate }),
   };
 }
@@ -156,7 +157,12 @@ export const ACTIONS_REFRESH_MS = 5 * 60_000;
 /** 覚えておく件数の上限（超えたら古い物から捨てる） */
 export const ACTIONS_CACHE_MAX_ENTRIES = 100;
 
-type ActionsState = { at: number; pipeline: PipelineState; watchdog: WatchdogLastRun };
+type ActionsState = {
+  at: number;
+  pipeline: PipelineState;
+  watchdog: WatchdogLastRun;
+  runs: WorkflowRunData[] | null;
+};
 
 /** サーバーのメモリ。キーは「トークンのハッシュ＋リポジトリ」（`GitHubClient.memoKey`） */
 const actionsStates = new Map<string, ActionsState>();
@@ -176,11 +182,12 @@ async function fetchActionsState(
   const key = client.memoKey(`${base}#actions`);
   const known = actionsStates.get(key);
   if (known && nowMs >= known.at && nowMs - known.at < ACTIONS_REFRESH_MS) return known;
-  const [pipeline, watchdog] = await Promise.all([
+  const [pipeline, watchdog, runs] = await Promise.all([
     fetchPipelineState(client, base),
     fetchWatchdogLastRun(client, base),
+    fetchWorkflowRuns(client, base),
   ]);
-  const state: ActionsState = { at: nowMs, pipeline, watchdog };
+  const state: ActionsState = { at: nowMs, pipeline, watchdog, runs };
   actionsStates.delete(key);
   actionsStates.set(key, state);
   while (actionsStates.size > ACTIONS_CACHE_MAX_ENTRIES) {
@@ -208,6 +215,58 @@ async function fetchWatchdogLastRun(client: GitHubClient, base: string): Promise
       : "unknown";
   } catch (error) {
     return error instanceof GitHubError && error.status === 404 ? "none" : "unknown";
+  }
+}
+
+/** 1件の実行を今の型に変える。形が違えば null */
+export function toWorkflowRun(raw: unknown): WorkflowRunData | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const run = raw as {
+    status?: unknown;
+    head_branch?: unknown;
+    display_title?: unknown;
+    pull_requests?: unknown;
+    updated_at?: unknown;
+  };
+  if (typeof run.status !== "string" || typeof run.updated_at !== "string") return null;
+  if (Number.isNaN(Date.parse(run.updated_at))) return null;
+  const pullNumbers = Array.isArray(run.pull_requests)
+    ? run.pull_requests
+        .map((pull) => (pull as { number?: unknown } | null)?.number)
+        .filter((number): number is number => typeof number === "number")
+    : [];
+  return {
+    status: run.status,
+    headBranch: typeof run.head_branch === "string" ? run.head_branch : null,
+    displayTitle: typeof run.display_title === "string" ? run.display_title : "",
+    pullNumbers,
+    updatedAt: run.updated_at,
+  };
+}
+
+/** ランプ用に取る実行：実行中・待機中（各100件まで）と、最近の実行（最後に動いた時刻を知るため。100件まで） */
+const RUN_QUERIES = ["?status=in_progress&per_page=100", "?status=queued&per_page=100", "?per_page=100"];
+
+/**
+ * Actions の実行（ランプの「動作中」「止まっているかも」に使う）。1つでも取れなかったら null
+ * （取れなかったときは、緑にも「止まっているかも」の赤にもしない）
+ */
+async function fetchWorkflowRuns(client: GitHubClient, base: string): Promise<WorkflowRunData[] | null> {
+  try {
+    const pages = await Promise.all(
+      RUN_QUERIES.map((query) => client.get<{ workflow_runs?: unknown }>(`${base}/actions/runs${query}`)),
+    );
+    const runs: WorkflowRunData[] = [];
+    for (const page of pages) {
+      if (!Array.isArray(page?.workflow_runs)) return null;
+      for (const raw of page.workflow_runs) {
+        const run = toWorkflowRun(raw);
+        if (run) runs.push(run);
+      }
+    }
+    return runs;
+  } catch {
+    return null;
   }
 }
 

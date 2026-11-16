@@ -51,18 +51,20 @@ describe("1回の同期で呼ぶAPIの数", () => {
   it("Actions の runs は5分に1回だけ呼び、間は前の値を使う", async () => {
     const { fetcher, calls } = fakeGitHub({ "o/r": busyRepo() });
     const repos = [{ owner: "o", repo: "r" }];
+    // pipeline.yml・watchdog.yml の実行と、ランプ用の実行（実行中・待機中・最近の物）の5つ
     await fetchAllRepos(TOKEN, repos, { fetcher, now: NOW });
-    expect(restCalls(calls)).toHaveLength(2);
+    expect(restCalls(calls)).toHaveLength(5);
     const [second] = await fetchAllRepos(TOKEN, repos, {
       fetcher,
       now: new Date(NOW.getTime() + ACTIONS_REFRESH_MS - 1),
     });
-    expect(restCalls(calls)).toHaveLength(2);
+    expect(restCalls(calls)).toHaveLength(5);
     if (!second.ok) throw new Error("取れるはず");
     expect(second.data.pipeline).toBe("running");
     expect(second.data.watchdog).toEqual({ at: "2026-10-24T00:00:00Z" });
+    expect(second.data.runs).toEqual([]);
     await fetchAllRepos(TOKEN, repos, { fetcher, now: new Date(NOW.getTime() + ACTIONS_REFRESH_MS) });
-    expect(restCalls(calls)).toHaveLength(4);
+    expect(restCalls(calls)).toHaveLength(10);
   });
 });
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ChatMessage } from "@/lib/conversation";
 import { formatWait } from "@/lib/turn";
 import { TriangleDownIcon } from "./icons";
+import { LampMark } from "./LampMark";
 import { SmartLink } from "./SmartLink";
 import styles from "./Conversation.module.css";
 
@@ -39,6 +40,7 @@ export function Conversation({ messages, now, showRepo, repo, notices }: Props) 
     return (
       <article key={message.key} className={styles.msg} data-key={message.key} data-fresh={fresh(message.key) ? "" : undefined}>
         <p className={styles.meta}>
+          <LampMark lamp={message.lamp} />
           <span className={styles.who} data-fail={message.failed ? "" : undefined}>
             {message.speaker}
           </span>

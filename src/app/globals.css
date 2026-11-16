@@ -15,6 +15,7 @@
   --accent-hover: #4338ca;
   --accent-ink: #ffffff;
   --ok: #15803d;
+  --wait: #9333ea;
   --fail: #dc2626;
   --fail-ink: #ffffff;
   --fail-hover: #b91c1c;
@@ -51,6 +52,7 @@
     --accent-hover: #a5b4fc;
     --accent-ink: #121212;
     --ok: #4ade80;
+    --wait: #c084fc;
     --fail: #f25c5c;
     --fail-ink: #121212;
     --fail-hover: #ff7676;
@@ -87,6 +89,7 @@
   --accent-hover: #a5b4fc;
   --accent-ink: #121212;
   --ok: #4ade80;
+  --wait: #c084fc;
   --fail: #f25c5c;
   --fail-ink: #121212;
   --fail-hover: #ff7676;
