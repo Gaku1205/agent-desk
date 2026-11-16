@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { AiActivity } from "@/lib/aiActivity";
 import type { ChatMessage } from "@/lib/conversation";
 import { applyStepLog } from "@/lib/flow";
 import type { StepInfo } from "@/lib/stepLog";
 import { formatWait } from "@/lib/turn";
 import { FlowMap } from "./FlowMap";
-import { TriangleDownIcon } from "./icons";
+import { CrossIcon, SpinnerIcon, TriangleDownIcon } from "./icons";
 import { lampLabel } from "@/lib/lamp";
 import { LampLabel, LampWait } from "./LampMark";
 import { SmartLink } from "./SmartLink";
@@ -87,6 +88,36 @@ function OpenFlow({
   );
 }
 
+/**
+ * 作業の様子の左の印：動いている（ランプが動作中）＝回る印、止まった・失敗した（人間の手が必要・CI失敗）＝×。
+ * どちらでもない物（順番待ち・公開済みなど）は null（今までの並びのまま）
+ */
+function statusMark(message: ChatMessage): "running" | "failed" | null {
+  if (message.lamp.kind === "running") return "running";
+  if (message.lamp.kind === "needsHuman" || message.failed) return "failed";
+  return null;
+}
+
+/** AIが今していること：いまのやること1行・終わった数／全部の数・GitHubで見る（docs/design.md の「いまの様子」） */
+function ActivityLine({ activity }: { activity: AiActivity }) {
+  const text = activity.kind === "todo" ? activity.current : activity.name;
+  return (
+    <p className={styles.activity}>
+      {text !== null && <span className={styles.activityText}>{text}</span>}
+      {activity.kind === "todo" && activity.total > 0 && (
+        <span className={`${styles.activityCount} num`}>
+          {activity.done}/{activity.total}
+        </span>
+      )}
+      {activity.url && (
+        <SmartLink className={styles.link} href={activity.url}>
+          GitHubで見る ↗
+        </SmartLink>
+      )}
+    </p>
+  );
+}
+
 /** 行の中の、リンク・ボタン・入力（押したら、それぞれの動きだけにする） */
 function isControl(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest("a, button, input, textarea, select, summary") !== null;
@@ -134,6 +165,7 @@ export function Conversation({
     const label = showRepo ? `${message.repo}#${message.number}` : `#${message.number}`;
     const isSelected = selected === message.key;
     const isOpen = openFlows.has(message.key);
+    const mark = statusMark(message);
     // PC：右の列の図の対象を選ぶ。スマホ：その行の下の図を開閉する
     const activate = () => {
       if (isDesktop()) onSelect?.(message.key);
@@ -187,10 +219,34 @@ export function Conversation({
           )}
           <LampWait lamp={message.lamp} />
         </p>
-        <p className={styles.text}>{message.text}</p>
-        <p className={styles.title}>
-          <SmartLink href={message.url}>{message.title}</SmartLink>
-        </p>
+        {mark === null ? (
+          <>
+            <p className={styles.text}>{message.text}</p>
+            <p className={styles.title}>
+              <SmartLink href={message.url}>{message.title}</SmartLink>
+            </p>
+          </>
+        ) : (
+          <>
+            {/* 動いている・止まった物：題名が上、作業の様子が下（左に回る印か×） */}
+            <p className={`${styles.title} ${styles.titleTop}`}>
+              <SmartLink href={message.url}>{message.title}</SmartLink>
+            </p>
+            <p className={`${styles.text} ${styles.status}`}>
+              <span className={styles.mark} data-state={mark} aria-hidden="true">
+                {mark === "running" ? (
+                  <span className={styles.spin}>
+                    <SpinnerIcon />
+                  </span>
+                ) : (
+                  <CrossIcon />
+                )}
+              </span>
+              <span>{message.text}</span>
+            </p>
+            {message.activity && <ActivityLine activity={message.activity} />}
+          </>
+        )}
         {(message.note || message.logUrl || message.links.length > 0) && (
           <p className={styles.note}>
             {message.note && <span>{message.note}</span>}
@@ -205,18 +261,6 @@ export function Conversation({
               </a>
             ))}
           </p>
-        )}
-        {message.steps.length > 0 && (
-          <ul className={styles.steps} aria-label="出来事">
-            {message.steps.map((step) => (
-              <li key={step.id} data-tone={step.tone}>
-                <time className="num" dateTime={step.at}>
-                  {step.time}
-                </time>
-                <span>{step.short}</span>
-              </li>
-            ))}
-          </ul>
         )}
         {isOpen && <OpenFlow message={message} label={label} now={now} loadStepLog={loadStepLog} />}
       </article>

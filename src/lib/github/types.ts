@@ -41,6 +41,19 @@ export type CommentData = {
   author: string;
   body: string;
   createdAt: string;
+  /** 最後に書き換えた時刻（GraphQL の `updatedAt`。無ければ作成時刻と同じ扱い） */
+  updatedAt?: string;
+  /** コメントのページ（GraphQL の `url`。無ければ無し） */
+  url?: string;
+};
+
+/** 動いているワークフローの今のステップ（`actions/runs/{run_id}/jobs` の `in_progress` の物） */
+export type RunStepData = {
+  runId: number;
+  /** ステップ名 */
+  name: string;
+  /** そのジョブのページ（無ければ null） */
+  url: string | null;
 };
 
 export type CheckRunData = {
@@ -80,6 +93,8 @@ export type PullChecks = {
 
 /** Actions の実行（`GET /repos/{owner}/{repo}/actions/runs` の1件） */
 export type WorkflowRunData = {
+  /** 実行の ID（無ければ無し。今のステップ名を取りに行くのに使う） */
+  id?: number;
   /** `queued`・`in_progress`・`completed` など */
   status: string;
   /** 実行したブランチ（無ければ null） */
@@ -111,6 +126,8 @@ export type RepoData = {
   watchdog?: WatchdogLastRun;
   /** 直近の Actions の実行（実行中・待機中と、最近の物）。取れなかったときは null、調べていなければ無し */
   runs?: WorkflowRunData[] | null;
+  /** 動いている実行の今のステップ（作業中のコメントが無い物だけ取る。調べていなければ無し） */
+  runSteps?: RunStepData[];
 };
 
 export type GitHubErrorKind =

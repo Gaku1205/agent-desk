@@ -177,6 +177,16 @@ function vercel(
 }
 
 const DONE_COMMENT = "**Claude finished** 実装してブランチにpushしました";
+/** 作業中のコメント（AIのアクションが更新し続ける。やることの一覧つき） */
+const DEMO_WORKING_COMMENT = [
+  "Claude Code is working…",
+  "",
+  "- [x] 仕様を読む",
+  "- [x] メモ欄の型を足す",
+  "- [ ] 入力欄を一覧に付ける",
+  "- [ ] テストを書く",
+  "- [ ] 確認コマンドを通す",
+].join("\n");
 const ERROR_COMMENT = "**Claude encountered an error** 途中で止まりました";
 const REVIEW_CLEAN = "## Code review\n\nNo issues found. 型・テストとも問題ありません";
 /** 企画AIの質問（画面案つき）。画像は public/mockups/ の見本 */
@@ -463,6 +473,10 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
     planned: true,
   });
   addLabeled(ctx, 16, "ai:implement", ago(ctx, 9));
+  // AIのアクションが作業中に更新し続けるコメント（「AIが今していること」の見本）
+  addComment(ctx, 16, DEMO_WORKING_COMMENT, ago(ctx, 8));
+  // デモのリンクはアプリの中のページへ（架空のリポジトリなので GitHub へは向けない）
+  ctx.data.comments[ctx.data.comments.length - 1].url = repoPageUrl(ctx);
   // もう1件：AIの番の数を「あなたの番」の数とずらす（上端の帯で同じ数が並んでバグに見えないように）
   addIssue(ctx, 41, "ダークモードに切り替えられるようにする", {
     createdAt: ago(ctx, 8),
