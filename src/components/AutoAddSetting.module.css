@@ -1,0 +1,16 @@
+/* 「新しいサービスを自動で追加」：リポジトリを保存の下24px。ランプ＋字と補足を横に（入らなければ折り返す） */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+  margin-top: 24px;
+  margin-left: -8px;
+}
+
+.hint {
+  color: var(--mute);
+  font-size: 12px;
+  word-break: auto-phrase;
+  text-wrap: pretty;
+}

@@ -2,6 +2,8 @@ import type { NotifyRepoRow } from "@/components/NotifySetting";
 import { SettingsSections } from "@/components/SettingsSections";
 import type { WatchedRepoRow } from "@/components/WatchedReposSetting";
 import { getGitHubToken } from "@/lib/auth";
+import { parseAutoAddEnabled } from "@/lib/autoAdd";
+import { AUTO_ADD_VARIABLE } from "@/lib/github/autoAdd";
 import { getSettingsRepo } from "@/lib/config";
 import { GitHubClient } from "@/lib/github/client";
 import { GitHubError } from "@/lib/github/errors";
@@ -17,7 +19,8 @@ export default async function SettingsPage() {
   const client = token ? new GitHubClient(token) : null;
   const editable = getSettingsRepo() !== null && client !== null;
 
-  const [rows, options, notifyRows] = await Promise.all([
+  const settingsRepo = getSettingsRepo();
+  const [rows, options, notifyRows, autoAdd] = await Promise.all([
     Promise.all(
       repos.map(
         async (repo): Promise<WatchedRepoRow> => ({
@@ -48,6 +51,10 @@ export default async function SettingsPage() {
         return { name, pipeline, events: parseNotifyEvents(value) };
       }),
     ),
+    // 「新しいサービスを自動で追加」。読めなければ初期のオンとして出す
+    editable && client && settingsRepo
+      ? readVariable(client, settingsRepo, AUTO_ADD_VARIABLE).then(parseAutoAddEnabled, () => true)
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -57,6 +64,7 @@ export default async function SettingsPage() {
       repoOptionsError={options.error}
       editable={editable}
       notifyRows={notifyRows}
+      autoAdd={autoAdd}
     />
   );
 }

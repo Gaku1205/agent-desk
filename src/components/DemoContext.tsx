@@ -1,6 +1,8 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import type { AddedNotice } from "@/lib/autoAdd";
+import type { WatchedRepo } from "@/lib/config";
 import type { PlayButtonState } from "@/lib/demo/playback";
 import type { RepoResult } from "@/lib/github/types";
 import type { OperationKind, TurnItem } from "@/lib/turn";
@@ -8,6 +10,13 @@ import type { OperationKind, TurnItem } from "@/lib/turn";
 export type DemoState = {
   /** サンプルのデータ（本物と同じ形） */
   results: RepoResult[];
+  /** 監視しているリポジトリ（工場が作ったリポジトリを自動で足したら、それも入る） */
+  repos: WatchedRepo[];
+  /** 自動で監視に足したリポジトリ（「いまの様子」のお知らせ） */
+  addedNotices: AddedNotice[];
+  /** 設定の「新しいサービスを自動で追加」（初期はオン。GitHub には保存しない） */
+  autoAdd: boolean;
+  setAutoAdd: (on: boolean) => void;
   /** 全リポジトリの「あなたの番」（並び順どおり） */
   items: TurnItem[];
   /** デモの「今」 */

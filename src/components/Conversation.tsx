@@ -8,7 +8,14 @@ import { LampMark } from "./LampMark";
 import { SmartLink } from "./SmartLink";
 import styles from "./Conversation.module.css";
 
-export type ConversationNotice = { key: string; text: string; tone: "warn" | "fail" };
+export type ConversationNotice = {
+  key: string;
+  text: string;
+  /** warn＝見張り役、fail＝取れなかったリポジトリ、info＝自動で監視に足した */
+  tone: "warn" | "fail" | "info";
+  /** 出来事の時刻（ISO文字列）。あれば文の後ろに `· 12分前` */
+  at?: string;
+};
 
 type Props = {
   messages: ChatMessage[];
@@ -157,6 +164,16 @@ export function Conversation({ messages, now, showRepo, repo, notices, selected 
           {notices.map((notice) => (
             <li key={notice.key} data-tone={notice.tone}>
               {notice.text}
+              {notice.at && (
+                <>
+                  <span className={styles.sep} aria-hidden="true">
+                    {" · "}
+                  </span>
+                  <time className={`${styles.noticeTime} num`} dateTime={notice.at}>
+                    {formatWait(notice.at, at)}前
+                  </time>
+                </>
+              )}
             </li>
           ))}
         </ul>

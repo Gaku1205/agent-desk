@@ -2,7 +2,16 @@
 
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { buildDemoResults, createDemoIssue, pressDemo } from "@/lib/demo/data";
+import { buildAddedNotices } from "@/lib/autoAdd";
+import {
+  buildDemoResults,
+  createDemoIssue,
+  DEMO_AUTO_ADD_REPO,
+  DEMO_REPOS,
+  demoAutoAdd,
+  demoAutoAddResult,
+  pressDemo,
+} from "@/lib/demo/data";
 import {
   advancePlayback,
   isPlaybackDone,
@@ -89,11 +98,38 @@ export function DemoShell({
       ? "done"
       : "idle";
 
+  // 工場が「作る」で作ったリポジトリを、自動で監視に足す（設定がオンのとき。一度足した物は、オフにしても外さない）
+  const [autoAdd, setAutoAdd] = useState(true);
+  const [keptAt, setKeptAt] = useState<string | null>(null);
+  const baseResults = useMemo(() => buildDemoResults(base, playback), [base, playback]);
+  const possible = demoAutoAdd(baseResults, true);
+  const addedAt = possible && (autoAdd || keptAt === possible.at) ? possible.at : null;
+  if (addedAt && keptAt !== addedAt) setKeptAt(addedAt);
+
   const demo = useMemo<DemoState>(() => {
     const now = new Date(playback.now);
-    const results = buildDemoResults(base, playback);
-    return { results, items: buildTurnItems(results, now), now, playState, play, notify, operate, createIssue };
-  }, [base, playback, playState, play, notify, operate, createIssue]);
+    const results = addedAt ? [...baseResults, demoAutoAddResult(addedAt)] : baseResults;
+    const repos = addedAt ? [...DEMO_REPOS, DEMO_AUTO_ADD_REPO] : DEMO_REPOS;
+    const addedNotices = buildAddedNotices(
+      addedAt ? [{ repo: `${DEMO_AUTO_ADD_REPO.owner}/${DEMO_AUTO_ADD_REPO.repo}`, at: addedAt }] : [],
+      repos,
+      now,
+    );
+    return {
+      results,
+      repos,
+      addedNotices,
+      autoAdd,
+      setAutoAdd,
+      items: buildTurnItems(results, now),
+      now,
+      playState,
+      play,
+      notify,
+      operate,
+      createIssue,
+    };
+  }, [baseResults, addedAt, autoAdd, playback.now, playState, play, notify, operate, createIssue]);
 
   const shell = useMemo<ShellState>(
     () => ({

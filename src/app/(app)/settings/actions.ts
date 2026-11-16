@@ -2,7 +2,15 @@
 
 import { refresh, updateTag } from "next/cache";
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
-import { findWatchedRepo, getAllowedLogins, getSettingsRepo } from "@/lib/config";
+import { formatAutoAddEnabled, updateRemovedRepos } from "@/lib/autoAdd";
+import {
+  chooseWatchedRepos,
+  findWatchedRepo,
+  getAllowedLogins,
+  getSettingsRepo,
+  parseRepoList,
+} from "@/lib/config";
+import { AUTO_ADD_VARIABLE, REMOVED_REPOS_VARIABLE } from "@/lib/github/autoAdd";
 import {
   checkNotifyEvents,
   formatNotifyEvents,
@@ -14,8 +22,10 @@ import { GitHubClient } from "@/lib/github/client";
 import { WATCHED_REPOS_TAG } from "@/lib/github/repoCache";
 import {
   canReadRepo,
+  deleteVariable,
   hasPipeline,
   listReadableRepos,
+  readVariable,
   WATCHED_REPOS_VARIABLE,
   writeVariable,
 } from "@/lib/github/settings";
@@ -54,18 +64,49 @@ export async function saveWatchedRepos(value: unknown): Promise<SaveReposResult>
         return { ok: false, message: REPO_SETTING_MESSAGES.unreadable };
       }
     }
+    // 「外す」を押した物を覚え、手で足し直した物は忘れる（自動で足し直さないため）
+    const [previousValue, removedValue] = await Promise.all([
+      readVariable(client, auth.settingsRepo, WATCHED_REPOS_VARIABLE),
+      readVariable(client, auth.settingsRepo, REMOVED_REPOS_VARIABLE),
+    ]);
+    const removedBefore = parseRepoList(removedValue);
+    const removed = updateRemovedRepos(chooseWatchedRepos(previousValue).repos, checked.repos, removedBefore);
     await writeVariable(
       client,
       auth.settingsRepo,
       WATCHED_REPOS_VARIABLE,
       formatRepoList(checked.repos),
     );
+    const removedText = formatRepoList(removed);
+    if (removedText !== formatRepoList(removedBefore)) {
+      // 空の値は書けないので、覚える物が無くなったら Variable を消す
+      if (removed.length === 0) await deleteVariable(client, auth.settingsRepo, REMOVED_REPOS_VARIABLE);
+      else await writeVariable(client, auth.settingsRepo, REMOVED_REPOS_VARIABLE, removedText);
+    }
   } catch (error) {
     return { ok: false, message: repoSettingErrorMessage(error) };
   }
   // Webhook が見る監視リポジトリを覚え直す
   updateTag(WATCHED_REPOS_TAG);
   refresh();
+  return { ok: true };
+}
+
+/** 「新しいサービスを自動で追加」のオン・オフを `SETTINGS_REPO` の Variable `AGENT_DESK_AUTO_ADD` に保存する */
+export async function saveAutoAdd(value: unknown): Promise<SaveReposResult> {
+  const auth = authorizeRepoSetting({
+    login: await getSignedInLogin(),
+    token: await getGitHubToken(),
+    allowedLogins: getAllowedLogins(),
+    settingsRepo: getSettingsRepo(),
+  });
+  if (!auth.ok) return auth;
+  if (typeof value !== "boolean") return { ok: false, message: REPO_SETTING_MESSAGES.invalid };
+  try {
+    await writeVariable(new GitHubClient(auth.token), auth.settingsRepo, AUTO_ADD_VARIABLE, formatAutoAddEnabled(value));
+  } catch (error) {
+    return { ok: false, message: repoSettingErrorMessage(error) };
+  }
   return { ok: true };
 }
 

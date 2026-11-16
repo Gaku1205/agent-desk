@@ -33,3 +33,17 @@ export const loadWatchedRepos = cache(async (): Promise<LoadedWatchedRepos> => {
   }
   return chooseWatchedRepos(variable);
 });
+
+/**
+ * 同期の中で自動で足したリポジトリを、この1回のリクエストの「監視するリポジトリ」にも入れる
+ * （同じリクエストの帯・左の一覧・ページで、足したリポジトリをすぐ出すため。保存は済んでいる）
+ */
+export function appendLoadedWatchedRepos(loaded: LoadedWatchedRepos, added: WatchedRepo[]): void {
+  const listed = new Set(loaded.repos.map(({ owner, repo }) => `${owner}/${repo}`.toLowerCase()));
+  for (const repo of added) {
+    const key = `${repo.owner}/${repo.repo}`.toLowerCase();
+    if (listed.has(key)) continue;
+    listed.add(key);
+    loaded.repos.push(repo);
+  }
+}
