@@ -7,7 +7,8 @@ import type { StepInfo } from "@/lib/stepLog";
 import { formatWait } from "@/lib/turn";
 import { FlowMap } from "./FlowMap";
 import { TriangleDownIcon } from "./icons";
-import { LampMark } from "./LampMark";
+import { lampLabel } from "@/lib/lamp";
+import { LampLabel, LampWait } from "./LampMark";
 import { SmartLink } from "./SmartLink";
 import styles from "./Conversation.module.css";
 
@@ -140,6 +141,8 @@ export function Conversation({
       <article
         key={message.key}
         className={styles.msg}
+        data-lamp={message.lamp.kind}
+        title={lampLabel(message.lamp) ?? undefined}
         data-key={message.key}
         data-fresh={fresh(message.key) ? "" : undefined}
         data-selectable=""
@@ -154,7 +157,7 @@ export function Conversation({
         }}
       >
         <p className={styles.meta}>
-          <LampMark lamp={message.lamp} />
+          <LampLabel lamp={message.lamp} />
           <span className={styles.who} data-fail={message.failed ? "" : undefined}>
             {message.speaker}
           </span>
@@ -180,6 +183,7 @@ export function Conversation({
               </time>
             </>
           )}
+          <LampWait lamp={message.lamp} />
         </p>
         <p className={styles.text}>{message.text}</p>
         <p className={styles.title}>
