@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agent-desk — 案A 工程の帯が主役</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Geist:wght@400;500;700&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#FAFAFA; --raise:#FFFFFF; --bone:#18181B; --bone-2:#52525B; --mute:#6A6A72;
+    --accent:#4F46E5; --accent-soft:#4338CA; --accent-ink:#FFFFFF;
+    --fail-soft:#B91C1C; --ok:#15803D;
+    --hair:rgba(24,24,27,.10); --hair-2:rgba(24,24,27,.05); --well:rgba(24,24,27,.06);
+    --edge:rgba(24,24,27,.20); --edge-line:rgba(24,24,27,.28);
+    --gutter:clamp(20px,2.2vw,40px); --top-h:52px; --col:680px;
+    --jp:"Geist","IBM Plex Sans JP",system-ui,sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--bone); font-family:var(--jp); font-feature-settings:"palt"; word-break:auto-phrase; }
+  .num { font-variant-numeric:tabular-nums; }
+  svg.i { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+  a { color:inherit; text-decoration:none; }
+
+  /* 上端の帯 */
+  .top { position:sticky; top:0; height:var(--top-h); display:flex; align-items:center; gap:20px; padding:0 var(--gutter); border-bottom:1px solid var(--hair); background:var(--bg); z-index:5; }
+  .mark { font-family:"Bricolage Grotesque",sans-serif; font-weight:800; font-variation-settings:"opsz" 96; font-size:19px; letter-spacing:-.045em; }
+  .top .r { margin-left:auto; display:flex; align-items:center; gap:16px; font-size:12.5px; color:var(--mute); }
+  .top .r span { display:inline-flex; align-items:center; gap:7px; white-space:nowrap; }
+  .dot { width:5px; height:5px; border-radius:50%; background:var(--mute); display:inline-block; }
+  .menu { display:none; }
+
+  /* 3ペイン */
+  .shell { display:grid; grid-template-columns:224px minmax(0,1fr); min-height:calc(100svh - var(--top-h)); }
+  aside { border-right:1px solid var(--hair); padding:24px 12px; }
+  .side-h { display:flex; justify-content:space-between; font-size:11.5px; color:var(--mute); padding:0 10px 8px; }
+  .side-h i { font-style:normal; display:inline-flex; align-items:center; gap:4px; margin-left:8px; }
+  .tab { height:36px; display:flex; align-items:center; gap:7px; padding:0 10px; border-radius:6px; font-size:13px; font-weight:500; color:var(--mute); margin-bottom:2px; }
+  .tab.cur { background:var(--well); color:var(--bone); }
+  .tab.cur svg { color:var(--accent); }
+  .tab .n { margin-left:auto; display:flex; gap:8px; font-size:12px; }
+  .tab .n b { font-weight:500; display:inline-flex; align-items:center; gap:4px; }
+  .y { color:var(--accent); } .y .dot { background:var(--accent); }
+  .a { color:var(--bone-2); } .a .dot { background:var(--bone-2); }
+
+  main { min-width:0; display:flex; flex-direction:column; }
+
+  /* 進捗図：工程の帯（この案の主役） */
+  .flow { padding:28px var(--gutter) 26px; border-bottom:1px solid var(--hair); }
+  .flow-in { max-width:1080px; margin:0 auto; }
+  .flow-h { display:flex; align-items:baseline; gap:10px; margin-bottom:22px; }
+  .flow-h .id { font-size:13px; color:var(--mute); }
+  .flow-h .t { font-size:17px; font-weight:700; color:var(--bone); }
+  .flow-h .since { margin-left:auto; font-size:12.5px; color:var(--mute); white-space:nowrap; }
+  .track { list-style:none; display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1.2fr 2.4fr 1fr; position:relative; }
+  .step { position:relative; padding-top:30px; padding-right:12px; min-width:0; }
+  /* 線：工程の上端を通る1本 */
+  .step::before { content:""; position:absolute; left:0; right:0; top:8px; border-top:2px solid var(--accent); }
+  .step.todo::before { border-top:2px dotted var(--mute); }
+  .step.at::before { right:auto; width:22px; }
+  .step.at::after { content:""; position:absolute; left:22px; right:0; top:8px; border-top:2px dotted var(--mute); }
+  .mk { position:absolute; left:0; top:0; width:18px; height:18px; background:var(--bg); display:grid; place-items:center; }
+  .mk svg { width:14px; height:14px; fill:none; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+  .ok svg { stroke:var(--ok); } .ng svg { stroke:var(--fail-soft); } .run svg { stroke:var(--accent); }
+  .wait { font-size:13px; color:var(--mute); line-height:18px; }
+  .step .nm { display:flex; align-items:center; gap:7px; font-size:13.5px; font-weight:500; color:var(--bone); white-space:nowrap; }
+  .step .nm svg { width:17px; height:17px; color:var(--bone-2); }
+  .step .md { font-size:12px; color:var(--mute); margin-top:4px; white-space:nowrap; }
+  .step .tm { font-size:12px; color:var(--bone-2); margin-top:2px; white-space:nowrap; }
+  .step.todo .nm, .step.todo .nm svg { color:var(--mute); }
+  /* 今の位置：広い場所で、何が起きているかを文で言う */
+  .step.at { padding-right:20px; }
+  .now { margin-top:2px; border-radius:8px; box-shadow:inset 0 0 0 1px var(--edge); background:var(--raise); padding:12px 14px 13px; }
+  .now .nm svg { color:var(--accent); }
+  .now p { font-size:13.5px; color:var(--bone-2); line-height:1.65; margin-top:6px; }
+  .now .tries { display:flex; gap:14px; margin-top:8px; font-size:12.5px; color:var(--mute); flex-wrap:wrap; }
+  .now .tries span { white-space:nowrap; }
+  .now .tries .x { color:var(--fail-soft); }
+  .now .tries .c { color:var(--accent-soft); }
+  .nm-m, .now-m { display:none; }
+
+  /* 中央の列 */
+  .col { width:min(var(--col), 100% - 2*var(--gutter)); margin:0 auto; }
+  .turn-h { display:flex; justify-content:space-between; align-items:baseline; padding-top:36px; margin-bottom:14px; }
+  .turn-h h1 { font-size:13px; font-weight:700; color:var(--accent); }
+  .turn-h span { font-size:13px; color:var(--mute); } .turn-h b { color:var(--bone-2); font-weight:500; }
+  .card { background:var(--raise); box-shadow:inset 0 0 0 1px var(--hair); border-radius:14px; padding:30px 36px; }
+  .meta { display:flex; gap:12px; font-size:13px; color:var(--mute); flex-wrap:wrap; margin-bottom:12px; }
+  .meta .k { font-weight:700; color:var(--accent); } .meta .st { margin-left:auto; }
+  .card h2 { font-size:26px; line-height:1.4; letter-spacing:-.01em; font-weight:700; text-wrap:balance; }
+  .card p { font-size:16.5px; line-height:1.8; color:var(--bone-2); margin-top:12px; }
+  .acts { display:flex; gap:8px; margin-top:22px; flex-wrap:wrap; align-items:center; }
+  .act { height:42px; padding:0 20px; border-radius:8px; font-size:14.5px; font-weight:500; display:inline-flex; align-items:center; gap:7px; white-space:nowrap; }
+  .act.p { background:var(--accent); color:var(--accent-ink); }
+  .act.s { box-shadow:inset 0 0 0 1px var(--edge); color:var(--bone); }
+  .act.l { color:var(--bone-2); padding:0 8px; font-size:14px; }
+
+  .talk { padding:48px 0 32px; }
+  .talk-h { display:flex; align-items:baseline; gap:10px; margin-bottom:24px; }
+  .talk-h h2 { font-size:15px; font-weight:700; } .talk-h span { font-size:13px; color:var(--mute); }
+  .msg { margin-bottom:30px; }
+  .msg .who { font-size:13px; color:var(--mute); } .msg .who b { color:var(--bone); }
+  .msg .line { font-size:16px; line-height:1.75; margin-top:6px; }
+  .msg .q { font-size:14px; color:var(--bone-2); border-left:2px solid var(--hair); padding-left:12px; margin-top:8px; line-height:1.6; }
+  .msg .trail { display:flex; gap:4px 14px; flex-wrap:wrap; margin-top:10px; font-size:12.5px; color:var(--mute); }
+  .msg .trail span { white-space:nowrap; }
+
+  .add { position:sticky; bottom:0; margin-top:auto; background:var(--bg); border-top:1px solid var(--hair); padding:14px var(--gutter); }
+  .add .col { display:flex; gap:16px; align-items:center; }
+  .sel { width:200px; height:36px; border-bottom:1px solid var(--edge-line); display:flex; align-items:center; justify-content:space-between; font-size:13.5px; flex-shrink:0; }
+  .memo { flex:1; height:36px; border-bottom:1px solid var(--edge-line); display:flex; align-items:center; font-size:13.5px; color:var(--mute); min-width:0; }
+  .btn { height:32px; padding:0 16px; border-radius:6px; background:var(--bone); color:var(--bg); font-size:13px; font-weight:500; display:inline-flex; align-items:center; gap:7px; white-space:nowrap; }
+
+  /* スマホ */
+  @media (max-width:899px) {
+    :root { --gutter:16px; }
+    .top .r { display:none; }
+    .menu { display:grid; place-items:center; width:44px; height:44px; margin-left:-12px; }
+    .menu svg { width:20px; height:20px; }
+    .top { gap:4px; }
+    .shell { display:block; }
+    aside, .add { display:none; }
+    .flow { padding:16px 0 18px; }
+    .flow-h { padding:0 16px; margin-bottom:14px; flex-wrap:wrap; row-gap:2px; }
+    .flow-h .t { font-size:14.5px; width:100%; order:3; }
+    .flow-h .since { margin-left:auto; }
+    /* 7つを等分に並べ、名前は短く。今の位置の文は帯の下に幅いっぱい */
+    .track { grid-template-columns:repeat(7, minmax(0,1fr)); padding:0 16px; }
+    .step, .step.at { padding-right:0; padding-top:28px; }
+    .step .nm { flex-direction:column; align-items:flex-start; gap:5px; font-size:11.5px; }
+    .step .md, .step .tm { display:none; }
+    .step.at .now { display:none; }
+    .step.at .nm-m { display:flex; }
+    .step.at .nm-m svg { color:var(--accent); }
+    .step.at .nm-m { color:var(--bone); font-weight:700; }
+    .now-m { display:block; margin:16px 16px 0; }
+    .now-m p { font-size:13.5px; }
+    .now-m .nm { display:flex; align-items:center; gap:7px; font-size:13.5px; font-weight:500; }
+    .now-m .nm svg { width:17px; height:17px; color:var(--accent); }
+    .col { width:auto; margin:0 16px; }
+    .turn-h { padding-top:24px; }
+    .card { padding:22px 18px; }
+    .card h2 { font-size:21px; }
+    .card p { font-size:15.5px; }
+    .meta .st { margin-left:0; }
+    .act { height:44px; font-size:15px; }
+    .talk { padding-top:40px; }
+    .msg .line { font-size:15.5px; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+  <symbol id="folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2z"/></symbol>
+  <symbol id="pen" viewBox="0 0 24 24"><path d="m12 19 7-7 3 3-7 7zM18 13l-1.5-7.5L2 2l3.5 14.5L13 18zM2 2l7.6 7.6"/><circle cx="11" cy="11" r="2"/></symbol>
+  <symbol id="code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.7 9a1 1 0 0 1-.6 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.6 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/></symbol>
+  <symbol id="rocket" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1zM12 15l-3-3a22 22 0 0 1 2-3.9A12.9 12.9 0 0 1 22 2c0 2.7-.8 7.5-6 11a22 22 0 0 1-4 2z"/><path d="M9 12H4s.6-3 2-4c1.6-1.1 5 0 5 0M12 15v5s3-.6 4-2c1.1-1.6 0-5 0-5"/></symbol>
+  <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="edit" viewBox="0 0 24 24"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.4 2.6a2.1 2.1 0 1 1 3 3L12 15l-4 1 1-4z"/></symbol>
+  <symbol id="play" viewBox="0 0 24 24"><path d="m6 3 14 9-14 9z"/></symbol>
+  <symbol id="lines" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="chk" viewBox="0 0 14 14"><path d="m3 7.5 2.5 2.5L11 4.5"/></symbol>
+  <symbol id="xx" viewBox="0 0 14 14"><path d="m4 4 6 6M10 4l-6 6"/></symbol>
+  <symbol id="arc" viewBox="0 0 14 14"><path d="M7 2a5 5 0 1 1-5 5"/></symbol>
+</svg>
+
+<header class="top">
+  <span class="menu"><svg class="i"><use href="#lines"/></svg></span>
+  <span class="mark">agent-desk</span>
+  <div class="r">
+    <span><i class="dot" style="background:var(--bone-2)"></i>デモ（サンプルのデータ）</span>
+    <span class="num"><i class="dot"></i>同期 12:00:00</span>
+    <span><svg class="i"><use href="#edit"/></svg>Issueを書く</span>
+    <span><svg class="i"><use href="#gear"/></svg>設定</span>
+  </div>
+</header>
+
+<div class="shell">
+  <aside>
+    <div class="side-h">リポジトリ<span><i class="y"><b class="dot"></b>あなたの番</i><i class="a"><b class="dot"></b>AI</i></span></div>
+    <a class="tab cur"><svg class="i"><use href="#grid"/></svg>全部<span class="n num"><b class="y"><i class="dot"></i>8</b><b class="a"><i class="dot"></i>10</b></span></a>
+    <a class="tab"><svg class="i"><use href="#folder"/></svg>todo-app<span class="n num"><b class="y"><i class="dot"></i>5</b><b class="a"><i class="dot"></i>6</b></span></a>
+    <a class="tab"><svg class="i"><use href="#folder"/></svg>landing-page<span class="n num"><b class="y"><i class="dot"></i>3</b><b class="a"><i class="dot"></i>4</b></span></a>
+  </aside>
+
+  <main>
+    <section class="flow" aria-label="進捗図">
+      <div class="flow-in">
+        <div class="flow-h">
+          <span class="id num">todo-app#17</span>
+          <a class="t">タスクの並べ替えをドラッグでできるようにする</a>
+          <span class="since num">始めてから 2時間14分</span>
+        </div>
+        <ol class="track">
+          <li class="step"><span class="mk ok"><svg><use href="#chk"/></svg></span>
+            <div class="nm"><svg class="i"><use href="#bulb"/></svg>企画</div><div class="md">Opus 5.5</div><div class="tm num">6分</div></li>
+          <li class="step"><span class="mk"><span class="wait">…</span></span>
+            <div class="nm"><svg class="i"><use href="#pen"/></svg>デザイン</div><div class="md">不明</div><div class="tm">しない</div></li>
+          <li class="step"><span class="mk ok"><svg><use href="#chk"/></svg></span>
+            <div class="nm"><svg class="i"><use href="#code"/></svg>実装</div><div class="md">Sonnet 5.5</div><div class="tm num">48分</div></li>
+          <li class="step"><span class="mk ng"><svg><use href="#xx"/></svg></span>
+            <div class="nm"><svg class="i"><use href="#shield"/></svg>CI</div><div class="md">test 1件</div><div class="tm num">4分</div></li>
+          <li class="step"><span class="mk ok"><svg><use href="#chk"/></svg></span>
+            <div class="nm"><svg class="i"><use href="#eye"/></svg>レビュー</div><div class="md">Opus 5.5</div><div class="tm num">指摘 2件</div></li>
+          <li class="step at"><span class="mk run"><svg><use href="#arc"/></svg></span>
+            <div class="nm nm-m"><svg class="i"><use href="#wrench"/></svg>修正</div>
+            <div class="now">
+              <div class="nm"><svg class="i"><use href="#wrench"/></svg>修正 2回目 / 3<span style="margin-left:auto;font-size:12px;color:var(--mute);font-weight:400" class="num">12分</span></div>
+              <p>いまAIが、レビューの指摘（並べ替え中の保存）を直しています</p>
+              <div class="tries num"><span class="x">1回目 CI失敗（test）</span><span class="c">2回目 実行中</span><span>Sonnet 5.5</span></div>
+            </div></li>
+          <li class="step todo"><span class="mk"><span class="wait">…</span></span>
+            <div class="nm"><svg class="i"><use href="#rocket"/></svg>公開</div><div class="md">Vercel</div><div class="tm">まだ</div></li>
+        </ol>
+        <div class="now now-m">
+          <div class="nm"><svg class="i"><use href="#wrench"/></svg>修正 2回目 / 3<span style="margin-left:auto;font-size:12px;color:var(--mute);font-weight:400" class="num">12分</span></div>
+          <p>いまAIが、レビューの指摘（並べ替え中の保存）を直しています</p>
+          <div class="tries num"><span class="x">1回目 CI失敗（test）</span><span class="c">2回目 実行中</span></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="col">
+      <div class="turn-h"><h1>あなたの番</h1><span>ほかに <b class="num">7</b>件</span></div>
+      <article class="card">
+        <div class="meta"><span class="k">止まった</span><span class="num">todo-app#23　PR #38</span><span class="num">46分</span><span class="st">修正</span></div>
+        <h2>通知の音を設定で変えられるようにする</h2>
+        <p>AIが2回直しても、CIが通りませんでした。ログを見て、続けるか決めてください。</p>
+        <div class="acts"><span class="act p">再開</span><span class="act s">保留にする</span><span class="act l">ログを開く ↗</span></div>
+      </article>
+
+      <section class="talk">
+        <div class="talk-h"><h2>いまの様子</h2><span class="num">9件</span></div>
+        <article class="msg"><div class="who num"><b>AI</b> · todo-app#17 · 12分前</div>
+          <div class="line">いまAIが修正しています（2回目）</div>
+          <div class="q">タスクの並べ替えをドラッグでできるようにする</div>
+          <div class="trail num"><span>10:02 実装を依頼</span><span>10:50 PRができた</span><span style="color:var(--fail-soft)">10:54 CI失敗（test）</span><span>11:48 修正を依頼 2/3</span></div></article>
+        <article class="msg"><div class="who num"><b>CI</b> · todo-app#19 · 3分前</div>
+          <div class="line">いまCIが確かめています（3/4 通過）</div>
+          <div class="q">期限の表示を「あと2日」の形にする</div></article>
+      </section>
+    </div>
+
+    <div class="add"><div class="col">
+      <span class="sel">todo-app<span style="font-size:10px">▼</span></span>
+      <span class="memo">1行のメモ</span>
+      <span class="btn"><svg class="i"><use href="#plus"/></svg>Issueを作る</span>
+    </div></div>
+  </main>
+</div>
+</body>
+</html>
