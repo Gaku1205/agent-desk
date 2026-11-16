@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { saveAutoAdd } from "@/app/(app)/settings/actions";
+import { saveAutoAdd, type SaveReposResult } from "@/app/(app)/settings/actions";
+import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
 import { useDemo } from "./DemoContext";
 import settingsStyles from "./SettingsSections.module.css";
 import styles from "./AutoAddSetting.module.css";
@@ -34,7 +35,10 @@ export function AutoAddSetting({ initialEnabled }: { initialEnabled: boolean }) 
     }
     setOwn(next);
     startSaving(async () => {
-      const result = await saveAutoAdd(next);
+      const result = await callAction<SaveReposResult>(
+        () => saveAutoAdd(next),
+        () => ({ ok: false, message: ACTION_UNREACHABLE_MESSAGE }),
+      );
       if (!result.ok) setOwn(!next);
       setStatus(result.ok ? { kind: "saved" } : { kind: "error", message: result.message });
     });
