@@ -297,6 +297,29 @@ describe("getIssueStatus：表の各段階", () => {
     expect(getIssueStatus(issue({ labels: ["ai:question"] }), input(), NOW).stage).toBe("question");
   });
 
+  it("保留＋答えていない質問のコメント → 質問の段階（人間の番）", () => {
+    const question = comment({ body: "<!-- ai-question -->\n**Q1. 色は？**", createdAt: "2026-10-25T10:00:00Z" });
+    const status = getIssueStatus(issue({ labels: ["ai:skip"] }), input([], {}, [question]), NOW);
+    expect(status.stage).toBe("question");
+    expect(status.turn).toBe("human");
+    // ai:plan・ai:queue・ai:blocked が付いていれば、そちらが先
+    expect(getIssueStatus(issue({ labels: ["ai:skip", "ai:plan"] }), input([], {}, [question]), NOW).stage).toBe("planning");
+    expect(getIssueStatus(issue({ labels: ["ai:skip", "ai:queue"] }), input([], {}, [question]), NOW).stage).toBe("queued");
+    expect(getIssueStatus(issue({ labels: ["ai:skip", "ai:blocked"] }), input([], {}, [question]), NOW).stage).toBe("queued");
+  });
+
+  it("保留＋質問のあとに人のコメントがある → 保留のまま", () => {
+    const question = comment({ body: "<!-- ai-question -->\n**Q1. 色は？**", createdAt: "2026-10-25T10:00:00Z" });
+    const human = comment({ author: "Gaku1205", body: "あとで", createdAt: "2026-10-25T10:30:00Z" });
+    const status = getIssueStatus(issue({ labels: ["ai:skip"] }), input([], {}, [question, human]), NOW);
+    expect(status.stage).toBe("skipped");
+  });
+
+  it("保留＋質問のコメントが無い → 保留のまま", () => {
+    const other = comment({ body: "ふつうのコメント", createdAt: "2026-10-25T10:00:00Z" });
+    expect(getIssueStatus(issue({ labels: ["ai:skip"] }), input([], {}, [other]), NOW).stage).toBe("skipped");
+  });
+
   it("質問：答えのコメント（人が書いた物）を送ったら企画中（AIの番）", () => {
     const question = comment({ body: "<!-- ai-question -->\n**Q1. 色は？**", createdAt: "2026-10-25T10:00:00Z" });
     const answer = comment({ author: "Gaku1205", body: "Q1はA", createdAt: "2026-10-25T10:30:00Z" });

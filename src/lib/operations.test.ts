@@ -168,6 +168,27 @@ describe("答えを送る", () => {
     ]);
   });
 
+  it("保留の質問に答えると、コメントのあと ai:skip を外して ai:plan を付ける", async () => {
+    const { client, calls } = fakeClient(() => Response.json({ id: 1 }, { status: 201 }));
+    const held = data({ issues: [issue({ labels: ["ai:skip"] })], comments: [question] });
+    const result = await executeOperation(client, TARGET, { ...input("answer"), answer: "Q1はA" }, held, NOW);
+    expect(result).toEqual({ ok: true });
+    expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual([
+      "POST https://api.github.com/repos/o/r/issues/1/comments",
+      "DELETE https://api.github.com/repos/o/r/issues/1/labels/ai%3Askip",
+      "POST https://api.github.com/repos/o/r/issues/1/labels",
+    ]);
+    expect(calls[2].body).toEqual({ labels: ["ai:plan"] });
+  });
+
+  it("ai:skip が無い質問の答えは、ラベルを変えない", async () => {
+    const { client, calls } = fakeClient(() => Response.json({ id: 1 }, { status: 201 }));
+    await executeOperation(client, TARGET, { ...input("answer"), answer: "Q1はA" }, asking(), NOW);
+    expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual([
+      "POST https://api.github.com/repos/o/r/issues/1/comments",
+    ]);
+  });
+
   it("もう答えてある・質問でなくなっていたら、何もせず取り直す", async () => {
     const { client, calls } = fakeClient();
     const answered = asking();

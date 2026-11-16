@@ -169,7 +169,8 @@ export function applyDemoOp(data: RepoData, op: DemoOp): RepoData {
         }
         break;
       }
-      setIssue({ labels: withLabels(issue.labels, [LABEL.plan], [LABEL.question]) });
+      // 保留（ai:skip）の質問のときは、ai:skip も外す
+      setIssue({ labels: withLabels(issue.labels, [LABEL.plan], [LABEL.question, LABEL.skip]) });
       labeled(op.number, LABEL.plan);
       break;
     }
