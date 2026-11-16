@@ -144,14 +144,14 @@ export function queueAfterNumber(reason: string | null): number | null {
   return match ? Number(match[1]) : null;
 }
 
-/** 新しい出来事がある物が先。出来事が無い物はその下に、番号の大きい順 */
+/** 上が古く、下が新しい。出来事が無い物がいちばん上（番号の小さい順）、出来事がある物はその下に古い順 */
 export function compareMessages(a: ChatMessage, b: ChatMessage): number {
   if (a.latestAt !== null && b.latestAt !== null) {
-    return b.latestAt.localeCompare(a.latestAt) || a.key.localeCompare(b.key);
+    return a.latestAt.localeCompare(b.latestAt) || a.key.localeCompare(b.key);
   }
-  if (a.latestAt !== null) return -1;
-  if (b.latestAt !== null) return 1;
-  return b.number - a.number || a.key.localeCompare(b.key);
+  if (a.latestAt !== null) return 1;
+  if (b.latestAt !== null) return -1;
+  return a.number - b.number || a.key.localeCompare(b.key);
 }
 
 /**

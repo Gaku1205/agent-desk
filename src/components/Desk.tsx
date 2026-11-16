@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { addedNoticeText, type AddedNotice } from "@/lib/autoAdd";
 import type { ChatMessage } from "@/lib/conversation";
 import { applyStepLog } from "@/lib/flow";
+import { isNearBottom } from "@/lib/followScroll";
 import { pickFlowTarget, toggleFlowSelection } from "@/lib/flowTarget";
 import type { StepInfo } from "@/lib/stepLog";
 import { getBrowserStorage } from "@/lib/motion";
@@ -65,6 +66,11 @@ function subscribeSidebar(onChange: () => void): () => void {
 
 function getSidebarSnapshot(): boolean {
   return document.documentElement.getAttribute("data-side") === "closed";
+}
+
+/** ページのいちばん下へ即座に移す */
+function scrollToBottom(): void {
+  window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
 }
 
 /** 1件の中の、最初のボタン（無ければ最初のリンク） */
@@ -131,6 +137,29 @@ export function Desk({
     firstControl(row)?.focus();
   }, [currentKey]);
 
+  // 中央は上が古く下が新しい。開いたとき・リポジトリを切り替えたときはいちばん下で始め、
+  // 取り直しでは、いちばん下にいる間だけ追従する（さかのぼり中は動かさない）
+  const scopeKey = scope.kind === "all" ? "all" : `${scope.owner}/${scope.repo}`;
+  const followBottom = useRef(true);
+  useEffect(() => {
+    const update = () => {
+      const root = document.documentElement;
+      followBottom.current = isNearBottom(root.scrollHeight, window.scrollY, window.innerHeight);
+    };
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, []);
+  useLayoutEffect(() => {
+    scrollToBottom();
+    followBottom.current = true;
+    // ページを移ったあとの、Next の「上へ戻す」より後にもう一度送る
+    const frame = requestAnimationFrame(scrollToBottom);
+    return () => cancelAnimationFrame(frame);
+  }, [scopeKey]);
+  useLayoutEffect(() => {
+    if (followBottom.current) scrollToBottom();
+  }, [messages, items]);
+
   const at = new Date(now);
   const conversationNotices: ConversationNotice[] = [
     ...notices.map((notice) => ({
@@ -178,8 +207,22 @@ export function Desk({
       ? { ...pickedTarget, flow: applyStepLog(pickedTarget.flow, stepLog.infos), stepLog: stepLog.infos }
       : pickedTarget;
 
+  const conversation = (
+    <Conversation
+      messages={messages}
+      now={now}
+      showRepo={showRepo}
+      repo={scope.kind === "repo" ? { name: scope.repo, githubUrl: scope.githubUrl } : null}
+      notices={conversationNotices}
+      selected={selectedKey}
+      onSelect={select}
+      loadStepLog={loadStepLog}
+    />
+  );
+
   const column = (
     <main className={styles.desk} id="main">
+      {conversation}
       <section
         className={styles.turn}
         data-empty={current ? undefined : ""}
@@ -201,7 +244,7 @@ export function Desk({
             新しいサービスを作る
           </Link>
         </div>
-        {!current && <p className={styles.calm}>あなたが答えることはありません。下で、いまの様子を読めます</p>}
+        {!current && <p className={styles.calm}>あなたが答えることはありません。上で、いまの様子を読めます</p>}
         <div ref={rowsRef}>
           {items.map((item) => {
             const key = turnItemKey(item);
@@ -218,22 +261,7 @@ export function Desk({
             );
           })}
         </div>
-        {current && (
-          <a className={styles.down} href="#now">
-            いまの様子 ↓
-          </a>
-        )}
       </section>
-      <Conversation
-        messages={messages}
-        now={now}
-        showRepo={showRepo}
-        repo={scope.kind === "repo" ? { name: scope.repo, githubUrl: scope.githubUrl } : null}
-        notices={conversationNotices}
-        selected={selectedKey}
-        onSelect={select}
-        loadStepLog={loadStepLog}
-      />
     </main>
   );
 

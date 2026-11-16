@@ -1,7 +1,7 @@
 /* 「いまの様子」（会話。docs/design.md の「いまの様子」）。吹き出し・枠にしない。文字と余白だけで区切る */
 
 .now {
-  padding: 56px 0 96px;
+  padding: 56px 0 0;
 }
 
 .head {
