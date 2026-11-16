@@ -7,7 +7,9 @@ import { pickFlowTarget } from "@/lib/flowTarget";
 import type { StepInfo } from "@/lib/stepLog";
 import { formatWait, turnItemKey, type TurnCounts, type TurnItem } from "@/lib/turn";
 import type { WatchdogNotice } from "@/lib/watchdogState";
+import Link from "next/link";
 import { Conversation, type ConversationNotice } from "./Conversation";
+import { PlusIcon } from "./icons";
 import styles from "./Desk.module.css";
 import { FlowMap } from "./FlowMap";
 import { NewIssueForm, type NewIssueRepo } from "./NewIssueForm";
@@ -144,6 +146,11 @@ export function Desk({ items, messages, now, scope, errors, notices, nav, newIss
               ほかに <b className="num">{rest}</b>件
             </p>
           )}
+          {/* スマホ：ホームの分かりやすい所。PCは帯に出す */}
+          <Link href={`${nav.basePath ?? ""}/new/service`} className={styles.newService}>
+            <PlusIcon />
+            新しいサービスを作る
+          </Link>
         </div>
         {!current && <p className={styles.calm}>あなたが答えることはありません。下で、いまの様子を読めます</p>}
         <div ref={rowsRef}>

@@ -75,6 +75,11 @@ export function DemoNewIssue() {
   );
 }
 
+/** デモの新しいサービスを作る画面：送り先はテンプレートの見本（landing-page）だけ */
+export function DemoNewService() {
+  return <NewIssueForm mode="service" repos={DEMO_NEW_ISSUE_REPOS.filter((repo) => repo.template)} />;
+}
+
 /** デモの設定：保存を押しても書き込まない（アニメーションだけは、このブラウザに本当に保存する） */
 export function DemoSettings() {
   return (
