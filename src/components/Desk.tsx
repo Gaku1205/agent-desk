@@ -208,6 +208,7 @@ export function Desk({
         notices={conversationNotices}
         selected={selectedKey}
         onSelect={select}
+        loadStepLog={loadStepLog}
       />
     </main>
   );
