@@ -10,7 +10,7 @@ import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { buildWatchdogNotices } from "@/lib/watchdogState";
 
 export default async function Home() {
-  const { results, items, now } = await loadTurns();
+  const { results, items, now, addedNotices } = await loadTurns();
   const { repos } = await loadWatchedRepos();
 
   return (
@@ -21,6 +21,7 @@ export default async function Home() {
       scope={{ kind: "all", repoCount: repos.length }}
       errors={results.flatMap((result) => (result.ok ? [] : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }]))}
       notices={buildWatchdogNotices(results, now)}
+      addedNotices={addedNotices}
       nav={{ repos, counts: countTurnItems(items), runningCounts: countRunningPipelineRows(results, now) }}
       newIssueRepos={newIssueRepos(repos, results)}
       loadStepLog={loadStepLog}

@@ -8,6 +8,7 @@ import type {
   RepoResult,
   WorkflowRunData,
 } from "../github/types";
+import { pickAutoAddRepos } from "../autoAdd";
 import { isRunningStage } from "../runningPipeline";
 import { getIssueStatus, shouldShowIssue } from "../status";
 import type { OperationKind } from "../turn";
@@ -645,6 +646,44 @@ export function buildDemoResults(base: Date, playback: DemoPlayback): RepoResult
     { ...todo, ok: true, data: { ...todoData, runs: demoRuns(todoData, base) } },
     { ...landing, ok: true, data: { ...landingData, runs: demoRuns(landingData, base, DEMO_STALLED) } },
   ];
+}
+
+/** 工場が作る新しいリポジトリの見本（テンプレート landing-page から作られた。自動で監視に足す） */
+export const DEMO_AUTO_ADD_REPO: WatchedRepo = { owner: "demo", repo: "morning-card" };
+/** テンプレート landing-page の「新サービス：」の Issue（工場の相談） */
+const DEMO_FACTORY_ISSUE = 19;
+
+/**
+ * デモの自動追加：工場の相談で「作る」を押して「新サービス：」の Issue が閉じたら、工場が作ったリポジトリを足すか決める
+ * （本物と同じ `pickAutoAddRepos`。オフなら足さない）。足すなら、足したリポジトリと時刻（Issue が閉じた時刻）
+ */
+export function demoAutoAdd(results: RepoResult[], enabled: boolean): { repo: WatchedRepo; at: string } | null {
+  const landing = results.find((result) => result.repo === DEMO_TEMPLATE_REPO);
+  if (!landing?.ok) return null;
+  const factory = landing.data.issues.find((issue) => issue.number === DEMO_FACTORY_ISSUE);
+  if (factory?.state !== "closed" || !factory.closedAt) return null;
+  const [repo] = pickAutoAddRepos({
+    enabled,
+    login: DEMO_AUTO_ADD_REPO.owner,
+    watched: DEMO_REPOS,
+    templates: [{ owner: landing.owner, repo: landing.repo }],
+    removed: [],
+    candidates: [
+      {
+        name: `${DEMO_AUTO_ADD_REPO.owner}/${DEMO_AUTO_ADD_REPO.repo}`,
+        template: `${landing.owner}/${landing.repo}`,
+      },
+    ],
+  });
+  return repo ? { repo, at: factory.closedAt } : null;
+}
+
+/** 自動で足したリポジトリ（morning-card）のデータ：工場が作ったばかりで、最初の Issue を企画中 */
+export function demoAutoAddResult(at: string): RepoResult {
+  const ctx = createCtx(DEMO_AUTO_ADD_REPO, new Date(at), 3000);
+  ctx.data.pipeline = "running";
+  addIssue(ctx, 1, "最初の画面を作る", { createdAt: ago(ctx, 0), labels: ["ai:plan"] });
+  return { ...DEMO_AUTO_ADD_REPO, ok: true, data: { ...ctx.data, runs: demoRuns(ctx.data, new Date(at)) } };
 }
 
 /** ランプの「止まっているかも」（赤）の見本：ラベルは実装中のまま、実行が動いていない（landing-page） */

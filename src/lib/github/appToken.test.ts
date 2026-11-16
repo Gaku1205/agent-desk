@@ -1,6 +1,7 @@
 import { generateKeyPairSync } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WatchedRepo } from "../config";
+import { getChangeWatchPlan } from "../refresh";
 import { appTokenCacheForTest, getReadRateLimit, lowestRateLimit } from "./appToken";
 import { etagCacheForTest } from "./client";
 import { actionsCacheForTest, fetchAllRepos, mainDeployedCacheForTest } from "./fetch";
@@ -248,6 +249,18 @@ describe("同期の読み取りの鍵の選び方", () => {
     const [result] = await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: ENV });
     expect(result.ok).toBe(true);
     expect(dataCalls(calls).every((c) => c.auth === `Bearer ${USER_TOKEN}`)).toBe(true);
+  });
+
+  it("自動で足した新しいリポジトリ：App が「選んだリポジトリだけ」に入っていて入っていない（404）ときも、ログインした人のトークンで読めて、Webhook ではなく今までどおりの間隔で取り直す", async () => {
+    const { fetcher, calls } = fakeGitHub({ installation: "none" });
+    const [result] = await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: ENV });
+    expect(result.ok).toBe(true);
+    expect(result.readSource).toBe("user");
+    // App の鍵は取りに行かない
+    expect(calls.some((c) => c.path.endsWith("access_tokens"))).toBe(false);
+    expect(dataCalls(calls).every((c) => c.auth === `Bearer ${USER_TOKEN}`)).toBe(true);
+    // Webhook の見張りには入れず、今までどおりの間隔（20〜30秒）で取り直す
+    expect(getChangeWatchPlan([result], true)).toEqual({ changeRepos: [], appliedMarks: {}, needsIntervalRefresh: true });
   });
 
   it("インストールを調べる通信が失敗しても、落ちずにログインした人のトークンで読む", async () => {

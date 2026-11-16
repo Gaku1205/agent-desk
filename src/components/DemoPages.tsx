@@ -1,6 +1,8 @@
 "use client";
 
-import { DEMO_BASE_PATH, DEMO_REPO_OPTIONS, DEMO_REPOS, DEMO_TEMPLATE_REPO } from "@/lib/demo/data";
+import { notFound } from "next/navigation";
+import { findWatchedRepo, type WatchedRepo } from "@/lib/config";
+import { DEMO_BASE_PATH, DEMO_REPO_OPTIONS, DEMO_TEMPLATE_REPO } from "@/lib/demo/data";
 import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
 import { parseNotifyEvents } from "@/lib/notifyEvents";
@@ -11,19 +13,16 @@ import { Desk, type DeskNav } from "./Desk";
 import { NewIssueForm } from "./NewIssueForm";
 import { SettingsSections } from "./SettingsSections";
 
-const DEMO_REPO_NAMES = DEMO_REPOS.map(({ owner, repo }) => `${owner}/${repo}`);
-
 /** Issueを書く欄のリポジトリ（landing-page はテンプレートの見本） */
-const DEMO_NEW_ISSUE_REPOS = DEMO_REPOS.map(({ owner, repo }) => ({
-  name: `${owner}/${repo}`,
-  template: repo === DEMO_TEMPLATE_REPO,
-}));
+function newIssueRepos(repos: WatchedRepo[]) {
+  return repos.map(({ owner, repo }) => ({ name: `${owner}/${repo}`, template: repo === DEMO_TEMPLATE_REPO }));
+}
 
 /** PCの3ペインの左の一覧（上端の帯と同じ数） */
 function useDemoNav(): DeskNav {
-  const { results, items, now } = useDemoState();
+  const { results, items, now, repos } = useDemoState();
   return {
-    repos: DEMO_REPOS,
+    repos,
     counts: countTurnItems(items),
     runningCounts: countRunningPipelineRows(results, now),
     basePath: DEMO_BASE_PATH,
@@ -32,7 +31,7 @@ function useDemoNav(): DeskNav {
 
 /** デモのホーム：本物のホームと同じ部品に、サンプルのデータを渡す */
 export function DemoHome() {
-  const { results, items, now } = useDemoState();
+  const { results, items, now, repos, addedNotices } = useDemoState();
   const nav = useDemoNav();
 
   return (
@@ -40,19 +39,22 @@ export function DemoHome() {
       items={items}
       messages={buildConversation(results, buildTrailEvents(results, now), now)}
       now={now.toISOString()}
-      scope={{ kind: "all", repoCount: DEMO_REPOS.length }}
+      scope={{ kind: "all", repoCount: repos.length }}
       errors={[]}
       notices={[]}
+      addedNotices={addedNotices}
       nav={nav}
-      newIssueRepos={DEMO_NEW_ISSUE_REPOS}
+      newIssueRepos={newIssueRepos(repos)}
     />
   );
 }
 
 /** デモのリポジトリのページ */
 export function DemoRepo({ owner, repo }: { owner: string; repo: string }) {
-  const { results, items, now } = useDemoState();
+  const { results, items, now, repos, addedNotices } = useDemoState();
   const nav = useDemoNav();
+  // 自動で足すリポジトリ（morning-card）は、足すまでは見つからない
+  if (!findWatchedRepo(owner, repo, repos)) notFound();
 
   return (
     <Desk
@@ -62,36 +64,43 @@ export function DemoRepo({ owner, repo }: { owner: string; repo: string }) {
       scope={{ kind: "repo", owner, repo, githubUrl: null }}
       errors={[]}
       notices={[]}
+      addedNotices={addedNotices.filter((notice) => notice.owner === owner && notice.repo === repo)}
       nav={nav}
-      newIssueRepos={DEMO_NEW_ISSUE_REPOS}
+      newIssueRepos={newIssueRepos(repos)}
     />
   );
 }
 
 /** デモのIssueを書く画面：GitHub には送らず、サンプルのデータにIssueが増える（landing-page はテンプレートの見本） */
 export function DemoNewIssue() {
-  return (
-    <NewIssueForm repos={DEMO_NEW_ISSUE_REPOS} />
-  );
+  const { repos } = useDemoState();
+  return <NewIssueForm repos={newIssueRepos(repos)} />;
 }
 
 /** デモの新しいサービスを作る画面：送り先はテンプレートの見本（landing-page）だけ */
 export function DemoNewService() {
-  return <NewIssueForm mode="service" repos={DEMO_NEW_ISSUE_REPOS.filter((repo) => repo.template)} />;
+  const { repos } = useDemoState();
+  return <NewIssueForm mode="service" repos={newIssueRepos(repos).filter((repo) => repo.template)} />;
 }
 
-/** デモの設定：保存を押しても書き込まない（アニメーションだけは、このブラウザに本当に保存する） */
+/**
+ * デモの設定：保存を押しても書き込まない（アニメーションだけは、このブラウザに本当に保存する）。
+ * 「新しいサービスを自動で追加」は、サンプルの動き（工場が作ったリポジトリを足すか）だけを変える
+ */
 export function DemoSettings() {
+  const { repos, autoAdd } = useDemoState();
+  const names = repos.map(({ owner, repo }) => `${owner}/${repo}`);
   return (
     <SettingsSections
-      repoRows={DEMO_REPO_NAMES.map((name) => ({ name, pipeline: true }))}
+      repoRows={names.map((name) => ({ name, pipeline: true }))}
       repoOptions={DEMO_REPO_OPTIONS}
       editable
-      notifyRows={DEMO_REPO_NAMES.map((name) => ({
+      notifyRows={names.map((name) => ({
         name,
         pipeline: true,
         events: parseNotifyEvents(null),
       }))}
+      autoAdd={autoAdd}
     />
   );
 }

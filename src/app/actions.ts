@@ -2,7 +2,8 @@
 
 import { refresh } from "next/cache";
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
-import { getAllowedLogins } from "@/lib/config";
+import { getAllowedLogins, getSettingsRepo } from "@/lib/config";
+import { requestAutoAddCheck } from "@/lib/github/autoAdd";
 import { GitHubClient } from "@/lib/github/client";
 import { fetchRepoData } from "@/lib/github/fetch";
 import { invalidateRepoNow } from "@/lib/github/repoCache";
@@ -104,6 +105,8 @@ export async function loadStepLog(owner: string, repo: string, number: number): 
 export async function syncNow(): Promise<void> {
   if (await getSignedInLogin()) {
     for (const repo of (await loadWatchedRepos()).repos) invalidateRepoNow(repo);
+    // 工場が作った新しいリポジトリを、次の同期で探す（前に調べてから5分たっていなければ、たった後で）
+    requestAutoAddCheck(getSettingsRepo());
   }
   refresh();
 }

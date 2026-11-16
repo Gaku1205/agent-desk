@@ -47,6 +47,16 @@ export async function writeVariable(
   }
 }
 
+/** Variable を消す。もう無ければ（404）何もしない */
+export async function deleteVariable(client: GitHubClient, target: WatchedRepo, name: string): Promise<void> {
+  try {
+    await client.send("DELETE", `${repoPath(target)}/actions/variables/${encodeURIComponent(name)}`);
+  } catch (error) {
+    if (error instanceof GitHubError && error.status === 404) return;
+    throw error;
+  }
+}
+
 /** ログイン中のユーザーが読めるリポジトリの `owner/repo`（最近pushされた順） */
 export async function listReadableRepos(client: GitHubClient): Promise<string[]> {
   const repos = await client.getAll<{ full_name?: unknown }>("/user/repos?per_page=100&sort=pushed");

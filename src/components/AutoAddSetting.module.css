@@ -1,0 +1,20 @@
+/* 「新しいサービスを自動で追加」：リポジトリを保存の下24px。ランプ＋字と補足を横に（入らなければ折り返す） */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+  margin-top: 24px;
+}
+
+/* ランプ＋字の押せる物だけ、左の余白8pxの分だけ左へずらす（折り返した補足は列の左端にそろう） */
+.row > label {
+  margin-left: -8px;
+}
+
+.hint {
+  color: var(--mute);
+  font-size: 12px;
+  word-break: auto-phrase;
+  text-wrap: pretty;
+}

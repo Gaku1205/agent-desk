@@ -6,7 +6,7 @@ import { countPipelineWork, buildPipelineRows } from "../pipeline";
 import { getIssueStatus, shouldShowIssue, type IssueStatus, type Stage } from "../status";
 import { countRunningPipelineRows } from "../runningPipeline";
 import { buildTurnItems, countTurnItems } from "../turn";
-import { buildDemoResults, DEMO_REPOS } from "./data";
+import { buildDemoResults, DEMO_AUTO_ADD_REPO, DEMO_REPOS, demoAutoAdd, demoAutoAddResult } from "./data";
 import { getDemoNow } from "./now";
 import { advancePlayback, isPlaybackDone, startPlayback } from "./playback";
 
@@ -129,6 +129,40 @@ describe("デモのサンプル", () => {
     );
     // 「今」が違っても、段階は同じ
     expect(statuses(later).map((s) => s.stage)).toEqual(statuses().map((s) => s.stage));
+  });
+});
+
+describe("デモの自動追加", () => {
+  /** 工場の相談で「作る」を押して、「新サービス：」の Issue が閉じた形 */
+  function closedFactory(): ReturnType<typeof buildDemoResults> {
+    return buildDemoResults(NOW, startPlayback(NOW)).map((result) =>
+      result.ok && result.repo === "landing-page"
+        ? {
+            ...result,
+            data: {
+              ...result.data,
+              issues: result.data.issues.map((issue) =>
+                issue.number === 19 ? { ...issue, state: "closed" as const, closedAt: NOW.toISOString() } : issue,
+              ),
+            },
+          }
+        : result,
+    );
+  }
+
+  it("工場の Issue が開いている間は足さない", () => {
+    expect(demoAutoAdd(buildDemoResults(NOW, startPlayback(NOW)), true)).toBeNull();
+  });
+
+  it("閉じたら、テンプレートから作られた morning-card を足す（オフなら足さない）", () => {
+    expect(demoAutoAdd(closedFactory(), true)).toEqual({ repo: DEMO_AUTO_ADD_REPO, at: NOW.toISOString() });
+    expect(demoAutoAdd(closedFactory(), false)).toBeNull();
+  });
+
+  it("足したリポジトリは取れていて、動いている作業がある", () => {
+    const result = demoAutoAddResult(NOW.toISOString());
+    expect(result.ok).toBe(true);
+    expect(countRunningPipelineRows([result], NOW).total).toBeGreaterThan(0);
   });
 });
 

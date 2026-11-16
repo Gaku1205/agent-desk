@@ -21,7 +21,7 @@ export default async function RepoPage({
   const watched = findWatchedRepo(owner, repo, repos);
   if (!watched) notFound();
 
-  const { results, items, now } = await loadTurns();
+  const { results, items, now, addedNotices } = await loadTurns();
   const same = (o: string, r: string) =>
     o.toLowerCase() === watched.owner.toLowerCase() && r.toLowerCase() === watched.repo.toLowerCase();
 
@@ -42,6 +42,7 @@ export default async function RepoPage({
           : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }],
       )}
       notices={buildWatchdogNotices(results, now).filter((notice) => same(notice.owner, notice.repo))}
+      addedNotices={addedNotices.filter((notice) => same(notice.owner, notice.repo))}
       nav={{ repos, counts: countTurnItems(items), runningCounts: countRunningPipelineRows(results, now) }}
       newIssueRepos={newIssueRepos(repos, results)}
       loadStepLog={loadStepLog}

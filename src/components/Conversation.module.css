@@ -55,6 +55,16 @@
   color: var(--fail-soft);
 }
 
+.notices li[data-tone="info"] {
+  color: var(--bone-2);
+}
+
+.noticeTime {
+  color: var(--mute);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .empty {
   color: var(--mute);
   font-size: 15px;

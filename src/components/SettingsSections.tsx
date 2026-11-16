@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AutoAddSetting } from "./AutoAddSetting";
 import { ActivityIcon, BellIcon, RepoIcon, SunIcon } from "./icons";
 import { MotionSetting } from "./MotionSetting";
 import { Sheet } from "./Sheet";
@@ -18,10 +19,12 @@ type Props = {
   /** 追加の欄の一覧が取れなかったときの理由。取れたときは無し */
   repoOptionsError?: string | null;
   notifyRows: NotifyRepoRow[];
+  /** 「新しいサービスを自動で追加」がオンか。変えられない（保存先が無い）ときは null で、出さない */
+  autoAdd?: boolean | null;
 };
 
 /** 設定画面の中身：監視するリポジトリ・通知・アニメーション（本物とデモで同じ物） */
-export function SettingsSections({ repoRows, repoOptions, editable, repoOptionsError, notifyRows }: Props) {
+export function SettingsSections({ repoRows, repoOptions, editable, repoOptionsError, notifyRows, autoAdd = null }: Props) {
   // 「外す」を押したリポジトリ。保存前でも、通知の表からその列を消す
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
   const shownNotifyRows = notifyRows.filter((row) => !removed.has(row.name));
@@ -49,6 +52,7 @@ export function SettingsSections({ repoRows, repoOptions, editable, repoOptionsE
               optionsError={repoOptionsError}
               onListChange={handleListChange}
             />
+            {autoAdd !== null && <AutoAddSetting initialEnabled={autoAdd} />}
           </section>
           <section className={`${styles.section} ${styles.notify}`} aria-labelledby="settings-notify">
             <h2 id="settings-notify" className={styles.title}>

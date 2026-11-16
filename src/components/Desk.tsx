@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { addedNoticeText, type AddedNotice } from "@/lib/autoAdd";
 import type { ChatMessage } from "@/lib/conversation";
 import { applyStepLog } from "@/lib/flow";
 import { pickFlowTarget, toggleFlowSelection } from "@/lib/flowTarget";
@@ -32,6 +33,8 @@ type Props = {
   errors: DeskError[];
   /** 見張り役が止まっているリポジトリ */
   notices: WatchdogNotice[];
+  /** 自動で監視に足したリポジトリ（足してから24時間） */
+  addedNotices?: AddedNotice[];
   /** PCの3ペインの左：リポジトリの一覧 */
   nav: DeskNav;
   /** PCの3ペインの中央の下：Issueを追加する入力欄のリポジトリ */
@@ -61,7 +64,18 @@ function firstControl(row: Element | null | undefined): HTMLElement | null {
  * ホームとリポジトリのページの中身：1本の列に、上に「あなたの番」の1件、下に「いまの様子」（会話）。
  * 本物もデモも同じ物（docs/design.md の「構図」）
  */
-export function Desk({ items, messages, now, scope, errors, notices, nav, newIssueRepos, loadStepLog }: Props) {
+export function Desk({
+  items,
+  messages,
+  now,
+  scope,
+  errors,
+  notices,
+  addedNotices = [],
+  nav,
+  newIssueRepos,
+  loadStepLog,
+}: Props) {
   const rowsRef = useRef<HTMLDivElement>(null);
   // 操作が通って片づけた1件。取り直しを待たずに次の1件に替え、件数を減らす（取り直しで消えたら自然に数えなくなる）
   const [leaving, setLeaving] = useState<ReadonlySet<string>>(() => new Set());
@@ -101,6 +115,12 @@ export function Desk({ items, messages, now, scope, errors, notices, nav, newIss
       text: `${scope.kind === "all" ? `${notice.repo}　` : ""}見張り役が ${notice.hours} 時間動いていません。Actions が止まっていないか確認してください`,
     })),
     ...errors.map((error) => ({ key: `error:${error.repo}`, tone: "fail" as const, text: `${error.repo}：${error.message}` })),
+    ...addedNotices.map((notice) => ({
+      key: `added:${notice.owner}/${notice.repo}`,
+      tone: "info" as const,
+      text: addedNoticeText(notice),
+      at: notice.at,
+    })),
   ];
 
   const showRepo = scope.kind === "all" && scope.repoCount > 1;
