@@ -18,6 +18,7 @@ import {
   convertRepoNodes,
   convertStatuses,
   mainDeployedFrom,
+  mergeMainDeployed,
   readRepoResponse,
   REPO_QUERY,
 } from "./graphql";
@@ -354,6 +355,25 @@ describe("mainDeployedFrom（main の最後に公開が成功した時刻）", (
     ]);
     expect(found.byContext).toEqual({ "deploy/expo": "2026-10-21T05:00:00Z", Vercel: "2026-10-21T01:00:00Z" });
     expect(mainDeployedFrom([[pending]])).toEqual({ at: null, byContext: {} });
+  });
+
+  it("11件目より古い成功でも見つかる。30件より先は見ない", () => {
+    const empty = (n: number) => Array.from({ length: n }, () => []);
+    const ok = [success("2026-10-21T01:00:00Z")];
+    expect(mainDeployedFrom([...empty(20), ok]).at).toBe("2026-10-21T01:00:00Z");
+    expect(mainDeployedFrom([...empty(30), ok]).at).toBeNull();
+  });
+
+  it("mergeMainDeployed：context ごとに新しい方を取り、at は合わせた最新。前回だけの context も残す", () => {
+    const merged = mergeMainDeployed(
+      { at: "2026-10-20T00:00:00Z", byContext: { Vercel: "2026-10-20T00:00:00Z", "deploy/a": "2026-10-10T00:00:00Z" } },
+      { at: "2026-10-18T00:00:00Z", byContext: { Vercel: "2026-10-18T00:00:00Z", "deploy/a": "2026-10-18T00:00:00Z" } },
+    );
+    expect(merged).toEqual({
+      at: "2026-10-20T00:00:00Z",
+      byContext: { Vercel: "2026-10-20T00:00:00Z", "deploy/a": "2026-10-18T00:00:00Z" },
+    });
+    expect(mergeMainDeployed(undefined, { at: null, byContext: {} })).toEqual({ at: null, byContext: {} });
   });
 });
 

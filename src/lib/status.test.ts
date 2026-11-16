@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CheckRunData, CommentData, IssueData, PullChecks, PullData } from "./github/types";
 import { encodeFactoryMark } from "./factoryTalk";
+import { mainDeployedFrom, mergeMainDeployed } from "./github/graphql";
 import {
   bodyClosesIssue,
   ciState,
@@ -713,6 +714,14 @@ describe("deployState", () => {
 
   it("マージ後に公開が失敗 → あとの公開が成功 → 公開済み", () => {
     expect(deployState(failed, MERGED, NOW, "2026-10-25T11:58:00Z")).toEqual({ state: "deployed", unknown: false });
+  });
+
+  it("古い失敗でも、context ごとのあとの成功（main の11〜30件目で見つけた物）があれば公開済み", () => {
+    const old = [{ context: "deploy/github-release", state: "failure", description: "", updatedAt: "2026-10-02T00:00:00Z" }];
+    const found = mergeMainDeployed(undefined, mainDeployedFrom([...Array.from({ length: 12 }, () => []), [
+      { context: "deploy/github-release", state: "success", description: "", updatedAt: "2026-10-16T00:00:00Z" },
+    ]]));
+    expect(deployState(old, "2026-10-02T00:00:00Z", NOW, found.byContext)).toEqual({ state: "deployed", unknown: false });
   });
 
   it("あとの公開も失敗（成功が無い）なら「公開に失敗」のまま", () => {

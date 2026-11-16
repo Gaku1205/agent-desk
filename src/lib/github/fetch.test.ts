@@ -7,7 +7,22 @@ import {
 } from "./client";
 import { classifyError, GitHubError } from "./errors";
 import { fakeGitHub, gqlIssue, gqlPull, jsonResponse, type FakeRepo } from "./fakeGitHub";
-import { actionsCacheForTest, fetchAllRepos, mainDeployedCacheForTest } from "./fetch";
+import { actionsCacheForTest, fetchAllRepos, mainDeployedCacheForTest, rememberedMainDeployed } from "./fetch";
+
+describe("rememberedMainDeployed（前回の成功を覚える）", () => {
+  const ok = (at: string) => [{ context: "Vercel", state: "success", description: "", updatedAt: at }];
+  beforeEach(() => mainDeployedCacheForTest.clear());
+
+  it("30件に無くても前回覚えた成功を使い、新しい方を取る", () => {
+    expect(rememberedMainDeployed("k", [ok("2026-10-10T00:00:00Z")]).at).toBe("2026-10-10T00:00:00Z");
+    // 今回は範囲内に成功が無い → 前回の値
+    expect(rememberedMainDeployed("k", [[]]).byContext).toEqual({ Vercel: "2026-10-10T00:00:00Z" });
+    // 今回の方が新しい → 新しい方
+    expect(rememberedMainDeployed("k", [ok("2026-10-12T00:00:00Z")]).at).toBe("2026-10-12T00:00:00Z");
+    // 今回の方が古い → 前回の方
+    expect(rememberedMainDeployed("k", [ok("2026-10-11T00:00:00Z")]).at).toBe("2026-10-12T00:00:00Z");
+  });
+});
 
 const TOKEN = "ghp_secret_token_value";
 const NOW = new Date("2026-10-25T00:00:00Z");

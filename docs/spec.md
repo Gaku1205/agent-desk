@@ -75,8 +75,8 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
 
 「数えられる公開ステータス」：context ごとの最新のうち、「飛ばした物」（Vercel の context で、`description` が「Canceled by Ignored Build Step」の success。`isCountedDeploySuccess`）を除いたもの。飛ばした物の success しか無いコミットは、公開ステータスが無いのと同じ扱い（`deployState` の「公開ステータスがある」判定、出来事の `deployFootprint`、`hasNoDeploys` の「公開ステータスが付いているか」すべて。`src/lib/deployStatus.ts` の `latestCountedPerContext`）。failure・error・pending は今までどおり数える。
 
-「main の最後に公開が成功した時刻」は、main の直近のコミット（新しい順に最大10件）の公開ステータス（`Vercel` で始まる、または `deploy/` で始まるcontext）から、context ごとに、success がある一番新しいコミットの、その success の `updated_at` の最新で決める。一番新しいコミットの公開がまだ途中（pending）でも、1つ前のコミットが success ならその時刻を使うので、マージの直後に解決ずみの古い失敗がよみがえらない。説明（`description`）が「Canceled by Ignored Build Step」（前後の空白を除いた完全一致）の success は、公開を飛ばしたコミット（パイプラインの更新だけのコミット）なので、公開の成功に数えない。これは Vercel の context だけの扱い（`deploy/` の context には適用しない）（`src/lib/status.ts` の `latestSuccessDeployAt`・`latestSuccessDeployByContext`）。新しい順に見て、見えた公開の context が全部、数えられる success を見つけた時点でやめる（Vercel だけのリポジトリは、今までどおり success のある最初のコミットで止まる）。10件のうちに無い context は「無い」。取得の回数は増やさない。
-取得は、同期の GraphQL の問い合わせ（「データの取得」）の中で、`ref(qualifiedName: "refs/heads/main")` の直近10コミット（`history(first: 10)`）の `status { contexts }` を一緒に取る（別の呼び出しは増やさない）。main が取れなかったとき（ブランチが無い・形が違う）は、そのリポジトリで前回うまく取れた値を使い、古い失敗を戻さない（前回の値が無いときだけ null）。前回の値はサーバーのメモリに覚える（キーはトークンのハッシュ＋リポジトリ、件数に上限あり、再起動で消えてよい）。`fetchMainDeployedAt`（`src/lib/github/fetch.ts`）。
+「main の最後に公開が成功した時刻」は、main の直近のコミット（新しい順に最大30件）の公開ステータス（`Vercel` で始まる、または `deploy/` で始まるcontext）から、context ごとに、success がある一番新しいコミットの、その success の `updated_at` の最新で決める。一番新しいコミットの公開がまだ途中（pending）でも、1つ前のコミットが success ならその時刻を使うので、マージの直後に解決ずみの古い失敗がよみがえらない。説明（`description`）が「Canceled by Ignored Build Step」（前後の空白を除いた完全一致）の success は、公開を飛ばしたコミット（パイプラインの更新だけのコミット）なので、公開の成功に数えない。これは Vercel の context だけの扱い（`deploy/` の context には適用しない）（`src/lib/status.ts` の `latestSuccessDeployAt`・`latestSuccessDeployByContext`）。新しい順に見て、見えた公開の context が全部、数えられる success を見つけた時点でやめる（Vercel だけのリポジトリは、今までどおり success のある最初のコミットで止まる）。30件のうちに無い context は、前回見つけた成功があればそれを使い（前回見つけた成功は、context ごとに新しい方を残す。`mergeMainDeployed`）、無ければ「無い」。「main の最後に公開が成功した時刻」の全体の時刻は、合わせた context ごとの時刻の最新にする。取得の回数は増やさない（見る件数が増えるだけ）。
+取得は、同期の GraphQL の問い合わせ（「データの取得」）の中で、`ref(qualifiedName: "refs/heads/main")` の直近30コミット（`history(first: 30)`）の `status { contexts }` を一緒に取る（別の呼び出しは増やさない）。main が取れなかったとき（ブランチが無い・形が違う）は、そのリポジトリで前回うまく取れた値を使い、古い失敗を戻さない（前回の値が無いときだけ null）。前回の値はサーバーのメモリに覚える（キーはトークンのハッシュ＋リポジトリ、件数に上限あり、再起動で消えてよい）。`fetchMainDeployedAt`（`src/lib/github/fetch.ts`）。
 
 一緒に持つ情報（説明文と、今の段階の名前（`src/lib/progress.ts` の `getProgress`）に使う）：
 - 「清書した」：Issueの本文に、企画AIが残す `> 元のメモ：` がある
@@ -481,7 +481,7 @@ CIが失敗したとき、CIの行の下に字下げした枠が開き、中に�
   - `isTemplate`
   - Issue：`issues(first: 100, filterBy: { since: 直近14日の境目 }, orderBy: { field: UPDATED_AT, direction: DESC })` の番号・題名・本文・状態・ラベル・URL・作成・更新・閉じた時刻、コメント（`comments(last: 100)`）、ラベルの付け外し（`timelineItems(last: 50, itemTypes: [LABELED_EVENT, UNLABELED_EVENT])`）
   - PR：`pullRequests(first: 100, orderBy: { field: UPDATED_AT, direction: DESC })` の番号・題名・本文・状態・マージの時刻・ラベル・URL・ブランチ名（`headRefName`）・先頭コミット（`headRefOid`）・作成・更新の時刻、コメント・ラベルの付け外し（Issue と同じ）、先頭コミットのチェック（`commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) } } } }` の CheckRun の名前・状態・結果・作ったアプリ・完了時刻）、マージコミット（`mergeCommit { oid status { contexts } }` の context・状態・説明・リンク先・時刻）
-  - main の直近10コミットの公開ステータス（「main の最後に公開が成功した時刻」）
+  - main の直近30コミットの公開ステータス（「main の最後に公開が成功した時刻」）
   - 回数制限：`rateLimit { cost remaining resetAt }`（「更新」）
 - ページ送り：Issue は `pageInfo` に続きがあれば、PR は続きがあり、かつそのページのいちばん古いPRの更新が直近14日の中なら、続きだけ（`after` に `endCursor`）をもう1回問い合わせる。Issue・PR それぞれ最大5ページ（500件）まで。続きの問い合わせには、main は入れない
 - 取ったあとで直近14日に絞る：Issue と PR は更新時刻、コメントは作成時刻
