@@ -5,6 +5,10 @@
   gap: 4px 12px;
   align-items: center;
   margin-top: 24px;
+}
+
+/* ランプ＋字の押せる物だけ、左の余白8pxの分だけ左へずらす（折り返した補足は列の左端にそろう） */
+.row > label {
   margin-left: -8px;
 }
 
