@@ -97,14 +97,21 @@ describe("queueAfterNumber", () => {
 
 describe("compareMessages", () => {
   const message = (key: string, number: number, latestAt: string | null) => ({ key, number, latestAt }) as ChatMessage;
-  it("新しい出来事が先、出来事が無い物は番号の大きい順で後ろ", () => {
+  it("上が古く下が新しい：出来事が無い物は番号の小さい順でいちばん上、出来事がある物は古い順", () => {
     const list = [
       message("a#1", 1, null),
       message("a#2", 2, "2026-10-26T01:00:00Z"),
       message("a#3", 3, null),
       message("a#4", 4, "2026-10-26T02:00:00Z"),
     ].sort(compareMessages);
-    expect(list.map((m) => m.key)).toEqual(["a#4", "a#2", "a#3", "a#1"]);
+    expect(list.map((m) => m.key)).toEqual(["a#1", "a#3", "a#2", "a#4"]);
+  });
+
+  it("同じ時刻なら、キーの順で安定する", () => {
+    const list = [message("b#1", 1, "2026-10-26T01:00:00Z"), message("a#2", 2, "2026-10-26T01:00:00Z")].sort(
+      compareMessages,
+    );
+    expect(list.map((m) => m.key)).toEqual(["a#2", "b#1"]);
   });
 });
 
@@ -125,9 +132,9 @@ describe("buildConversation（デモのデータ）", () => {
     for (const m of messages) expect(m.deployed).toBe(m.stage === "deployed");
   });
 
-  it("新しい出来事がある物が先に並ぶ", () => {
+  it("新しい出来事がある物が下に並ぶ（上が古い）", () => {
     const withTime = messages.filter((m) => m.latestAt !== null).map((m) => m.latestAt as string);
-    expect(withTime).toEqual([...withTime].sort().reverse());
+    expect(withTime).toEqual([...withTime].sort());
   });
 
   it("ランプ：動いている行は緑、順番待ちは紫の数字（番号順）、止まった実装中は赤、公開済みは無し", () => {

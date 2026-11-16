@@ -54,8 +54,8 @@ describe("pickFlowTarget", () => {
     expect(target?.flow.at).toBe(3);
   });
 
-  it("無ければ、動いている物のうち、いちばん上の1件", () => {
-    const target = pickFlowTarget(null, [message(30, false), message(21, true), message(20, true)], false);
+  it("無ければ、動いている物のうち、いちばん新しい（並びの下の）1件", () => {
+    const target = pickFlowTarget(null, [message(20, true), message(21, true), message(30, false)], false);
     expect(target?.label).toBe("#21");
     expect(target?.flow.steps[2].state).toBe("running");
   });

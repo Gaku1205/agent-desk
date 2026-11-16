@@ -26,7 +26,7 @@ type MessageLike = Pick<ChatMessage, "key" | "owner" | "repo" | "number" | "titl
 /**
  * 進捗図に描く1件（docs/spec.md の「進捗図」）：「いまの様子」で選んだ行（`selected` は `owner/repo#番号`）があれば、その1件。
  * 選んでいない（選んだ行がもう無い）ときは、「あなたの番」に出ている1件。
- * 無ければ、会話の中で動いている物のうち、いちばん上の1件。どれも無ければ null
+ * 無ければ、会話の中で動いている物のうち、いちばん新しい（下の）1件。どれも無ければ null
  */
 export function pickFlowTarget(
   current: (Pick<TurnItem, "owner" | "repo" | "issue" | "status"> & Partial<Pick<TurnItem, "flowFacts">>) | null,
@@ -59,7 +59,8 @@ export function pickFlowTarget(
       ...(current.flowFacts ? { extra: { status: current.status, facts: current.flowFacts } } : {}),
     };
   }
-  const running = messages.find((message) => message.running);
+  // 会話は上が古く下が新しいので、いちばん新しい（下の）動いている1件
+  const running = messages.findLast((message) => message.running);
   return running ? fromMessage(running) : null;
 }
 
