@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { checkPipeline, saveWatchedRepos } from "@/app/(app)/settings/actions";
+import { checkPipeline, saveWatchedRepos, type SaveReposResult } from "@/app/(app)/settings/actions";
+import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
 import { useDemo } from "./DemoContext";
 import { CrossIcon, PlusIcon, RepoIcon, SaveIcon } from "./icons";
 import { Select } from "./Select";
@@ -99,9 +100,12 @@ export function WatchedReposSetting({
     setStatus({ kind: "idle" });
     // デモでは GitHub に問い合わせない
     if (demo) return;
-    void checkPipeline(name).then((pipeline) => {
-      setRows((prev) => prev.map((row) => (row.name === name ? { ...row, pipeline } : row)));
-    });
+    void checkPipeline(name)
+      .then((pipeline) => {
+        setRows((prev) => prev.map((row) => (row.name === name ? { ...row, pipeline } : row)));
+      })
+      // 調べられなかった（呼び出しが届かなかった）ときは、「パイプラインあり／なし」を出さないまま
+      .catch(() => undefined);
   }
 
   function save() {
@@ -112,7 +116,10 @@ export function WatchedReposSetting({
     }
     startSaving(async () => {
       const names = rows.map((row) => row.name);
-      const result = await saveWatchedRepos(names);
+      const result = await callAction<SaveReposResult>(
+        () => saveWatchedRepos(names),
+        () => ({ ok: false, message: ACTION_UNREACHABLE_MESSAGE }),
+      );
       if (result.ok) setSavedNames(names);
       setStatus(result.ok ? { kind: "saved" } : { kind: "error", message: result.message });
     });

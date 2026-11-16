@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import { syncNow } from "@/app/actions";
+import { callAction } from "@/lib/actionCall";
 import {
   parseChangeMarks,
   startChangeWatch,
@@ -132,6 +133,11 @@ export function AppShell({
   const [refreshing, startTransition] = useTransition();
   const [syncedAt, setSyncedAt] = useState(() => new Date(initialSyncedAt));
   const [requestedAt, setRequestedAt] = useState(syncedAt);
+  // 手で押した同期が届かなかったとき、同期の時刻を戻す先（最後に取り直せた時刻）
+  const syncedAtRef = useRef(syncedAt);
+  useEffect(() => {
+    syncedAtRef.current = syncedAt;
+  }, [syncedAt]);
   const [refreshCount, setRefreshCount] = useState({ pathname, count: 0 });
   // `/api/changes` が 404 だった（Webhook を使わない設定）。今までどおりの間隔に戻す
   const [changesUnavailable, setChangesUnavailable] = useState(false);
@@ -156,7 +162,16 @@ export function AppShell({
   const refresh = useCallback(() => {
     setRequestedAt(new Date());
     startTransition(async () => {
-      await syncNow();
+      // 呼び出しが投げても（通信が切れた・古い画面のまま押した）、画面を落とさない。
+      // 取り直せていないので、同期の時刻は進めない（最後に取り直せた時刻のまま）
+      const reached = await callAction(
+        async () => {
+          await syncNow();
+          return true;
+        },
+        () => false,
+      );
+      if (!reached) setRequestedAt(syncedAtRef.current);
     });
   }, []);
 

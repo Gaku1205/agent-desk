@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { saveNotifyEvents } from "@/app/(app)/settings/actions";
+import { saveNotifyEvents, type SaveReposResult } from "@/app/(app)/settings/actions";
+import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
 import { useDemo } from "./DemoContext";
 import { SaveIcon } from "./icons";
 import styles from "./NotifySetting.module.css";
@@ -121,7 +122,10 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
       const done: Record<string, NotifyEvent[]> = {};
       for (const target of targets) {
         const events = NOTIFY_EVENT_KINDS.filter((kind) => target.current.includes(kind));
-        const result = await saveNotifyEvents(target.name, events);
+        const result = await callAction<SaveReposResult>(
+          () => saveNotifyEvents(target.name, events),
+          () => ({ ok: false, message: ACTION_UNREACHABLE_MESSAGE }),
+        );
         if (result.ok) done[target.name] = events;
         else failures.push({ name: target.name, message: result.message });
       }

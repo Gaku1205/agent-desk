@@ -2,6 +2,8 @@
 
 import { useRef, useState, useTransition, type FormEvent } from "react";
 import { createNewIssue } from "@/app/actions";
+import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
+import type { CreateIssueResult } from "@/lib/operations";
 import { checkNewIssueTitle, composeNewIssue, MAX_NEW_ISSUE_TITLE } from "@/lib/newIssue";
 import { useDemo } from "./DemoContext";
 import { FileIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
@@ -72,7 +74,11 @@ export function NewIssueForm({
     }
     setStatus({ kind: "idle" });
     startSaving(async () => {
-      const result = await createNewIssue({ owner, repo, title: checked.title, omakase: template && omakase });
+      // 呼び出しが投げても、画面を落とさず、書いたメモを残して理由を出す
+      const result = await callAction<CreateIssueResult>(
+        () => createNewIssue({ owner, repo, title: checked.title, omakase: template && omakase }),
+        () => ({ ok: false, message: ACTION_UNREACHABLE_MESSAGE }),
+      );
       if (result.ok) {
         setStatus({ kind: "created", number: result.number, url: result.url });
         setTitle("");

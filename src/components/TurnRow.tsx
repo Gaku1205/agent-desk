@@ -2,6 +2,8 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { runOperation } from "@/app/actions";
+import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
+import type { OperationResult } from "@/lib/operations";
 import { nextRowIndex } from "@/lib/focusAfterLeave";
 import { isMergeWeak, mergeResultLines } from "@/lib/mergeLines";
 import { getProgress } from "@/lib/progress";
@@ -154,13 +156,18 @@ export function TurnRow({ item, wait, fresh, onLeave }: Props) {
       return;
     }
     startTransition(async () => {
-      const result = await runOperation({
-        kind,
-        owner,
-        repo,
-        issueNumber: issue.number,
-        ...(kind === "answer" ? { answer: answerBody } : {}),
-      });
+      // 呼び出しが投げても（通信が切れた・古い画面のまま押した）、画面を落とさず、理由をこの行に出す（書きかけの答えを残す）
+      const result = await callAction<OperationResult>(
+        () =>
+          runOperation({
+            kind,
+            owner,
+            repo,
+            issueNumber: issue.number,
+            ...(kind === "answer" ? { answer: answerBody } : {}),
+          }),
+        () => ({ ok: false, changed: false, message: ACTION_UNREACHABLE_MESSAGE }),
+      );
       if (!result.ok && !result.changed) {
         closeConfirm();
         setError(result.message);
