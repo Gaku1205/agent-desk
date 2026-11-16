@@ -108,6 +108,8 @@ export type WorkflowRunData = {
 };
 
 export type RepoData = {
+  /** リポジトリのオーナー（`owner/repo` の `owner`）。「答えた」の判定に使う。無ければ（テストなど）誰も答えていないことにする */
+  owner?: string;
   issues: IssueData[];
   pulls: PullData[];
   comments: CommentData[];

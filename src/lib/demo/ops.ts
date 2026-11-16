@@ -145,7 +145,8 @@ export function applyDemoOp(data: RepoData, op: DemoOp): RepoData {
       next.comments.push({
         id,
         issueNumber: op.number,
-        author: DEMO_ANSWER_AUTHOR,
+        // 答えるのはオーナー（本物と同じく、オーナーのコメントだけが「答えた」になる）
+        author: data.owner ?? DEMO_ANSWER_AUTHOR,
         body: op.answer ?? "",
         createdAt: answerAt,
       });

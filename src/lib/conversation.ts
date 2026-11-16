@@ -208,7 +208,7 @@ export function buildConversation(
         deployed: row.status.stage === "deployed",
         running: isRunningStage(row.status.stage, row.status.grace),
         flow: getFlow(row.status),
-        flowExtra: { status: row.status, facts: flowFacts(issue, row.status, result.data.comments) },
+        flowExtra: { status: row.status, facts: flowFacts(issue, row.status, result.data.comments, result.owner) },
         lamp: { kind: "none" },
       });
     }

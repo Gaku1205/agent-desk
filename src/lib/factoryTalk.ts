@@ -1,5 +1,5 @@
 import type { CommentData } from "./github/types";
-import { isSafeImageUrl, type QuestionItem } from "./question";
+import { isOwnerAuthor, isSafeImageUrl, type QuestionItem } from "./question";
 
 /**
  * 工場の相談（`factory:wait`）のコメントを読む・答えを組み立てる純粋関数（docs/spec.md の「工場の相談」）。
@@ -142,16 +142,16 @@ export function latestFactoryComment(comments: CommentData[], issueNumber: numbe
 }
 
 /**
- * いちばん新しい工場の相談のあとに、人がコメントで答えたか。
+ * いちばん新しい工場の相談のあとに、オーナーがコメントで答えたか。
  * 工場の相談のコメントが無いときは false（答えを待っている）
  */
-export function isFactoryAnswered(comments: CommentData[], issueNumber: number): boolean {
+export function isFactoryAnswered(comments: CommentData[], issueNumber: number, owner: string): boolean {
   const talk = latestFactoryComment(comments, issueNumber);
   if (!talk) return false;
   return comments.some(
     (comment) =>
       comment.issueNumber === issueNumber &&
-      !comment.author.endsWith("[bot]") &&
+      isOwnerAuthor(comment.author, owner) &&
       comment.createdAt > talk.createdAt,
   );
 }

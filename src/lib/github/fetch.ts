@@ -48,6 +48,7 @@ export async function fetchRepoData(
   const mainDeployed = rememberedMainDeployed(client.memoKey(base), nodes.mainCommits);
 
   const data: RepoData = {
+    owner,
     ...convertRepoNodes(nodes.issues, nodes.pulls, cutoffMs, nodes.waiting),
     pipeline: actions.pipeline,
     mainDeployedAt: mainDeployed.at,
