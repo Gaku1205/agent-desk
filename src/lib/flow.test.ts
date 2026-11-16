@@ -139,6 +139,19 @@ describe("isSolidLink", () => {
   });
 });
 
+describe("getFlow の分岐", () => {
+  it("CI失敗で分岐が付く。CIが失敗していなければ付かない", () => {
+    expect(getFlow(status({ stage: "ciFailed" })).branch).toMatchObject({ n: 1, branch: "active" });
+    expect(getFlow(status({ stage: "ciRunning" })).branch).toBeNull();
+    expect(getFlow(status({ stage: "deployed" })).branch).toBeNull();
+  });
+
+  it("修正して通ったら、通らなかった枝になる", () => {
+    const flow = getFlow(status({ stage: "mergeWaiting", mergeWait: "autoMerge", fixCount: 2 }));
+    expect(flow.branch).toMatchObject({ n: 2, branch: "notTaken" });
+  });
+});
+
 describe("flowStepLabel", () => {
   it("工程名・状態・モデル名を文字で言う", () => {
     expect(flowStepLabel({ name: "企画", state: "done", model: "不明" })).toBe("企画　成功　モデル 不明");

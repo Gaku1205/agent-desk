@@ -1,11 +1,16 @@
 import { Fragment } from "react";
 import { isExternalUrl } from "@/lib/externalUrl";
-import { flowStepLabel, isSolidLink, type FlowStep } from "@/lib/flow";
+import { FLOW_STATE_LABEL, flowStepLabel, isSolidLink, type Flow, type FlowStep } from "@/lib/flow";
+import { fixLabel } from "@/lib/flowBranch";
 import type { FlowTargetData as FlowTarget } from "@/lib/flowTarget";
 import { CheckIcon, CrossIcon, FlowStepIcon, SpinnerIcon } from "./icons";
 import styles from "./FlowMap.module.css";
 
-function StateMark({ step }: { step: FlowStep }) {
+/** ブロックの幅と線の長さ（FlowMap.module.css の .step・.line と同じ） */
+const STEP_WIDTH = 144;
+const LINK_WIDTH = 20;
+
+function StateMark({ step }: { step: Pick<FlowStep, "state"> }) {
   return (
     <span className={styles.mark} data-state={step.state} aria-hidden="true">
       {step.state === "done" ? (
@@ -23,8 +28,47 @@ function StateMark({ step }: { step: FlowStep }) {
   );
 }
 
+/** CI失敗時の分岐：CIブロックの下に開く点線の枠。中に「修正 n回目 / 3」、CIへ戻る線（docs/design.md の「CI失敗時の分岐」） */
+function Branch({ flow }: { flow: Flow }) {
+  const branch = flow.branch;
+  if (!branch) return null;
+  const fix = flow.steps.find((step) => step.key === "fix");
+  const ciIndex = flow.steps.findIndex((step) => step.key === "ci");
+  const notTaken = branch.branch === "notTaken";
+  const label = fixLabel(branch.n);
+  return (
+    <div
+      className={styles.branch}
+      data-branch={branch.branch}
+      style={{ marginLeft: ciIndex * (STEP_WIDTH + LINK_WIDTH) }}
+      role="group"
+      aria-label={`CI失敗時の修正${notTaken ? "（通らなかった枝）" : ""}`}
+    >
+      {branch.returnLine && <span className={styles.back} aria-hidden="true" />}
+      <div className={styles.frame}>
+        <div
+          className={styles.step}
+          data-state={branch.fixState}
+          role="img"
+          aria-label={`${label}　${FLOW_STATE_LABEL[branch.fixState]}　モデル ${fix?.model ?? ""}`}
+        >
+          <span className={styles.icon}>
+            <FlowStepIcon step="fix" />
+          </span>
+          <span className={styles.text} aria-hidden="true">
+            <span className={styles.name}>{label}</span>
+            <span className={styles.model}>{fix?.model}</span>
+          </span>
+          <StateMark step={{ state: branch.fixState }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Steps({ target }: { target: FlowTarget }) {
   return (
+    <>
     <ol className={styles.steps} aria-label={`進捗図：${target.label}`}>
       {target.flow.steps.map((step, index) => (
         <Fragment key={step.key}>
@@ -54,6 +98,8 @@ function Steps({ target }: { target: FlowTarget }) {
         </Fragment>
       ))}
     </ol>
+    <Branch flow={target.flow} />
+    </>
   );
 }
 
