@@ -6,6 +6,8 @@ import { getAllowedLogins } from "@/lib/config";
 import { GitHubClient } from "@/lib/github/client";
 import { fetchRepoData } from "@/lib/github/fetch";
 import { invalidateRepoNow } from "@/lib/github/repoCache";
+import { fetchStepLogBody } from "@/lib/github/stepLog";
+import { parseStepLog, type StepInfo } from "@/lib/stepLog";
 import {
   authorizeOperation,
   executeCreateIssue,
@@ -73,6 +75,29 @@ export async function createNewIssue(value: unknown): Promise<CreateIssueResult>
     refresh();
   }
   return result;
+}
+
+/**
+ * 進捗図の「モデル名と所要時間」。Issue の進捗ログのコメントを読む。
+ * ログイン中で許可リストのユーザー、監視リポジトリだけ。取れなかったとき・記録が無いときは空（記録が無い扱い）
+ */
+export async function loadStepLog(owner: string, repo: string, number: number): Promise<StepInfo[]> {
+  if (typeof owner !== "string" || typeof repo !== "string" || !Number.isInteger(number) || number <= 0) return [];
+  const auth = authorizeOperation({
+    login: await getSignedInLogin(),
+    token: await getGitHubToken(),
+    allowedLogins: getAllowedLogins(),
+    watched: (await loadWatchedRepos()).repos,
+    owner,
+    repo,
+  });
+  if (!auth.ok) return [];
+  try {
+    const body = await fetchStepLogBody(new GitHubClient(auth.token), auth.target, number);
+    return body ? parseStepLog(body, new Date()) : [];
+  } catch {
+    return [];
+  }
 }
 
 /** 手で押す「同期」。監視リポジトリのキャッシュを無視して、すぐ取り直す */

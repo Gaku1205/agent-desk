@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@/lib/conversation";
+import { applyStepLog } from "@/lib/flow";
 import { pickFlowTarget } from "@/lib/flowTarget";
+import type { StepInfo } from "@/lib/stepLog";
 import { formatWait, turnItemKey, type TurnCounts, type TurnItem } from "@/lib/turn";
 import type { WatchdogNotice } from "@/lib/watchdogState";
 import { Conversation, type ConversationNotice } from "./Conversation";
@@ -32,6 +34,8 @@ type Props = {
   nav: DeskNav;
   /** PCの3ペインの中央の下：Issueを追加する入力欄のリポジトリ */
   newIssueRepos: NewIssueRepo[];
+  /** 進捗図の「モデル名と所要時間」を読む（サーバーの処理）。デモは渡さない（記録が無い扱い） */
+  loadStepLog?: (owner: string, repo: string, number: number) => Promise<StepInfo[]>;
 };
 
 export type DeskNav = {
@@ -55,7 +59,7 @@ function firstControl(row: Element | null | undefined): HTMLElement | null {
  * ホームとリポジトリのページの中身：1本の列に、上に「あなたの番」の1件、下に「いまの様子」（会話）。
  * 本物もデモも同じ物（docs/design.md の「構図」）
  */
-export function Desk({ items, messages, now, scope, errors, notices, nav, newIssueRepos }: Props) {
+export function Desk({ items, messages, now, scope, errors, notices, nav, newIssueRepos, loadStepLog }: Props) {
   const rowsRef = useRef<HTMLDivElement>(null);
   // 操作が通って片づけた1件。取り直しを待たずに次の1件に替え、件数を減らす（取り直しで消えたら自然に数えなくなる）
   const [leaving, setLeaving] = useState<ReadonlySet<string>>(() => new Set());
@@ -98,7 +102,30 @@ export function Desk({ items, messages, now, scope, errors, notices, nav, newIss
   ];
 
   const showRepo = scope.kind === "all" && scope.repoCount > 1;
-  const flowTarget = pickFlowTarget(current, messages, showRepo);
+  const pickedTarget = pickFlowTarget(current, messages, showRepo);
+  const targetKey = pickedTarget ? `${pickedTarget.owner}/${pickedTarget.repo}#${pickedTarget.number}` : null;
+  // 進捗ログ（モデル名と所要時間）。取れるまで・取れないときは「不明」のまま。データを取り直したら読み直す
+  const [stepLog, setStepLog] = useState<{ key: string; infos: StepInfo[] } | null>(null);
+  useEffect(() => {
+    if (!loadStepLog || !pickedTarget || targetKey === null) return;
+    let cancelled = false;
+    loadStepLog(pickedTarget.owner, pickedTarget.repo, pickedTarget.number)
+      .then((infos) => {
+        if (!cancelled) setStepLog({ key: targetKey, infos });
+      })
+      .catch(() => {
+        if (!cancelled) setStepLog(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // pickedTarget は毎回作り直されるので、中身を表す targetKey と now で見る
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadStepLog, targetKey, now]);
+  const flowTarget =
+    pickedTarget && stepLog?.key === targetKey
+      ? { ...pickedTarget, flow: applyStepLog(pickedTarget.flow, stepLog.infos) }
+      : pickedTarget;
 
   const column = (
     <main className={styles.desk} id="main">

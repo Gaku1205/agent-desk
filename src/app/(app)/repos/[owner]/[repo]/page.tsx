@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { loadStepLog } from "@/app/actions";
 import { Desk } from "@/components/Desk";
 import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
@@ -43,6 +44,7 @@ export default async function RepoPage({
       notices={buildWatchdogNotices(results, now).filter((notice) => same(notice.owner, notice.repo))}
       nav={{ repos, counts: countTurnItems(items), runningCounts: countRunningPipelineRows(results, now) }}
       newIssueRepos={newIssueRepos(repos, results)}
+      loadStepLog={loadStepLog}
     />
   );
 }

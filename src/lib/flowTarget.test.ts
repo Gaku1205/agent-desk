@@ -27,6 +27,7 @@ function status(overrides: Partial<IssueStatus>): IssueStatus {
 }
 
 const message = (number: number, running: boolean) => ({
+  owner: "demo",
   repo: "todo-app",
   number,
   title: `題名${number}`,
@@ -39,6 +40,7 @@ describe("pickFlowTarget", () => {
   it("あなたの番の1件があれば、それを描く", () => {
     const target = pickFlowTarget(
       {
+        owner: "demo",
         repo: "todo-app",
         issue: { number: 23, title: "通知の音", url: "https://github.com/demo/todo-app/issues/23" },
         status: status({ stage: "stuck", stageBeforeStuck: "ciFailed" }),

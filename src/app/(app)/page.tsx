@@ -1,3 +1,4 @@
+import { loadStepLog } from "@/app/actions";
 import { Desk } from "@/components/Desk";
 import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
@@ -22,6 +23,7 @@ export default async function Home() {
       notices={buildWatchdogNotices(results, now)}
       nav={{ repos, counts: countTurnItems(items), runningCounts: countRunningPipelineRows(results, now) }}
       newIssueRepos={newIssueRepos(repos, results)}
+      loadStepLog={loadStepLog}
     />
   );
 }

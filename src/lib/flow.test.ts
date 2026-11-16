@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FLOW_STEPS, flowStepLabel, getFlow, isSolidLink, type FlowState } from "./flow";
+import { applyStepLog, FLOW_STEPS, flowStepLabel, getFlow, isSolidLink, type FlowState } from "./flow";
 import type { IssueStatus } from "./status";
 
 function status(overrides: Partial<IssueStatus>): IssueStatus {
@@ -155,5 +155,29 @@ describe("getFlow の分岐", () => {
 describe("flowStepLabel", () => {
   it("工程名・状態・モデル名を文字で言う", () => {
     expect(flowStepLabel({ name: "企画", state: "done", model: "不明" })).toBe("企画　成功　モデル 不明");
+  });
+  it("所要時間があれば足す", () => {
+    expect(flowStepLabel({ name: "実装", state: "done", model: "opus", duration: "3分12秒" })).toBe(
+      "実装　成功　モデル opus　所要時間 3分12秒",
+    );
+  });
+});
+
+describe("applyStepLog", () => {
+  const base = () => getFlow(status({ stage: "ciRunning" }));
+  it("記録のある工程にモデル名と所要時間を渡す。null のモデルは不明", () => {
+    const flow = applyStepLog(base(), [
+      { key: "implement", model: "opus", duration: "3分12秒" },
+      { key: "ci", model: null, duration: "45秒" },
+    ]);
+    const get = (key: string) => flow.steps.find((step) => step.key === key);
+    expect(get("implement")).toMatchObject({ model: "opus", duration: "3分12秒" });
+    expect(get("ci")).toMatchObject({ model: "不明", duration: "45秒" });
+    expect(get("plan")).toMatchObject({ model: "不明", duration: null });
+  });
+  it("記録が無ければそのまま", () => {
+    const flow = base();
+    expect(applyStepLog(flow, [])).toBe(flow);
+    expect(flow.steps.every((step) => step.model === "不明" && step.duration === null)).toBe(true);
   });
 });
