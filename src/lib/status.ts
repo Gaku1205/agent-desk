@@ -117,6 +117,8 @@ export const LABEL = {
   stuck: "ai:stuck",
   retry: "ai:retry",
   question: "ai:question",
+  /** 作る前に、画面案のAI（claude-mocks.yml）がざっくり画面を作っている（企画の一部。AIの番） */
+  mocks: "ai:mocks",
   /** 工場（テンプレートの factory-talk.yml）がオーナーの返事を待っている */
   factoryWait: "factory:wait",
 } as const;
@@ -596,13 +598,16 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
 
   const graceApplies = input.pipeline === "running";
   const implement = lastImplementComment(input.comments, issue.number);
-  // 古い完了コメントが残っていても、パイプラインがやり直しを始めた印（ai:plan・ai:queue・ai:blocked）を先に見る。
+  // 古い完了コメントが残っていても、パイプラインがやり直しを始めた印（ai:plan・ai:mocks・ai:queue・ai:blocked）を先に見る。
   // ai:implement が付いているとき・質問待ち・工場の相談のときは、今までどおり
   const hasImplementLabel = issue.labels.includes(LABEL.implement);
   const waitingForAnswer =
     issue.labels.includes(LABEL.question) || issue.labels.includes(LABEL.factoryWait);
+  // 画面案を作っている間（ai:mocks）も企画のうち。企画AIが ai:plan を外して ai:mocks を付けるので、
+  // 見ないと「未着手」（人間の番）になり、動いている最中に「おまかせ」が出てしまう
+  const planningLabel = issue.labels.includes(LABEL.plan) || issue.labels.includes(LABEL.mocks);
   if (implement && !hasImplementLabel && !waitingForAnswer) {
-    if (issue.labels.includes(LABEL.plan)) return result("planning");
+    if (planningLabel) return result("planning");
     if (issue.labels.includes(LABEL.queue) || issue.labels.includes(LABEL.blocked)) {
       return result("queued");
     }
@@ -625,7 +630,7 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
     // 答えのコメントを送ったら、パイプラインが続きを始めるまで企画中（AIの番）にする
     return result(isQuestionAnswered(input.comments, issue.number) ? "planning" : "question");
   }
-  if (issue.labels.includes(LABEL.plan)) return result("planning");
+  if (planningLabel) return result("planning");
   if (issue.labels.includes(LABEL.queue) || issue.labels.includes(LABEL.blocked)) {
     return result("queued");
   }

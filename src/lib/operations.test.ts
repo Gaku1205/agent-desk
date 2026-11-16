@@ -426,6 +426,14 @@ describe("executeOperation", () => {
     expect(calls).toEqual([]);
   });
 
+  it("画面案を作っている間（ai:mocks）は、おまかせ・実装を依頼を受け付けない", async () => {
+    const { client, calls } = fakeClient();
+    const mocks = data({ issues: [issue({ labels: ["ai:mocks"] })] });
+    expect(await executeOperation(client, TARGET, input("plan"), mocks, NOW)).toEqual({ ok: false, changed: true });
+    expect(await executeOperation(client, TARGET, input("implement"), mocks, NOW)).toEqual({ ok: false, changed: true });
+    expect(calls).toEqual([]);
+  });
+
   it("GitHubが失敗したら、理由を返す（トークンは含めない）", async () => {
     const { client } = fakeClient(() => new Response(`bad ${TOKEN}`, { status: 403 }));
     const result = await executeOperation(client, TARGET, input("plan"), data(), NOW);

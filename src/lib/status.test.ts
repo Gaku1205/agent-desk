@@ -238,6 +238,27 @@ describe("getIssueStatus：表の各段階", () => {
     expect(status.turn).toBe("ai");
   });
 
+  it("企画中：ai:mocks だけ（画面案を作っている間。未着手＝人間の番にしない）", () => {
+    const status = getIssueStatus(issue({ labels: ["ai:mocks"] }), input(), NOW);
+    expect(status.stage).toBe("planning");
+    expect(status.turn).toBe("ai");
+  });
+
+  it("古い完了コメント＋ai:mocks → 企画中", () => {
+    const status = getIssueStatus(issue({ labels: ["ai:mocks"] }), input([], {}, [doneComment]), NOW);
+    expect(status.stage).toBe("planning");
+    expect(status.turn).toBe("ai");
+  });
+
+  it("ai:mocks でも、止まった・やり直し待ちが先（前の段階は企画中）", () => {
+    const stuck = getIssueStatus(issue({ labels: ["ai:mocks", "ai:stuck"] }), input(), NOW);
+    expect(stuck.stage).toBe("stuck");
+    expect(stuck.stageBeforeStuck).toBe("planning");
+    const retrying = getIssueStatus(issue({ labels: ["ai:mocks", "ai:retry"] }), input(), NOW);
+    expect(retrying.stage).toBe("retrying");
+    expect(retrying.stageBeforeRetry).toBe("planning");
+  });
+
   it("順番待ち：ai:queue がある", () => {
     const status = getIssueStatus(issue({ labels: ["ai:queue"] }), input(), NOW);
     expect(status.stage).toBe("queued");
