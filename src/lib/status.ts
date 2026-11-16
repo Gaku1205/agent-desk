@@ -110,6 +110,8 @@ export const LABEL = {
   implement: "ai:implement",
   review: "ai:review",
   queue: "ai:queue",
+  /** ほかのIssue・PRが閉じるのを待っている（順番待ちと同じ扱い） */
+  blocked: "ai:blocked",
   skip: "ai:skip",
   hold: "ai:hold",
   stuck: "ai:stuck",
@@ -594,6 +596,17 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
 
   const graceApplies = input.pipeline === "running";
   const implement = lastImplementComment(input.comments, issue.number);
+  // 古い完了コメントが残っていても、パイプラインがやり直しを始めた印（ai:plan・ai:queue・ai:blocked）を先に見る。
+  // ai:implement が付いているとき・質問待ち・工場の相談のときは、今までどおり
+  const hasImplementLabel = issue.labels.includes(LABEL.implement);
+  const waitingForAnswer =
+    issue.labels.includes(LABEL.question) || issue.labels.includes(LABEL.factoryWait);
+  if (implement && !hasImplementLabel && !waitingForAnswer) {
+    if (issue.labels.includes(LABEL.plan)) return result("planning");
+    if (issue.labels.includes(LABEL.queue) || issue.labels.includes(LABEL.blocked)) {
+      return result("queued");
+    }
+  }
   if (implement) {
     const implementError = isImplementErrorComment(implement);
     const creatingPull =
@@ -613,7 +626,9 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
     return result(isQuestionAnswered(input.comments, issue.number) ? "planning" : "question");
   }
   if (issue.labels.includes(LABEL.plan)) return result("planning");
-  if (issue.labels.includes(LABEL.queue)) return result("queued");
+  if (issue.labels.includes(LABEL.queue) || issue.labels.includes(LABEL.blocked)) {
+    return result("queued");
+  }
   if (issue.state === "open" && issue.labels.includes(LABEL.skip)) return result("skipped");
   const intake =
     graceApplies &&
