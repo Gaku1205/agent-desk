@@ -113,7 +113,14 @@ export function Conversation({
   const isDesktop = () => window.matchMedia("(min-width: 900px)").matches;
   // 前の描画のメッセージ（新しく入った物を見分ける）
   const [seen, setSeen] = useState<{ messages: ChatMessage[]; keys: Set<string> | null }>({ messages, keys: null });
-  if (seen.messages !== messages) setSeen({ messages, keys: new Set(seen.messages.map((m) => m.key)) });
+  if (seen.messages !== messages) {
+    setSeen({ messages, keys: new Set(seen.messages.map((m) => m.key)) });
+    // 取り直しで消えた行の「開いた状態」は捨てる
+    const alive = new Set(messages.map((m) => m.key));
+    if ([...openFlows].some((k) => !alive.has(k))) {
+      setOpenFlows(new Set([...openFlows].filter((k) => alive.has(k))));
+    }
+  }
 
   const active = messages.filter((m) => !m.deployed);
   const deployed = messages.filter((m) => m.deployed);
