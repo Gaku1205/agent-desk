@@ -243,6 +243,35 @@ describe("getIssueStatus：表の各段階", () => {
     expect(status.turn).toBe("none");
   });
 
+  it("順番待ち：ai:blocked だけ（誰の番もなし）", () => {
+    const status = getIssueStatus(issue({ labels: ["ai:blocked"] }), input(), NOW);
+    expect(status.stage).toBe("queued");
+    expect(status.turn).toBe("none");
+  });
+
+  it("古い完了コメント＋ai:plan → 企画中", () => {
+    const status = getIssueStatus(issue({ labels: ["ai:plan"] }), input([], {}, [doneComment]), NOW);
+    expect(status.stage).toBe("planning");
+    expect(status.turn).toBe("ai");
+  });
+
+  it("古い完了コメント＋ai:blocked → 順番待ち", () => {
+    const status = getIssueStatus(issue({ labels: ["ai:blocked"] }), input([], {}, [doneComment]), NOW);
+    expect(status.stage).toBe("queued");
+    expect(status.turn).toBe("none");
+  });
+
+  it("古い完了コメント＋ai:queue → 順番待ち", () => {
+    const status = getIssueStatus(issue({ labels: ["ai:queue"] }), input([], {}, [doneComment]), NOW);
+    expect(status.stage).toBe("queued");
+  });
+
+  it("完了コメントだけ（ラベル無し）→ 今までどおり PR作成待ち", () => {
+    const status = getIssueStatus(issue(), input([], {}, [doneComment]), NOW);
+    expect(status.stage).toBe("prWaiting");
+    expect(status.turn).toBe("human");
+  });
+
   it("保留：ai:skip がある（人間の番）", () => {
     const status = getIssueStatus(issue({ labels: ["ai:skip"] }), input(), NOW);
     expect(status.stage).toBe("skipped");
