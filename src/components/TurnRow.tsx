@@ -207,8 +207,8 @@ export function TurnRow({ item, wait, fresh, onLeave }: Props) {
           {kind.label}
         </span>
         <span className={`${styles.id} num`}>
-          {repo}#{issue.number}
-          {status.pull ? `　PR #${status.pull.number}` : ""}
+          {item.pullOnly ? `${repo}　PR #${issue.number}` : `${repo}#${issue.number}`}
+          {!item.pullOnly && status.pull ? `　PR #${status.pull.number}` : ""}
         </span>
         <span className={`${styles.wait} num`}>{wait}</span>
         <span className={styles.stage}>{progress.currentName}</span>

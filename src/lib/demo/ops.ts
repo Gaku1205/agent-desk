@@ -64,7 +64,19 @@ function applyNewIssue(data: RepoData, op: DemoOp): RepoData {
 export function applyDemoOp(data: RepoData, op: DemoOp): RepoData {
   if (op.kind === "newIssue") return applyNewIssue(data, op);
   const issue = data.issues.find((i) => i.number === op.number);
-  if (!issue) return data;
+  if (!issue) {
+    // Issueに紐づかないPRのマージ（番号は PR の番号）
+    const lone = data.pulls.find((p) => p.number === op.number && p.state === "open");
+    if (op.kind !== "merge" || !lone) return data;
+    return {
+      ...data,
+      pulls: data.pulls.map((p) =>
+        p.number === lone.number
+          ? { ...p, state: "closed", merged: true, mergedAt: op.at, mergeCommitSha: `${p.headSha}ff`, updatedAt: op.at }
+          : p,
+      ),
+    };
+  }
   const pull = findLinkedPull(data.pulls, op.number);
   const next: RepoData = {
     ...data,

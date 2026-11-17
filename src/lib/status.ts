@@ -2,6 +2,7 @@ import { isFactoryIssue } from "./factoryIssue";
 import { isFactoryAnswered } from "./factoryTalk";
 import type { PipelineState } from "./pipelineState";
 import { isCountedDeploySuccess, isFailedState, latestCountedPerContext } from "./deployStatus";
+import { isMergeablePull } from "./mergeablePull";
 import { holdRequestText, humanRequestReason } from "./humanRequest";
 import { isQuestionAnswered, latestQuestionComment } from "./question";
 import type { CheckRunData, CommentData, CommitStatusData, IssueData, PullChecks, PullData } from "./github/types";
@@ -750,7 +751,13 @@ export function getIssueStatus(issue: IssueData, input: StatusInput, now: Date):
     stuckReason: null,
     holdRequest: base.mergeWait === "hold" && base.pull ? holdRequestText(base.pull.body) : null,
   };
-  if (open && hasLabel(LABEL.stuck)) {
+  // 止まっていても、紐づくPRが「マージしてよいPR」なら、PRの方を優先する（マージ待ち）
+  const mergeableLinked =
+    base.pull !== null &&
+    base.stage === "mergeWaiting" &&
+    base.mergeWait === "hold" &&
+    isMergeablePull(base.pull, input.comments, input.pullChecks[base.pull.number]);
+  if (open && hasLabel(LABEL.stuck) && !mergeableLinked) {
     return {
       ...normal,
       stage: "stuck",
