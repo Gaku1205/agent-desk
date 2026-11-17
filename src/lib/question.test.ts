@@ -36,12 +36,18 @@ const QUESTION_BODY = [
 ].join("\n");
 
 describe("isQuestionComment", () => {
+  const bot = "claude[bot]";
   it("1行目が質問の印のコメントだけ", () => {
-    expect(isQuestionComment({ body: "<!-- ai-question -->\n質問" })).toBe(true);
-    expect(isQuestionComment({ body: "<!-- ai:question -->\n質問" })).toBe(true);
-    expect(isQuestionComment({ body: "  <!--question-->\n質問" })).toBe(true);
-    expect(isQuestionComment({ body: "質問です\n<!-- ai-question -->" })).toBe(false);
-    expect(isQuestionComment({ body: "<!-- human-request -->\nお願い" })).toBe(false);
+    expect(isQuestionComment({ author: bot, body: "<!-- ai-question -->\n質問" }, "owner")).toBe(true);
+    expect(isQuestionComment({ author: bot, body: "<!-- ai:question -->\n質問" }, "owner")).toBe(true);
+    expect(isQuestionComment({ author: bot, body: "  <!--question-->\n質問" }, "owner")).toBe(true);
+    expect(isQuestionComment({ author: bot, body: "質問です\n<!-- ai-question -->" }, "owner")).toBe(false);
+    expect(isQuestionComment({ author: bot, body: "<!-- human-request -->\nお願い" }, "owner")).toBe(false);
+  });
+  it("作者がパイプライン（…[bot]）かオーナーの物だけ。他人の物は質問にしない", () => {
+    const body = "<!-- ai-question -->\n質問";
+    expect(isQuestionComment({ author: "Owner", body }, "owner")).toBe(true);
+    expect(isQuestionComment({ author: "stranger", body }, "owner")).toBe(false);
   });
 });
 
@@ -187,34 +193,58 @@ describe("parseQuestionComment", () => {
       comment({ id: 2, body: QUESTION_BODY, createdAt: "2026-11-05T10:00:00Z" }),
       comment({ id: 3, issueNumber: 6, body: "<!-- ai-question -->\n**Q1. 別のIssue**", createdAt: "2026-11-05T11:00:00Z" }),
     ];
-    const parsed = parseQuestionComment(comments, 5);
+    const parsed = parseQuestionComment(comments, 5, "owner");
     expect(parsed?.commentId).toBe(2);
     expect(parsed?.questions.map((q) => q.text)).toEqual(["色の雰囲気は？", "一覧の並び順は？"]);
     expect(parsed?.mockups).toEqual([]);
   });
 
   it("質問のコメントが無ければ null", () => {
-    expect(parseQuestionComment([comment({ body: "ふつうのコメント" })], 5)).toBeNull();
+    expect(parseQuestionComment([comment({ body: "ふつうのコメント" })], 5, "owner")).toBeNull();
+  });
+
+  it("他人が書いた質問の印のコメントは読まない（画像も出ない）", () => {
+    const fake = comment({
+      author: "stranger",
+      body: `${QUESTION_BODY}\n<!-- ai-mocks -->\n### A. 偽\n<img src="https://example.com/x.png" alt="A PC">`,
+    });
+    expect(parseQuestionComment([fake], 5, "owner")).toBeNull();
+  });
+
+  it("他人の偽の質問があっても、本物の質問が使われる", () => {
+    const real = comment({ id: 1, body: QUESTION_BODY, createdAt: "2026-11-05T10:00:00Z" });
+    const fake = comment({ id: 2, author: "stranger", body: "<!-- ai-question -->\n**Q1. 偽**", createdAt: "2026-11-05T11:00:00Z" });
+    expect(parseQuestionComment([real, fake], 5, "owner")?.commentId).toBe(1);
+  });
+
+  it("オーナーが書いた質問の印のコメントは読む", () => {
+    expect(parseQuestionComment([comment({ author: "Owner", body: QUESTION_BODY })], 5, "owner")?.commentId).toBe(1);
   });
 });
 
 describe("isQuestionAnswered", () => {
   const question = comment({ body: QUESTION_BODY, createdAt: "2026-11-05T10:00:00Z" });
 
-  it("質問のあとに人のコメントがあれば答えた", () => {
+  it("質問のあとにオーナーのコメントがあれば答えた（大文字小文字は区別しない）", () => {
     const answer = comment({ id: 9, author: "owner", body: "A", createdAt: "2026-11-05T10:05:00Z" });
-    expect(isQuestionAnswered([question, answer], 5)).toBe(true);
+    expect(isQuestionAnswered([question, answer], 5, "owner")).toBe(true);
+    expect(isQuestionAnswered([question, answer], 5, "OWNER")).toBe(true);
   });
 
-  it("質問より前の人のコメント・bot のコメント・別のIssueのコメントは数えない", () => {
+  it("他人のコメントでは答えにならない", () => {
+    const stranger = comment({ id: 9, author: "stranger", body: "A", createdAt: "2026-11-05T10:05:00Z" });
+    expect(isQuestionAnswered([question, stranger], 5, "owner")).toBe(false);
+  });
+
+  it("質問より前のオーナーのコメント・bot のコメント・別のIssueのコメントは数えない", () => {
     const before = comment({ id: 8, author: "owner", createdAt: "2026-11-05T09:00:00Z" });
     const bot = comment({ id: 9, author: "github-actions[bot]", createdAt: "2026-11-05T10:05:00Z" });
     const other = comment({ id: 10, issueNumber: 6, author: "owner", createdAt: "2026-11-05T10:05:00Z" });
-    expect(isQuestionAnswered([before, question, bot, other], 5)).toBe(false);
+    expect(isQuestionAnswered([before, question, bot, other], 5, "owner")).toBe(false);
   });
 
   it("質問のコメントが無ければ false", () => {
-    expect(isQuestionAnswered([comment({ author: "owner" })], 5)).toBe(false);
+    expect(isQuestionAnswered([comment({ author: "owner" })], 5, "owner")).toBe(false);
   });
 });
 

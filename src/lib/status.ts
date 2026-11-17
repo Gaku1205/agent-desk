@@ -103,6 +103,8 @@ export type StatusInput = {
   pipeline?: PipelineState;
   /** テンプレートリポジトリか（「新サービス：」のIssueには未着手の猶予を使わない） */
   isTemplate?: boolean;
+  /** リポジトリのオーナー（`owner/repo` の `owner`）。「答えた」は、このオーナーのコメントだけで判定する。無ければ誰も答えていないことにする */
+  owner?: string;
 };
 
 export const LABEL = {
@@ -664,11 +666,11 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   if (issue.labels.includes(LABEL.implement)) return result("implementing");
   if (issue.state === "open" && issue.labels.includes(LABEL.factoryWait)) {
     // 工場の相談：答えのコメントを送ったら、工場が `factory:wait` を外すまで企画中（AIの番）にする
-    return result(isFactoryAnswered(input.comments, issue.number) ? "planning" : "factoryTalk");
+    return result(isFactoryAnswered(input.comments, issue.number, input.owner ?? "") ? "planning" : "factoryTalk");
   }
   if (issue.state === "open" && issue.labels.includes(LABEL.question)) {
     // 答えのコメントを送ったら、パイプラインが続きを始めるまで企画中（AIの番）にする
-    return result(isQuestionAnswered(input.comments, issue.number) ? "planning" : "question");
+    return result(isQuestionAnswered(input.comments, issue.number, input.owner ?? "") ? "planning" : "question");
   }
   if (planningLabel) return result("planning");
   if (issue.labels.includes(LABEL.queue) || issue.labels.includes(LABEL.blocked)) {
@@ -677,8 +679,8 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   if (issue.state === "open" && issue.labels.includes(LABEL.skip)) {
     // 保留でも、答えていない企画AIの質問が残っていれば、質問として答えられるようにする
     const unanswered =
-      latestQuestionComment(input.comments, issue.number) !== null &&
-      !isQuestionAnswered(input.comments, issue.number);
+      latestQuestionComment(input.comments, issue.number, input.owner ?? "") !== null &&
+      !isQuestionAnswered(input.comments, issue.number, input.owner ?? "");
     return result(unanswered ? "question" : "skipped");
   }
   const intake =

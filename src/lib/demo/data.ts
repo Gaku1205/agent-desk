@@ -61,7 +61,7 @@ function createCtx({ owner, repo }: WatchedRepo, base: Date, firstCommentId: num
     owner,
     repo,
     base: base.getTime(),
-    data: { issues: [], pulls: [], comments: [], pullChecks: {}, events: [] },
+    data: { owner, issues: [], pulls: [], comments: [], pullChecks: {}, events: [] },
     nextCommentId: firstCommentId,
   };
 }

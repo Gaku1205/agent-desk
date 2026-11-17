@@ -197,7 +197,7 @@ export function waitingSince(issue: IssueData, status: IssueStatus, data: RepoDa
       break;
     case "question":
       since =
-        latestQuestionComment(data.comments, issue.number)?.createdAt ??
+        latestQuestionComment(data.comments, issue.number, data.owner ?? "")?.createdAt ??
         latest(
           data.events
             .filter(
@@ -293,7 +293,9 @@ export function turnRowDescription(
 }
 
 /** 1リポジトリぶんの「あなたの番」（並べる前） */
-export function repoTurnItems(owner: string, repo: string, data: RepoData, now: Date): TurnItem[] {
+export function repoTurnItems(owner: string, repo: string, repoData: RepoData, now: Date): TurnItem[] {
+  // 「答えた」・質問のコメントの判定に、このリポジトリのオーナーを使う
+  const data: RepoData = { ...repoData, owner };
   const items: TurnItem[] = [];
   for (const issue of data.issues) {
     if (!shouldShowIssue(issue, data.pulls)) continue;
@@ -324,10 +326,10 @@ export function repoTurnItems(owner: string, repo: string, data: RepoData, now: 
               review: reviewOutcome(data.comments, status.pull.number),
             }
           : null,
-      question: status.stage === "question" ? parseQuestionComment(data.comments, issue.number) : null,
+      question: status.stage === "question" ? parseQuestionComment(data.comments, issue.number, owner) : null,
       factory:
         status.stage === "factoryTalk" ? parseFactoryTalk(data.comments, issue.number, `${owner}/${repo}`) : null,
-      flowFacts: flowFacts(issue, status, data.comments),
+      flowFacts: flowFacts(issue, status, data.comments, owner),
     });
   }
   return items;

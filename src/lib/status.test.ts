@@ -335,7 +335,7 @@ describe("getIssueStatus：表の各段階", () => {
   it("保留＋質問のあとに人のコメントがある → 保留のまま", () => {
     const question = comment({ body: "<!-- ai-question -->\n**Q1. 色は？**", createdAt: "2026-10-25T10:00:00Z" });
     const human = comment({ author: "Gaku1205", body: "あとで", createdAt: "2026-10-25T10:30:00Z" });
-    const status = getIssueStatus(issue({ labels: ["ai:skip"] }), input([], {}, [question, human]), NOW);
+    const status = getIssueStatus(issue({ labels: ["ai:skip"] }), { ...input([], {}, [question, human]), owner: "gaku1205" }, NOW);
     expect(status.stage).toBe("skipped");
   });
 
@@ -347,9 +347,17 @@ describe("getIssueStatus：表の各段階", () => {
   it("質問：答えのコメント（人が書いた物）を送ったら企画中（AIの番）", () => {
     const question = comment({ body: "<!-- ai-question -->\n**Q1. 色は？**", createdAt: "2026-10-25T10:00:00Z" });
     const answer = comment({ author: "Gaku1205", body: "Q1はA", createdAt: "2026-10-25T10:30:00Z" });
-    const status = getIssueStatus(issue({ labels: ["ai:question"] }), input([], {}, [question, answer]), NOW);
+    const status = getIssueStatus(issue({ labels: ["ai:question"] }), { ...input([], {}, [question, answer]), owner: "Gaku1205" }, NOW);
     expect(status.stage).toBe("planning");
     expect(status.turn).toBe("ai");
+  });
+
+  it("質問：他人のコメントでは答えにならない（質問のまま）", () => {
+    const question = comment({ body: "<!-- ai-question -->\n**Q1. 色は？**", createdAt: "2026-10-25T10:00:00Z" });
+    const stranger = comment({ author: "stranger", body: "Q1はA", createdAt: "2026-10-25T10:30:00Z" });
+    const status = getIssueStatus(issue({ labels: ["ai:question"] }), { ...input([], {}, [question, stranger]), owner: "Gaku1205" }, NOW);
+    expect(status.stage).toBe("question");
+    expect(status.turn).toBe("human");
   });
 
   it("工場の相談：factory:wait があり、まだ答えていない（人間の番。新サービス：のIssueでも出す）", () => {
@@ -377,9 +385,13 @@ describe("getIssueStatus：表の各段階", () => {
     });
     const answer = comment({ author: "Gaku1205", body: "案2を選ぶ", createdAt: "2026-10-25T10:30:00Z" });
     const waiting = issue({ labels: ["factory:wait"] });
-    const status = getIssueStatus(waiting, input([], {}, [talk, answer]), NOW);
+    const status = getIssueStatus(waiting, { ...input([], {}, [talk, answer]), owner: "Gaku1205" }, NOW);
     expect(status.stage).toBe("planning");
     expect(status.turn).toBe("ai");
+    // 他人のコメントでは答えにならない
+    const stranger = comment({ author: "stranger", body: "案2", createdAt: "2026-10-25T10:30:00Z" });
+    const waitingStill = getIssueStatus(waiting, { ...input([], {}, [talk, stranger]), owner: "Gaku1205" }, NOW);
+    expect(waitingStill.stage).toBe("factoryTalk");
     expect(getIssueStatus(issue({ labels: ["factory:wait"], state: "closed" }), input(), NOW).stage).not.toBe(
       "factoryTalk",
     );

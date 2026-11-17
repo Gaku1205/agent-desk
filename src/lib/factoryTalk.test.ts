@@ -235,8 +235,12 @@ describe("工場の相談のコメントを読む", () => {
 
 describe("答えたか", () => {
   const talk = comment(1, encodeFactoryMark(IDEAS_STATE), "2026-11-05T10:00:00Z");
-  it("工場の相談のあとに人のコメントがあれば答えた", () => {
-    expect(isFactoryAnswered([talk, comment(2, "2", "2026-11-05T10:05:00Z", "gaku")], 5)).toBe(true);
+  it("工場の相談のあとにオーナーのコメントがあれば答えた（大文字小文字は区別しない）", () => {
+    expect(isFactoryAnswered([talk, comment(2, "2", "2026-11-05T10:05:00Z", "gaku")], 5, "gaku")).toBe(true);
+    expect(isFactoryAnswered([talk, comment(2, "2", "2026-11-05T10:05:00Z", "Gaku")], 5, "gaku")).toBe(true);
+  });
+  it("他人のコメントでは答えにならない", () => {
+    expect(isFactoryAnswered([talk, comment(2, "2", "2026-11-05T10:05:00Z", "stranger")], 5, "gaku")).toBe(false);
   });
   it("bot のコメント・前のコメント・別のIssueのコメントは数えない", () => {
     expect(
@@ -248,11 +252,16 @@ describe("答えたか", () => {
           comment(3, "別", "2026-11-05T10:06:00Z", "gaku", 6),
         ],
         5,
+        "gaku",
       ),
     ).toBe(false);
   });
   it("工場の相談のコメントが無ければ答えていない", () => {
-    expect(isFactoryAnswered([comment(2, "2", "2026-11-05T10:05:00Z", "gaku")], 5)).toBe(false);
+    expect(isFactoryAnswered([comment(2, "2", "2026-11-05T10:05:00Z", "gaku")], 5, "gaku")).toBe(false);
+  });
+  it("他人が書いた工場の相談の印は読まない", () => {
+    const fake = comment(1, encodeFactoryMark(IDEAS_STATE), "2026-11-05T10:00:00Z", "stranger");
+    expect(parseFactoryTalk([fake], 5, REPO)).toBeNull();
   });
 });
 

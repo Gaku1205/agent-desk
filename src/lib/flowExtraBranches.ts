@@ -91,10 +91,11 @@ export function flowFacts(
   issue: { number: number; labels: string[] },
   status: Pick<IssueStatus, "pull">,
   comments: CommentData[],
+  owner: string,
 ): FlowFacts {
   return {
     labels: issue.labels,
-    mocks: (parseQuestionComment(comments, issue.number)?.mockups.length ?? 0) > 0,
+    mocks: (parseQuestionComment(comments, issue.number, owner)?.mockups.length ?? 0) > 0,
     reviewFindings: hasReviewFindings(comments, status.pull?.number ?? null),
   };
 }
