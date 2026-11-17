@@ -40,6 +40,11 @@ describe("judgeLamp", () => {
     expect(judgeLamp(input({ labels: ["ai:implement", "ai:retry"] }))).toBe("running");
   });
 
+  it("緑：CI失敗のあと自動で直している途中（実行が見えなくても）", () => {
+    expect(judgeLamp(input({ labels: ["ai:implement"], autoFixing: true }))).toBe("running");
+    expect(judgeLamp(input({ labels: ["ai:implement"], autoFixing: false }))).not.toBe("running");
+  });
+
   it("ラベルだけでは緑にしない：進行中のラベルで、実行が10分以上動いていなければ赤", () => {
     expect(
       judgeLamp(input({ labels: ["ai:implement"], runs: { active: false, lastUpdatedAt: minutesAgo(10) }, touchedAt: minutesAgo(20) })),

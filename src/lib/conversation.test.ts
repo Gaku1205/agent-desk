@@ -38,6 +38,11 @@ describe("chatLine", () => {
     expect(chatLine(status({ stage: "ciRunning" }))).toEqual({ speaker: "CI", text: "CIが確かめています（3/4 通過）" });
     expect(chatLine(status({ stage: "reviewing" }))).toEqual({ speaker: "レビューAI", text: "レビューAIが確認しています" });
     expect(chatLine(status({ stage: "fixing", fixCount: 2 }))).toEqual({ speaker: "AI", text: "AIが直しています（2/2 回目）" });
+    expect(chatLine(status({ stage: "ciFailed", fixCount: 1 }))).toEqual({ speaker: "AI", text: "AIが直しています（2回目/3）" });
+    expect(chatLine(status({ stage: "ciFailed", fixCount: 3 }))).toEqual({
+      speaker: "CI",
+      text: "CIが失敗しました。修正の上限に達しました",
+    });
     expect(chatLine(status({ stage: "deploying", turn: "none" }))).toEqual({ speaker: "本番", text: "本番に公開しています" });
   });
 
