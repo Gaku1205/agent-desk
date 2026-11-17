@@ -191,6 +191,17 @@ export function WriteIcon({ size = LABEL }: IconProps) {
   );
 }
 
+/** 画像を付ける＝山と太陽の入った四角 */
+export function ImageIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+    </LineIcon>
+  );
+}
+
 /** ログアウト＝出る矢印 */
 export function LogoutIcon({ size = LABEL }: IconProps) {
   return (
