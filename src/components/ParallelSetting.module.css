@@ -1,0 +1,56 @@
+/* 設定画面の「並列」。保存の行とボタンは SettingsSections.module.css、選択欄は Select.module.css */
+
+/* 今の状態の一文（見出しの下14px分は節の見出しが持つ） */
+.now {
+  min-height: 20px;
+  color: var(--bone-2);
+  font-size: 13.5px;
+}
+
+.rows {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  align-items: center;
+}
+
+.label {
+  flex: none;
+  width: 96px;
+  color: var(--bone);
+  font-size: 13.5px;
+}
+
+.hours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.to {
+  color: var(--mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.hint {
+  margin-top: 16px;
+  color: var(--mute);
+  font-size: 12px;
+  word-break: auto-phrase;
+  text-wrap: pretty;
+}
+
+@media (max-width: 899px) {
+  /* スマホ：名前を上、選択欄を下に */
+  .label {
+    width: 100%;
+  }
+}

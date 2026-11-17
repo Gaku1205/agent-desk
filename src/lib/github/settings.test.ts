@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { etagCacheForTest, GitHubClient, type Fetcher } from "./client";
-import { hasPipeline, readVariable, WATCHED_REPOS_VARIABLE, writeVariable } from "./settings";
+import { DEFAULT_PARALLEL_SETTINGS } from "../parallel";
+import {
+  hasPipeline,
+  readParallelSettings,
+  readVariable,
+  WATCHED_REPOS_VARIABLE,
+  writeParallelSettings,
+  writeVariable,
+} from "./settings";
 
 const target = { owner: "Gaku1205", repo: "agent-desk" };
 const VARIABLE_URL =
@@ -74,6 +82,66 @@ describe("writeVariable", () => {
     );
     await expect(
       writeVariable(new GitHubClient("t", fetcher), target, WATCHED_REPOS_VARIABLE, "a/b"),
+    ).rejects.toMatchObject({ kind: "forbidden", status: 403 });
+  });
+});
+
+describe("並列の設定", () => {
+  const BASE = "https://api.github.com/repos/Gaku1205/agent-desk/actions/variables";
+
+  it("読む：無い・不正な値は既定", async () => {
+    const values: Record<string, string> = { PARALLEL_DAY: "6", PARALLEL_NIGHT: "0" };
+    const { fetcher, calls } = fakeFetcher((call) => {
+      const name = call.url.slice(BASE.length + 1);
+      return name in values ? json({ name, value: values[name] }) : json({}, 404);
+    });
+    expect(await readParallelSettings(new GitHubClient("t", fetcher), target)).toEqual({
+      day: 6,
+      night: 1,
+      nightHours: null,
+    });
+    expect(calls.map((c) => c.url.slice(BASE.length + 1)).sort()).toEqual([
+      "PARALLEL_DAY",
+      "PARALLEL_NIGHT",
+      "PARALLEL_NIGHT_HOURS",
+    ]);
+  });
+
+  it("書く：既定と違う値は書き、既定と同じ・無しは消す。TZ・OVERRIDE には触らない", async () => {
+    const existing = new Set(["PARALLEL_NIGHT", "PARALLEL_NIGHT_HOURS"]);
+    const { fetcher, calls } = fakeFetcher((call) => {
+      const name = call.url.slice(BASE.length + 1);
+      if (call.method === "GET") return existing.has(name) ? json({ value: "x" }) : json({}, 404);
+      return new Response(null, { status: 204 });
+    });
+    // 昼5（書く・新規）、夜1（既定＝消す）、夜の時間帯なし（消す）
+    await writeParallelSettings(new GitHubClient("t", fetcher), target, {
+      day: 5,
+      night: 1,
+      nightHours: null,
+    });
+    const writes = calls.filter((c) => c.method !== "GET");
+    expect(writes).toEqual([
+      { url: BASE, method: "POST", body: { name: "PARALLEL_DAY", value: "5" } },
+      { url: `${BASE}/PARALLEL_NIGHT`, method: "DELETE", body: undefined },
+      { url: `${BASE}/PARALLEL_NIGHT_HOURS`, method: "DELETE", body: undefined },
+    ]);
+    expect(calls.some((c) => /PARALLEL_(TZ|OVERRIDE)/.test(c.url))).toBe(false);
+  });
+
+  it("書く：すでに無い Variable を消そうとしても失敗しない（404）", async () => {
+    const { fetcher } = fakeFetcher(() => json({}, 404));
+    await expect(
+      writeParallelSettings(new GitHubClient("t", fetcher), target, DEFAULT_PARALLEL_SETTINGS),
+    ).resolves.toBeUndefined();
+  });
+
+  it("書く：権限が無ければ 403 のエラーを投げる", async () => {
+    const { fetcher } = fakeFetcher((call) =>
+      call.method === "GET" ? json({}, 404) : json({ message: "Forbidden" }, 403),
+    );
+    await expect(
+      writeParallelSettings(new GitHubClient("t", fetcher), target, { day: 5, night: 2, nightHours: null }),
     ).rejects.toMatchObject({ kind: "forbidden", status: 403 });
   });
 });

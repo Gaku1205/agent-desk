@@ -27,8 +27,10 @@ import {
   listReadableRepos,
   readVariable,
   WATCHED_REPOS_VARIABLE,
+  writeParallelSettings,
   writeVariable,
 } from "@/lib/github/settings";
+import { checkParallelSettings, PARALLEL_MESSAGES } from "@/lib/parallel";
 import { isAllowedLogin } from "@/lib/allowlist";
 import {
   authorizeRepoSetting,
@@ -118,6 +120,37 @@ export async function checkPipeline(value: unknown): Promise<boolean | null> {
   const token = await getGitHubToken();
   if (!target || !token || !isAllowedLogin(login, getAllowedLogins())) return null;
   return hasPipeline(new GitHubClient(token), target);
+}
+
+/**
+ * 「並列」（昼の数・夜の数・夜の時間帯）を、パイプラインのある監視リポジトリ全部の Variable に書く。
+ * 1つのリポジトリで失敗しても残りには書き、失敗した物は名前と理由を返す
+ */
+export async function saveParallel(value: unknown): Promise<SaveReposResult> {
+  const login = await getSignedInLogin();
+  const token = await getGitHubToken();
+  if (!token || !isAllowedLogin(login, getAllowedLogins())) {
+    return { ok: false, message: REPO_SETTING_MESSAGES.unauthorized };
+  }
+  const checked = checkParallelSettings(value);
+  if (!checked.ok) return checked;
+
+  const client = new GitHubClient(token);
+  const failures: string[] = [];
+  let written = 0;
+  for (const repo of (await loadWatchedRepos()).repos) {
+    const name = `${repo.owner}/${repo.repo}`;
+    try {
+      if (!(await hasPipeline(client, repo))) continue;
+      await writeParallelSettings(client, repo, checked.settings);
+      written += 1;
+    } catch (error) {
+      failures.push(`${name}：${repoSettingErrorMessage(error)}`);
+    }
+  }
+  if (failures.length > 0) return { ok: false, message: failures.join(" / ") };
+  if (written === 0) return { ok: false, message: PARALLEL_MESSAGES.noPipeline };
+  return { ok: true };
 }
 
 /** あるリポジトリの「鳴らす通知の種類」を、そのリポジトリの Variable `NOTIFY_EVENTS` に保存する */
