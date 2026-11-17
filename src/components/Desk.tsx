@@ -11,9 +11,8 @@ import { getBrowserStorage } from "@/lib/motion";
 import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import { formatWait, turnItemKey, type TurnCounts, type TurnItem } from "@/lib/turn";
 import type { WatchdogNotice } from "@/lib/watchdogState";
-import Link from "next/link";
 import { Conversation, type ConversationNotice } from "./Conversation";
-import { PanelLeftIcon, PlusIcon } from "./icons";
+import { PanelLeftIcon } from "./icons";
 import styles from "./Desk.module.css";
 import { FlowMap } from "./FlowMap";
 import { NewIssueForm, type NewIssueRepo } from "./NewIssueForm";
@@ -263,11 +262,6 @@ export function Desk({
               ほかに <b className="num">{rest}</b>件
             </p>
           )}
-          {/* スマホ：ホームの分かりやすい所。PCは帯に出す */}
-          <Link href={`${nav.basePath ?? ""}/new/service`} className={styles.newService}>
-            <PlusIcon />
-            新しいサービスを作る
-          </Link>
         </div>
         {!current && <p className={styles.calm}>あなたが答えることはありません。上で、いまの様子を読めます</p>}
         <TurnList items={others} now={at} showRepo={showRepo} onPick={pick} />
@@ -314,6 +308,7 @@ export function Desk({
         <div className={styles.composer}>
           <NewIssueForm
             variant="bar"
+            newServiceHref={`${nav.basePath ?? ""}/new/service`}
             repos={newIssueRepos}
             initialRepo={scope.kind === "repo" ? `${scope.owner}/${scope.repo}` : undefined}
           />
