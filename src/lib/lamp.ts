@@ -50,6 +50,8 @@ export type LampInput = {
   /** Issue・PR が最後に変わった時刻（ラベルを付けた直後を「止まっている」としないため）。無ければ null */
   touchedAt: string | null;
   now: Date;
+  /** CI失敗のあと、パイプラインが自動で直している途中（`ciFailureState` が動いている）。実行が見えなくても緑 */
+  autoFixing?: boolean;
 };
 
 /** ランプの種類を決める（待ち順は `assignLamps` で付ける） */
@@ -59,6 +61,7 @@ export function judgeLamp(input: LampInput): LampKind {
   if (input.runs?.active) return "running";
   if (input.done) return "none";
   if (labels.has(RETRY_LABEL)) return "running";
+  if (input.autoFixing) return "running";
   if (HUMAN_LABELS.some((label) => labels.has(label)) || input.humanRequest) return "needsHuman";
   if (input.runs !== null && PROGRESS_LABELS.some((label) => labels.has(label)) && isStale(input)) {
     return "needsHuman";
