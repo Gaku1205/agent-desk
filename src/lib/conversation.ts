@@ -1,4 +1,5 @@
 import { aiActivity, type AiActivity } from "./aiActivity";
+import { ciFailureState, ciFixingText } from "./ciFailureState";
 import type { DeployLink } from "./deployStatus";
 import { describeStatus, failureLogUrl } from "./describe";
 import { groupTrails } from "./eventGroups";
@@ -41,8 +42,11 @@ export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): Ch
       return status.verifyingFix
         ? { speaker: "CI", text: `直した結果を、CIとレビューで確かめています（CI ${ci}）` }
         : { speaker: "CI", text: `CIが確かめています（${ci} 通過）` };
-    case "ciFailed":
-      return { speaker: "CI", text: "CIが失敗しました。このあとAIが直します" };
+    case "ciFailed": {
+      const failure = ciFailureState({ stage: status.stage, stuck: false, fixCount: status.fixCount });
+      if (failure?.kind === "fixing") return { speaker: "AI", text: ciFixingText(failure.n) };
+      return { speaker: "CI", text: "CIが失敗しました。修正の上限に達しました" };
+    }
     case "reviewing":
       return status.verifyingFix
         ? { speaker: "CI", text: `直した結果を、CIとレビューで確かめています（CI ${ci}）` }
@@ -124,7 +128,7 @@ export type ChatMessage = {
 };
 
 /** ランプを決めるための、1件の入力（Issue と紐づく PR のラベル・お願いのコメント・実行） */
-function lampTarget(issue: IssueData, data: RepoData, now: Date): LampTarget {
+function lampTarget(issue: IssueData, data: RepoData, now: Date, autoFixing: boolean): LampTarget {
   const pull = findLinkedPull(data.pulls, issue.number);
   const linked = data.pulls.filter((candidate) => isLinkedPull(candidate, issue.number));
   const labels = [...issue.labels, ...(pull?.labels ?? [])];
@@ -137,6 +141,7 @@ function lampTarget(issue: IssueData, data: RepoData, now: Date): LampTarget {
     runs: runActivity(data.runs, issue.number, linked),
     touchedAt: touchedAt === "" ? null : touchedAt,
     now,
+    autoFixing,
   });
   return { number: issue.number, labels, kind };
 }
@@ -190,7 +195,8 @@ export function buildConversation(
       const key = `${full}#${row.issue.number}`;
       const trail = trails.get(key);
       const line = chatLine(row.status, { queueAfter: queueAfterNumber(row.queueReason) });
-      lampTargets.push(lampTarget(issue, result.data, now));
+      const failure = ciFailureState({ stage: row.status.stage, stuck: false, fixCount: row.status.fixCount });
+      lampTargets.push(lampTarget(issue, result.data, now, failure?.kind === "fixing"));
       messages.push({
         key,
         owner: result.owner,
@@ -201,7 +207,7 @@ export function buildConversation(
         stage: row.status.stage,
         speaker: line.speaker,
         text: line.text,
-        failed: row.status.stage === "ciFailed",
+        failed: failure?.kind === "stopped",
         note: row.queueReason,
         logUrl: failureLogUrl(row.status, full),
         links: row.deployLinks,
