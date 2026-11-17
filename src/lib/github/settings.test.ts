@@ -3,9 +3,11 @@ import { etagCacheForTest, GitHubClient, type Fetcher } from "./client";
 import { DEFAULT_PARALLEL_SETTINGS } from "../parallel";
 import {
   hasPipeline,
+  readParallelOverride,
   readParallelSettings,
   readVariable,
   WATCHED_REPOS_VARIABLE,
+  writeParallelOverride,
   writeParallelSettings,
   writeVariable,
 } from "./settings";
@@ -143,6 +145,35 @@ describe("並列の設定", () => {
     await expect(
       writeParallelSettings(new GitHubClient("t", fetcher), target, { day: 5, night: 2, nightHours: null }),
     ).rejects.toMatchObject({ kind: "forbidden", status: 403 });
+  });
+});
+
+describe("並列の手の上書き", () => {
+  const BASE = "https://api.github.com/repos/Gaku1205/agent-desk/actions/variables";
+
+  it("書く：PARALLEL_OVERRIDE だけを作る（ほかの並列の変数には触らない）", async () => {
+    const { fetcher, calls } = fakeFetcher((call) =>
+      call.method === "GET" ? json({}, 404) : new Response(null, { status: 201 }),
+    );
+    await writeParallelOverride(new GitHubClient("t", fetcher), target, "night until 2026-11-18T08:00+09:00");
+    expect(calls.filter((c) => c.method !== "GET")).toEqual([
+      { url: BASE, method: "POST", body: { name: "PARALLEL_OVERRIDE", value: "night until 2026-11-18T08:00+09:00" } },
+    ]);
+  });
+
+  it("書く：null なら消す（無くても失敗しない）", async () => {
+    const { fetcher, calls } = fakeFetcher(() => json({}, 404));
+    await writeParallelOverride(new GitHubClient("t", fetcher), target, null);
+    expect(calls).toEqual([{ url: `${BASE}/PARALLEL_OVERRIDE`, method: "DELETE", body: undefined }]);
+  });
+
+  it("読む：値を返し、無ければ null", async () => {
+    const found = fakeFetcher(() => json({ value: "day until 2026-11-18T08:00+09:00" }));
+    expect(await readParallelOverride(new GitHubClient("t", found.fetcher), target)).toBe(
+      "day until 2026-11-18T08:00+09:00",
+    );
+    const missing = fakeFetcher(() => json({}, 404));
+    expect(await readParallelOverride(new GitHubClient("t", missing.fetcher), target)).toBeNull();
   });
 });
 

@@ -6,6 +6,7 @@ import {
   PARALLEL_DAY_VARIABLE,
   PARALLEL_NIGHT_HOURS_VARIABLE,
   PARALLEL_NIGHT_VARIABLE,
+  PARALLEL_OVERRIDE_VARIABLE,
   parseParallelSettings,
   type ParallelSettings,
 } from "../parallel";
@@ -88,6 +89,21 @@ export async function writeParallelSettings(
     if (value === null) await deleteVariable(client, target, name);
     else await writeVariable(client, target, name, value);
   }
+}
+
+/** リポジトリの手の上書き（`PARALLEL_OVERRIDE`）の値を読む。無ければ null */
+export async function readParallelOverride(client: GitHubClient, target: WatchedRepo): Promise<string | null> {
+  return readVariable(client, target, PARALLEL_OVERRIDE_VARIABLE);
+}
+
+/** リポジトリの手の上書きを書く。value が null なら消す（時間帯の決まりに戻す）。ほかの並列の変数には触らない */
+export async function writeParallelOverride(
+  client: GitHubClient,
+  target: WatchedRepo,
+  value: string | null,
+): Promise<void> {
+  if (value === null) await deleteVariable(client, target, PARALLEL_OVERRIDE_VARIABLE);
+  else await writeVariable(client, target, PARALLEL_OVERRIDE_VARIABLE, value);
 }
 
 /** ログイン中のユーザーが読めるリポジトリの `owner/repo`（最近pushされた順） */

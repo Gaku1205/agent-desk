@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { LoginScreen } from "@/components/LoginScreen";
+import { ParallelProvider } from "@/components/ParallelContext";
 import { TopBar } from "@/components/TopBar";
 import { getSignedInLogin } from "@/lib/auth";
 import { isAuthExpired, SESSION_EXPIRED_PATH } from "@/lib/authExpired";
@@ -36,14 +37,16 @@ export default async function AppLayout({
       needsIntervalRefresh={loaded.changeWatch.needsIntervalRefresh}
       graceRefreshAt={loaded.graceRefreshAt}
     >
-      <TopBar
-        repos={repos}
-        counts={countTurnItems(loaded.items)}
-        runningCounts={countRunningPipelineRows(loaded.results, loaded.now)}
-        login={login}
-        logout={logout}
-      />
-      {children}
+      <ParallelProvider>
+        <TopBar
+          repos={repos}
+          counts={countTurnItems(loaded.items)}
+          runningCounts={countRunningPipelineRows(loaded.results, loaded.now)}
+          login={login}
+          logout={logout}
+        />
+        {children}
+      </ParallelProvider>
     </AppShell>
   );
 }

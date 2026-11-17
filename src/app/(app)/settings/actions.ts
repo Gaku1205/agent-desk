@@ -25,12 +25,22 @@ import {
   deleteVariable,
   hasPipeline,
   listReadableRepos,
+  readParallelOverride,
+  readParallelSettings,
   readVariable,
   WATCHED_REPOS_VARIABLE,
+  writeParallelOverride,
   writeParallelSettings,
   writeVariable,
 } from "@/lib/github/settings";
-import { checkParallelSettings, PARALLEL_MESSAGES } from "@/lib/parallel";
+import {
+  checkParallelSettings,
+  DEFAULT_PARALLEL_SETTINGS,
+  formatParallelOverride,
+  nextPeriodSwitch,
+  PARALLEL_MESSAGES,
+  type ParallelSettings,
+} from "@/lib/parallel";
 import { isAllowedLogin } from "@/lib/allowlist";
 import {
   authorizeRepoSetting,
@@ -151,6 +161,78 @@ export async function saveParallel(value: unknown): Promise<SaveReposResult> {
   if (failures.length > 0) return { ok: false, message: failures.join(" / ") };
   if (written === 0) return { ok: false, message: PARALLEL_MESSAGES.noPipeline };
   return { ok: true };
+}
+
+/** 帯の並列の表示に要る物：保存済みの設定と、手の上書きの値（`PARALLEL_OVERRIDE`。無ければ null） */
+export type ParallelSnapshot = { settings: ParallelSettings; override: string | null };
+
+export type ParallelOverrideResult =
+  | { ok: true; snapshot: ParallelSnapshot }
+  | { ok: false; message: string };
+
+/** 帯の並列の表示のために、`SETTINGS_REPO` の変数を読む。ログインしていない・`SETTINGS_REPO` が無い・読めなければ null */
+export async function loadParallelSnapshot(): Promise<ParallelSnapshot | null> {
+  const login = await getSignedInLogin();
+  const token = await getGitHubToken();
+  const settingsRepo = getSettingsRepo();
+  if (!token || !settingsRepo || !isAllowedLogin(login, getAllowedLogins())) return null;
+  const client = new GitHubClient(token);
+  try {
+    const [settings, override] = await Promise.all([
+      readParallelSettings(client, settingsRepo),
+      readParallelOverride(client, settingsRepo),
+    ]);
+    return { settings, override };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 帯のボタン：手の上書きを、パイプラインのある監視リポジトリ全部に書く。
+ * `"night"`・`"day"`＝その上限にする（期限は次の時間帯の切り替わり。サーバーで決める）、`"clear"`＝消して時間帯の決まりに戻す。
+ * 1つのリポジトリで失敗しても残りには書き、失敗した物は名前と理由を返す
+ */
+export async function setParallelOverride(value: unknown): Promise<ParallelOverrideResult> {
+  const login = await getSignedInLogin();
+  const token = await getGitHubToken();
+  if (!token || !isAllowedLogin(login, getAllowedLogins())) {
+    return { ok: false, message: REPO_SETTING_MESSAGES.unauthorized };
+  }
+  if (value !== "night" && value !== "day" && value !== "clear") {
+    return { ok: false, message: PARALLEL_MESSAGES.invalid };
+  }
+
+  const client = new GitHubClient(token);
+  const settingsRepo = getSettingsRepo();
+  let settings = DEFAULT_PARALLEL_SETTINGS;
+  if (settingsRepo) {
+    try {
+      settings = await readParallelSettings(client, settingsRepo);
+    } catch (error) {
+      return { ok: false, message: repoSettingErrorMessage(error) };
+    }
+  }
+  const text =
+    value === "clear"
+      ? null
+      : formatParallelOverride({ period: value, until: nextPeriodSwitch(new Date(), value, settings.nightHours) });
+
+  const failures: string[] = [];
+  let written = 0;
+  for (const repo of (await loadWatchedRepos()).repos) {
+    const name = `${repo.owner}/${repo.repo}`;
+    try {
+      if (!(await hasPipeline(client, repo))) continue;
+      await writeParallelOverride(client, repo, text);
+      written += 1;
+    } catch (error) {
+      failures.push(`${name}：${repoSettingErrorMessage(error)}`);
+    }
+  }
+  if (failures.length > 0) return { ok: false, message: failures.join(" / ") };
+  if (written === 0) return { ok: false, message: PARALLEL_MESSAGES.noPipeline };
+  return { ok: true, snapshot: { settings, override: text } };
 }
 
 /** あるリポジトリの「鳴らす通知の種類」を、そのリポジトリの Variable `NOTIFY_EVENTS` に保存する */
