@@ -372,21 +372,34 @@ describe("buildRecentEvents の種類", () => {
     expect(find(events, "公開")).toBeUndefined();
   });
 
-  it("自動修正：修正依頼コメントごとに n/2", () => {
+  it("自動修正：修正依頼コメントごとに n/3（3回目も 3/3）", () => {
     const events = build({
       issues: [issue(3)],
       pulls: [pull(8, 3)],
       comments: [
         comment(8, "@claude 直して\n<!-- auto-fix -->\n<!-- auto-fix-sha: aaa -->", "2026-10-25T03:00:00Z"),
         comment(8, "@claude 直して\n<!-- auto-fix -->\n<!-- auto-fix-sha: bbb -->", "2026-10-25T04:00:00Z"),
+        comment(8, "@claude 直して\n<!-- auto-fix -->\n<!-- auto-fix-sha: ccc -->", "2026-10-25T05:00:00Z"),
       ],
     });
     const fixes = events.filter((event) => event.text.startsWith("AIに修正"));
     expect(fixes.map((event) => event.text)).toEqual([
-      "AIに修正を依頼しました（2/2）",
-      "AIに修正を依頼しました（1/2）",
+      "AIに修正を依頼しました（3/3）",
+      "AIに修正を依頼しました（2/3）",
+      "AIに修正を依頼しました（1/3）",
     ]);
     expect(fixes[0]).toMatchObject({ tone: "ai", ref: "r#3・PR #8" });
+  });
+
+  it("自動修正：分母は最新の依頼コメントの（自動の依頼 n/N）の N", () => {
+    const events = build({
+      issues: [issue(3)],
+      pulls: [pull(8, 3)],
+      comments: [
+        comment(8, "<!-- auto-fix -->\n<!-- auto-fix-sha: aaa -->\n（自動の依頼 1/4）", "2026-10-25T03:00:00Z"),
+      ],
+    });
+    expect(events.find((event) => event.text.startsWith("AIに修正"))?.text).toBe("AIに修正を依頼しました（1/4）");
   });
 
   it("止まった：PRの「⏸ 自動で進めるのを止めました」コメントの理由", () => {

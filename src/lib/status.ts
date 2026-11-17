@@ -1,3 +1,4 @@
+import { FIX_MAX } from "./flowBranch";
 import { isFactoryIssue } from "./factoryIssue";
 import { isFactoryAnswered } from "./factoryTalk";
 import type { PipelineState } from "./pipelineState";
@@ -75,8 +76,10 @@ export type IssueStatus = {
   holdRequest: string | null;
   /** 企画AIが清書した（Issue本文に `> 元のメモ：` がある） */
   planned: boolean;
-  /** 自動の修正依頼の数（0〜2） */
+  /** 自動の修正依頼の数（0〜上限） */
   fixCount: number;
+  /** 修正の上限（修正依頼コメントの `n/N` の N。無ければ3として扱う） */
+  fixLimit?: number;
   /** 直したあとの、CIかレビューの確認中 */
   verifyingFix: boolean;
   /** レビューが「指摘なし」で終わったか（`ai:hold` でも見る。進捗図のレビューの状態に使う） */
@@ -137,8 +140,15 @@ export const INTAKE_GRACE_MS = 10 * 60 * 1000;
 /** パイプラインの修正依頼コメントの印と、依頼時の先頭コミット（scripts/pipeline-lib.sh） */
 const AUTO_FIX_MARK = "<!-- auto-fix -->";
 const AUTO_FIX_SHA_PATTERN = /<!--\s*auto-fix-sha:\s*([0-9a-f]+)\s*-->/;
-/** 自動で直す回数の上限 */
-export const MAX_AUTO_FIX = 2;
+/** 自動で直す回数の上限（普通2回＋最後に opus 1回。1か所に決める：flowBranch.ts の FIX_MAX） */
+export const MAX_AUTO_FIX = FIX_MAX;
+const AUTO_FIX_LIMIT_PATTERN = /自動の依頼\s*\d+\s*\/\s*(\d+)/;
+
+/** 修正依頼コメントの本文の `（自動の依頼 n/N）` から N を読む。読めなければ3 */
+export function readFixLimit(body: string | null | undefined): number {
+  const n = Number(AUTO_FIX_LIMIT_PATTERN.exec(body ?? "")?.[1]);
+  return Number.isInteger(n) && n >= 1 ? n : MAX_AUTO_FIX;
+}
 /** 清書したIssueの本文にある印 */
 const PLAN_MEMO_MARK = "> 元のメモ：";
 /** パイプラインのやり直しの記録コメントの印（`.github/scripts/pipeline-lib.sh` の `RETRY_MARK`） */
@@ -504,9 +514,18 @@ export function isFixing(comments: CommentData[], pull: PullData): boolean {
   return last !== undefined && last !== null && last === pull.headSha;
 }
 
+/** 修正の上限：最新の修正依頼コメントの `（自動の依頼 n/N）` の N。読めなければ3 */
+export function autoFixLimit(comments: CommentData[], pullNumber: number): number {
+  const last = comments
+    .filter((comment) => comment.issueNumber === pullNumber && comment.body.includes(AUTO_FIX_MARK))
+    .sort(byCreatedAt)
+    .at(-1);
+  return readFixLimit(last?.body);
+}
+
 /** 修正した回数：修正依頼コメントの数（上限まで） */
 export function fixCount(comments: CommentData[], pull: PullData): number {
-  return Math.min(autoFixRequestShas(comments, pull.number).length, MAX_AUTO_FIX);
+  return Math.min(autoFixRequestShas(comments, pull.number).length, autoFixLimit(comments, pull.number));
 }
 
 /** 直したコミットがpush済みか：最新の修正依頼のSHAと、PRの先頭コミットが違う */
@@ -647,6 +666,7 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
     deployUnknown: false,
     planned: isPlanned(issue),
     fixCount: fixes,
+    fixLimit: pull ? autoFixLimit(input.comments, pull.number) : MAX_AUTO_FIX,
     verifyingFix:
       pushedFix && (stage === "reviewing" || stage === "ciRunning" || stage === "ciFailed"),
     reviewedClean: pull ? reviewedWithoutIssues(input.comments, pull.number) : false,

@@ -10,7 +10,7 @@ import type { IssueData, RepoData, RepoResult } from "./github/types";
 import { assignLamps, hasOpenHumanRequest, judgeLamp, runActivity, type Lamp, type LampTarget } from "./lamp";
 import { buildPipelineRows } from "./pipeline";
 import { isRunningStage } from "./runningPipeline";
-import { findLinkedPull, isLinkedPull, type IssueStatus, type Stage } from "./status";
+import { findLinkedPull, isLinkedPull, MAX_AUTO_FIX, type IssueStatus, type Stage } from "./status";
 import { turnRowDescription } from "./turn";
 
 /**
@@ -35,8 +35,9 @@ export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): Ch
     case "implementing":
       return { speaker: "AI", text: "AIが実装しています" };
     case "fixing": {
-      const n = Math.min(Math.max(status.fixCount, 1), 2);
-      return { speaker: "AI", text: `AIが直しています（${n}/2 回目）` };
+      const max = status.fixLimit ?? MAX_AUTO_FIX;
+      const n = Math.min(Math.max(status.fixCount, 1), max);
+      return { speaker: "AI", text: `AIが直しています（${n}/${max} 回目）` };
     }
     case "ciRunning":
       return status.verifyingFix

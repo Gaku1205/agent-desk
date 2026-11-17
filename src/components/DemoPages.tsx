@@ -1,6 +1,8 @@
 "use client";
 
+import { useCallback } from "react";
 import { notFound } from "next/navigation";
+import { demoStepLog } from "@/lib/demo/stepLog";
 import { findWatchedRepo, type WatchedRepo } from "@/lib/config";
 import { DEMO_BASE_PATH, DEMO_REPO_OPTIONS, DEMO_TEMPLATE_REPO } from "@/lib/demo/data";
 import { buildConversation } from "@/lib/conversation";
@@ -29,10 +31,20 @@ function useDemoNav(): DeskNav {
   };
 }
 
+/** 進捗図の記録：サンプルのデータの進捗ログを読む（データが変わるまで同じ関数） */
+function useDemoStepLog() {
+  const { results, now } = useDemoState();
+  return useCallback(
+    async (owner: string, repo: string, number: number) => demoStepLog(results, owner, repo, number, now),
+    [results, now],
+  );
+}
+
 /** デモのホーム：本物のホームと同じ部品に、サンプルのデータを渡す */
 export function DemoHome() {
   const { results, items, now, repos, addedNotices } = useDemoState();
   const nav = useDemoNav();
+  const loadStepLog = useDemoStepLog();
 
   return (
     <Desk
@@ -45,6 +57,8 @@ export function DemoHome() {
       addedNotices={addedNotices}
       nav={nav}
       newIssueRepos={newIssueRepos(repos)}
+      loadStepLog={loadStepLog}
+      hideUnknownModel
     />
   );
 }
@@ -53,6 +67,7 @@ export function DemoHome() {
 export function DemoRepo({ owner, repo }: { owner: string; repo: string }) {
   const { results, items, now, repos, addedNotices } = useDemoState();
   const nav = useDemoNav();
+  const loadStepLog = useDemoStepLog();
   // 自動で足すリポジトリ（morning-card）は、足すまでは見つからない
   if (!findWatchedRepo(owner, repo, repos)) notFound();
 
@@ -67,6 +82,8 @@ export function DemoRepo({ owner, repo }: { owner: string; repo: string }) {
       addedNotices={addedNotices.filter((notice) => notice.owner === owner && notice.repo === repo)}
       nav={nav}
       newIssueRepos={newIssueRepos(repos)}
+      loadStepLog={loadStepLog}
+      hideUnknownModel
     />
   );
 }

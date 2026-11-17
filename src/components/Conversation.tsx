@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { AddedNotice } from "@/lib/autoAdd";
 import type { AiActivity } from "@/lib/aiActivity";
 import type { ChatMessage } from "@/lib/conversation";
-import { applyStepLog } from "@/lib/flow";
+import { applyStepLog, hideUnknownModels } from "@/lib/flow";
 import type { StepInfo } from "@/lib/stepLog";
 import { formatWait } from "@/lib/turn";
 import { FlowMap } from "./FlowMap";
@@ -49,6 +49,8 @@ type Props = {
   onSelect?: (key: string) => void;
   /** スマホで開いた行の進捗図の「モデル名と所要時間」を読む（デモは渡さない） */
   loadStepLog?: LoadStepLog;
+  /** デモ：記録が無い工程の「不明」を出さない */
+  hideUnknownModel?: boolean;
 };
 
 type LoadStepLog = (owner: string, repo: string, number: number) => Promise<StepInfo[]>;
@@ -59,11 +61,13 @@ function OpenFlow({
   label,
   now,
   loadStepLog,
+  hideUnknownModel = false,
 }: {
   message: ChatMessage;
   label: string;
   now: string;
   loadStepLog?: LoadStepLog;
+  hideUnknownModel?: boolean;
 }) {
   const [infos, setInfos] = useState<StepInfo[] | null>(null);
   useEffect(() => {
@@ -80,7 +84,8 @@ function OpenFlow({
       cancelled = true;
     };
   }, [loadStepLog, message.owner, message.repo, message.number, now]);
-  const flow = infos ? applyStepLog(message.flow, infos) : message.flow;
+  const logged = infos ? applyStepLog(message.flow, infos) : message.flow;
+  const flow = hideUnknownModel ? hideUnknownModels(logged) : logged;
   return (
     <FlowMap
       inline
@@ -145,6 +150,7 @@ export function Conversation({
   selected = null,
   onSelect,
   loadStepLog,
+  hideUnknownModel,
 }: Props) {
   // 過去の欄に、最初の5件のほかに読み足した件数。その画面にいる間だけ覚える
   const [loaded, setLoaded] = useState(0);
@@ -327,7 +333,15 @@ export function Conversation({
             )}
           </div>
         )}
-        {isOpen && <OpenFlow message={message} label={label} now={now} loadStepLog={loadStepLog} />}
+        {isOpen && (
+          <OpenFlow
+            message={message}
+            label={label}
+            now={now}
+            loadStepLog={loadStepLog}
+            hideUnknownModel={hideUnknownModel}
+          />
+        )}
       </article>
     );
   }
@@ -377,7 +391,15 @@ export function Conversation({
             {clockTime(item.at)}
           </time>
         </button>
-        {isOpen && <OpenFlow message={message} label={label} now={now} loadStepLog={loadStepLog} />}
+        {isOpen && (
+          <OpenFlow
+            message={message}
+            label={label}
+            now={now}
+            loadStepLog={loadStepLog}
+            hideUnknownModel={hideUnknownModel}
+          />
+        )}
       </li>
     );
   }
