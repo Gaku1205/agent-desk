@@ -101,7 +101,7 @@ function OpenFlow({
 
 /**
  * 作業の様子の左の印：動いている（ランプが動作中）＝回る印、止まった・失敗した（人間の手が必要・CI失敗）＝×。
- * どちらでもない物（順番待ち・公開済みなど）は null（今までの並びのまま）
+ * どちらでもない物（順番待ち・公開済みなど）は null（印なし。並びは同じ）
  */
 function statusMark(message: ChatMessage): "running" | "failed" | null {
   if (message.lamp.kind === "running") return "running";
@@ -158,6 +158,14 @@ export function Conversation({
       if (!next.delete(key)) next.add(key);
       return next;
     });
+  // 理由を開いている行。その画面にいる間だけ覚える
+  const [openNotes, setOpenNotes] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleNote = (key: string) =>
+    setOpenNotes((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
   const isDesktop = () => window.matchMedia("(min-width: 900px)").matches;
   // 前の描画のメッセージ（新しく入った物を見分ける）
   const [seen, setSeen] = useState<{ messages: ChatMessage[]; keys: Set<string> | null }>({ messages, keys: null });
@@ -167,6 +175,9 @@ export function Conversation({
     const alive = new Set(messages.map((m) => m.key));
     if ([...openFlows].some((k) => !alive.has(k))) {
       setOpenFlows(new Set([...openFlows].filter((k) => alive.has(k))));
+    }
+    if ([...openNotes].some((k) => !alive.has(k))) {
+      setOpenNotes(new Set([...openNotes].filter((k) => alive.has(k))));
     }
   }
 
@@ -210,6 +221,8 @@ export function Conversation({
     const isSelected = selected === message.key;
     const isOpen = openFlows.has(message.key);
     const mark = statusMark(message);
+    const isNoteOpen = openNotes.has(message.key);
+    const noteId = `note-${message.key.replace(/[^A-Za-z0-9_-]/g, "-")}`;
     // PC：右の列の図の対象を選ぶ。スマホ：その行の下の図を開閉する
     const activate = () => {
       if (isDesktop()) onSelect?.(message.key);
@@ -263,19 +276,14 @@ export function Conversation({
           )}
           <LampWait lamp={message.lamp} />
         </p>
+        {/* どの段も：題名が上、作業内容が下（動いている・止まった物だけ左に回る印か×） */}
+        <p className={`${styles.title} ${styles.titleTop}`}>
+          <SmartLink href={message.url}>{message.title}</SmartLink>
+        </p>
         {mark === null ? (
-          <>
-            <p className={styles.text}>{message.text}</p>
-            <p className={styles.title}>
-              <SmartLink href={message.url}>{message.title}</SmartLink>
-            </p>
-          </>
+          <p className={styles.text}>{message.text}</p>
         ) : (
           <>
-            {/* 動いている・止まった物：題名が上、作業の様子が下（左に回る印か×） */}
-            <p className={`${styles.title} ${styles.titleTop}`}>
-              <SmartLink href={message.url}>{message.title}</SmartLink>
-            </p>
             <p className={`${styles.text} ${styles.status}`}>
               <span className={styles.mark} data-state={mark} aria-hidden="true">
                 {mark === "running" ? (
@@ -292,19 +300,32 @@ export function Conversation({
           </>
         )}
         {(message.note || message.logUrl || message.links.length > 0) && (
-          <p className={styles.note}>
-            {message.note && <span>{message.note}</span>}
-            {message.logUrl && (
-              <a className={styles.link} href={message.logUrl} target="_blank" rel="noreferrer">
-                ログを開く ↗
-              </a>
+          <div className={styles.noteWrap}>
+            <button
+              type="button"
+              className={styles.noteToggle}
+              aria-expanded={isNoteOpen}
+              aria-controls={noteId}
+              onClick={() => toggleNote(message.key)}
+            >
+              {isNoteOpen ? "理由を閉じる" : "理由を見る"}
+            </button>
+            {isNoteOpen && (
+              <p className={styles.note} id={noteId}>
+                {message.note && <span>{message.note}</span>}
+                {message.logUrl && (
+                  <a className={styles.link} href={message.logUrl} target="_blank" rel="noreferrer">
+                    ログを開く ↗
+                  </a>
+                )}
+                {message.links.map((link) => (
+                  <a key={link.url} className={styles.link} href={link.url} target="_blank" rel="noreferrer">
+                    {link.label}
+                  </a>
+                ))}
+              </p>
             )}
-            {message.links.map((link) => (
-              <a key={link.url} className={styles.link} href={link.url} target="_blank" rel="noreferrer">
-                {link.label}
-              </a>
-            ))}
-          </p>
+          </div>
         )}
         {isOpen && <OpenFlow message={message} label={label} now={now} loadStepLog={loadStepLog} />}
       </article>
