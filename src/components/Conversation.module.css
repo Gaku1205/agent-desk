@@ -327,10 +327,6 @@
   margin: 8px 0 12px;
 }
 
-.pastRow:has(> .pastLine:not(.pastButton)) .pastTitle {
-  padding-left: 24px;
-}
-
 /* 進捗図の対象を選ぶ（PCだけ。docs/design.md の「いまの様子」）：番号のボタンは、ふだんは番号の文字のまま */
 .pick {
   color: inherit;
