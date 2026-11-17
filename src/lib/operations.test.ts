@@ -574,7 +574,7 @@ describe("executeCreateIssue", () => {
     const created = calls.find((call) => call.url.endsWith("/issues"));
     const body = (created?.body as { body: string }).body;
     expect(body.split("\n")).toHaveLength(2);
-    expect(body).toMatch(/^!\[\]\(https:\/\/github\.com\/o\/r\/raw\/issue-images\/images\/\d{6}\/[0-9a-f-]{36}\.png\)/);
+    expect(body).toMatch(/^!\[スクショ\]\(https:\/\/github\.com\/o\/r\/raw\/issue-images\/images\/\d{6}\/[0-9a-f-]{36}\.png\)/);
     expect(JSON.stringify(calls)).not.toContain(TOKEN);
   });
 

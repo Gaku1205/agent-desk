@@ -84,7 +84,7 @@ describe("composeNewIssue", () => {
     });
     expect(OMAKASE_BODY).toBe("- [x] 全部おまかせ");
   });
-  it("画像だけ：通常のリポジトリは本文に ![](URL) を1枚1行で並べる", () => {
+  it("画像だけ：通常のリポジトリは本文に ![スクショ](URL) を1枚1行で並べる", () => {
     expect(
       composeNewIssue({
         title: "メモ",
@@ -92,15 +92,15 @@ describe("composeNewIssue", () => {
         omakase: false,
         imageUrls: ["https://x/a.png", "https://x/b.png"],
       }),
-    ).toEqual({ title: "メモ", body: "![](https://x/a.png)\n![](https://x/b.png)" });
+    ).toEqual({ title: "メモ", body: "![スクショ](https://x/a.png)\n![スクショ](https://x/b.png)" });
   });
   it("おまかせ＋画像：チェックと画像の間は空行1つ", () => {
     const imageUrls = ["https://x/a.png"];
     expect(composeNewIssue({ title: "天気", isTemplate: true, omakase: true, imageUrls }).body).toBe(
-      "- [x] 全部おまかせ\n\n![](https://x/a.png)",
+      "- [x] 全部おまかせ\n\n![スクショ](https://x/a.png)",
     );
     expect(composeNewIssue({ title: "天気", isTemplate: true, omakase: false, imageUrls }).body).toBe(
-      "![](https://x/a.png)",
+      "![スクショ](https://x/a.png)",
     );
   });
   it("すでに「新サービス：」で始まっていれば重ねない（半角コロンも）", () => {

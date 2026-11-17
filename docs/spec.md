@@ -651,7 +651,7 @@ PCでは左のバーのユーザーのメニュー、スマホではメニュー
   - 決まり（`src/lib/issueImages.ts`。画面とサーバーの両方で使う）：種類は PNG・JPEG・WebP・GIF（**中身の先頭バイト**で確かめる。拡張子や申告された種類は信じない）、1回に**5枚まで**、**1枚4MBまで**。超えたときの文は `画像は5枚までです`・`画像は1枚4MBまでです`・`画像は PNG・JPEG・WebP・GIF だけです`（メモの欄の下に出す）。超えた画像は足さない。メモは必須のまま（画像だけでは作れない）
   - サーバー：画像は Server Action（`createNewIssue`）の入力に base64 で渡し、`parseNewIssueInput` が枚数・大きさ・種類を確かめ直す（正しくなければ `操作の内容が正しくありません`）。本文の上限は `next.config.ts` の `experimental.serverActions.bodySizeLimit`（`30mb`。5枚 × 4MB の base64 が通る大きさ）
   - 置き場所：同じリポジトリの専用ブランチ `issue-images`。無ければ、Git Data API で親の無い空のコミットから作る（`main` の履歴は触らない）。画像は `images/<西暦年月>/<ランダムな名前>.<拡張子>`（名前は `crypto.randomUUID()`。元のファイル名は使わない）に、Contents API（`PUT /repos/{owner}/{repo}/contents/{path}`）で1枚ずつ入れる。消さずに残す
-  - 本文：画像を全部上げてから、Issueを作る。本文は `![](https://github.com/<owner>/<repo>/raw/issue-images/<パス>)` を1枚1行で並べる（`composeNewIssue`）。`- [x] 全部おまかせ` があれば、その下に空行1つで分けて並べる。題名はメモのまま。非公開のリポジトリでも、リポジトリを見られる人は GitHub にログインしていれば見える
+  - 本文：画像を全部上げてから、Issueを作る。本文は `![スクショ](https://github.com/<owner>/<repo>/raw/issue-images/<パス>)` を1枚1行で並べる（`composeNewIssue`）。`- [x] 全部おまかせ` があれば、その下に空行1つで分けて並べる。題名はメモのまま。非公開のリポジトリでも、リポジトリを見られる人は GitHub にログインしていれば見える
   - 1枚でも上げられなければ、Issueは作らず、固定文 `画像を上げられませんでした。もう一度試してください` を返す（メモと画像は残る）
   - パイプラインのAIが画像を見られるようにする分は、この画面の外（Issue #375）
 - **ラベルは付けない**。付けるのはパイプラインの受付（`docs/pipeline.md`）で、企画に回す。画面は `ai:plan` などを付けない

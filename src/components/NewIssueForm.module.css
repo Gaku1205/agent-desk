@@ -237,7 +237,21 @@
   }
 
   .barForm .barRepo > * {
-    max-width: 150px;
+    max-width: 110px;
+  }
+
+  /* 幅が足りないので、新しいサービスのリンクは＋だけにする（文字は読み上げ用に残す） */
+  .barLink {
+    position: relative;
+    flex: 0 0 44px;
+    justify-content: center;
+  }
+
+  .barLinkText {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
   }
 
   .barForm .actions button {

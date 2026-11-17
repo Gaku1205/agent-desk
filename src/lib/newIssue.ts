@@ -83,7 +83,7 @@ export function parseNewIssueInput(value: unknown): NewIssueInput | null {
  * テンプレートリポジトリでは、タイトルを `新サービス：` 付きにする（すでに付いていれば重ねない）。
  * 「全部おまかせ」のときだけ、本文に `- [x] 全部おまかせ` を入れる（入れなければ工場が相談から始める）。
  * 通常のリポジトリでは「全部おまかせ」は無視する。
- * 画像があれば、本文に `![](URL)` を1枚1行で並べる（「全部おまかせ」とは空行1つで分ける）
+ * 画像があれば、本文に `![スクショ](URL)` を1枚1行で並べる（「全部おまかせ」とは空行1つで分ける）
  */
 export function composeNewIssue(input: {
   title: string;
@@ -92,7 +92,7 @@ export function composeNewIssue(input: {
   /** 上げた画像のURL */
   imageUrls?: string[];
 }): { title: string; body: string } {
-  const images = (input.imageUrls ?? []).map((url) => `![](${url})`).join("\n");
+  const images = (input.imageUrls ?? []).map((url) => `![スクショ](${url})`).join("\n");
   if (!input.isTemplate) return { title: input.title, body: images };
   const memo = input.title.replace(FACTORY_PREFIX_PATTERN, "").trim();
   const parts = [input.omakase ? OMAKASE_BODY : "", images].filter((part) => part !== "");
