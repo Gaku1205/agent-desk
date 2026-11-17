@@ -18,9 +18,12 @@ export function LoginScreen() {
   return (
     <main className={styles.login}>
       <h1 className={styles.mark}>agent-desk</h1>
-      <Suspense fallback={null}>
-        <ExpiredNotice />
-      </Suspense>
+      <div className={styles.notices}>
+        <Suspense fallback={null}>
+          <ExpiredNotice />
+        </Suspense>
+        <p className={styles.notice}>このページはオーナー専用です</p>
+      </div>
       <div className={styles.actions}>
         <form action={login}>
           <LoginSubmit />

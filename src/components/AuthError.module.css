@@ -1,0 +1,55 @@
+/* ログインの拒否・エラー：ログイン画面と同じ1本の列に、ワードマーク・理由・戻るリンク */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  align-items: flex-start;
+  justify-content: center;
+  width: min(var(--col), 100% - 2 * var(--gutter));
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 40px 0 120px;
+}
+
+.mark {
+  margin: 0;
+  color: var(--bone);
+  font-family: var(--disp);
+  font-size: clamp(40px, 6vw, 56px);
+  font-weight: 800;
+  font-variation-settings: "opsz" 96;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.reason {
+  margin: 0;
+  color: var(--bone);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  height: 42px;
+  color: var(--bone-2);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.back:hover {
+  color: var(--bone);
+}
+
+@media (max-width: 899px) {
+  .page {
+    padding-bottom: 88px;
+  }
+
+  .back {
+    height: 44px;
+  }
+}
