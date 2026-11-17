@@ -63,37 +63,49 @@ export type ParsedQuestion = {
   mockups: MockupOption[];
 };
 
-/** 質問のコメントか（1行目が質問の印） */
-export function isQuestionComment(comment: Pick<CommentData, "body">): boolean {
-  return QUESTION_MARK_PATTERN.test(comment.body.trimStart());
+/** パイプラインの書いた物か（作者が `…[bot]`。GraphQL の Bot にも `[bot]` を付けてある） */
+export function isPipelineAuthor(author: string): boolean {
+  return author.endsWith("[bot]");
+}
+
+/** リポジトリのオーナー（`owner/repo` の `owner`）の書いた物か（大文字小文字は区別しない） */
+export function isOwnerAuthor(author: string, owner: string): boolean {
+  return owner !== "" && author.toLowerCase() === owner.toLowerCase();
+}
+
+/** 質問のコメントか（1行目が質問の印で、作者がパイプラインかオーナー） */
+export function isQuestionComment(comment: Pick<CommentData, "author" | "body">, owner: string): boolean {
+  return (
+    (isPipelineAuthor(comment.author) || isOwnerAuthor(comment.author, owner)) &&
+    QUESTION_MARK_PATTERN.test(comment.body.trimStart())
+  );
 }
 
 /** そのIssueのいちばん新しい質問のコメント（無ければ null） */
-export function latestQuestionComment(comments: CommentData[], issueNumber: number): CommentData | null {
+export function latestQuestionComment(
+  comments: CommentData[],
+  issueNumber: number,
+  owner: string,
+): CommentData | null {
   return (
     comments
-      .filter((comment) => comment.issueNumber === issueNumber && isQuestionComment(comment))
+      .filter((comment) => comment.issueNumber === issueNumber && isQuestionComment(comment, owner))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
       .at(-1) ?? null
   );
 }
 
-/** 人が書いたコメントか（作者が `…[bot]` でない） */
-function isHumanComment(comment: CommentData): boolean {
-  return !comment.author.endsWith("[bot]");
-}
-
 /**
- * いちばん新しい質問のあとに、人がコメントで答えたか。
+ * いちばん新しい質問のあとに、オーナーがコメントで答えたか。
  * 質問のコメントが無いときは false（答えを待っている）
  */
-export function isQuestionAnswered(comments: CommentData[], issueNumber: number): boolean {
-  const question = latestQuestionComment(comments, issueNumber);
+export function isQuestionAnswered(comments: CommentData[], issueNumber: number, owner: string): boolean {
+  const question = latestQuestionComment(comments, issueNumber, owner);
   if (!question) return false;
   return comments.some(
     (comment) =>
       comment.issueNumber === issueNumber &&
-      isHumanComment(comment) &&
+      isOwnerAuthor(comment.author, owner) &&
       comment.createdAt > question.createdAt,
   );
 }
@@ -175,8 +187,12 @@ export function parseMockups(body: string): MockupOption[] {
 }
 
 /** そのIssueのいちばん新しい質問のコメントを読む（無ければ null） */
-export function parseQuestionComment(comments: CommentData[], issueNumber: number): ParsedQuestion | null {
-  const comment = latestQuestionComment(comments, issueNumber);
+export function parseQuestionComment(
+  comments: CommentData[],
+  issueNumber: number,
+  owner: string,
+): ParsedQuestion | null {
+  const comment = latestQuestionComment(comments, issueNumber, owner);
   if (!comment) return null;
   return {
     commentId: comment.id,

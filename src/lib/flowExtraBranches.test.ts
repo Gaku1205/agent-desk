@@ -266,8 +266,8 @@ describe("flowFacts / hasReviewFindings", () => {
   it("画面案は、最新の質問のコメントに画面案の画像があるとき", () => {
     const withMocks = comment(18, '<!-- ai-question -->\n**Q1. 色は？**\n\n<!-- ai-mocks: issue-18/r1 -->\n### A. 明るい\n<img src="/a.svg" alt="A PC">');
     const issue = { number: 18, labels: ["ai:question"] };
-    expect(flowFacts(issue, { pull: null }, [withMocks])).toEqual({ labels: ["ai:question"], mocks: true, reviewFindings: false });
-    expect(flowFacts(issue, { pull: null }, [comment(18, "<!-- ai-question -->\n**Q1. 色は？**")]).mocks).toBe(false);
+    expect(flowFacts(issue, { pull: null }, [withMocks], "owner")).toEqual({ labels: ["ai:question"], mocks: true, reviewFindings: false });
+    expect(flowFacts(issue, { pull: null }, [comment(18, "<!-- ai-question -->\n**Q1. 色は？**")], "owner").mocks).toBe(false);
   });
 });
 

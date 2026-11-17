@@ -192,7 +192,7 @@ describe("答えを送る", () => {
   it("もう答えてある・質問でなくなっていたら、何もせず取り直す", async () => {
     const { client, calls } = fakeClient();
     const answered = asking();
-    answered.comments.push({ ...question, id: 6, author: "owner", body: "A", createdAt: "2026-10-25T11:00:00Z" });
+    answered.comments.push({ ...question, id: 6, author: TARGET.owner, body: "A", createdAt: "2026-10-25T11:00:00Z" });
     expect(await executeOperation(client, TARGET, { ...input("answer"), answer: "B" }, answered, NOW)).toEqual({
       ok: false,
       changed: true,
@@ -257,7 +257,7 @@ describe("工場の相談に答える", () => {
       changed: true,
     });
     const answered = factory();
-    answered.comments.push({ ...talk, id: 6, author: "owner", body: "A", createdAt: "2026-10-25T11:00:00Z" });
+    answered.comments.push({ ...talk, id: 6, author: TARGET.owner, body: "A", createdAt: "2026-10-25T11:00:00Z" });
     expect(await executeOperation(client, TARGET, { ...input("answer"), answer: "A" }, answered, NOW)).toEqual({
       ok: false,
       changed: true,

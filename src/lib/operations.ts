@@ -113,7 +113,7 @@ export async function executeOperation(
 ): Promise<OperationResult> {
   const issue = data.issues.find((i) => i.number === input.issueNumber);
   if (!issue || !shouldShowIssue(issue, data.pulls)) return CHANGED;
-  const status = getIssueStatus(issue, data, now);
+  const status = getIssueStatus(issue, { ...data, owner: target.owner }, now);
   if (status.turn !== "human" || !isOperationAvailable(input.kind, status, data)) return CHANGED;
   // 工場が受け持つ「新サービス：」のIssueには、ラベルを付けない
   if (status.stage === "notStarted" && isFactoryIssue(issue.title, data.isTemplate, issue.state)) return CHANGED;
