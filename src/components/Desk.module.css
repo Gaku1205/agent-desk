@@ -16,7 +16,7 @@
 /* 0件のときは画面の高さにしない（すぐ下に会話が続く） */
 .turn[data-empty] {
   min-height: 0;
-  padding: 56px 0 0;
+  padding: 56px 0;
 }
 
 .head {
@@ -196,7 +196,7 @@
   }
 
   .turn[data-empty] {
-    padding-top: 40px;
+    padding: 40px 0;
   }
 
   .turn[data-empty] .h1 {
