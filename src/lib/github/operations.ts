@@ -2,6 +2,7 @@ import type { WatchedRepo } from "../config";
 import type { GitHubClient } from "./client";
 import { PULL_BASE } from "../turn";
 import { GitHubError } from "./errors";
+import { IMAGES_BRANCH, imageUrl } from "../issueImages";
 
 function repoPath({ owner, repo }: WatchedRepo): string {
   return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
@@ -83,6 +84,52 @@ export async function createIssue(
     throw new GitHubError("other", null, null, "user");
   }
   return { number: created.number, url: created.html_url };
+}
+
+/**
+ * 画像を入れる専用ブランチを用意する。無ければ、親の無い空のコミットから作る（main の履歴は触らない）。
+ * 同時に作られて既にあったとき（422）は、そのまま使う
+ */
+export async function ensureImagesBranch(client: GitHubClient, target: WatchedRepo): Promise<void> {
+  try {
+    await client.get(`${repoPath(target)}/git/ref/heads/${IMAGES_BRANCH}`);
+    return;
+  } catch (error) {
+    if (!(error instanceof GitHubError) || error.status !== 404) throw error;
+  }
+  const tree = (await client.send("POST", `${repoPath(target)}/git/trees`, { tree: [] })) as { sha?: unknown } | null;
+  if (typeof tree?.sha !== "string") throw new GitHubError("other", null, null, "user");
+  const commit = (await client.send("POST", `${repoPath(target)}/git/commits`, {
+    message: "画像の置き場所を作る",
+    tree: tree.sha,
+    parents: [],
+  })) as { sha?: unknown } | null;
+  if (typeof commit?.sha !== "string") throw new GitHubError("other", null, null, "user");
+  try {
+    await client.send("POST", `${repoPath(target)}/git/refs`, {
+      ref: `refs/heads/${IMAGES_BRANCH}`,
+      sha: commit.sha,
+    });
+  } catch (error) {
+    if (error instanceof GitHubError && error.status === 422) return;
+    throw error;
+  }
+}
+
+/** 画像を専用ブランチに1枚入れる（Contents API）。入れた場所の URL を返す */
+export async function uploadIssueImage(
+  client: GitHubClient,
+  target: WatchedRepo,
+  path: string,
+  bytes: Uint8Array,
+): Promise<string> {
+  const encodedPath = path.split("/").map(encodeURIComponent).join("/");
+  await client.send("PUT", `${repoPath(target)}/contents/${encodedPath}`, {
+    message: "Issueの画像を追加",
+    content: Buffer.from(bytes).toString("base64"),
+    branch: IMAGES_BRANCH,
+  });
+  return imageUrl(target.owner, target.repo, path);
 }
 
 /** ブランチから main へのPRを作る */

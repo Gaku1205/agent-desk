@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MAX_ISSUE_IMAGES } from "./issueImages";
 import {
   checkNewIssueTitle,
   composeNewIssue,
@@ -29,10 +30,30 @@ describe("checkNewIssueTitle", () => {
   });
 });
 
+const IMAGE_URL =
+  "https://github.com/Gaku1205/agent-desk/raw/issue-images/images/202611/0f8e2a1c-3b4d-4e5f-8a9b-0c1d2e3f4a5b.png";
+
 describe("parseNewIssueInput", () => {
   const valid = { owner: "Gaku1205", repo: "agent-desk", title: " メモ ", omakase: false };
-  it("正しい値は整えて通す", () => {
-    expect(parseNewIssueInput(valid)).toEqual({ ...valid, title: "メモ" });
+  it("正しい値は整えて通す（画像が無ければ空）", () => {
+    expect(parseNewIssueInput(valid)).toEqual({ ...valid, title: "メモ", imageUrls: [] });
+  });
+  it("画像は、そのリポジトリの専用ブランチに上げたURLだけ通す", () => {
+    expect(parseNewIssueInput({ ...valid, images: [IMAGE_URL] })?.imageUrls).toEqual([IMAGE_URL]);
+  });
+  it("不正な画像は全体を null にする", () => {
+    for (const images of [
+      "x",
+      [null],
+      [{ data: "AAAA" }],
+      [""],
+      ["https://evil.example/a.png"],
+      [IMAGE_URL.replace("/agent-desk/", "/other/")],
+      [IMAGE_URL.replace(".png", ".svg")],
+      Array.from({ length: MAX_ISSUE_IMAGES + 1 }, () => IMAGE_URL),
+    ]) {
+      expect(parseNewIssueInput({ ...valid, images })).toBeNull();
+    }
   });
   it("形の違う値は null", () => {
     expect(parseNewIssueInput(null)).toBeNull();
@@ -59,6 +80,25 @@ describe("composeNewIssue", () => {
       body: OMAKASE_BODY,
     });
     expect(OMAKASE_BODY).toBe("- [x] 全部おまかせ");
+  });
+  it("画像だけ：通常のリポジトリは本文に ![スクショ](URL) を1枚1行で並べる", () => {
+    expect(
+      composeNewIssue({
+        title: "メモ",
+        isTemplate: false,
+        omakase: false,
+        imageUrls: ["https://x/a.png", "https://x/b.png"],
+      }),
+    ).toEqual({ title: "メモ", body: "![スクショ](https://x/a.png)\n![スクショ](https://x/b.png)" });
+  });
+  it("おまかせ＋画像：チェックと画像の間は空行1つ", () => {
+    const imageUrls = ["https://x/a.png"];
+    expect(composeNewIssue({ title: "天気", isTemplate: true, omakase: true, imageUrls }).body).toBe(
+      "- [x] 全部おまかせ\n\n![スクショ](https://x/a.png)",
+    );
+    expect(composeNewIssue({ title: "天気", isTemplate: true, omakase: false, imageUrls }).body).toBe(
+      "![スクショ](https://x/a.png)",
+    );
   });
   it("すでに「新サービス：」で始まっていれば重ねない（半角コロンも）", () => {
     expect(composeNewIssue({ title: "新サービス：天気", isTemplate: true, omakase: false }).title).toBe(

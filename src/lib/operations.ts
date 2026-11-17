@@ -7,11 +7,14 @@ import {
   addLabel,
   createIssue,
   createPull,
+  ensureImagesBranch,
   fetchIsTemplate,
   findIssueBranch,
   mergePull,
   removeLabel,
+  uploadIssueImage,
 } from "./github/operations";
+import { imagePath, type ParsedImage } from "./issueImages";
 import { composeNewIssue, type NewIssueInput } from "./newIssue";
 import { isValidAnswer } from "./question";
 import type { RepoData } from "./github/types";
@@ -43,6 +46,7 @@ export const OPERATION_MESSAGES = {
   forbidden: "このリポジトリを操作する権限がありません",
   rateLimited: "GitHubのレート制限に達しました。しばらくしてからもう一度試してください",
   failed: "GitHubへの操作に失敗しました",
+  imageFailed: "画像を上げられませんでした。もう一度試してください",
 } as const;
 
 function fail(message: string): OperationResult {
@@ -183,9 +187,35 @@ export type CreateIssueResult =
   | { ok: true; number: number; url: string }
   | { ok: false; message: string };
 
+export type UploadImageResult = { ok: true; url: string } | { ok: false; message: string };
+
+/**
+ * Issueに付ける画像を1枚、専用ブランチに上げる（ブランチが無ければ作る）。
+ * 上げられなければ固定文を返す（ログインが切れたときだけは、ログインし直しに回すためその文）
+ */
+export async function executeUploadIssueImage(
+  client: GitHubClient,
+  target: WatchedRepo,
+  image: ParsedImage,
+  now: Date,
+): Promise<UploadImageResult> {
+  try {
+    await ensureImagesBranch(client, target);
+    const path = imagePath(image.kind, now, crypto.randomUUID());
+    return { ok: true, url: await uploadIssueImage(client, target, path, image.bytes) };
+  } catch (error) {
+    const message = operationErrorMessage(error);
+    return {
+      ok: false,
+      message: message === OPERATION_MESSAGES.unauthorized ? message : OPERATION_MESSAGES.imageFailed,
+    };
+  }
+}
+
 /**
  * 画面から書いたIssueを作る（ラベルは付けない。パイプラインの受付が企画に回す）。
- * テンプレートリポジトリかどうかはサーバーで確かめ直す（画面から来た値は信じない）
+ * テンプレートリポジトリかどうかはサーバーで確かめ直す（画面から来た値は信じない）。
+ * 画像は先に `executeUploadIssueImage` で全部上げておき、そのURLを本文に並べる
  */
 export async function executeCreateIssue(
   client: GitHubClient,
@@ -194,7 +224,12 @@ export async function executeCreateIssue(
 ): Promise<CreateIssueResult> {
   try {
     const isTemplate = await fetchIsTemplate(client, target);
-    const issue = composeNewIssue({ title: input.title, isTemplate, omakase: input.omakase });
+    const issue = composeNewIssue({
+      title: input.title,
+      isTemplate,
+      omakase: input.omakase,
+      imageUrls: input.imageUrls,
+    });
     const created = await createIssue(client, target, issue);
     return { ok: true, ...created };
   } catch (error) {
