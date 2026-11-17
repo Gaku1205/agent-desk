@@ -451,7 +451,7 @@
 
   .link::after {
     position: absolute;
-    inset: -5px 0;
+    inset: -1px 0; /* もともと約21.5px。折り返しの行の間（2px）に収まる広げ方 */
     content: "";
   }
 
