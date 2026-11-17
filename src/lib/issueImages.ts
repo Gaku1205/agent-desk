@@ -116,5 +116,13 @@ export function imageUrl(owner: string, repo: string, path: string): string {
   return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/raw/${IMAGES_BRANCH}/${path}`;
 }
 
+/**
+ * ドラッグで入ってきたものがファイルか（`DataTransfer.types` に `Files` を含むか）。
+ * 文字・リンクのドラッグは false（ブラウザの既定の動きに任せる）
+ */
+export function isFileDrag(types: ArrayLike<string>): boolean {
+  return Array.from(types).includes("Files");
+}
+
 /** 画像を入れる専用ブランチ */
 export const IMAGES_BRANCH = "issue-images";
