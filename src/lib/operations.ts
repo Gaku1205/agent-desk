@@ -20,6 +20,7 @@ import { isValidAnswer } from "./question";
 import type { RepoData } from "./github/types";
 import { isFactoryIssue } from "./factoryIssue";
 import { parseFactoryAnswer } from "./factoryTalk";
+import { unlinkedMergeablePulls } from "./mergeablePull";
 import { getIssueStatus, LABEL, shouldShowIssue } from "./status";
 import { isOperationAvailable, OPERATION_KINDS, type OperationKind } from "./turn";
 
@@ -115,6 +116,22 @@ export async function executeOperation(
   data: RepoData,
   now: Date,
 ): Promise<OperationResult> {
+  // Issueに紐づかない「マージしてよいPR」のマージ（番号は PR の番号）
+  if (input.kind === "merge") {
+    const unlinked = unlinkedMergeablePulls(data.pulls, data.comments, data.pullChecks).find(
+      (p) => p.number === input.issueNumber,
+    );
+    if (unlinked) {
+      try {
+        if ((await mergePull(client, target, unlinked.number, unlinked.headSha)) === "changed") {
+          return CHANGED;
+        }
+      } catch (error) {
+        return fail(operationErrorMessage(error));
+      }
+      return { ok: true };
+    }
+  }
   const issue = data.issues.find((i) => i.number === input.issueNumber);
   if (!issue || !shouldShowIssue(issue, data.pulls)) return CHANGED;
   const status = getIssueStatus(issue, { ...data, owner: target.owner }, now);

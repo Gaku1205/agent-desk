@@ -395,6 +395,42 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
   addLabeled(ctx, 37, "ai:review", ago(ctx, 31));
   addComment(ctx, 37, REVIEW_CLEAN, ago(ctx, 21));
 
+  // マージ待ち（Issueが ai:stuck のまま。紐づくPRが「マージしてよいPR」なので、止まったではなくマージ）
+  const stuckHold = addIssue(ctx, 71, "設定の画面に保存のお知らせを出す", {
+    createdAt: ago(ctx, 8 * 60),
+    labels: ["ai:implement", "ai:stuck"],
+    planned: true,
+  });
+  addLabeled(ctx, 71, "ai:stuck", ago(ctx, 7 * 60));
+  addPull(ctx, 72, stuckHold, {
+    createdAt: ago(ctx, 6 * 60),
+    headSha: "7a8b9c0",
+    labels: ["ai:hold", "ai:review"],
+    checkRuns: [...ciRuns(4, ago(ctx, 5 * 60)), run("review", ago(ctx, 4 * 60))],
+  });
+  addComment(ctx, 72, REVIEW_CLEAN, ago(ctx, 4 * 60));
+
+  // マージ待ち（Issueに紐づかないPR：マネージャーが作った。ai:hold・レビュー済み・CI通過）
+  const unlinked = addPull(ctx, 73, { ...stuckHold, number: 0, title: "READMEの手順を最新にする" }, {
+    createdAt: ago(ctx, 2 * 60),
+    headSha: "8b9c0d1",
+    labels: ["ai:hold"],
+    checkRuns: [...ciRuns(4, ago(ctx, 90)), run("review", ago(ctx, 80))],
+  });
+  unlinked.body = "READMEの手順を、いまの画面に合わせて直しました。";
+  unlinked.headRef = "manager/readme-update";
+  addComment(ctx, 73, REVIEW_CLEAN, ago(ctx, 80));
+
+  // AI作業中（上端の帯の件数が、あなたの番の数と同じにならないように）
+  addIssue(ctx, 74, "ログイン後の画面に今日の予定を出す", {
+    createdAt: ago(ctx, 14),
+    labels: ["ai:implement"],
+    planned: true,
+  });
+  addLabeled(ctx, 74, "ai:implement", ago(ctx, 9));
+  addIssue(ctx, 75, "タスクの並び替えを足す", { createdAt: ago(ctx, 11), labels: ["ai:implement"], planned: true });
+  addLabeled(ctx, 75, "ai:implement", ago(ctx, 5));
+
   // マージ待ち（ai:hold・まだレビューしていない）
   const holdNoReview = addIssue(ctx, 21, "書き出しをCSVにも対応する", {
     createdAt: ago(ctx, 26 * 60),

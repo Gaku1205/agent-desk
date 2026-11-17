@@ -65,7 +65,9 @@ export function TurnList({ items, now, showRepo, onPick }: Props) {
           {items.map((item, index) => {
             const key = turnItemKey(item);
             const kind = turnKind(item.status);
-            const ref = `${showRepo ? item.repo : ""}#${item.issue.number}`;
+            const ref = item.pullOnly
+              ? `${showRepo ? item.repo : ""} PR #${item.issue.number}`.trim()
+              : `${showRepo ? item.repo : ""}#${item.issue.number}`;
             const wait = formatWait(item.waitingSince, now);
             return (
               <li key={key}>

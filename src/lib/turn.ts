@@ -3,8 +3,11 @@ import { describeStatus, failureLogUrl, PIPELINE_MISSING_TEXT } from "./describe
 import { isDeployStatus } from "./deployStatus";
 import { isFactoryIssue } from "./factoryIssue";
 import { flowFacts, type FlowFacts } from "./flowExtraBranches";
-import type { IssueData, RepoData, RepoResult } from "./github/types";
+import type { IssueData, PullData, RepoData, RepoResult } from "./github/types";
+import { holdRequestText } from "./humanRequest";
+import { unlinkedMergeablePulls } from "./mergeablePull";
 import {
+  ciState,
   getIssueStatus,
   implementFinishedAt,
   isClaudeReviewCheck,
@@ -93,9 +96,14 @@ export type TurnItem = {
   flowFacts?: FlowFacts;
   /** 止めている `ai:hold` のマージ待ちが、マージすると動き出す Issue の番号（無ければ出さない。docs/spec.md の「止めている印」） */
   blocking?: number[];
+  /** Issueに紐づかない「マージしてよいPR」の行（`issue` に PR の番号・題名・URL が入る。無ければ Issue の行） */
+  pullOnly?: boolean;
 };
 
-/** 1件のキー（`owner/repo#番号`。流れの光のキーと同じ） */
+/**
+ * 1件のキー（`owner/repo#番号`。流れの光のキーと同じ）。
+ * GitHub の Issue と PR は番号が共通なので、PR の行（`pullOnly`）のキーが Issue の行と重なることはない
+ */
 export function turnItemKey(item: Pick<TurnItem, "owner" | "repo" | "issue">): string {
   return `${item.owner}/${item.repo}#${item.issue.number}`;
 }
@@ -348,7 +356,63 @@ export function repoTurnItems(owner: string, repo: string, repoData: RepoData, n
       flowFacts: flowFacts(issue, status, data.comments, owner),
     });
   }
+  // Issueに紐づかない「マージしてよいPR」（Issueの行が無いので、PRから1件ずつ出す）
+  for (const pull of unlinkedMergeablePulls(data.pulls, data.comments, data.pullChecks)) {
+    const checks = data.pullChecks[pull.number];
+    const ci = ciState(checks?.checkRuns ?? []);
+    const status = pullOnlyStatus(pull, { passed: ci.passed, total: ci.total });
+    const blocking = parseHoldBlocking(data.comments, pull.number);
+    items.push({
+      owner,
+      repo,
+      issue: { number: pull.number, title: pull.title, url: pull.url },
+      status,
+      description: describeStatus(status, { repo: `${owner}/${repo}` }).long,
+      note: holdBlockingNote(blocking, data.issues),
+      ...(blocking.length > 0 ? { blocking } : {}),
+      logUrl: null,
+      waitingSince:
+        latest(
+          (checks?.checkRuns ?? [])
+            .filter((check) => !isClaudeReviewCheck(check))
+            .map((check) => check.completedAt),
+        ) ?? pull.createdAt,
+      buttons: [operation("merge")],
+      merge: {
+        pullNumber: pull.number,
+        base: PULL_BASE,
+        ci: status.ci,
+        review: reviewOutcome(data.comments, pull.number),
+      },
+      question: null,
+      factory: null,
+      pullOnly: true,
+    });
+  }
   return items;
+}
+
+/** Issueに紐づかないPRの、マージ待ち（`ai:hold`・人間の番）の状態 */
+export function pullOnlyStatus(pull: PullData, ci: { passed: number; total: number }): IssueStatus {
+  return {
+    stage: "mergeWaiting",
+    turn: "human",
+    stageBeforeStuck: null,
+    stageBeforeRetry: null,
+    retry: null,
+    pull,
+    ci,
+    mergeWait: "hold",
+    implementError: false,
+    deployUnknown: false,
+    stuckReason: null,
+    holdRequest: holdRequestText(pull.body),
+    planned: false,
+    fixCount: 0,
+    verifyingFix: false,
+    reviewedClean: true,
+    grace: null,
+  };
 }
 
 /** 取得できたリポジトリ全部の「あなたの番」を、並び順どおりに返す */
