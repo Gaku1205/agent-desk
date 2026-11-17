@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState, useTransition, type FormEvent } from "react";
 import { createNewIssue } from "@/app/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
@@ -33,7 +34,10 @@ export function NewIssueForm({
   initialRepo,
   variant = "page",
   mode = "issue",
+  newServiceHref,
 }: {
+  /** `bar` の補助の行に置く「＋ 新しいサービスを作る」の行き先（`/new/service`。デモは `/demo/new/service`） */
+  newServiceHref?: string;
   repos: NewIssueRepo[];
   initialRepo?: string;
   variant?: "page" | "bar";
@@ -124,6 +128,12 @@ export function NewIssueForm({
                       icon={<RepoIcon />}
                     />
                   </div>
+                )}
+                {bar && newServiceHref && (
+                  <Link href={newServiceHref} className={styles.barLink}>
+                    <PlusIcon />
+                    <span className={styles.barLinkText}>新しいサービスを作る</span>
+                  </Link>
                 )}
                 <label className={`${styles.field} ${bar ? styles.barMemo : ""}`}>
                   <span className={bar ? styles.hidden : styles.label}>

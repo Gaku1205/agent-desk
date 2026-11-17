@@ -114,25 +114,17 @@
   width: 100%;
 }
 
+/* 上：メモ（主役。幅いっぱい）。下の1行：左に補助（選択欄・新しいサービス）、右端に Issueを作る。幅によらず同じ形（Issue #373） */
 .barForm {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 16px;
+  gap: 6px 12px;
   align-items: center;
 }
 
-.barRepo > * {
-  width: 200px;
-}
-
-/* 下に付いているので、選択欄の一覧は上へ開く */
-.barRepo :global([role="listbox"]) {
-  top: auto;
-  bottom: calc(100% + 4px);
-}
-
 .barMemo {
-  flex: 1 1 240px;
+  order: 1;
+  flex: 1 0 100%;
   min-width: 0;
 }
 
@@ -140,42 +132,112 @@
   max-width: none;
 }
 
-.barForm .actions {
-  margin-top: 0;
+.barMemo .input,
+.barMemo .prefix {
+  height: 52px;
+  line-height: 52px;
 }
 
-.barForm .omakase {
+.barMemo .input,
+.barMemo .prefix {
+  font-size: 16px;
+}
+
+.barRepo {
+  order: 2;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* 補助の選択欄：内容に合わせた小さい形。長い名前は「…」 */
+.barForm .barRepo > * {
+  width: auto;
+  max-width: 220px;
+}
+
+.barForm .barRepo button {
+  gap: 6px;
+  color: var(--mute);
+  font-size: 12.5px;
+}
+
+.barForm .barRepo button:hover,
+.barForm .barRepo button[aria-expanded="true"] {
+  color: var(--bone);
+}
+
+/* 下に付いているので、選択欄の一覧は上へ開く */
+.barRepo :global([role="listbox"]) {
+  top: auto;
+  bottom: calc(100% + 4px);
+  right: auto;
+  min-width: 220px;
+}
+
+.barLink {
+  display: inline-flex;
+  order: 3;
+  /* 基準を0にして、折り返さず残りの幅に収める（入らなければ文字を「…」で切る） */
+  flex: 1 1 0;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  height: 36px;
+  color: var(--mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.barLink svg {
+  flex: none;
+}
+
+.barLink:hover {
+  color: var(--bone);
+}
+
+.barLinkText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Issueを作る と、できた／失敗の文は、ボタンだけ右端・文は次の行 */
+.barForm .actions {
+  display: contents;
+}
+
+.barForm .actions button {
   order: 4;
+  margin-left: auto;
+}
+
+.barForm .actions > span {
+  order: 6;
   flex-basis: 100%;
 }
 
-/* 狭い幅（スマホ・半分の幅）：選択欄を上の行、メモと Issueを作る を下の行に。押せる所は高さ44px（Issue #364） */
+.barForm .omakase {
+  order: 5;
+  flex-basis: 100%;
+}
+
+/* 狭い幅：行は1つのまま。押せる所は高さ44px（Issue #364） */
 @media (max-width: 899px) {
   .bar {
     padding-bottom: calc(14px + env(safe-area-inset-bottom));
   }
 
   .barForm {
-    gap: 8px 12px;
+    gap: 4px 8px;
   }
 
-  .barRepo {
-    flex: 1 0 100%;
-    min-width: 0;
-  }
-
-  .barRepo > * {
-    max-width: 100%;
-  }
-
-  .barMemo {
-    flex: 1 1 120px;
-  }
-
-  .barMemo .input,
-  .barMemo .prefix {
+  .barLink {
     height: 44px;
-    line-height: 44px;
+  }
+
+  .barForm .barRepo > * {
+    max-width: 150px;
   }
 
   .barForm .actions button {
