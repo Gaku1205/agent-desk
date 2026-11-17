@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
-import { addedNoticeText, type AddedNotice } from "@/lib/autoAdd";
+import type { AddedNotice } from "@/lib/autoAdd";
 import type { ChatMessage } from "@/lib/conversation";
 import { applyStepLog } from "@/lib/flow";
 import { isNearBottom, openPosition, shouldFollow } from "@/lib/followScroll";
@@ -198,12 +198,6 @@ export function Desk({
       text: `${scope.kind === "all" ? `${notice.repo}　` : ""}見張り役が ${notice.hours} 時間動いていません。Actions が止まっていないか確認してください`,
     })),
     ...errors.map((error) => ({ key: `error:${error.repo}`, tone: "fail" as const, text: `${error.repo}：${error.message}` })),
-    ...addedNotices.map((notice) => ({
-      key: `added:${notice.owner}/${notice.repo}`,
-      tone: "info" as const,
-      text: addedNoticeText(notice),
-      at: notice.at,
-    })),
   ];
 
   const showRepo = scope.kind === "all" && scope.repoCount > 1;
@@ -244,6 +238,7 @@ export function Desk({
       showRepo={showRepo}
       repo={scope.kind === "repo" ? { name: scope.repo, githubUrl: scope.githubUrl } : null}
       notices={conversationNotices}
+      added={addedNotices}
       selected={selectedKey}
       onSelect={select}
       loadStepLog={loadStepLog}

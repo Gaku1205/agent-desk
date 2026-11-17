@@ -109,8 +109,10 @@ export type ChatMessage = {
   activity: AiActivity | null;
   /** いちばん新しい出来事の時刻（無ければ null。足あとは「いまの様子」には出さず、並び順だけに使う） */
   latestAt: string | null;
-  /** 公開済み（ふだんは隠す） */
+  /** 公開済み（中央のいちばん上の過去の欄に出す） */
   deployed: boolean;
+  /** 公開した時刻（過去の欄に出す時刻）：`latestAt`。無ければマージ時刻。どちらも無ければ null */
+  doneAt: string | null;
   /** AIの番で動いている（`isRunningStage`）。進捗図に描く1件を選ぶのに使う */
   running: boolean;
   /** 進捗図の7つの工程の状態 */
@@ -206,6 +208,7 @@ export function buildConversation(
         activity: null,
         latestAt: trail?.latestAt ?? null,
         deployed: row.status.stage === "deployed",
+        doneAt: trail?.latestAt ?? findLinkedPull(result.data.pulls, row.issue.number)?.mergedAt ?? null,
         running: isRunningStage(row.status.stage, row.status.grace),
         flow: getFlow(row.status),
         flowExtra: { status: row.status, facts: flowFacts(issue, row.status, result.data.comments, result.owner) },
