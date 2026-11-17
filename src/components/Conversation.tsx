@@ -1,14 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { AddedNotice } from "@/lib/autoAdd";
 import type { AiActivity } from "@/lib/aiActivity";
 import type { ChatMessage } from "@/lib/conversation";
 import { applyStepLog } from "@/lib/flow";
 import type { StepInfo } from "@/lib/stepLog";
 import { formatWait } from "@/lib/turn";
 import { FlowMap } from "./FlowMap";
-import { CrossIcon, SpinnerIcon, TriangleDownIcon } from "./icons";
+import { CheckIcon, CrossIcon, SpinnerIcon } from "./icons";
 import { lampLabel } from "@/lib/lamp";
+import {
+  addedPastText,
+  buildPastItems,
+  clockTime,
+  groupByDay,
+  PAST_STEP,
+  type PastItem,
+  visibleCount,
+  visiblePast,
+} from "@/lib/pastLog";
 import { LampLabel, LampWait } from "./LampMark";
 import { SmartLink } from "./SmartLink";
 import styles from "./Conversation.module.css";
@@ -16,10 +27,8 @@ import styles from "./Conversation.module.css";
 export type ConversationNotice = {
   key: string;
   text: string;
-  /** warn＝見張り役、fail＝取れなかったリポジトリ、info＝自動で監視に足した */
-  tone: "warn" | "fail" | "info";
-  /** 出来事の時刻（ISO文字列）。あれば文の後ろに `· 12分前` */
-  at?: string;
+  /** warn＝見張り役、fail＝取れなかったリポジトリ */
+  tone: "warn" | "fail";
 };
 
 type Props = {
@@ -30,8 +39,10 @@ type Props = {
   showRepo: boolean;
   /** リポジトリのページ：見出しの横に出すリポジトリ名と GitHub のリンク */
   repo: { name: string; githubUrl: string | null } | null;
-  /** いちばん上のお知らせ（見張り役・取れなかったリポジトリ） */
+  /** 「いまの様子」の上のお知らせ（見張り役・取れなかったリポジトリ） */
   notices: ConversationNotice[];
+  /** 自動で監視に足したリポジトリ。公開済みと同じ過去の欄に、日ごとに混ぜる */
+  added?: AddedNotice[];
   /** PCの進捗図に描くため選んでいる行（`owner/repo#番号`）。選んでいなければ null */
   selected?: string | null;
   /** 行を選んだ（同じ行なら外す。決めるのは Desk） */
@@ -130,12 +141,15 @@ export function Conversation({
   showRepo,
   repo,
   notices,
+  added = [],
   selected = null,
   onSelect,
   loadStepLog,
 }: Props) {
-  // 公開済みを開いているか。その画面にいる間だけ覚える
-  const [deployedOpen, setDeployedOpen] = useState(false);
+  // 過去の欄に、最初の5件のほかに読み足した件数。その画面にいる間だけ覚える
+  const [loaded, setLoaded] = useState(0);
+  // 読み足す直前のページの高さ（足した分だけ位置を戻すため）
+  const heightBefore = useRef<number | null>(null);
   // スマホで進捗図を開いている行（`owner/repo#番号`）。その画面にいる間だけ覚える
   const [openFlows, setOpenFlows] = useState<ReadonlySet<string>>(() => new Set());
   const toggleOpen = (key: string) =>
@@ -157,8 +171,38 @@ export function Conversation({
   }
 
   const active = messages.filter((m) => !m.deployed);
-  const deployed = messages.filter((m) => m.deployed);
   const at = new Date(now);
+  const pastAll = buildPastItems(messages, added);
+  const shown = visibleCount(pastAll.length, loaded);
+  const days = groupByDay(visiblePast(pastAll, shown), at);
+  const hasMore = shown < pastAll.length;
+
+  const loadMore = useCallback(() => {
+    heightBefore.current = document.documentElement.scrollHeight;
+    setLoaded((n) => n + PAST_STEP);
+  }, []);
+  // 読み足したとき、見ていた位置が動かないよう、足した分の高さだけ位置を戻す
+  useLayoutEffect(() => {
+    if (heightBefore.current === null) return;
+    const diff = document.documentElement.scrollHeight - heightBefore.current;
+    heightBefore.current = null;
+    if (diff > 0) window.scrollBy({ top: diff, behavior: "instant" });
+  }, [shown]);
+  // 上の端までスクロールしたら読み足す（上へ動いて端に着いたときだけ。開いた直後には読み足さない）
+  const canLoad = useRef(hasMore);
+  useEffect(() => {
+    canLoad.current = hasMore;
+  }, [hasMore]);
+  useEffect(() => {
+    let last = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (y <= 0 && last > 0 && canLoad.current) loadMore();
+      last = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [loadMore]);
   const fresh = (key: string) => seen.keys !== null && seen.messages === messages && !seen.keys.has(key);
 
   function renderMessage(message: ChatMessage) {
@@ -267,8 +311,75 @@ export function Conversation({
     );
   }
 
+  /** 過去の欄の1行：しるし・題名・リポジトリ#番号・時刻（押すと進捗図。スマホは行の下に開く） */
+  function renderPast(item: PastItem) {
+    if (item.kind === "added") {
+      return (
+        <li key={item.key} className={styles.pastRow}>
+          <span className={styles.pastLine}>
+            <span className={styles.pastTitle}>{addedPastText(item.repo)}</span>
+            <time className={`${styles.pastTime} num`} dateTime={item.at}>
+              {clockTime(item.at)}
+            </time>
+          </span>
+        </li>
+      );
+    }
+    const { message } = item;
+    const label = showRepo ? `${message.repo}#${message.number}` : `#${message.number}`;
+    const isSelected = selected === message.key;
+    const isOpen = openFlows.has(message.key);
+    return (
+      <li
+        key={item.key}
+        className={styles.pastRow}
+        data-key={message.key}
+        data-selected={isSelected ? "" : undefined}
+        data-open={isOpen ? "" : undefined}
+      >
+        <button
+          type="button"
+          className={`${styles.pastLine} ${styles.pastButton}`}
+          aria-pressed={isSelected || isOpen}
+          aria-label={`${message.title}（${label}）の進捗図を見る`}
+          onClick={() => {
+            if (isDesktop()) onSelect?.(message.key);
+            else toggleOpen(message.key);
+          }}
+        >
+          <span className={styles.pastMark} aria-hidden="true">
+            <CheckIcon />
+          </span>
+          <span className={styles.pastTitle}>{message.title}</span>
+          <span className={`${styles.pastRef} num`}>{label}</span>
+          <time className={`${styles.pastTime} num`} dateTime={item.at}>
+            {clockTime(item.at)}
+          </time>
+        </button>
+        {isOpen && <OpenFlow message={message} label={label} now={now} loadStepLog={loadStepLog} />}
+      </li>
+    );
+  }
+
   return (
     <section className={styles.now} id="now" aria-labelledby="now-title">
+      {pastAll.length > 0 && (
+        <div className={styles.past} aria-label="古い会話" role="region">
+          {hasMore ? (
+            <button type="button" className={styles.pastMore} onClick={loadMore}>
+              さらに前を読む
+            </button>
+          ) : (
+            <p className={styles.pastEnd}>ここまで</p>
+          )}
+          {days.map((day) => (
+            <div key={day.key} className={styles.day}>
+              <h3 className={styles.dayHead}>{day.label}</h3>
+              <ul className={styles.pastList}>{day.items.map(renderPast)}</ul>
+            </div>
+          ))}
+        </div>
+      )}
       <div className={styles.head}>
         <h2 className={styles.h2} id="now-title">
           いまの様子
@@ -290,16 +401,6 @@ export function Conversation({
           {notices.map((notice) => (
             <li key={notice.key} data-tone={notice.tone}>
               {notice.text}
-              {notice.at && (
-                <>
-                  <span className={styles.sep} aria-hidden="true">
-                    {" · "}
-                  </span>
-                  <time className={`${styles.noticeTime} num`} dateTime={notice.at}>
-                    {formatWait(notice.at, at)}前
-                  </time>
-                </>
-              )}
             </li>
           ))}
         </ul>
@@ -308,22 +409,6 @@ export function Conversation({
         <p className={styles.empty}>動いている作業はありません</p>
       ) : (
         <div className={styles.list}>{active.map(renderMessage)}</div>
-      )}
-      {deployed.length > 0 && (
-        <>
-          <button
-            type="button"
-            className={styles.more}
-            aria-expanded={deployedOpen}
-            onClick={() => setDeployedOpen((open) => !open)}
-          >
-            {deployedOpen ? "公開済みをたたむ" : `公開済み ${deployed.length}件`}
-            <span className={styles.caret}>
-              <TriangleDownIcon />
-            </span>
-          </button>
-          {deployedOpen && <div className={`${styles.list} ${styles.opened}`}>{deployed.map(renderMessage)}</div>}
-        </>
       )}
     </section>
   );
