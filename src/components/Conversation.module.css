@@ -60,6 +60,34 @@
   font-size: 15px;
 }
 
+/* 順番待ちのまとまり（docs/design.md の「順番待ちのまとまり」）：文字だけ */
+.queue {
+  margin-bottom: 34px;
+}
+
+.queueToggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wait);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.65;
+  cursor: pointer;
+}
+
+.queueToggle:hover {
+  color: var(--bone);
+}
+
+.queueList {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+  list-style: none;
+  padding: 0;
+}
+
 .list {
   display: grid;
   gap: 34px;
