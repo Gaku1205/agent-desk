@@ -8,6 +8,7 @@ import { DEMO_BASE_PATH, DEMO_REPO_OPTIONS, DEMO_TEMPLATE_REPO } from "@/lib/dem
 import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
 import { parseNotifyEvents } from "@/lib/notifyEvents";
+import { DEFAULT_PARALLEL_SETTINGS } from "@/lib/parallel";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems, filterTurnItems } from "@/lib/turn";
 import { useDemoState } from "./DemoContext";
@@ -118,6 +119,7 @@ export function DemoSettings() {
         events: parseNotifyEvents(null),
       }))}
       autoAdd={autoAdd}
+      parallel={DEFAULT_PARALLEL_SETTINGS}
     />
   );
 }

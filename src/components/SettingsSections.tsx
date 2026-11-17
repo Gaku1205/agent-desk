@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { AutoAddSetting } from "./AutoAddSetting";
-import { ActivityIcon, BellIcon, RepoIcon, SunIcon } from "./icons";
+import { ActivityIcon, BellIcon, BranchIcon, RepoIcon, SunIcon } from "./icons";
 import { MotionSetting } from "./MotionSetting";
+import { ParallelSetting } from "./ParallelSetting";
+import type { ParallelSettings } from "@/lib/parallel";
 import { Sheet } from "./Sheet";
 import { ThemeSetting } from "./ThemeSetting";
 import { NotifySetting, type NotifyRepoRow } from "./NotifySetting";
@@ -21,10 +23,20 @@ type Props = {
   notifyRows: NotifyRepoRow[];
   /** 「新しいサービスを自動で追加」がオンか。変えられない（保存先が無い）ときは null で、出さない */
   autoAdd?: boolean | null;
+  /** 並列の設定（昼の数・夜の数・夜の時間帯）。変えられない（保存先が無い）ときは null で、節を出さない */
+  parallel?: ParallelSettings | null;
 };
 
-/** 設定画面の中身：監視するリポジトリ・通知・アニメーション（本物とデモで同じ物） */
-export function SettingsSections({ repoRows, repoOptions, editable, repoOptionsError, notifyRows, autoAdd = null }: Props) {
+/** 設定画面の中身：監視するリポジトリ・並列・通知・テーマ・アニメーション（本物とデモで同じ物） */
+export function SettingsSections({
+  repoRows,
+  repoOptions,
+  editable,
+  repoOptionsError,
+  notifyRows,
+  autoAdd = null,
+  parallel = null,
+}: Props) {
   // 「外す」を押したリポジトリ。保存前でも、通知の表からその列を消す
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
   const shownNotifyRows = notifyRows.filter((row) => !removed.has(row.name));
@@ -54,6 +66,15 @@ export function SettingsSections({ repoRows, repoOptions, editable, repoOptionsE
             />
             {autoAdd !== null && <AutoAddSetting initialEnabled={autoAdd} />}
           </section>
+          {parallel !== null && (
+            <section className={styles.section} aria-labelledby="settings-parallel">
+              <h2 id="settings-parallel" className={styles.title}>
+                <BranchIcon />
+                並列
+              </h2>
+              <ParallelSetting initial={parallel} />
+            </section>
+          )}
           <section className={`${styles.section} ${styles.notify}`} aria-labelledby="settings-notify">
             <h2 id="settings-notify" className={styles.title}>
               <BellIcon />

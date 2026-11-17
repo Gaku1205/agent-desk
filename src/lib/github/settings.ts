@@ -1,6 +1,14 @@
 import type { WatchedRepo } from "../config";
 import type { GitHubClient } from "./client";
 import { GitHubError } from "./errors";
+import {
+  buildParallelWrites,
+  PARALLEL_DAY_VARIABLE,
+  PARALLEL_NIGHT_HOURS_VARIABLE,
+  PARALLEL_NIGHT_VARIABLE,
+  parseParallelSettings,
+  type ParallelSettings,
+} from "../parallel";
 
 /** 監視するリポジトリを保存する Variable の名前 */
 export const WATCHED_REPOS_VARIABLE = "AGENT_DESK_WATCHED_REPOS";
@@ -54,6 +62,31 @@ export async function deleteVariable(client: GitHubClient, target: WatchedRepo, 
   } catch (error) {
     if (error instanceof GitHubError && error.status === 404) return;
     throw error;
+  }
+}
+
+/** リポジトリの並列の設定（`PARALLEL_DAY`・`PARALLEL_NIGHT`・`PARALLEL_NIGHT_HOURS`）を読む。無い・不正な値は既定 */
+export async function readParallelSettings(client: GitHubClient, target: WatchedRepo): Promise<ParallelSettings> {
+  const [day, night, nightHours] = await Promise.all([
+    readVariable(client, target, PARALLEL_DAY_VARIABLE),
+    readVariable(client, target, PARALLEL_NIGHT_VARIABLE),
+    readVariable(client, target, PARALLEL_NIGHT_HOURS_VARIABLE),
+  ]);
+  return parseParallelSettings({ day, night, nightHours });
+}
+
+/**
+ * リポジトリの並列の設定を書く。既定と同じ値・「無し」の Variable は消す（空の値は書けないため）。
+ * `PARALLEL_TZ`・`PARALLEL_OVERRIDE` には触らない
+ */
+export async function writeParallelSettings(
+  client: GitHubClient,
+  target: WatchedRepo,
+  settings: ParallelSettings,
+): Promise<void> {
+  for (const { name, value } of buildParallelWrites(settings)) {
+    if (value === null) await deleteVariable(client, target, name);
+    else await writeVariable(client, target, name, value);
   }
 }
 

@@ -7,7 +7,8 @@ import { AUTO_ADD_VARIABLE } from "@/lib/github/autoAdd";
 import { getSettingsRepo } from "@/lib/config";
 import { GitHubClient } from "@/lib/github/client";
 import { GitHubError } from "@/lib/github/errors";
-import { hasPipeline, listReadableRepos, readVariable } from "@/lib/github/settings";
+import { hasPipeline, listReadableRepos, readParallelSettings, readVariable } from "@/lib/github/settings";
+import { DEFAULT_PARALLEL_SETTINGS } from "@/lib/parallel";
 import { NOTIFY_EVENTS_VARIABLE, parseNotifyEvents } from "@/lib/notifyEvents";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
 
@@ -20,7 +21,7 @@ export default async function SettingsPage() {
   const editable = getSettingsRepo() !== null && client !== null;
 
   const settingsRepo = getSettingsRepo();
-  const [rows, options, notifyRows, autoAdd] = await Promise.all([
+  const [rows, options, notifyRows, autoAdd, parallel] = await Promise.all([
     Promise.all(
       repos.map(
         async (repo): Promise<WatchedRepoRow> => ({
@@ -55,6 +56,10 @@ export default async function SettingsPage() {
     editable && client && settingsRepo
       ? readVariable(client, settingsRepo, AUTO_ADD_VARIABLE).then(parseAutoAddEnabled, () => true)
       : Promise.resolve(null),
+    // 「並列」。SETTINGS_REPO の Variable から読み、読めなければ既定（昼3・夜1・夜の時間帯なし）
+    editable && client && settingsRepo
+      ? readParallelSettings(client, settingsRepo).catch(() => DEFAULT_PARALLEL_SETTINGS)
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -65,6 +70,7 @@ export default async function SettingsPage() {
       editable={editable}
       notifyRows={notifyRows}
       autoAdd={autoAdd}
+      parallel={parallel}
     />
   );
 }
