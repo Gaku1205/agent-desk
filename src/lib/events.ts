@@ -11,7 +11,7 @@ import {
   isImplementDoneComment,
   isImplementErrorComment,
   LABEL,
-  MAX_AUTO_FIX,
+  autoFixLimit,
   shouldShowIssue,
   stuckReason,
   type Stage,
@@ -180,14 +180,16 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
   const fixRequests = data.comments
     .filter((comment) => comment.issueNumber === pull.number && comment.body.includes(AUTO_FIX_MARK))
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const fixLimit = autoFixLimit(data.comments, pull.number);
   fixRequests.forEach((comment, index) => {
+    const n = Math.min(index + 1, fixLimit);
     drafts.push({
       key: `fix-${comment.id}`,
       at: comment.createdAt,
       tone: "ai",
       icon: "pr",
-      text: `AIに修正を依頼しました（${Math.min(index + 1, MAX_AUTO_FIX)}/${MAX_AUTO_FIX}）`,
-      short: `修正を依頼 ${Math.min(index + 1, MAX_AUTO_FIX)}/${MAX_AUTO_FIX}`,
+      text: `AIに修正を依頼しました（${n}/${fixLimit}）`,
+      short: `修正を依頼 ${n}/${fixLimit}`,
       ref: pullRef,
     });
   });

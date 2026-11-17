@@ -10,6 +10,7 @@ import type {
 } from "../github/types";
 import { pickAutoAddRepos } from "../autoAdd";
 import { isRunningStage } from "../runningPipeline";
+import { getFlow } from "../flow";
 import { getIssueStatus, shouldShowIssue } from "../status";
 import type { OperationKind } from "../turn";
 import { FACTORY_BOT } from "../factoryTalk";
@@ -222,8 +223,8 @@ const CRITIQUE_BODY = [
   "1. 絞り込みの札の間が狭く、押しにくい",
 ].join("\n");
 
-function autoFixComment(sha: string, reason: string): string {
-  return `<!-- auto-fix -->\n<!-- auto-fix-sha: ${sha} -->\n@claude ${reason}を直してください`;
+function autoFixComment(sha: string, reason: string, count = 1): string {
+  return `<!-- auto-fix -->\n<!-- auto-fix-sha: ${sha} -->\n@claude ${reason}を直してください（自動の依頼 ${count}/3）`;
 }
 
 function stuckComment(reason: string): string {
@@ -232,6 +233,41 @@ function stuckComment(reason: string): string {
 
 function retryComment(count: number, reason: string): string {
   return `🔁 AIが止まったので、時間をおいて自動でやり直します（やり直し ${count}/10回）。\n理由：${reason}\n\n<!-- auto-retry -->\n<!-- count=${count} kind=implement -->`;
+}
+
+/** 進捗ログに載せるモデル名（モデルを使わない工程は null）。進捗図の工程のキーで引く */
+const DEMO_STEP_MODEL: Record<string, string | null> = {
+  plan: "opus",
+  implement: "sonnet",
+  ci: null,
+  review: "sonnet",
+  fix: "sonnet",
+  deploy: null,
+};
+
+/**
+ * デモの各Issueに、進捗ログのコメント（`<!-- ai-step-log -->` と `<!-- ai-step {JSON} -->` の行。形は src/lib/stepLog.ts）を足す。
+ * 進捗図で記録のある工程（今の位置までで、待ちでない物）だけ、基準の時刻から逆に並べる。記録が無い工程は足さない
+ */
+function addStepLogs(ctx: Ctx) {
+  const now = new Date(ctx.base);
+  for (const issue of [...ctx.data.issues]) {
+    const flow = getFlow(getIssueStatus(issue, ctx.data, now));
+    const logged = flow.steps.filter((step) => step.state !== "waiting" && Object.hasOwn(DEMO_STEP_MODEL, step.key));
+    if (logged.length === 0) continue;
+    const lines = logged.map((step, index) => {
+      const started = ago(ctx, (logged.length - index) * 4);
+      const running = step.state === "running";
+      return `<!-- ai-step ${JSON.stringify({
+        step: step.key,
+        model: DEMO_STEP_MODEL[step.key],
+        started,
+        finished: running ? null : ago(ctx, (logged.length - index) * 4 - 1 - (index % 3)),
+        result: running ? "running" : step.state === "failed" ? "failure" : "success",
+      })} -->`;
+    });
+    addComment(ctx, issue.number, `<!-- ai-step-log -->\n### 進捗ログ\n\n${lines.join("\n")}`, ago(ctx, 1));
+  }
 }
 
 /** 公開済みのIssue（PRはマージ済み、公開ステータスは success。statusAt が null なら公開状況は不明） */
@@ -351,7 +387,7 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
   const ctx = createCtx(DEMO_REPOS[0], base, 1000);
   addPlayIssue(ctx, playback);
 
-  // 止まった（AIが2回直してもCIが通らない）
+  // 止まった（AIが3回直してもCIが通らない）
   const stuck = addIssue(ctx, 23, "通知の音を設定で変えられるようにする", {
     createdAt: ago(ctx, 6 * 60),
     labels: ["ai:implement"],
@@ -364,9 +400,10 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
     labels: ["ai:stuck"],
     checkRuns: [run("typecheck", ago(ctx, 50)), run("lint", ago(ctx, 50)), run("test", ago(ctx, 48), "failure"), run("build", ago(ctx, 49))],
   });
-  addComment(ctx, 38, autoFixComment("1a2b3c4", "CIの失敗"), ago(ctx, 4 * 60));
-  addComment(ctx, 38, autoFixComment("2b3c4d5", "CIの失敗"), ago(ctx, 2 * 60));
-  addComment(ctx, 38, stuckComment("AIが2回直してもCIが通りませんでした（test）"), ago(ctx, 46));
+  addComment(ctx, 38, autoFixComment("1a2b3c4", "CIの失敗", 1), ago(ctx, 4 * 60));
+  addComment(ctx, 38, autoFixComment("2b3c4d5", "CIの失敗", 2), ago(ctx, 2 * 60));
+  addComment(ctx, 38, autoFixComment("3d4e5f6", "CIの失敗", 3), ago(ctx, 90));
+  addComment(ctx, 38, stuckComment("AIが3回直してもCIが通りませんでした（test）"), ago(ctx, 46));
   addLabeled(ctx, 38, "ai:stuck", ago(ctx, 46));
 
   // やり直し待ち（使用量の上限でAIが止まり、時間をおいて自動でやり直す）
@@ -557,6 +594,7 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
   addDeployed(ctx, 8, 26, "スマホで文字が小さすぎるのを直す", 44 * 60);
   addDeployed(ctx, 7, 40,"最初の画面にタスクの一覧を出す", 9 * 24 * 60, { unknown: true });
 
+  addStepLogs(ctx);
   return ctx.data;
 }
 
@@ -699,6 +737,7 @@ function landingPage(base: Date): RepoData {
   // 公開済み
   addDeployed(ctx, 1, 10, "ヘッダーのロゴを差し替える", 50 * 60, { planned: true });
 
+  addStepLogs(ctx);
   return ctx.data;
 }
 

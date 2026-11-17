@@ -202,10 +202,12 @@ describe("describeStatus", () => {
   it("修正中は回数と理由を出す", () => {
     const fixing = status({ stage: "fixing", turn: "ai", fixCount: 2 });
     expect(describeStatus(fixing, { fixReason: "レビューの指摘" })).toEqual({
-      long: "AIが直しています（2/2 回目）：レビューの指摘",
-      short: "AIが修正中 2/2",
+      long: "AIが直しています（2/3 回目）：レビューの指摘",
+      short: "AIが修正中 2/3",
     });
-    expect(describeStatus(fixing).long).toBe("AIが直しています（2/2 回目）");
+    expect(describeStatus(fixing).long).toBe("AIが直しています（2/3 回目）");
+    // 3回目も「3/3」になる
+    expect(describeStatus(status({ stage: "fixing", turn: "ai", fixCount: 3 })).short).toBe("AIが修正中 3/3");
   });
 });
 

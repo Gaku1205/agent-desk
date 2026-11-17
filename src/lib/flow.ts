@@ -168,6 +168,11 @@ export function applyStepLog(flow: Flow, infos: readonly StepInfo[]): Flow {
   };
 }
 
+/** デモ用：記録が無い工程の「不明」を出さない（モデル名の欄を空にする）。本物のデータには使わない */
+export function hideUnknownModels(flow: Flow): Flow {
+  return { ...flow, steps: flow.steps.map((step) => (step.model === UNKNOWN_MODEL ? { ...step, model: "" } : step)) };
+}
+
 /** 左から index 番目の線（index と index+1 のブロックの間）が実線か。右のブロックが今の位置までなら実線 */
 export function isSolidLink(flow: Pick<Flow, "at">, index: number): boolean {
   return index + 1 <= flow.at;
@@ -179,5 +184,6 @@ export function flowStepLabel(
 ): string {
   const start = step.started ? `　開始 ${step.started}` : "";
   const time = step.duration ? `　所要時間 ${step.duration}` : "";
-  return `${step.name}　${FLOW_STATE_LABEL[step.state]}　モデル ${step.model}${start}${time}`;
+  const model = step.model ? `　モデル ${step.model}` : "";
+  return `${step.name}　${FLOW_STATE_LABEL[step.state]}${model}${start}${time}`;
 }

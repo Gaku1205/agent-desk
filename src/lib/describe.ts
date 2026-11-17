@@ -107,11 +107,12 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
       }
       return { long: "レビューAIが確認中", short: "レビューAIが確認中" };
     case "fixing": {
-      const n = Math.min(Math.max(status.fixCount, 1), MAX_AUTO_FIX);
-      const head = `AIが直しています（${n}/${MAX_AUTO_FIX} 回目）`;
+      const max = status.fixLimit ?? MAX_AUTO_FIX;
+      const n = Math.min(Math.max(status.fixCount, 1), max);
+      const head = `AIが直しています（${n}/${max} 回目）`;
       return {
         long: options.fixReason ? `${head}：${options.fixReason}` : head,
-        short: `AIが修正中 ${n}/${MAX_AUTO_FIX}`,
+        short: `AIが修正中 ${n}/${max}`,
       };
     }
     case "mergeWaiting":

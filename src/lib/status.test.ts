@@ -3,6 +3,8 @@ import type { CheckRunData, CommentData, IssueData, PullChecks, PullData } from 
 import { encodeFactoryMark } from "./factoryTalk";
 import { mainDeployedFrom, mergeMainDeployed } from "./github/graphql";
 import {
+  autoFixLimit,
+  readFixLimit,
   bodyClosesIssue,
   ciState,
   DEFAULT_STUCK_REASON,
@@ -1176,6 +1178,28 @@ describe("getIssueStatus：修正中・修正の確認中・清書した・修�
     );
     expect(secondInProgress.stage).toBe("fixing");
     expect(secondInProgress.fixCount).toBe(2);
+  });
+
+  it("修正した：3回目も数える（上限は3。4件目以降は3のまま）", () => {
+    const requests = ["a", "b", "c", "d"].map((sha, i) => fixRequest(sha, `2026-10-25T10:${10 + i * 10}:00Z`));
+    const third = getIssueStatus(issue(), input([pull()], checks, requests.slice(0, 3)), NOW);
+    expect(third.fixCount).toBe(3);
+    expect(third.fixLimit).toBe(3);
+    expect(getIssueStatus(issue(), input([pull()], checks, requests), NOW).fixCount).toBe(3);
+  });
+
+  it("修正の上限：最新の依頼コメントの（自動の依頼 n/N）の N。読めなければ3", () => {
+    expect(readFixLimit("直してください（自動の依頼 2/3）")).toBe(3);
+    expect(readFixLimit("直してください（自動の依頼 1/4）")).toBe(4);
+    expect(readFixLimit("直してください")).toBe(3);
+    expect(readFixLimit("（自動の依頼 1/0）")).toBe(3);
+    expect(readFixLimit(null)).toBe(3);
+    const at = (n: number, total: number, time: string) =>
+      comment({ issueNumber: 11, createdAt: time, body: `<!-- auto-fix -->\n（自動の依頼 ${n}/${total}）` });
+    expect(
+      autoFixLimit([at(1, 3, "2026-10-25T10:00:00Z"), at(2, 5, "2026-10-25T11:00:00Z")], 11),
+    ).toBe(5);
+    expect(autoFixLimit([], 11)).toBe(3);
   });
 
   it("修正の確認中：直したあと、CIが失敗", () => {

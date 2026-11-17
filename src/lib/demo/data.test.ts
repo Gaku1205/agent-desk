@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildRecentEvents } from "../events";
 import { countPipelineWork, buildPipelineRows } from "../pipeline";
+import { applyStepLog, getFlow, hideUnknownModels, UNKNOWN_MODEL } from "../flow";
+import { demoStepLog } from "./stepLog";
 import { getIssueStatus, shouldShowIssue, type IssueStatus, type Stage } from "../status";
 import { countRunningPipelineRows } from "../runningPipeline";
 import { buildTurnItems, countTurnItems } from "../turn";
@@ -97,6 +99,36 @@ describe("デモのサンプル", () => {
       expect(running.byRepo[key]).toBeGreaterThan(0);
       expect(turn.byRepo[key]).not.toBe(running.byRepo[key]);
     }
+  });
+
+  it("止まった例は「AIが3回直しても」で、進捗図の分母（3）と合う", () => {
+    const stuck = statuses().find((s) => s.stage === "stuck" && s.fixCount > 0);
+    expect(stuck?.stuckReason).toContain("AIが3回直しても");
+    expect(stuck?.fixCount).toBe(3);
+    expect(stuck?.fixLimit).toBe(3);
+  });
+
+  it("進捗図：進捗ログのある工程にはモデル名と所要時間が入り、「不明」は並ばない", () => {
+    const now = NOW;
+    const results = buildDemoResults(now, startPlayback(now));
+    let recorded = 0;
+    for (const result of results) {
+      if (!result.ok) continue;
+      for (const issue of result.data.issues) {
+        const infos = demoStepLog(results, result.owner, result.repo, issue.number, now);
+        const flow = hideUnknownModels(applyStepLog(getFlow(getIssueStatus(issue, result.data, now)), infos));
+        expect(flow.steps.some((step) => step.model === UNKNOWN_MODEL), `#${issue.number}`).toBe(false);
+        for (const info of infos) {
+          const step = flow.steps.find((s) => s.key === info.key);
+          expect(step?.duration, `#${issue.number} ${info.key}`).not.toBeNull();
+          recorded += 1;
+        }
+      }
+    }
+    expect(recorded).toBeGreaterThan(20);
+    // 実装を済ませた Issue には、実装のモデル名が出る
+    const implemented = demoStepLog(results, "demo", "todo-app", 22, now);
+    expect(implemented.find((info) => info.key === "implement")?.model).toBe("sonnet");
   });
 
   it("あなたの番・順番待ちの理由・並列動作・最近の出来事がある", () => {

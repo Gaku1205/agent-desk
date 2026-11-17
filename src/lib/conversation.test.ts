@@ -37,7 +37,10 @@ describe("chatLine", () => {
     expect(chatLine(status({ stage: "implementing" }))).toEqual({ speaker: "AI", text: "AIが実装しています" });
     expect(chatLine(status({ stage: "ciRunning" }))).toEqual({ speaker: "CI", text: "CIが確かめています（3/4 通過）" });
     expect(chatLine(status({ stage: "reviewing" }))).toEqual({ speaker: "レビューAI", text: "レビューAIが確認しています" });
-    expect(chatLine(status({ stage: "fixing", fixCount: 2 }))).toEqual({ speaker: "AI", text: "AIが直しています（2/2 回目）" });
+    expect(chatLine(status({ stage: "fixing", fixCount: 2 }))).toEqual({ speaker: "AI", text: "AIが直しています（2/3 回目）" });
+    expect(chatLine(status({ stage: "fixing", fixCount: 3 }))).toEqual({ speaker: "AI", text: "AIが直しています（3/3 回目）" });
+    expect(chatLine(status({ stage: "fixing", fixCount: 5 }))).toEqual({ speaker: "AI", text: "AIが直しています（3/3 回目）" });
+    expect(chatLine(status({ stage: "fixing", fixCount: 1, fixLimit: 4 }))).toEqual({ speaker: "AI", text: "AIが直しています（1/4 回目）" });
     expect(chatLine(status({ stage: "ciFailed", fixCount: 1 }))).toEqual({ speaker: "AI", text: "AIが直しています（2回目/3）" });
     expect(chatLine(status({ stage: "ciFailed", fixCount: 3 }))).toEqual({
       speaker: "CI",

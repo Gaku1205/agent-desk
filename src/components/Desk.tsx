@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { AddedNotice } from "@/lib/autoAdd";
 import type { ChatMessage } from "@/lib/conversation";
-import { applyStepLog } from "@/lib/flow";
+import { applyStepLog, hideUnknownModels } from "@/lib/flow";
 import { isNearBottom, openPosition, shouldFollow } from "@/lib/followScroll";
 import { pickFlowTarget, toggleFlowSelection } from "@/lib/flowTarget";
 import type { StepInfo } from "@/lib/stepLog";
@@ -45,6 +45,8 @@ type Props = {
   newIssueRepos: NewIssueRepo[];
   /** 進捗図の「モデル名と所要時間」を読む（サーバーの処理）。デモは渡さない（記録が無い扱い） */
   loadStepLog?: (owner: string, repo: string, number: number) => Promise<StepInfo[]>;
+  /** デモ：記録が無い工程の「不明」を出さない（本物は出す） */
+  hideUnknownModel?: boolean;
 };
 
 export type DeskNav = {
@@ -98,6 +100,7 @@ export function Desk({
   nav,
   newIssueRepos,
   loadStepLog,
+  hideUnknownModel = false,
 }: Props) {
   // 左のバーを畳んだか。見た目は <html> の data-side（描く前のスクリプトが付ける）で決まり、ここは読み上げと inert 用
   const sideCollapsed = useSyncExternalStore(subscribeSidebar, getSidebarSnapshot, () => false);
@@ -225,10 +228,12 @@ export function Desk({
     // pickedTarget は毎回作り直されるので、中身を表す targetKey と now で見る
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadStepLog, targetKey, now]);
-  const flowTarget =
+  const loadedTarget =
     pickedTarget && stepLog?.key === targetKey
       ? { ...pickedTarget, flow: applyStepLog(pickedTarget.flow, stepLog.infos), stepLog: stepLog.infos }
       : pickedTarget;
+  const flowTarget =
+    loadedTarget && hideUnknownModel ? { ...loadedTarget, flow: hideUnknownModels(loadedTarget.flow) } : loadedTarget;
 
   const conversation = (
     <Conversation
@@ -241,6 +246,7 @@ export function Desk({
       selected={selectedKey}
       onSelect={select}
       loadStepLog={loadStepLog}
+      hideUnknownModel={hideUnknownModel}
     />
   );
 

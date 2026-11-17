@@ -96,7 +96,7 @@ describe("再生", () => {
       .map((event) => event.text);
     expect(texts[0]).toBe("「期限が近いタスクを一覧の上に出す」が本番に公開されました");
     expect(texts).toContain("PRができました");
-    expect(texts).toContain("AIに修正を依頼しました（1/2）");
+    expect(texts).toContain("AIに修正を依頼しました（1/3）");
   });
 
   it("「もう一度」で、今の時刻のまま最初に戻る", () => {
