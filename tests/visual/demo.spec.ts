@@ -13,6 +13,12 @@ async function settle(page: Page) {
     const style = document.createElement("style");
     style.textContent = `main > section[data-skip-target]:not([data-empty]) { min-height: ${window.innerHeight - 52}px !important; }`;
     document.head.appendChild(style);
+    // 上や左右に貼り付く部品（`position: sticky`）は、ページの下端までスクロールしたあとだと、
+    // 上へ戻しても中の文字が1画素未満ずれて描かれる（ボタンを押すとその場所までスクロールするので、押すまでの速さで画像が変わる）。
+    // 画面をページ全体に広げると貼り付く意味は無いので、撮るときは普通の位置に置き、スクロールの跡が残らないようにする
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>("body *"))) {
+      if (getComputedStyle(el).position === "sticky") el.style.setProperty("position", "static", "important");
+    }
   });
   // フォントは使う文字ごとに分けて読み込まれる。読み込みが終わる前に高さを測ると、
   // 代わりのフォントの高さで決まってしまい、環境によって画像の大きさがずれる
