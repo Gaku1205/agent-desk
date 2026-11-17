@@ -55,7 +55,7 @@ AIに開発を任せるときの、**進行状況と「人間の判断待ち」�
 
 Next.js（App Router）・TypeScript・Auth.js（GitHubログイン）・GitHub REST API・Vitest・Playwright・Vercel
 
-Vercelは、パイプラインの物（`.github/`・`docs/pipeline.md`・`docs/pipeline-setup.md`）だけの変更では公開を飛ばします。
+Vercelは、`.github/` と `docs/pipeline.md` だけの変更では公開を飛ばします。
 
 ## セットアップ：同期の読み取りをパイプラインのAppの鍵で行う（任意）
 
