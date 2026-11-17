@@ -114,8 +114,10 @@
   width: 100%;
 }
 
-/* 上：メモ（主役。幅いっぱい）。下の1行：左に補助（選択欄・新しいサービス）、右端に Issueを作る。幅によらず同じ形（Issue #373） */
+/* 上：メモ（主役。幅いっぱい）。下の1行：左に補助（選択欄・新しいサービス）、右端に Issueを作る。幅によらず同じ形（Issue #373）。
+   container-type で入力欄の幅を測る。「＋だけ」にするかは、この幅で決める（@container。画面の幅では決めない） */
 .barForm {
+  container-type: inline-size;
   display: flex;
   flex-wrap: wrap;
   gap: 6px 12px;
@@ -202,6 +204,29 @@
   text-overflow: ellipsis;
 }
 
+/* 入りきらない入力欄の幅：＋だけ（44px四方。文字は読み上げ用に残す）。しきい値は入力欄の幅で決める（@container）。
+   しきい値の値と理由は docs/design.md の「入力欄の幅」。行を折り返さないよう、選択欄は最大110px（長い名前は「…」） */
+@container (max-width: 599px) {
+  .barForm .barRepo > * {
+    max-width: 110px;
+  }
+
+  .barLink {
+    position: relative;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+  }
+
+  .barLinkText {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    clip-path: inset(50%);
+  }
+}
+
 /* Issueを作る と、できた／失敗の文は、ボタンだけ右端・文は次の行 */
 .barForm .actions {
   display: contents;
@@ -238,20 +263,6 @@
 
   .barForm .barRepo > * {
     max-width: 110px;
-  }
-
-  /* 幅が足りないので、新しいサービスのリンクは＋だけにする（文字は読み上げ用に残す） */
-  .barLink {
-    position: relative;
-    flex: 0 0 44px;
-    justify-content: center;
-  }
-
-  .barLinkText {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    clip-path: inset(50%);
   }
 
   .barForm .actions button {
