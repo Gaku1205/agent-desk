@@ -4,6 +4,7 @@
  */
 
 import type { RepoResult } from "./github/types";
+import { parseImageUploads, type ParsedImage } from "./issueImages";
 
 /**
  * Issueを書く欄のリポジトリ（`owner/repo` と、テンプレートリポジトリか）。
@@ -41,6 +42,8 @@ export type NewIssueInput = {
   title: string;
   /** 「全部おまかせ」を選んだか（テンプレートリポジトリのときだけ効く） */
   omakase: boolean;
+  /** 付ける画像（確かめ済み。中身と種類） */
+  images: ParsedImage[];
 };
 
 export type TitleCheck = { ok: true; title: string } | { ok: false; message: string };
@@ -64,30 +67,37 @@ export function checkNewIssueTitle(value: unknown): TitleCheck {
 /** ブラウザから来た値を確かめる（Server Actionは誰でも直接呼べるため）。正しくなければ null */
 export function parseNewIssueInput(value: unknown): NewIssueInput | null {
   if (typeof value !== "object" || value === null) return null;
-  const { owner, repo, title, omakase } = value as Record<string, unknown>;
+  const { owner, repo, title, omakase, images } = value as Record<string, unknown>;
   if (typeof owner !== "string" || typeof repo !== "string") return null;
   if (!/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(repo)) return null;
   if (typeof omakase !== "boolean") return null;
   const checked = checkNewIssueTitle(title);
   if (!checked.ok) return null;
-  return { owner, repo, title: checked.title, omakase };
+  const parsedImages = parseImageUploads(images);
+  if (!parsedImages) return null;
+  return { owner, repo, title: checked.title, omakase, images: parsedImages };
 }
 
 /**
  * Issueのタイトルと本文を組み立てる。ラベルは付けない（パイプラインの受付が企画に回す）。
  * テンプレートリポジトリでは、タイトルを `新サービス：` 付きにする（すでに付いていれば重ねない）。
  * 「全部おまかせ」のときだけ、本文に `- [x] 全部おまかせ` を入れる（入れなければ工場が相談から始める）。
- * 通常のリポジトリでは「全部おまかせ」は無視する
+ * 通常のリポジトリでは「全部おまかせ」は無視する。
+ * 画像があれば、本文に `![](URL)` を1枚1行で並べる（「全部おまかせ」とは空行1つで分ける）
  */
 export function composeNewIssue(input: {
   title: string;
   isTemplate: boolean;
   omakase: boolean;
+  /** 上げた画像のURL */
+  imageUrls?: string[];
 }): { title: string; body: string } {
-  if (!input.isTemplate) return { title: input.title, body: "" };
+  const images = (input.imageUrls ?? []).map((url) => `![](${url})`).join("\n");
+  if (!input.isTemplate) return { title: input.title, body: images };
   const memo = input.title.replace(FACTORY_PREFIX_PATTERN, "").trim();
+  const parts = [input.omakase ? OMAKASE_BODY : "", images].filter((part) => part !== "");
   return {
     title: `${FACTORY_TITLE_PREFIX}${memo || input.title}`,
-    body: input.omakase ? OMAKASE_BODY : "",
+    body: parts.join("\n\n"),
   };
 }

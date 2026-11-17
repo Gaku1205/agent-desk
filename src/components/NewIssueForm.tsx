@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
 import { createNewIssue } from "@/app/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
+import { IMAGE_ACCEPT, IMAGE_HEAD_BYTES, pickAddableImages } from "@/lib/issueImages";
 import type { CreateIssueResult } from "@/lib/operations";
 import { checkNewIssueTitle, composeNewIssue, MAX_NEW_ISSUE_TITLE } from "@/lib/newIssue";
 import { useDemo } from "./DemoContext";
-import { FileIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
+import { CrossIcon, FileIcon, ImageIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
 import { Select } from "./Select";
 import { Sheet } from "./Sheet";
 import settingsStyles from "./SettingsSections.module.css";
@@ -24,6 +25,22 @@ type Status =
   | { kind: "idle" }
   | { kind: "created"; number: number | null; url: string | null }
   | { kind: "error"; message: string };
+
+type AttachedImage = { id: number; file: File; url: string };
+
+/** ファイルを base64 にする（`data:…;base64,` の頭を外す） */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function hasFiles(event: DragEvent): boolean {
+  return Array.from(event.dataTransfer.types).includes("Files");
+}
 
 /**
  * Issueを書く画面（docs/design.md の「Issueを書く」）。作るのはサーバー側（Server Action）。デモでは GitHub に送らない。
@@ -53,9 +70,80 @@ export function NewIssueForm({
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [saving, startSaving] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [images, setImages] = useState<AttachedImage[]>([]);
+  const imagesRef = useRef(images);
+  const nextImageId = useRef(1);
+  const [imageMessage, setImageMessage] = useState<string | null>(null);
+  const [dropping, setDropping] = useState(false);
   const demo = useDemo();
 
   const template = service || repos.find((repo) => repo.name === selected)?.template === true;
+
+  useEffect(() => {
+    imagesRef.current = images;
+  }, [images]);
+  // 画面を離れるときに、サムネイル用のURLを手放す
+  useEffect(() => () => imagesRef.current.forEach((image) => URL.revokeObjectURL(image.url)), []);
+
+  /** 画像を足す：中身の先頭で種類を確かめ、種類・大きさ・枚数の決まりを超えたものは足さない */
+  async function addImages(files: File[]) {
+    if (saving || files.length === 0) return;
+    const heads = await Promise.all(
+      files.map(async (file) => new Uint8Array(await file.slice(0, IMAGE_HEAD_BYTES).arrayBuffer())),
+    );
+    const { accepted, message } = pickAddableImages(
+      imagesRef.current.length,
+      files.map((file, index) => ({ size: file.size, head: heads[index] })),
+    );
+    setImageMessage(message);
+    if (accepted.length === 0) return;
+    const added = accepted.map((index) => ({
+      id: nextImageId.current++,
+      file: files[index],
+      url: URL.createObjectURL(files[index]),
+    }));
+    // 続けて呼ばれても数え間違えないよう、すぐ参照にも入れる
+    imagesRef.current = [...imagesRef.current, ...added];
+    setImages(imagesRef.current);
+  }
+
+  function removeImage(id: number) {
+    if (saving) return;
+    const target = imagesRef.current.find((image) => image.id === id);
+    if (target) URL.revokeObjectURL(target.url);
+    imagesRef.current = imagesRef.current.filter((image) => image.id !== id);
+    setImages(imagesRef.current);
+    setImageMessage(null);
+  }
+
+  function clearImages() {
+    imagesRef.current.forEach((image) => URL.revokeObjectURL(image.url));
+    imagesRef.current = [];
+    setImages([]);
+    setImageMessage(null);
+  }
+
+  function onPaste(event: ClipboardEvent) {
+    const files = Array.from(event.clipboardData.files).filter((file) => file.type.startsWith("image/"));
+    if (files.length === 0) return;
+    // 文字も一緒にあるときは、文字の貼り付けをそのまま通す
+    if (event.clipboardData.getData("text/plain") === "") event.preventDefault();
+    void addImages(files);
+  }
+
+  function onDragOver(event: DragEvent) {
+    if (saving || !hasFiles(event)) return;
+    event.preventDefault();
+    setDropping(true);
+  }
+
+  function onDrop(event: DragEvent) {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    setDropping(false);
+    void addImages(Array.from(event.dataTransfer.files));
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -71,21 +159,33 @@ export function NewIssueForm({
     if (demo) {
       // GitHub には送らず、サンプルのデータにIssueを足す
       demo.createIssue({ owner, repo }, composeNewIssue({ title: checked.title, isTemplate: template, omakase }));
+      // 画像は見せるだけ（デモのIssueには入れない）
       setStatus({ kind: "created", number: null, url: null });
       setTitle("");
+      clearImages();
       inputRef.current?.focus();
       return;
     }
     setStatus({ kind: "idle" });
+    setImageMessage(null);
+    const files = images.map((image) => image.file);
     startSaving(async () => {
-      // 呼び出しが投げても、画面を落とさず、書いたメモを残して理由を出す
+      // 呼び出しが投げても、画面を落とさず、書いたメモと画像を残して理由を出す
       const result = await callAction<CreateIssueResult>(
-        () => createNewIssue({ owner, repo, title: checked.title, omakase: template && omakase }),
+        async () =>
+          createNewIssue({
+            owner,
+            repo,
+            title: checked.title,
+            omakase: template && omakase,
+            images: await Promise.all(files.map(async (file) => ({ data: await fileToBase64(file) }))),
+          }),
         () => ({ ok: false, message: ACTION_UNREACHABLE_MESSAGE }),
       );
       if (result.ok) {
         setStatus({ kind: "created", number: result.number, url: result.url });
         setTitle("");
+        clearImages();
       } else {
         setStatus({ kind: "error", message: result.message });
       }
@@ -100,7 +200,17 @@ export function NewIssueForm({
     </p>
   );
   const form = (
-              <form className={bar ? styles.barForm : styles.form} onSubmit={submit} noValidate>
+              <form
+                className={bar ? styles.barForm : styles.form}
+                onSubmit={submit}
+                onDragOver={onDragOver}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropping(false);
+                }}
+                onDrop={onDrop}
+                data-dropping={dropping ? "" : undefined}
+                noValidate
+              >
                 {service && names.length === 1 ? (
                   <div className={styles.field}>
                     <span className={styles.label}>送り先</span>
@@ -149,6 +259,7 @@ export function NewIssueForm({
                         setTitle(event.target.value);
                         if (status.kind === "error") setStatus({ kind: "idle" });
                       }}
+                      onPaste={onPaste}
                       maxLength={MAX_NEW_ISSUE_TITLE}
                       autoComplete="off"
                       disabled={saving}
@@ -157,6 +268,54 @@ export function NewIssueForm({
                     />
                   </span>
                 </label>
+                {imageMessage && (
+                  <p className={`${settingsStyles.error} ${styles.imageMessage}`} role="alert">
+                    {imageMessage}
+                  </p>
+                )}
+                {images.length > 0 && (
+                  <ul className={styles.thumbs} aria-label="付けた画像">
+                    {images.map((image) => (
+                      <li key={image.id} className={styles.thumb}>
+                        {/* 手元のファイルのプレビュー（最適化できないので <img> のまま） */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={image.url} alt="" className={styles.thumbImage} />
+                        <button
+                          type="button"
+                          className={styles.thumbRemove}
+                          onClick={() => removeImage(image.id)}
+                          disabled={saving}
+                          aria-label="画像を外す"
+                          title="削除"
+                        >
+                          <CrossIcon />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept={IMAGE_ACCEPT}
+                  multiple
+                  hidden
+                  onChange={(event) => {
+                    void addImages(Array.from(event.target.files ?? []));
+                    // 同じファイルをもう一度選べるように
+                    event.target.value = "";
+                  }}
+                />
+                <button
+                  type="button"
+                  className={styles.attach}
+                  onClick={() => fileRef.current?.click()}
+                  disabled={saving}
+                  aria-label="画像を付ける"
+                  title="画像を付ける"
+                >
+                  <ImageIcon />
+                </button>
                 {template && (
                   <div className={styles.omakase}>
                     {/* 標準のチェックボックスは見えなくして残し（キーボード・読み上げ）、ランプと字を描く */}

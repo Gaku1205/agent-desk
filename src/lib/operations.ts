@@ -7,11 +7,14 @@ import {
   addLabel,
   createIssue,
   createPull,
+  ensureImagesBranch,
   fetchIsTemplate,
   findIssueBranch,
   mergePull,
   removeLabel,
+  uploadIssueImage,
 } from "./github/operations";
+import { imagePath } from "./issueImages";
 import { composeNewIssue, type NewIssueInput } from "./newIssue";
 import { isValidAnswer } from "./question";
 import type { RepoData } from "./github/types";
@@ -43,6 +46,7 @@ export const OPERATION_MESSAGES = {
   forbidden: "このリポジトリを操作する権限がありません",
   rateLimited: "GitHubのレート制限に達しました。しばらくしてからもう一度試してください",
   failed: "GitHubへの操作に失敗しました",
+  imageFailed: "画像を上げられませんでした。もう一度試してください",
 } as const;
 
 function fail(message: string): OperationResult {
@@ -192,9 +196,27 @@ export async function executeCreateIssue(
   target: WatchedRepo,
   input: NewIssueInput,
 ): Promise<CreateIssueResult> {
+  // 画像は全部上げてからIssueを作る。1枚でも上げられなければ、Issueは作らない
+  const imageUrls: string[] = [];
+  if (input.images.length > 0) {
+    try {
+      await ensureImagesBranch(client, target);
+      for (const image of input.images) {
+        const path = imagePath(image.kind, new Date(), crypto.randomUUID());
+        imageUrls.push(await uploadIssueImage(client, target, path, image.bytes));
+      }
+    } catch (error) {
+      // ログインが切れたときだけは、ログインし直しに回す
+      const message = operationErrorMessage(error);
+      return {
+        ok: false,
+        message: message === OPERATION_MESSAGES.unauthorized ? message : OPERATION_MESSAGES.imageFailed,
+      };
+    }
+  }
   try {
     const isTemplate = await fetchIsTemplate(client, target);
-    const issue = composeNewIssue({ title: input.title, isTemplate, omakase: input.omakase });
+    const issue = composeNewIssue({ title: input.title, isTemplate, omakase: input.omakase, imageUrls });
     const created = await createIssue(client, target, issue);
     return { ok: true, ...created };
   } catch (error) {

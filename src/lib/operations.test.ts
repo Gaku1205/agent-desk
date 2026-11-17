@@ -509,7 +509,7 @@ describe("operationErrorMessage", () => {
 });
 
 describe("executeCreateIssue", () => {
-  const base = { owner: "o", repo: "r", title: "天気のページ", omakase: true };
+  const base = { owner: "o", repo: "r", title: "天気のページ", omakase: true, images: [] };
   const respond = (isTemplate: boolean) => (call: Call) =>
     call.method === "GET"
       ? Response.json({ is_template: isTemplate })
@@ -544,5 +544,60 @@ describe("executeCreateIssue", () => {
       ok: false,
       message: OPERATION_MESSAGES.forbidden,
     });
+  });
+
+  const png = { kind: "png" as const, bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]) };
+
+  it("画像：ブランチを用意して1枚ずつ上げてから、本文に画像を並べてIssueを作る", async () => {
+    const { client, calls } = fakeClient((call) => {
+      if (call.method === "GET" && call.url.endsWith("/git/ref/heads/issue-images")) {
+        return new Response(null, { status: 404 });
+      }
+      if (call.method === "GET") return Response.json({ is_template: false });
+      if (call.url.endsWith("/git/trees")) return Response.json({ sha: "tree1" }, { status: 201 });
+      if (call.url.endsWith("/git/commits")) return Response.json({ sha: "commit1" }, { status: 201 });
+      if (call.url.endsWith("/issues")) {
+        return Response.json({ number: 7, html_url: "https://github.com/o/r/issues/7" }, { status: 201 });
+      }
+      return Response.json({}, { status: 201 });
+    });
+    const result = await executeCreateIssue(client, TARGET, { ...base, images: [png, png] });
+    expect(result.ok).toBe(true);
+    const commit = calls.find((call) => call.url.endsWith("/git/commits"));
+    expect(commit?.body).toEqual({ message: "画像の置き場所を作る", tree: "tree1", parents: [] });
+    const ref = calls.find((call) => call.url.endsWith("/git/refs"));
+    expect(ref?.body).toEqual({ ref: "refs/heads/issue-images", sha: "commit1" });
+    const puts = calls.filter((call) => call.method === "PUT");
+    expect(puts).toHaveLength(2);
+    expect(puts[0].url).toMatch(/\/repos\/o\/r\/contents\/images\/\d{6}\/[0-9a-f-]{36}\.png$/);
+    expect((puts[0].body as { branch: string }).branch).toBe("issue-images");
+    const created = calls.find((call) => call.url.endsWith("/issues"));
+    const body = (created?.body as { body: string }).body;
+    expect(body.split("\n")).toHaveLength(2);
+    expect(body).toMatch(/^!\[\]\(https:\/\/github\.com\/o\/r\/raw\/issue-images\/images\/\d{6}\/[0-9a-f-]{36}\.png\)/);
+    expect(JSON.stringify(calls)).not.toContain(TOKEN);
+  });
+
+  it("画像：ブランチがあればそのまま使う", async () => {
+    const { client, calls } = fakeClient((call) =>
+      call.method === "GET"
+        ? Response.json({ is_template: false })
+        : call.url.endsWith("/issues")
+          ? Response.json({ number: 7, html_url: "https://github.com/o/r/issues/7" }, { status: 201 })
+          : Response.json({}, { status: 201 }),
+    );
+    await executeCreateIssue(client, TARGET, { ...base, images: [png] });
+    expect(calls.some((call) => call.url.endsWith("/git/commits"))).toBe(false);
+  });
+
+  it("画像を1枚でも上げられなければ、Issueは作らず固定文を返す", async () => {
+    const { client, calls } = fakeClient((call) =>
+      call.method === "PUT" ? new Response(null, { status: 500 }) : Response.json({ is_template: false }),
+    );
+    expect(await executeCreateIssue(client, TARGET, { ...base, images: [png] })).toEqual({
+      ok: false,
+      message: "画像を上げられませんでした。もう一度試してください",
+    });
+    expect(calls.some((call) => call.url.endsWith("/issues"))).toBe(false);
   });
 });
