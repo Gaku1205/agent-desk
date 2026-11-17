@@ -57,6 +57,45 @@ Next.js（App Router）・TypeScript・Auth.js（GitHubログイン）・GitHub 
 
 Vercelは、`.github/` と `docs/pipeline.md` だけの変更では公開を飛ばします。
 
+## セットアップ：動かすのに必要な設定
+
+動かすには、環境変数6つと、GitHub の OAuth App が1つ要ります。手元なら `.env.local`、Vercel なら環境変数に入れます。
+
+| 名前 | 内容 | 例 |
+| --- | --- | --- |
+| `AUTH_SECRET` | Auth.js の暗号化キー | `openssl rand -base64 32` の出力 |
+| `AUTH_GITHUB_ID` | OAuth App の Client ID | `Ov23li...` |
+| `AUTH_GITHUB_SECRET` | OAuth App の Client secret | （OAuth App の画面で作る） |
+| `ALLOWED_GITHUB_LOGINS` | ログインを許可する GitHub ユーザー名（カンマ区切り） | `your-name` |
+| `WATCHED_REPOS` | 監視するリポジトリ（`owner/repo` のカンマ区切り）。設定画面で保存した物があれば、そちらを使います | `your-name/app-a,your-name/app-b` |
+| `SETTINGS_REPO` | 設定画面の保存先のリポジトリ（`owner/repo`。ふつうは agent-desk 自身）。無ければ設定画面の「監視するリポジトリ」は見るだけです | `your-name/agent-desk` |
+
+`WATCHED_REPOS` は「見る対象」、`SETTINGS_REPO` は「設定を保存する場所」です。別の物です。
+
+### GitHub OAuth App を作る
+
+1. GitHub → Settings → Developer settings → OAuth Apps → New OAuth App
+2. Homepage URL：公開URL（手元だけなら `http://localhost:3000`）
+3. Authorization callback URL：`https://<公開URL>/api/auth/callback/github`（手元は `http://localhost:3000/api/auth/callback/github`）
+4. 作ったあとの Client ID を `AUTH_GITHUB_ID` に、Client secret（Generate a new client secret）を `AUTH_GITHUB_SECRET` に入れる
+
+ログインで頼む権限は、監視リポジトリが公開かどうかで自動で決まります（`read:user` と、全部公開なら `public_repo`、そうでなければ `repo`。詳しくは [docs/spec.md](docs/spec.md) の「ログインで頼む権限」）。OAuth App 側で選ぶ設定はありません。
+
+### `AUTH_SECRET` を作る
+
+```bash
+openssl rand -base64 32
+```
+
+### 手元で動かす
+
+1. `.env.example` を `.env.local` にコピーする（`cp .env.example .env.local`）
+2. `.env.local` の値を、自分の物に書き換える
+3. `npm install`
+4. `npm run dev` で起動し、`http://localhost:3000` を開いて `GitHubでログイン` を押す
+
+ログインできるのは `ALLOWED_GITHUB_LOGINS` に入れた人だけです。入っていない人は、日本語の「このアカウントでは使えません」の画面に戻ります。
+
 ## セットアップ：同期の読み取りをパイプラインのAppの鍵で行う（任意）
 
 ふつうは、ログインした人（オーナー）のトークンで同期のデータを読みます。この回数制限（1時間5,000回）は、ほかのツール（`gh` など）と共有です。パイプラインのGitHub App（`gaku-ai-pipeline`）の鍵で読めば、別の回数（インストールごと）を使えます。
