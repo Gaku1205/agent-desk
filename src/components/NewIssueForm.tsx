@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useTransition, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
 import { createNewIssue, uploadNewIssueImage } from "@/app/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
+import { focusAfterRemove, type FocusAfterRemove } from "@/lib/imageFocus";
 import { IMAGE_ACCEPT, IMAGE_FORM_FIELDS, IMAGE_HEAD_BYTES, pickAddableImages } from "@/lib/issueImages";
 import type { CreateIssueResult, UploadImageResult } from "@/lib/operations";
 import { checkNewIssueTitle, composeNewIssue, MAX_NEW_ISSUE_TITLE } from "@/lib/newIssue";
@@ -86,6 +87,18 @@ export function NewIssueForm({
   const [imageMessage, setImageMessage] = useState<string | null>(null);
   const [dropping, setDropping] = useState(false);
   const demo = useDemo();
+  const formRef = useRef<HTMLFormElement>(null);
+  const attachRef = useRef<HTMLButtonElement>(null);
+  const pendingFocus = useRef<FocusAfterRemove | null>(null);
+
+  // 画像を外したあと、再描画が済んでからフォーカスを移す（押したボタンは消えるので）
+  useEffect(() => {
+    const target = pendingFocus.current;
+    if (!target) return;
+    pendingFocus.current = null;
+    if (target.kind === "attach") attachRef.current?.focus();
+    else formRef.current?.querySelectorAll<HTMLButtonElement>("[data-remove-image]")[target.index]?.focus();
+  }, [images]);
 
   const template = service || repos.find((repo) => repo.name === selected)?.template === true;
 
@@ -119,11 +132,13 @@ export function NewIssueForm({
 
   function removeImage(id: number) {
     if (saving) return;
-    const target = imagesRef.current.find((image) => image.id === id);
+    const removedIndex = imagesRef.current.findIndex((image) => image.id === id);
+    const target = imagesRef.current[removedIndex];
     if (target) URL.revokeObjectURL(target.url);
     imagesRef.current = imagesRef.current.filter((image) => image.id !== id);
     setImages(imagesRef.current);
     setImageMessage(null);
+    if (removedIndex >= 0) pendingFocus.current = focusAfterRemove(removedIndex, imagesRef.current.length);
   }
 
   function clearImages() {
@@ -225,6 +240,7 @@ export function NewIssueForm({
   );
   const form = (
               <form
+                ref={formRef}
                 className={bar ? styles.barForm : styles.form}
                 onSubmit={submit}
                 onDragOver={onDragOver}
@@ -307,6 +323,7 @@ export function NewIssueForm({
                         <button
                           type="button"
                           className={styles.thumbRemove}
+                          data-remove-image=""
                           onClick={() => removeImage(image.id)}
                           disabled={saving}
                           aria-label="画像を外す"
@@ -331,6 +348,7 @@ export function NewIssueForm({
                   }}
                 />
                 <button
+                  ref={attachRef}
                   type="button"
                   className={styles.attach}
                   onClick={() => fileRef.current?.click()}
