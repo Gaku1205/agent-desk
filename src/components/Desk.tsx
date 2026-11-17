@@ -247,6 +247,7 @@ export function Desk({
       onSelect={select}
       loadStepLog={loadStepLog}
       hideUnknownModel={hideUnknownModel}
+      repoOrder={nav.repos.map((r) => `${r.owner}/${r.repo}`)}
     />
   );
 

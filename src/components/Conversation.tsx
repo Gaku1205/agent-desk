@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AddedNotice } from "@/lib/autoAdd";
 import type { AiActivity } from "@/lib/aiActivity";
-import type { ChatMessage } from "@/lib/conversation";
+import { queueAfterNumber, type ChatMessage } from "@/lib/conversation";
+import { splitQueue } from "@/lib/queueGroup";
 import { applyStepLog, hideUnknownModels } from "@/lib/flow";
 import type { StepInfo } from "@/lib/stepLog";
 import { formatWait } from "@/lib/turn";
@@ -51,6 +52,8 @@ type Props = {
   loadStepLog?: LoadStepLog;
   /** デモ：記録が無い工程の「不明」を出さない */
   hideUnknownModel?: boolean;
+  /** リポジトリの並び（`owner/repo`。左の一覧と同じ順）。順番待ちを始まる順に並べるのに使う */
+  repoOrder?: string[];
 };
 
 type LoadStepLog = (owner: string, repo: string, number: number) => Promise<StepInfo[]>;
@@ -151,6 +154,7 @@ export function Conversation({
   onSelect,
   loadStepLog,
   hideUnknownModel,
+  repoOrder,
 }: Props) {
   // 過去の欄に、最初の5件のほかに読み足した件数。その画面にいる間だけ覚える
   const [loaded, setLoaded] = useState(0);
@@ -164,6 +168,8 @@ export function Conversation({
       if (!next.delete(key)) next.add(key);
       return next;
     });
+  // 順番待ちのまとまりを開いているか。その画面にいる間だけ覚える
+  const [queueOpen, setQueueOpen] = useState(false);
   // 理由を開いている行。その画面にいる間だけ覚える
   const [openNotes, setOpenNotes] = useState<ReadonlySet<string>>(() => new Set());
   const toggleNote = (key: string) =>
@@ -188,6 +194,7 @@ export function Conversation({
   }
 
   const active = messages.filter((m) => !m.deployed);
+  const { queue, rest } = splitQueue(active, repoOrder);
   const at = new Date(now);
   const pastAll = buildPastItems(messages, added);
   const shown = visibleCount(pastAll.length, loaded);
@@ -222,13 +229,46 @@ export function Conversation({
   }, [loadMore]);
   const fresh = (key: string) => seen.keys !== null && seen.messages === messages && !seen.keys.has(key);
 
+  /** 理由（あれば）：最初は折りたたみ、押すと開く */
+  function renderNote(message: ChatMessage) {
+    if (!(message.note || message.logUrl || message.links.length > 0)) return null;
+    const isNoteOpen = openNotes.has(message.key);
+    const noteId = `note-${message.key.replace(/[^A-Za-z0-9_-]/g, "-")}`;
+    return (
+      <div className={styles.noteWrap}>
+        <button
+          type="button"
+          className={styles.noteToggle}
+          aria-expanded={isNoteOpen}
+          aria-controls={noteId}
+          onClick={() => toggleNote(message.key)}
+        >
+          {isNoteOpen ? "理由を閉じる" : "理由を見る"}
+        </button>
+        {isNoteOpen && (
+          <p className={styles.note} id={noteId}>
+            {message.note && <span>{message.note}</span>}
+            {message.logUrl && (
+              <a className={styles.link} href={message.logUrl} target="_blank" rel="noreferrer">
+                ログを開く ↗
+              </a>
+            )}
+            {message.links.map((link) => (
+              <a key={link.url} className={styles.link} href={link.url} target="_blank" rel="noreferrer">
+                {link.label}
+              </a>
+            ))}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   function renderMessage(message: ChatMessage) {
     const label = showRepo ? `${message.repo}#${message.number}` : `#${message.number}`;
     const isSelected = selected === message.key;
     const isOpen = openFlows.has(message.key);
     const mark = statusMark(message);
-    const isNoteOpen = openNotes.has(message.key);
-    const noteId = `note-${message.key.replace(/[^A-Za-z0-9_-]/g, "-")}`;
     // PC：右の列の図の対象を選ぶ。スマホ：その行の下の図を開閉する
     const activate = () => {
       if (isDesktop()) onSelect?.(message.key);
@@ -305,34 +345,7 @@ export function Conversation({
             {message.activity && <ActivityLine activity={message.activity} />}
           </>
         )}
-        {(message.note || message.logUrl || message.links.length > 0) && (
-          <div className={styles.noteWrap}>
-            <button
-              type="button"
-              className={styles.noteToggle}
-              aria-expanded={isNoteOpen}
-              aria-controls={noteId}
-              onClick={() => toggleNote(message.key)}
-            >
-              {isNoteOpen ? "理由を閉じる" : "理由を見る"}
-            </button>
-            {isNoteOpen && (
-              <p className={styles.note} id={noteId}>
-                {message.note && <span>{message.note}</span>}
-                {message.logUrl && (
-                  <a className={styles.link} href={message.logUrl} target="_blank" rel="noreferrer">
-                    ログを開く ↗
-                  </a>
-                )}
-                {message.links.map((link) => (
-                  <a key={link.url} className={styles.link} href={link.url} target="_blank" rel="noreferrer">
-                    {link.label}
-                  </a>
-                ))}
-              </p>
-            )}
-          </div>
-        )}
+        {renderNote(message)}
         {isOpen && (
           <OpenFlow
             message={message}
@@ -343,6 +356,81 @@ export function Conversation({
           />
         )}
       </article>
+    );
+  }
+
+  /** 順番待ちのまとまり：最初は畳んで1行、押すと始まる順に1行ずつ（docs/design.md の「順番待ちのまとまり」） */
+  function renderQueue() {
+    const next = queue[0];
+    const nextLabel = showRepo ? `${next.repo}#${next.number}` : `#${next.number}`;
+    return (
+      <div className={styles.queue}>
+        <button
+          type="button"
+          className={styles.queueToggle}
+          aria-expanded={queueOpen}
+          aria-controls="queue-list"
+          onClick={() => setQueueOpen((open) => !open)}
+        >
+          <span>
+            順番待ち <span className="num">{queue.length}</span>件（次：<span className="num">{nextLabel}</span>）
+          </span>
+          <span aria-hidden="true"> {queueOpen ? "▴" : "▾"}</span>
+        </button>
+        {queueOpen && (
+          <ul className={styles.queueList} id="queue-list">
+            {queue.map((message) => {
+              const label = showRepo ? `${message.repo}#${message.number}` : `#${message.number}`;
+              const after = queueAfterNumber(message.note);
+              const isSelected = selected === message.key;
+              const isOpen = openFlows.has(message.key);
+              return (
+                <li key={message.key} className={styles.queueRow} data-key={message.key}>
+                  <p className={styles.meta}>
+                    <button
+                      type="button"
+                      className={`${styles.pick} num`}
+                      aria-pressed={isSelected || isOpen}
+                      aria-label={`${label} の進捗図を見る`}
+                      onClick={() => {
+                        if (isDesktop()) onSelect?.(message.key);
+                        else toggleOpen(message.key);
+                      }}
+                    >
+                      {label}
+                    </button>
+                    <span className={styles.sep} aria-hidden="true">
+                      ·
+                    </span>
+                    <span>{message.repo}</span>
+                    {after !== null && (
+                      <>
+                        <span className={styles.sep} aria-hidden="true">
+                          ·
+                        </span>
+                        <span className="num">#{after} の後</span>
+                      </>
+                    )}
+                  </p>
+                  <p className={`${styles.title} ${styles.titleTop}`}>
+                    <SmartLink href={message.url}>{message.title}</SmartLink>
+                  </p>
+                  {renderNote(message)}
+                  {isOpen && (
+                    <OpenFlow
+                      message={message}
+                      label={label}
+                      now={now}
+                      loadStepLog={loadStepLog}
+                      hideUnknownModel={hideUnknownModel}
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     );
   }
 
@@ -451,7 +539,10 @@ export function Conversation({
       {active.length === 0 ? (
         <p className={styles.empty}>動いている作業はありません</p>
       ) : (
-        <div className={styles.list}>{active.map(renderMessage)}</div>
+        <>
+          {queue.length > 0 && renderQueue()}
+          {rest.length > 0 && <div className={styles.list}>{rest.map(renderMessage)}</div>}
+        </>
       )}
     </section>
   );
