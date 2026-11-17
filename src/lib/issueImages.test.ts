@@ -4,12 +4,25 @@ import {
   IMAGE_MESSAGES,
   imagePath,
   imageUrl,
+  isFileDrag,
   MAX_ISSUE_IMAGE_BYTES,
   MAX_ISSUE_IMAGES,
   parseImageBytes,
   parseImageUrls,
   pickAddableImages,
 } from "./issueImages";
+
+describe("isFileDrag", () => {
+  it("Files を含むとき（画像などのファイル）は true", () => {
+    expect(isFileDrag(["Files"])).toBe(true);
+    expect(isFileDrag(["text/plain", "Files"])).toBe(true);
+  });
+  it("文字・リンクだけのドラッグは false（空も false）", () => {
+    expect(isFileDrag(["text/plain"])).toBe(false);
+    expect(isFileDrag(["text/plain", "text/html", "text/uri-list"])).toBe(false);
+    expect(isFileDrag([])).toBe(false);
+  });
+});
 
 const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0];
 const JPEG = [0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0];

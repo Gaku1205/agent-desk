@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useTransition, type ClipboardEvent, type D
 import { createNewIssue, uploadNewIssueImage } from "@/app/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
 import { focusAfterRemove, type FocusAfterRemove } from "@/lib/imageFocus";
-import { IMAGE_ACCEPT, IMAGE_FORM_FIELDS, IMAGE_HEAD_BYTES, pickAddableImages } from "@/lib/issueImages";
+import { IMAGE_ACCEPT, IMAGE_FORM_FIELDS, IMAGE_HEAD_BYTES, isFileDrag, pickAddableImages } from "@/lib/issueImages";
 import type { CreateIssueResult, UploadImageResult } from "@/lib/operations";
 import { checkNewIssueTitle, composeNewIssue, MAX_NEW_ISSUE_TITLE } from "@/lib/newIssue";
 import { useDemo } from "./DemoContext";
@@ -49,7 +49,7 @@ async function uploadImage(owner: string, repo: string, file: File): Promise<Upl
 }
 
 function hasFiles(event: DragEvent): boolean {
-  return Array.from(event.dataTransfer.types).includes("Files");
+  return isFileDrag(event.dataTransfer.types);
 }
 
 /**
@@ -107,6 +107,23 @@ export function NewIssueForm({
   }, [images]);
   // 画面を離れるときに、サムネイル用のURLを手放す
   useEffect(() => () => imagesRef.current.forEach((image) => URL.revokeObjectURL(image.url)), []);
+
+  // フォームが出ている間だけ、ウィンドウに落とした画像をブラウザが開かないようにする（開くとページを離れて、書きかけのメモが消えるため）。
+  // 入力欄の上の受け口（onDragOver・onDrop）はそのまま。ここはフォームの外と作成中の分。文字などのドラッグには何もしない
+  const formShown = names.length > 0;
+  useEffect(() => {
+    if (!formShown) return;
+    const onWindowDrag = (event: globalThis.DragEvent) => {
+      if (!event.dataTransfer || !isFileDrag(event.dataTransfer.types)) return;
+      event.preventDefault();
+    };
+    window.addEventListener("dragover", onWindowDrag);
+    window.addEventListener("drop", onWindowDrag);
+    return () => {
+      window.removeEventListener("dragover", onWindowDrag);
+      window.removeEventListener("drop", onWindowDrag);
+    };
+  }, [formShown]);
 
   /** 画像を足す：中身の先頭で種類を確かめ、種類・大きさ・枚数の決まりを超えたものは足さない */
   async function addImages(files: File[]) {
