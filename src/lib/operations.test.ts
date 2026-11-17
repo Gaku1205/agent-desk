@@ -573,6 +573,10 @@ describe("executeUploadIssueImage", () => {
       return Response.json({}, { status: 201 });
     });
     const result = await executeUploadIssueImage(client, TARGET, png, NOW);
+    const treeCall = calls.find((call) => call.url.endsWith("/git/trees"));
+    const sentTree = (treeCall?.body as { tree?: unknown[] } | undefined)?.tree;
+    expect(sentTree).toHaveLength(1);
+    expect(sentTree?.[0]).toEqual({ path: ".gitkeep", mode: "100644", type: "blob", content: "" });
     const commit = calls.find((call) => call.url.endsWith("/git/commits"));
     expect(commit?.body).toEqual({ message: "画像の置き場所を作る", tree: "tree1", parents: [] });
     const ref = calls.find((call) => call.url.endsWith("/git/refs"));
