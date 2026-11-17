@@ -65,7 +65,26 @@
   line-height: 1.7;
 }
 
-/* ───── PCの3ペイン（docs/design.md の「PCの3ペイン」）。スマホでは左・進捗図・入力欄を出さない ───── */
+/* 入力欄：幅によらず、中央（スマホは列）の下端に付いたまま（Issue #364）。中身は入力欄の分だけ下に余白が残る */
+.composer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+}
+
+.center {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: calc(100svh - var(--top-h));
+}
+
+/* 入力欄を下端に置く（中身が少なくても下に付く）。中身は上から詰め、足りない分は下に余白で残す */
+.center > main {
+  flex: 1 0 auto;
+}
+
+/* ───── PCの3ペイン（docs/design.md の「PCの3ペイン」）。スマホでは左・進捗図を出さない ───── */
 @media (min-width: 900px) {
   .panes {
     display: grid;
@@ -92,25 +111,6 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     box-shadow: inset -1px 0 0 var(--hair);
-  }
-
-  /* 入力欄：中央の下端に付いたまま */
-  .composer {
-    position: sticky;
-    bottom: 0;
-    z-index: 5;
-  }
-
-  .center {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    min-height: calc(100svh - var(--top-h));
-  }
-
-  /* 入力欄を中央の下端に置く（中身が少なくても下に付く）。中身は上から詰め、足りない分は下に余白で残す */
-  .center > main {
-    flex: 1 0 auto;
   }
 
   /* 中央の列は --col をやめ、左右の列の間を幅いっぱい（左右の余白は --gutter だけ。入力欄と同じ端。Issue #347） */
@@ -187,8 +187,7 @@
 @media (max-width: 899px) {
   .sideToggle,
   .side,
-  .flow,
-  .composer {
+  .flow {
     display: none;
   }
 

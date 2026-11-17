@@ -149,6 +149,40 @@
   flex-basis: 100%;
 }
 
+/* 狭い幅（スマホ・半分の幅）：選択欄を上の行、メモと Issueを作る を下の行に。押せる所は高さ44px（Issue #364） */
+@media (max-width: 899px) {
+  .bar {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .barForm {
+    gap: 8px 12px;
+  }
+
+  .barRepo {
+    flex: 1 0 100%;
+    min-width: 0;
+  }
+
+  .barRepo > * {
+    max-width: 100%;
+  }
+
+  .barMemo {
+    flex: 1 1 120px;
+  }
+
+  .barMemo .input,
+  .barMemo .prefix {
+    height: 44px;
+    line-height: 44px;
+  }
+
+  .barForm .actions button {
+    height: 44px;
+  }
+}
+
 .hidden {
   position: absolute;
   width: 1px;
