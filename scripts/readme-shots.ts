@@ -54,28 +54,22 @@ function run(command: string, args: string[]): Promise<void> {
   });
 }
 
-/** 画面の高さをページ全体に広げ、フォントの読み込みを待つ（tests/visual/demo.spec.ts と同じ考え方） */
+/**
+ * フォントの読み込みと、開いたときの位置（中身が多ければ最新の「あなたの番」が見える位置。docs/spec.md「開いたときの位置と、追従」）が
+ * 落ち着くのを待つ。READMEでは長すぎないように、ページ全体ではなく1画面ぶん（PC 1440×900・スマホ 390×844）だけを撮る
+ */
 async function settle(page: Page): Promise<void> {
   await page.waitForLoadState("networkidle");
   await page.evaluate(() => document.fonts.ready);
-  const width = page.viewportSize()?.width ?? 1440;
-  let height = 0;
-  let stable = 0;
-  for (let i = 0; i < 20 && stable < 3; i++) {
-    await page.evaluate(() => window.scrollTo(0, 0));
-    const next = await page.evaluate(async () => {
-      await document.fonts.ready;
+  let last = -1;
+  for (let i = 0; i < 20; i++) {
+    const y = await page.evaluate(async () => {
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      return document.documentElement.scrollHeight;
+      return window.scrollY;
     });
-    if (next === height) {
-      stable += 1;
-    } else {
-      stable = 0;
-      height = next;
-      await page.setViewportSize({ width, height });
-    }
-    await page.waitForTimeout(100);
+    if (y === last) break;
+    last = y;
+    await page.waitForTimeout(150);
   }
 }
 
@@ -92,7 +86,7 @@ async function shoot(
     locale: "ja-JP",
     timezoneId: "Asia/Tokyo",
     reducedMotion: "reduce",
-    deviceScaleFactor: 1,
+    deviceScaleFactor: 2, // 高解像度の画面でもぼやけないように、2倍の細かさで撮る
     hasTouch: mobile,
     isMobile: mobile,
   });
