@@ -20,11 +20,21 @@ import {
   startPlayback,
   type PlayButtonState,
 } from "@/lib/demo/playback";
+import {
+  formatParallelOverride,
+  planParallelToggle,
+  resolveParallelState,
+  type ParallelSettings,
+} from "@/lib/parallel";
 import { buildTurnItems, type OperationKind } from "@/lib/turn";
 import { ShellProvider, useMenuState, type ShellState } from "./AppShell";
 import { DemoProvider, type DemoState } from "./DemoContext";
 import { KeyboardHelp } from "./KeyboardHelp";
+import { ParallelViewProvider, type ParallelView } from "./ParallelContext";
 import styles from "./DemoShell.module.css";
+
+/** デモの並列の設定（昼3・夜1・夜は1時〜8時） */
+const DEMO_PARALLEL_SETTINGS: ParallelSettings = { day: 3, night: 1, nightHours: { start: 1, end: 8 } };
 
 /** 「デモでは実際には動きません」を出しておく長さ */
 const NOTICE_MS = 2000;
@@ -148,16 +158,33 @@ export function DemoShell({
     [demo.now, notify, seen, pathname, menuOpen, openMenu, closeMenu],
   );
 
+  // 並列の状態のボタン：見た目と切り替えだけ動かす（GitHubには書かない）。「今」はデモの時刻
+  const [parallelOverride, setParallelOverride] = useState<string | null>(null);
+  const parallel = useMemo<ParallelView>(
+    () => ({
+      state: resolveParallelState(demo.now, DEMO_PARALLEL_SETTINGS, parallelOverride),
+      busy: false,
+      error: null,
+      toggle: () => {
+        const plan = planParallelToggle(demo.now, DEMO_PARALLEL_SETTINGS, parallelOverride);
+        setParallelOverride(plan.mode === "clear" ? null : formatParallelOverride(plan.override));
+      },
+    }),
+    [demo.now, parallelOverride],
+  );
+
   return (
     <ShellProvider value={shell}>
       <DemoProvider value={demo}>
-        {children}
-        <KeyboardHelp />
-        {notice > 0 && (
-          <p className={styles.notice} role="status" key={notice}>
-            デモでは実際には動きません
-          </p>
-        )}
+        <ParallelViewProvider value={parallel}>
+          {children}
+          <KeyboardHelp />
+          {notice > 0 && (
+            <p className={styles.notice} role="status" key={notice}>
+              デモでは実際には動きません
+            </p>
+          )}
+        </ParallelViewProvider>
       </DemoProvider>
     </ShellProvider>
   );

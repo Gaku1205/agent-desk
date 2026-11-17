@@ -194,6 +194,158 @@ export function currentParallelLimit(
   return currentPeriod(now, settings.nightHours, timeZone) === "night" ? settings.night : settings.day;
 }
 
+/** 手の上書きを保存する Variable（`"night until 2026-11-18T08:00+09:00"`。期限を過ぎる・形が違うとパイプラインは無視する） */
+export const PARALLEL_OVERRIDE_VARIABLE = "PARALLEL_OVERRIDE";
+
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+/** 上書きの期限を書くときの時差（`DEFAULT_PARALLEL_TZ` は夏時間の無い +09:00） */
+const OVERRIDE_OFFSET_MS = 9 * HOUR_MS;
+
+/** 手の上書き：期限まで、昼か夜の上限にする */
+export type ParallelOverride = { period: ParallelPeriod; until: Date };
+
+const ISO_8601 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
+/** 変数の値から、上書きを読む（`night until …`／`day until …`）。形が違えば null（期限の過ぎ具合は見ない） */
+export function parseParallelOverride(value: string | null | undefined): ParallelOverride | null {
+  const match = /^(day|night) until (\S+)$/.exec(value?.trim() ?? "");
+  if (!match || !ISO_8601.test(match[2])) return null;
+  const until = new Date(match[2]);
+  if (Number.isNaN(until.getTime())) return null;
+  return { period: match[1] as ParallelPeriod, until };
+}
+
+/** 上書きを変数の値にする（`"night until 2026-11-18T08:00+09:00"`。日本時間の分まで） */
+export function formatParallelOverride(override: ParallelOverride): string {
+  const shifted = new Date(override.until.getTime() + OVERRIDE_OFFSET_MS);
+  return `${override.period} until ${shifted.toISOString().slice(0, 16)}+09:00`;
+}
+
+/** いま効いている上書き（期限が過ぎた・形が違う物は null） */
+export function activeParallelOverride(
+  value: string | null | undefined,
+  now: Date,
+): ParallelOverride | null {
+  const override = parseParallelOverride(value);
+  return override && override.until.getTime() > now.getTime() ? override : null;
+}
+
+function minuteInZone(now: Date, timeZone: string): number {
+  function minuteIn(zone: string): number {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: zone, minute: "numeric" }).formatToParts(now);
+    return Number(parts.find((part) => part.type === "minute")?.value) || 0;
+  }
+  try {
+    return minuteIn(timeZone);
+  } catch {
+    return minuteIn(DEFAULT_PARALLEL_TZ);
+  }
+}
+
+/**
+ * 手で切り替えたときの期限＝次の時間帯の切り替わり。
+ * 夜に切り替えたら夜の終わりまで（昼のうちなら、次の夜の終わりまで）、昼に切り替えたら次の夜の始まりまで。
+ * 夜の時間帯が無い（または切り替わりが見つからない）ときは24時間後
+ */
+export function nextPeriodSwitch(
+  now: Date,
+  target: ParallelPeriod,
+  hours: NightHours | null,
+  timeZone: string = DEFAULT_PARALLEL_TZ,
+): Date {
+  const fallback = new Date(now.getTime() + DAY_MS);
+  if (!hours) return fallback;
+  const minuteStart = Math.floor(now.getTime() / 60_000) * 60_000;
+  let t = minuteStart - minuteInZone(now, timeZone) * 60_000 + HOUR_MS;
+  let prevNight = isNightHour(hourInZone(now, timeZone), hours);
+  for (let i = 0; i < 26; i += 1) {
+    const at = new Date(t);
+    const night = isNightHour(hourInZone(at, timeZone), hours);
+    if (target === "night" ? prevNight && !night : !prevNight && night) return at;
+    prevNight = night;
+    t += HOUR_MS;
+  }
+  return fallback;
+}
+
+/** 上書きを入れた、いまの状態 */
+export type ParallelState = {
+  period: ParallelPeriod;
+  limit: number;
+  /** いま効いている上書き。無ければ null（時間帯の決まりのとおり） */
+  override: ParallelOverride | null;
+};
+
+/** いまの状態を決める。効いている上書きがあれば、それが時間帯の決まりに勝つ */
+export function resolveParallelState(
+  now: Date,
+  settings: ParallelSettings,
+  overrideValue: string | null | undefined,
+  timeZone: string = DEFAULT_PARALLEL_TZ,
+): ParallelState {
+  const override = activeParallelOverride(overrideValue, now);
+  const period = override?.period ?? currentPeriod(now, settings.nightHours, timeZone);
+  return { period, limit: period === "night" ? settings.night : settings.day, override };
+}
+
+/** 押したときの変更：上書きを書く（`set`）か、消して時間帯の決まりに戻す（`clear`） */
+export type ParallelToggle =
+  | { mode: "set"; override: ParallelOverride }
+  | { mode: "clear" };
+
+/** 帯のボタンを押したときの変更。上書き中なら消す。そうでなければ、決まりの反対側へ、次の切り替わりまで */
+export function planParallelToggle(
+  now: Date,
+  settings: ParallelSettings,
+  overrideValue: string | null | undefined,
+  timeZone: string = DEFAULT_PARALLEL_TZ,
+): ParallelToggle {
+  if (activeParallelOverride(overrideValue, now)) return { mode: "clear" };
+  const scheduled = currentPeriod(now, settings.nightHours, timeZone);
+  const period: ParallelPeriod = scheduled === "night" ? "day" : "night";
+  return {
+    mode: "set",
+    override: { period, until: nextPeriodSwitch(now, period, settings.nightHours, timeZone) },
+  };
+}
+
+/** 帯・メニューに出す今の状態：`並列3`（昼）・`夜：1件ずつ`（夜。2以上なら `夜：並列2`） */
+export function describeParallelBar(state: ParallelState): string {
+  if (state.period === "day") return `並列${state.limit}`;
+  return state.limit === 1 ? "夜：1件ずつ" : `夜：並列${state.limit}`;
+}
+
+/** 上書きの期限を、基準のタイムゾーンの `11/18 08:00` にする（ボタンの説明用） */
+export function formatOverrideUntil(until: Date, timeZone: string = DEFAULT_PARALLEL_TZ): string {
+  function format(zone: string): string {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(until);
+    const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+    return `${get("month")}/${get("day")} ${get("hour")}:${get("minute")}`;
+  }
+  try {
+    return format(timeZone);
+  } catch {
+    return format(DEFAULT_PARALLEL_TZ);
+  }
+}
+
+/** ボタンの読み上げ・title：いまの状態と、押すとどうなるか */
+export function describeParallelButton(state: ParallelState, timeZone: string = DEFAULT_PARALLEL_TZ): string {
+  const now = describeParallelBar(state);
+  if (state.override) {
+    return `${now}（手動で切り替え中。${formatOverrideUntil(state.override.until, timeZone)} まで）。押すと時間帯の決まりに戻す`;
+  }
+  return `${now}。押すと${state.period === "day" ? "夜" : "昼"}に切り替える（次の時間帯の切り替わりまで）`;
+}
+
 /** 節に出す、今の状態の一文 */
 export function describeParallelNow(
   now: Date,

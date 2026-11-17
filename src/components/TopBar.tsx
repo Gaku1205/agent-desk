@@ -12,6 +12,7 @@ import type { TurnCounts } from "@/lib/turn";
 import { useShell } from "./AppShell";
 import { useDemo } from "./DemoContext";
 import { GearIcon, GridIcon, LogoutIcon, PlayIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
+import { ParallelToggle } from "./ParallelToggle";
 import { SideUser } from "./SideUser";
 import styles from "./TopBar.module.css";
 
@@ -195,7 +196,10 @@ export function SideRepos(props: Pick<Props, "repos" | "counts" | "runningCounts
         <PlusIcon />
         <span aria-hidden="true">新サービス</span>
       </Link>
-      <SideUser login={props.login} logout={props.logout} basePath={props.basePath} />
+      <div className={styles.sideBottom}>
+        <ParallelToggle variant="side" />
+        <SideUser login={props.login} logout={props.logout} basePath={props.basePath} />
+      </div>
     </aside>
   );
 }
@@ -371,6 +375,7 @@ function MenuSheet(props: Props) {
           <SettingsLabel />
         </Link>
         {props.extraLinks}
+        <ParallelToggle variant="menu" />
         <div className={styles.foot}>
           {demo && <span className={styles.demo}>デモ（サンプルのデータ）</span>}
           {props.login && props.logout && (

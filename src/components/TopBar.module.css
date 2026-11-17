@@ -487,6 +487,13 @@
   color: var(--accent);
 }
 
+/* 左のバーのいちばん下：並列の状態のボタンとユーザー名のボタン（余白は上に寄せず、ここへ押し下げる） */
+.sideBottom {
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
+}
+
 /* 3ペインのページでは、帯に札を出さない（左の一覧と同じ物を2か所に置かない） */
 @media (min-width: 900px) {
   :global(body:has([data-panes])) .top .repos {
