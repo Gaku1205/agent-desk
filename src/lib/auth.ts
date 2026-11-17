@@ -3,6 +3,7 @@ import GitHub from "next-auth/providers/github";
 import { getToken } from "next-auth/jwt";
 import { headers } from "next/headers";
 import { isAllowedLogin } from "./allowlist";
+import { AUTH_ERROR_PATH } from "./authError";
 import { getAllowedLogins } from "./config";
 import { PRIVATE_SCOPE } from "./loginScope";
 
@@ -25,6 +26,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // 頼む権限は、ログインを始めるとき（LoginScreen の signIn）に決めて渡す
   providers: [GitHub({ authorization: { params: { scope: PRIVATE_SCOPE } } })],
   session: { strategy: "jwt" },
+  // 拒否・エラーは、英語の既定のページではなく、自前の日本語の画面に出す
+  pages: { error: AUTH_ERROR_PATH },
   callbacks: {
     signIn({ profile }) {
       const login = typeof profile?.login === "string" ? profile.login : null;
