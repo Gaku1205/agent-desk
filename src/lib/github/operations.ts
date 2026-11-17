@@ -87,7 +87,8 @@ export async function createIssue(
 }
 
 /**
- * 画像を入れる専用ブランチを用意する。無ければ、親の無い空のコミットから作る（main の履歴は触らない）。
+ * 画像を入れる専用ブランチを用意する。無ければ、`.gitkeep` だけを入れた、親の無いコミットから作る（main の履歴・中身は持ち込まない）。
+ * 空のツリーは GitHub が断る（422）ので、`.gitkeep` を1つ入れる。
  * 同時に作られて既にあったとき（422）は、そのまま使う
  */
 export async function ensureImagesBranch(client: GitHubClient, target: WatchedRepo): Promise<void> {
@@ -97,7 +98,9 @@ export async function ensureImagesBranch(client: GitHubClient, target: WatchedRe
   } catch (error) {
     if (!(error instanceof GitHubError) || error.status !== 404) throw error;
   }
-  const tree = (await client.send("POST", `${repoPath(target)}/git/trees`, { tree: [] })) as { sha?: unknown } | null;
+  const tree = (await client.send("POST", `${repoPath(target)}/git/trees`, {
+    tree: [{ path: ".gitkeep", mode: "100644", type: "blob", content: "" }],
+  })) as { sha?: unknown } | null;
   if (typeof tree?.sha !== "string") throw new GitHubError("other", null, null, "user");
   const commit = (await client.send("POST", `${repoPath(target)}/git/commits`, {
     message: "画像の置き場所を作る",
