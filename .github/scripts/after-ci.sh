@@ -59,7 +59,10 @@ case "$sync_pr" in
     else
       add_label "$pr" "ai:stuck"
       comment "$pr" "⚠️ テンプレートから配られたパイプラインの更新で、このリポジトリのCIが落ちました。マネージャーに確認してもらってください（AIには直させません）。"
-      notify stuck "パイプラインの更新が入りません" "PR #${pr}：配られた更新でCIが落ちました" 4
+      # 同じ配布が複数のアプリで落ちたときは、通知を最初の1件だけにする（まとめ先はテンプレートの Issue。読み書きできなければ送る）
+      if HEAD_BRANCH="$HEAD_BRANCH" bash "$(dirname "$0")/sync-failure-report.sh" "$pr"; then
+        notify stuck "パイプラインの更新が入りません" "PR #${pr}：配られた更新でCIが落ちました" 4
+      fi
       echo "PR #$pr（パイプラインの更新）：CIが落ちたので人間に回しました"
     fi
     exit 0
@@ -130,7 +133,7 @@ ${VISUAL_MARK}"
         files=$(gh api "repos/$REPO/pulls/$pr/files?per_page=100" --paginate -q '.[].filename' 2> /dev/null) &&
         ! printf '%s\n' "$files" | grep -q '^\.github/'; then
         reruns=$(all_comments "$pr" | jq --arg m "$PIPELINE_TEST_MARK" '[.[] | select(.body | contains($m))] | length')
-        if [ "$reruns" -lt 1 ] && gh api -X POST "repos/$REPO/actions/runs/$RUN_ID/rerun-failed-jobs" > /dev/null 2>&1; then
+        if [ "$reruns" -lt 1 ] && GH_TOKEN="${READ_TOKEN:-$GH_TOKEN}" gh api -X POST "repos/$REPO/actions/runs/$RUN_ID/rerun-failed-jobs" > /dev/null 2>&1; then
           comment "$pr" "パイプライン自体のテスト（スクリプトのテスト・shellcheck）だけが落ちました。このPRの変更（.github/ の外）が原因ではないので、AIには直させず、落ちたジョブを1回だけやり直します。
 
 ${PIPELINE_TEST_MARK}"
