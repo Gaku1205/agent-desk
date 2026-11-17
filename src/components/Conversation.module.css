@@ -431,4 +431,33 @@
   .pastLine {
     min-height: 44px;
   }
+
+  /* スマホで押せる範囲を高さ24px以上に（見た目・並びは変えない。docs/design.md の「スマホで押せる範囲」）。透明な ::after で上下に広げる */
+  .pick,
+  .noteToggle,
+  .queueToggle,
+  .link,
+  .title a {
+    position: relative;
+  }
+
+  .pick::after,
+  .noteToggle::after,
+  .queueToggle::after {
+    position: absolute;
+    inset: -2px 0;
+    content: "";
+  }
+
+  .link::after {
+    position: absolute;
+    inset: -5px 0;
+    content: "";
+  }
+
+  .title a::after {
+    position: absolute;
+    inset: -4px 0;
+    content: "";
+  }
 }
