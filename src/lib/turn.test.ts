@@ -183,6 +183,33 @@ describe("buildTurnItems", () => {
     ]);
   });
 
+  describe("止めている ai:hold のマージ待ち", () => {
+    function withMark(body: string, author = "github-actions[bot]"): RepoData {
+      const repoData = mixedRepo();
+      repoData.issues[5] = issue(6, { labels: ["ai:queue"], title: "並べ替えを保存する" });
+      repoData.comments.push(comment(15, body, { author, createdAt: "2026-10-25T10:30:00Z" }));
+      return repoData;
+    }
+
+    it("止まった物の次、それ以外の前に並び、補足に動き出す Issue を1行出す", () => {
+      const items = buildTurnItems([ok("o", "r", withMark("<!-- hold-blocking: #6,#99 -->"))], NOW);
+      expect(items.map((item) => item.issue.number)).toEqual([4, 5, 1, 3]);
+      expect(items[1].note).toBe("マージすると #6（並べ替えを保存する）・#99が動き出します");
+      expect(items[1].blocking).toEqual([6, 99]);
+    });
+
+    it("印が無い・読めない・作者が人のときは今までどおり", () => {
+      for (const body of ["ふつうのコメント", "<!-- hold-blocking: -->"]) {
+        const items = buildTurnItems([ok("o", "r", withMark(body))], NOW);
+        expect(items.map((item) => item.issue.number)).toEqual([4, 1, 5, 3]);
+        expect(items.every((item) => item.note === null)).toBe(true);
+      }
+      const human = buildTurnItems([ok("o", "r", withMark("<!-- hold-blocking: #6 -->", "Gaku1205"))], NOW);
+      expect(human.map((item) => item.issue.number)).toEqual([4, 1, 5, 3]);
+      expect(human.every((item) => item.note === null)).toBe(true);
+    });
+  });
+
   it("止まった物が複数あれば、その中でも待ちが長い順", () => {
     const repoData = data({
       issues: [issue(1, { labels: ["ai:stuck"] }), issue(2, { labels: ["ai:stuck"] }), issue(3)],

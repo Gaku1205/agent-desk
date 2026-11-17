@@ -17,6 +17,7 @@ import {
 } from "./status";
 import { latestQuestionComment, parseQuestionComment, type ParsedQuestion } from "./question";
 import { latestFactoryComment, parseFactoryTalk, type FactoryTalk } from "./factoryTalk";
+import { holdBlockingNote, parseHoldBlocking } from "./holdBlocking";
 import { turnKind } from "./turnKind";
 
 /** 「あなたの番」で押せる操作（サーバー側で実行する物） */
@@ -90,6 +91,8 @@ export type TurnItem = {
   factory: FactoryTalk | null;
   /** 進捗図のほかの分岐を決める材料（docs/spec.md の「ほかの分岐」。無ければ出さない） */
   flowFacts?: FlowFacts;
+  /** 止めている `ai:hold` のマージ待ちが、マージすると動き出す Issue の番号（無ければ出さない。docs/spec.md の「止めている印」） */
+  blocking?: number[];
 };
 
 /** 1件のキー（`owner/repo#番号`。流れの光のキーと同じ） */
@@ -259,14 +262,22 @@ export function isUrgentTurn(item: Pick<TurnItem, "status">): boolean {
   return turnKind(item.status).tone !== "calm";
 }
 
+/** 順番待ちを止めている `ai:hold` のマージ待ちか */
+export function isBlockingTurn(item: Pick<TurnItem, "blocking">): boolean {
+  return (item.blocking?.length ?? 0) > 0;
+}
+
 /**
- * 強い色の物（止まった・公開失敗）がいちばん上、その中も、その下も、待ちが長い（人間の番になったのが古い）順。
+ * 強い色の物（止まった・公開失敗）がいちばん上、次に止めている `ai:hold` のマージ待ち、その中も、その下も、待ちが長い（人間の番になったのが古い）順。
  * 強い色と並び順が食い違わないようにする（強い色の行が、静かな色の行の下に来ない）
  */
 export function compareTurnItems(a: TurnItem, b: TurnItem): number {
   const urgentA = isUrgentTurn(a) ? 0 : 1;
   const urgentB = isUrgentTurn(b) ? 0 : 1;
   if (urgentA !== urgentB) return urgentA - urgentB;
+  const blockA = isBlockingTurn(a) ? 0 : 1;
+  const blockB = isBlockingTurn(b) ? 0 : 1;
+  if (blockA !== blockB) return blockA - blockB;
   const byTime = a.waitingSince.localeCompare(b.waitingSince);
   if (byTime !== 0) return byTime;
   const byRepo = `${a.owner}/${a.repo}`.localeCompare(`${b.owner}/${b.repo}`);
@@ -304,6 +315,10 @@ export function repoTurnItems(owner: string, repo: string, repoData: RepoData, n
     if (description === null) continue;
     const buttons = turnButtons(status, data);
     const canMerge = buttons.some((b) => b.type === "operation" && b.kind === "merge");
+    const blocking =
+      status.stage === "mergeWaiting" && status.mergeWait === "hold" && status.pull
+        ? parseHoldBlocking(data.comments, status.pull.number)
+        : [];
     items.push({
       owner,
       repo,
@@ -313,7 +328,8 @@ export function repoTurnItems(owner: string, repo: string, repoData: RepoData, n
       note:
         status.stage === "deployFailed" && status.pull
           ? deployFailureReason(data.pullChecks[status.pull.number]?.statuses ?? [])
-          : null,
+          : holdBlockingNote(blocking, data.issues),
+      ...(blocking.length > 0 ? { blocking } : {}),
       logUrl: failureLogUrl(status, `${owner}/${repo}`),
       waitingSince: waitingSince(issue, status, data),
       buttons,

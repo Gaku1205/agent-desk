@@ -407,6 +407,8 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
     labels: ["ai:hold"],
     checkRuns: ciRuns(4, ago(ctx, 24 * 60 + 40)),
   });
+  // 順番待ち（#15・#14）を止めている印（パイプラインが付ける）
+  addComment(ctx, 36, "<!-- hold-blocking: #15,#14 -->", ago(ctx, 20 * 60), "github-actions[bot]");
 
   // レビュー中（審査役の採点が8点未満で、実装に1回戻った）
   const reviewing = addIssue(ctx, 20, "タスクの検索に絞り込みを足す", {
