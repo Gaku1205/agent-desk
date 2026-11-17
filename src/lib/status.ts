@@ -440,6 +440,9 @@ export function retryRecord(comments: CommentData[], numbers: number[]): RetryRe
   return { count: Number(match[1]), max: Number(match[2]), reason: reason === "" ? null : reason };
 }
 
+/** 記録の直後のラベル付けなどによるPRの更新を、先へ進んだ印に数えない余裕（ミリ秒） */
+const UPDATED_AT_GRACE_MS = 60_000;
+
 /** 最新のやり直しの記録の時刻（回数が読めない記録・記録が無いときは null） */
 function retryRecordAt(comments: CommentData[], numbers: number[]): string | null {
   if (!retryRecord(comments, numbers)) return null;
@@ -465,7 +468,12 @@ export function hasProgressedSince(
     return true;
   }
   if (!pull) return false;
-  if (isAfter(pull.createdAt, since) || isAfter(pull.updatedAt, since)) return true;
+  if (isAfter(pull.createdAt, since)) return true;
+  // 記録のコメントのあとに ai:retry を付けると updatedAt が数秒進むので、その分は進んだ扱いにしない
+  const sinceMs = Date.parse(since);
+  if (!Number.isNaN(sinceMs) && isAfter(pull.updatedAt, new Date(sinceMs + UPDATED_AT_GRACE_MS).toISOString())) {
+    return true;
+  }
   if (
     input.comments.some(
       (c) => c.issueNumber === pull.number && c.body.includes(AUTO_FIX_MARK) && isAfter(c.createdAt, since),

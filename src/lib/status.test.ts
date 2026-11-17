@@ -664,6 +664,17 @@ describe("getIssueStatus：やり直し待ち", () => {
       expect(status.stage).toBe("ciRunning");
     });
 
+    it("記録のコメントの数秒後にラベル付けで updatedAt が進んだだけ → やり直し待ちのまま", () => {
+      const status = getIssueStatus(
+        issue(),
+        input([pull({ labels, createdAt: "2026-10-25T09:00:00Z", updatedAt: "2026-10-25T10:00:05Z" })], {}, [
+          retryComment({ issueNumber: 11, createdAt: "2026-10-25T10:00:00Z" }),
+        ]),
+        NOW,
+      );
+      expect(status.stage).toBe("retrying");
+    });
+
     it("記録より後にCIが動いた（チェックの完了）", () => {
       const status = getIssueStatus(
         issue({ labels }),
