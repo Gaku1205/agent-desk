@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { composeFactoryAnswer } from "../factoryTalk";
+import type { RepoData } from "../github/types";
 import { getProgress } from "../progress";
 import { getIssueStatus, type Stage } from "../status";
 import { buildTurnItems, turnItemKey, type OperationKind } from "../turn";
@@ -157,6 +158,46 @@ describe("デモで押した操作", () => {
     const played = advancePlayback(pressed);
     expect(statusOf(played, "todo-app", 13).stage).toBe("planning");
     expect(restartPlayback(played).ops).toEqual([]);
+  });
+});
+
+describe("デモ：Issueに紐づかないPRのマージ", () => {
+  const AT = "2026-10-26T03:00:00Z";
+  const base: RepoData = {
+    issues: [],
+    pulls: [
+      {
+        number: 50,
+        title: "READMEを直す",
+        body: "",
+        state: "open",
+        merged: false,
+        labels: ["ai:hold"],
+        url: "https://example.com/pull/50",
+        headRef: "manager/readme",
+        headSha: "abc",
+        mergeCommitSha: null,
+        createdAt: AT,
+        updatedAt: AT,
+        mergedAt: null,
+      },
+    ],
+    comments: [],
+    pullChecks: {},
+    events: [],
+  };
+  const op = (kind: OperationKind, number = 50): DemoOp => ({ owner: "demo", repo: "r", number, kind, at: AT });
+
+  it("merge でPRがマージ済み・closed になる", () => {
+    const pull = applyDemoOp(base, op("merge")).pulls[0];
+    expect(pull.merged).toBe(true);
+    expect(pull.state).toBe("closed");
+    expect(pull.mergedAt).toBe(AT);
+  });
+
+  it("merge 以外の操作や、PRの無い番号ではデータが変わらない", () => {
+    expect(applyDemoOp(base, op("plan"))).toBe(base);
+    expect(applyDemoOp(base, op("merge", 99))).toBe(base);
   });
 });
 

@@ -498,6 +498,52 @@ describe("マージ", () => {
   });
 });
 
+describe("Issueに紐づかないPRのマージ", () => {
+  const review = {
+    id: 1,
+    issueNumber: 50,
+    author: "claude[bot]",
+    body: "## Code review\n\nNo issues found.",
+    createdAt: "2026-10-25T10:05:00Z",
+  };
+  function lone(checkRuns: CheckRunData[] = [check()], pullOverrides: Partial<PullData> = {}) {
+    return data({
+      issues: [],
+      pulls: [pull({ number: 50, body: "手作業のPR", headRef: "manager/readme", headSha: "def456", ...pullOverrides })],
+      comments: [review],
+      pullChecks: { 50: { checkRuns, statuses: [] } },
+    });
+  }
+
+  it("条件を満たすPRは、PR番号で送ると先頭コミットを付けてマージする", async () => {
+    const { client, calls } = fakeClient(() => Response.json({ merged: true }));
+    expect(await executeOperation(client, TARGET, input("merge", 50), lone(), NOW)).toEqual({ ok: true });
+    expect(calls).toEqual([
+      { method: "PUT", url: "https://api.github.com/repos/o/r/pulls/50/merge", body: { sha: "def456" } },
+    ]);
+  });
+
+  it.each<[string, RepoData]>([
+    ["CIが失敗した", lone([check({ conclusion: "failure" })])],
+    ["ai:hold が無い", lone([check()], { labels: [] })],
+  ])("%s ときは、何も呼ばずに changed を返す", async (_name, repoData) => {
+    const { client, calls } = fakeClient();
+    expect(await executeOperation(client, TARGET, input("merge", 50), repoData, NOW)).toEqual({
+      ok: false,
+      changed: true,
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it.each([405, 409])("GitHubが %i なら changed", async (status) => {
+    const { client } = fakeClient(() => Response.json({ message: "x" }, { status }));
+    expect(await executeOperation(client, TARGET, input("merge", 50), lone(), NOW)).toEqual({
+      ok: false,
+      changed: true,
+    });
+  });
+});
+
 describe("operationErrorMessage", () => {
   it("エラーの種類ごとに理由を決める", () => {
     expect(operationErrorMessage(new GitHubError("unauthorized", 401))).toBe(
