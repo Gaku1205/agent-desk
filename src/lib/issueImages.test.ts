@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  decodeBase64,
   detectImageKind,
   IMAGE_MESSAGES,
   imagePath,
   imageUrl,
   MAX_ISSUE_IMAGE_BYTES,
   MAX_ISSUE_IMAGES,
-  parseImageUploads,
+  parseImageBytes,
+  parseImageUrls,
   pickAddableImages,
 } from "./issueImages";
 
@@ -60,20 +60,43 @@ describe("pickAddableImages", () => {
   });
 });
 
-describe("decodeBase64 / parseImageUploads", () => {
-  it("正しい base64 だけ取り出す", () => {
-    expect(decodeBase64(btoa("abcd"))).toEqual(new TextEncoder().encode("abcd"));
-    expect(decodeBase64("")).toBeNull();
-    expect(decodeBase64("ab cd===")).toBeNull();
+describe("parseImageBytes", () => {
+  it("4種類の中身は種類を付けて通す", () => {
+    expect(parseImageBytes(head(PNG))?.kind).toBe("png");
+    expect(parseImageBytes(head(WEBP))?.kind).toBe("webp");
   });
-  it("未指定は空、配列でなければ null", () => {
-    expect(parseImageUploads(undefined)).toEqual([]);
-    expect(parseImageUploads({})).toBeNull();
-  });
-  it("中身が4MBを超える画像は断る", () => {
-    const big = Buffer.alloc(MAX_ISSUE_IMAGE_BYTES + 3);
+  it("空・種類の違うもの・4MBを超えるものは断る", () => {
+    expect(parseImageBytes(new Uint8Array())).toBeNull();
+    expect(parseImageBytes(new TextEncoder().encode("hello world!"))).toBeNull();
+    const exact = new Uint8Array(MAX_ISSUE_IMAGE_BYTES);
+    exact.set(PNG);
+    expect(parseImageBytes(exact)?.kind).toBe("png");
+    const big = new Uint8Array(MAX_ISSUE_IMAGE_BYTES + 1);
     big.set(PNG);
-    expect(parseImageUploads([{ data: big.toString("base64") }])).toBeNull();
+    expect(parseImageBytes(big)).toBeNull();
+  });
+});
+
+describe("parseImageUrls", () => {
+  const url = "https://github.com/o/r/raw/issue-images/images/202611/0f8e2a1c-3b4d-4e5f-8a9b-0c1d2e3f4a5b.png";
+  it("未指定は空、専用ブランチに上げた形は通す", () => {
+    expect(parseImageUrls("o", "r", undefined)).toEqual([]);
+    expect(parseImageUrls("o", "r", [url, url.replace(".png", ".jpg")])).toEqual([url, url.replace(".png", ".jpg")]);
+  });
+  it("5枚を超える・形の違うURLは null", () => {
+    expect(parseImageUrls("o", "r", Array.from({ length: MAX_ISSUE_IMAGES + 1 }, () => url))).toBeNull();
+    for (const bad of [
+      {},
+      [1],
+      [url.replace("/o/r/", "/o/other/")],
+      [url.replace("issue-images", "main")],
+      [url.replace(".png", ".svg")],
+      [url.replace("0f8e2a1c", "../../x")],
+      [`${url})\n![x](https://evil.example/a.png`],
+      ["https://evil.example/a.png"],
+    ]) {
+      expect(parseImageUrls("o", "r", bad)).toBeNull();
+    }
   });
 });
 

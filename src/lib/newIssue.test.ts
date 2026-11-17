@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_IMAGE_BASE64_LENGTH, MAX_ISSUE_IMAGES } from "./issueImages";
+import { MAX_ISSUE_IMAGES } from "./issueImages";
 import {
   checkNewIssueTitle,
   composeNewIssue,
@@ -30,30 +30,27 @@ describe("checkNewIssueTitle", () => {
   });
 });
 
-const PNG_BASE64 = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]).toString("base64");
+const IMAGE_URL =
+  "https://github.com/Gaku1205/agent-desk/raw/issue-images/images/202611/0f8e2a1c-3b4d-4e5f-8a9b-0c1d2e3f4a5b.png";
 
 describe("parseNewIssueInput", () => {
   const valid = { owner: "Gaku1205", repo: "agent-desk", title: " メモ ", omakase: false };
   it("正しい値は整えて通す（画像が無ければ空）", () => {
-    expect(parseNewIssueInput(valid)).toEqual({ ...valid, title: "メモ", images: [] });
+    expect(parseNewIssueInput(valid)).toEqual({ ...valid, title: "メモ", imageUrls: [] });
   });
-  it("画像は確かめ直して中身と種類にする", () => {
-    const parsed = parseNewIssueInput({ ...valid, images: [{ data: PNG_BASE64 }] });
-    expect(parsed?.images).toHaveLength(1);
-    expect(parsed?.images[0].kind).toBe("png");
+  it("画像は、そのリポジトリの専用ブランチに上げたURLだけ通す", () => {
+    expect(parseNewIssueInput({ ...valid, images: [IMAGE_URL] })?.imageUrls).toEqual([IMAGE_URL]);
   });
   it("不正な画像は全体を null にする", () => {
-    const notImage = Buffer.from("hello world!").toString("base64");
     for (const images of [
       "x",
       [null],
-      [{}],
-      [{ data: 1 }],
-      [{ data: "" }],
-      [{ data: `data:image/png;base64,${PNG_BASE64}` }],
-      [{ data: notImage }],
-      [{ data: "A".repeat(MAX_IMAGE_BASE64_LENGTH + 4) }],
-      Array.from({ length: MAX_ISSUE_IMAGES + 1 }, () => ({ data: PNG_BASE64 })),
+      [{ data: "AAAA" }],
+      [""],
+      ["https://evil.example/a.png"],
+      [IMAGE_URL.replace("/agent-desk/", "/other/")],
+      [IMAGE_URL.replace(".png", ".svg")],
+      Array.from({ length: MAX_ISSUE_IMAGES + 1 }, () => IMAGE_URL),
     ]) {
       expect(parseNewIssueInput({ ...valid, images })).toBeNull();
     }

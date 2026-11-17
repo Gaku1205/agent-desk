@@ -3,8 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
-      // Issueに付ける画像（5枚 × 4MB を base64 にしたもの＝約27MB）が通る大きさ
-      bodySizeLimit: "30mb",
+      // Issueに付ける画像（1枚4MBまで）を、1回に1枚ずつファイルのまま送るのが通る大きさ。
+      // 本番（Vercel）は関数の本文が4.5MBまでなので、base64 やまとめて送る形にはしない
+      bodySizeLimit: "5mb",
     },
   },
 };

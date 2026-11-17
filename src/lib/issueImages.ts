@@ -71,43 +71,38 @@ export function pickAddableImages(
   return { accepted, message };
 }
 
-/** base64 を取り出す（正しくなければ null）。改行・空白・`data:` の頭は受け付けない */
-export function decodeBase64(data: string): Uint8Array | null {
-  if (data === "" || data.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) return null;
-  try {
-    const binary = atob(data);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
-  } catch {
-    return null;
-  }
-}
-
-/** 大きすぎる base64 は、取り出す前に断る（取り出したあとの大きさの上限より少し余裕を持たせた長さ） */
-export const MAX_IMAGE_BASE64_LENGTH = Math.ceil((MAX_ISSUE_IMAGE_BYTES * 4) / 3) + 4;
-
-/** サーバーに送る画像（中身は base64） */
-export type ImageUpload = { data: string };
+/**
+ * 画像を上げる Server Action に送る FormData の名前。
+ * 画像は1枚ずつ、base64 にせずファイルのまま送る（Vercel の関数は1回の本文が4.5MBまでなので、
+ * 4MBの画像を base64（約1.33倍）にしたり、何枚もまとめたりすると届かない）
+ */
+export const IMAGE_FORM_FIELDS = { owner: "owner", repo: "repo", file: "file" } as const;
 
 export type ParsedImage = { bytes: Uint8Array; kind: ImageKind };
 
-/** 送られてきた画像を確かめ直す（Server Action は誰でも直接呼べるため）。正しくなければ null */
-export function parseImageUploads(value: unknown): ParsedImage[] | null {
+/** 送られてきた画像1枚の中身を確かめ直す（Server Action は誰でも直接呼べるため）。正しくなければ null */
+export function parseImageBytes(bytes: Uint8Array): ParsedImage | null {
+  if (bytes.length === 0 || bytes.length > MAX_ISSUE_IMAGE_BYTES) return null;
+  const kind = detectImageKind(bytes);
+  return kind ? { bytes, kind } : null;
+}
+
+/**
+ * Issueの本文に並べる画像のURLを確かめ直す。このリポジトリの専用ブランチに上げた形
+ * （`imageUrl(owner, repo, imagePath(…))`）のものだけ、5枚まで通す。未指定は空、正しくなければ null
+ */
+export function parseImageUrls(owner: string, repo: string, value: unknown): string[] | null {
   if (value === undefined) return [];
   if (!Array.isArray(value) || value.length > MAX_ISSUE_IMAGES) return null;
-  const images: ParsedImage[] = [];
-  for (const item of value) {
-    if (typeof item !== "object" || item === null) return null;
-    const { data } = item as Record<string, unknown>;
-    if (typeof data !== "string" || data.length > MAX_IMAGE_BASE64_LENGTH) return null;
-    const bytes = decodeBase64(data);
-    if (!bytes || bytes.length > MAX_ISSUE_IMAGE_BYTES) return null;
-    const kind = detectImageKind(bytes);
-    if (!kind) return null;
-    images.push({ bytes, kind });
+  const prefix = imageUrl(owner, repo, "images/");
+  for (const url of value) {
+    if (typeof url !== "string" || !url.startsWith(prefix)) return null;
+    const rest = url.slice(prefix.length);
+    if (!/^\d{6}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|webp|gif)$/.test(rest)) {
+      return null;
+    }
   }
-  return images;
+  return value as string[];
 }
 
 /** `images/<西暦年月>/<ランダムな名前>.<拡張子>`（元のファイル名は使わない） */

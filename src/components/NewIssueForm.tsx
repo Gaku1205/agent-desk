@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
-import { createNewIssue } from "@/app/actions";
+import { createNewIssue, uploadNewIssueImage } from "@/app/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
-import { IMAGE_ACCEPT, IMAGE_HEAD_BYTES, pickAddableImages } from "@/lib/issueImages";
-import type { CreateIssueResult } from "@/lib/operations";
+import { IMAGE_ACCEPT, IMAGE_FORM_FIELDS, IMAGE_HEAD_BYTES, pickAddableImages } from "@/lib/issueImages";
+import type { CreateIssueResult, UploadImageResult } from "@/lib/operations";
 import { checkNewIssueTitle, composeNewIssue, MAX_NEW_ISSUE_TITLE } from "@/lib/newIssue";
 import { useDemo } from "./DemoContext";
 import { CrossIcon, FileIcon, ImageIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
@@ -26,16 +26,25 @@ type Status =
   | { kind: "created"; number: number | null; url: string | null }
   | { kind: "error"; message: string };
 
-type AttachedImage = { id: number; file: File; url: string };
+type AttachedImage = {
+  id: number;
+  file: File;
+  /** サムネイル用のURL（手元のファイル） */
+  url: string;
+  /** 上げ終えた先（失敗してもう一度押したとき、同じリポジトリなら上げ直さない） */
+  uploaded?: { repo: string; url: string };
+};
 
-/** ファイルを base64 にする（`data:…;base64,` の頭を外す） */
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ""));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
+/** 画像を1枚、ファイルのまま（base64 にせず）サーバーに送る */
+async function uploadImage(owner: string, repo: string, file: File): Promise<UploadImageResult> {
+  const formData = new FormData();
+  formData.set(IMAGE_FORM_FIELDS.owner, owner);
+  formData.set(IMAGE_FORM_FIELDS.repo, repo);
+  formData.set(IMAGE_FORM_FIELDS.file, file);
+  return callAction<UploadImageResult>(
+    () => uploadNewIssueImage(formData),
+    () => ({ ok: false, message: ACTION_UNREACHABLE_MESSAGE }),
+  );
 }
 
 function hasFiles(event: DragEvent): boolean {
@@ -168,17 +177,32 @@ export function NewIssueForm({
     }
     setStatus({ kind: "idle" });
     setImageMessage(null);
-    const files = images.map((image) => image.file);
+    const attached = imagesRef.current;
     startSaving(async () => {
+      // 画像を1枚ずつ上げてから、Issueを作る。1枚でも上げられなければ、Issueは作らない（メモと画像は残す）
+      const imageUrls: string[] = [];
+      for (const image of attached) {
+        if (image.uploaded?.repo === selected) {
+          imageUrls.push(image.uploaded.url);
+          continue;
+        }
+        const uploaded = await uploadImage(owner, repo, image.file);
+        if (!uploaded.ok) {
+          setStatus({ kind: "error", message: uploaded.message });
+          return;
+        }
+        image.uploaded = { repo: selected, url: uploaded.url };
+        imageUrls.push(uploaded.url);
+      }
       // 呼び出しが投げても、画面を落とさず、書いたメモと画像を残して理由を出す
       const result = await callAction<CreateIssueResult>(
-        async () =>
+        () =>
           createNewIssue({
             owner,
             repo,
             title: checked.title,
             omakase: template && omakase,
-            images: await Promise.all(files.map(async (file) => ({ data: await fileToBase64(file) }))),
+            images: imageUrls,
           }),
         () => ({ ok: false, message: ACTION_UNREACHABLE_MESSAGE }),
       );

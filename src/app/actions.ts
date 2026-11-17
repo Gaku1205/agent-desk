@@ -15,12 +15,15 @@ import {
   authorizeOperation,
   executeCreateIssue,
   executeOperation,
+  executeUploadIssueImage,
   OPERATION_MESSAGES,
   operationErrorMessage,
   parseOperationInput,
   type CreateIssueResult,
   type OperationResult,
+  type UploadImageResult,
 } from "@/lib/operations";
+import { IMAGE_FORM_FIELDS, MAX_ISSUE_IMAGE_BYTES, parseImageBytes } from "@/lib/issueImages";
 import { parseNewIssueInput } from "@/lib/newIssue";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
 
@@ -84,6 +87,42 @@ export async function createNewIssue(value: unknown): Promise<CreateIssueResult>
     invalidateRepoNow(auth.target);
     refresh();
   }
+  return result;
+}
+
+/**
+ * Issueに付ける画像を1枚、専用ブランチ `issue-images` に上げる（`createNewIssue` の前に1枚ずつ呼ぶ）。
+ * 画像は base64 にせず FormData のファイルのまま受ける（Vercel の関数は1回の本文が4.5MBまでのため）。
+ * 認可は `createNewIssue` と同じ。種類・大きさはサーバーで確かめ直す
+ */
+export async function uploadNewIssueImage(formData: FormData): Promise<UploadImageResult> {
+  if (!(formData instanceof FormData)) return { ok: false, message: OPERATION_MESSAGES.invalid };
+  const owner = formData.get(IMAGE_FORM_FIELDS.owner);
+  const repo = formData.get(IMAGE_FORM_FIELDS.repo);
+  const file = formData.get(IMAGE_FORM_FIELDS.file);
+  if (typeof owner !== "string" || typeof repo !== "string" || !/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(repo)) {
+    return { ok: false, message: OPERATION_MESSAGES.invalid };
+  }
+  // 中身を読む前に、大きさで断る
+  if (!(file instanceof Blob) || file.size === 0 || file.size > MAX_ISSUE_IMAGE_BYTES) {
+    return { ok: false, message: OPERATION_MESSAGES.invalid };
+  }
+
+  const auth = authorizeOperation({
+    login: await getSignedInLogin(),
+    token: await getGitHubToken(),
+    allowedLogins: getAllowedLogins(),
+    watched: (await loadWatchedRepos()).repos,
+    owner,
+    repo,
+  });
+  if (!auth.ok) return { ok: false, message: auth.message };
+
+  const image = parseImageBytes(new Uint8Array(await file.arrayBuffer()));
+  if (!image) return { ok: false, message: OPERATION_MESSAGES.invalid };
+
+  const result = await executeUploadIssueImage(new GitHubClient(auth.token), auth.target, image, new Date());
+  if (!result.ok && result.message === OPERATION_MESSAGES.unauthorized) redirect(SESSION_EXPIRED_PATH);
   return result;
 }
 

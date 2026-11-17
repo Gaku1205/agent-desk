@@ -4,7 +4,7 @@
  */
 
 import type { RepoResult } from "./github/types";
-import { parseImageUploads, type ParsedImage } from "./issueImages";
+import { parseImageUrls } from "./issueImages";
 
 /**
  * Issueを書く欄のリポジトリ（`owner/repo` と、テンプレートリポジトリか）。
@@ -42,8 +42,8 @@ export type NewIssueInput = {
   title: string;
   /** 「全部おまかせ」を選んだか（テンプレートリポジトリのときだけ効く） */
   omakase: boolean;
-  /** 付ける画像（確かめ済み。中身と種類） */
-  images: ParsedImage[];
+  /** 本文に並べる画像のURL（先に `uploadNewIssueImage` で専用ブランチに上げたもの。形は確かめ済み） */
+  imageUrls: string[];
 };
 
 export type TitleCheck = { ok: true; title: string } | { ok: false; message: string };
@@ -73,9 +73,9 @@ export function parseNewIssueInput(value: unknown): NewIssueInput | null {
   if (typeof omakase !== "boolean") return null;
   const checked = checkNewIssueTitle(title);
   if (!checked.ok) return null;
-  const parsedImages = parseImageUploads(images);
-  if (!parsedImages) return null;
-  return { owner, repo, title: checked.title, omakase, images: parsedImages };
+  const imageUrls = parseImageUrls(owner, repo, images);
+  if (!imageUrls) return null;
+  return { owner, repo, title: checked.title, omakase, imageUrls };
 }
 
 /**
