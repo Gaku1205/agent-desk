@@ -178,6 +178,30 @@
   line-height: 1.65;
 }
 
+.noteWrap {
+  margin-top: 6px;
+}
+
+.noteWrap .note {
+  margin-top: 4px;
+}
+
+/* 理由の開閉：13px・--mute、乗せたら --bone（既存のリンクと同じ） */
+.noteToggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mute);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.65;
+  cursor: pointer;
+}
+
+.noteToggle:hover {
+  color: var(--bone);
+}
+
 .link {
   color: var(--mute);
   font-size: 13px;
