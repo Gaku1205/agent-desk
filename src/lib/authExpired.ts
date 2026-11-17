@@ -12,6 +12,34 @@ export const EXPIRED_MESSAGE = "GitHubの認証が切れたので、ログアウ
 /** 認証切れを受けて、ログアウトしてログインの画面へ戻す Route Handler */
 export const SESSION_EXPIRED_PATH = "/api/session-expired";
 
+/** 認証が切れていないと分かったとき・確かめられなかったときに戻す場所（理由なし） */
+export const NOT_EXPIRED_PATH = "/";
+
+/**
+ * トークンが本当に GitHub で 401 になるか、軽い確認（GET /user）で確かめる。
+ * 401 のときだけ true。トークンが無い・成功・通信失敗・403・回数の上限などは false。
+ * トークンは GitHub への Authorization ヘッダーにだけ使い、ログ・URL には出さない
+ */
+export async function confirmTokenExpired(
+  token: string | null,
+  fetchFn: typeof fetch = fetch,
+): Promise<boolean> {
+  if (!token) return false;
+  try {
+    const res = await fetchFn("https://api.github.com/user", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      cache: "no-store",
+    });
+    return res.status === 401;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * ログインした人のトークンが使えなくなった（401）かどうか。
  * 1つでも 401 ならトークンは全部使えない。404・403・回数の上限・その他、
