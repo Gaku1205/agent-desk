@@ -24,6 +24,14 @@
   white-space: nowrap;
 }
 
+/* 認証が切れた理由の1行：ワードマークとボタンの間（列の間28pxのうち、ボタン側に寄せる） */
+.notice {
+  margin: -12px 0 0;
+  color: var(--mute);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
