@@ -70,6 +70,8 @@ describe("getFlow", () => {
     expect(states(status({ stage: "prWaiting" }))[2]).toBe("done");
     expect(states(status({ stage: "prWaiting", grace: "creatingPull" }))[2]).toBe("running");
     expect(states(status({ stage: "prWaiting", implementError: true }))[2]).toBe("failed");
+    // エラー直後の猶予の間は進行中（猶予が優先）
+    expect(states(status({ stage: "prWaiting", implementError: true, grace: "creatingPull" }))[2]).toBe("running");
   });
 
   it("CI中・CI失敗・レビュー中", () => {
