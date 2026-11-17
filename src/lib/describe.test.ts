@@ -90,6 +90,12 @@ describe("describeStatus", () => {
       "AIがエラーで停止",
     ],
     [
+      "PR作成待ち（エラー直後の猶予）",
+      { stage: "prWaiting", turn: "ai", implementError: true, grace: "creatingPull" },
+      "AIの作業が終わりました。パイプラインがPRを作っています",
+      "PRを作成中",
+    ],
+    [
       "CI中",
       { stage: "ciRunning", turn: "ai", ci: { passed: 2, total: 4 } },
       "CI 実行中 2/4",

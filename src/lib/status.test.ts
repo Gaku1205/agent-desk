@@ -637,6 +637,77 @@ describe("getIssueStatus：やり直し待ち", () => {
     expect(onPull.retry).toEqual({ count: 3, max: 10, reason: "使用量の上限に達しました" });
   });
 
+  describe("記録より後に先へ進んだら、やり直し待ちにしない", () => {
+    const record = retryComment({ createdAt: "2026-10-25T10:00:00Z" });
+    const later = "2026-10-25T10:30:00Z";
+    const labels = ["ai:retry"];
+
+    it("記録より後にPRができた → その段階（CI中）", () => {
+      const status = getIssueStatus(
+        issue({ labels }),
+        input([pull({ createdAt: later, updatedAt: later })], { 11: { checkRuns: [ciRunning] } }, [record]),
+        NOW,
+      );
+      expect(status.stage).toBe("ciRunning");
+      expect(status.turn).toBe("ai");
+      expect(status.retry).toBeNull();
+    });
+
+    it("記録より後に新しいコミット（PRの更新）がある（PRに ai:retry）", () => {
+      const status = getIssueStatus(
+        issue(),
+        input([pull({ labels, updatedAt: later })], { 11: { checkRuns: [ciRunning] } }, [
+          retryComment({ issueNumber: 11 }),
+        ]),
+        NOW,
+      );
+      expect(status.stage).toBe("ciRunning");
+    });
+
+    it("記録より後にCIが動いた（チェックの完了）", () => {
+      const status = getIssueStatus(
+        issue({ labels }),
+        input([pull()], { 11: { checkRuns: [check({ completedAt: later })] } }, [record]),
+        NOW,
+      );
+      expect(status.stage).not.toBe("retrying");
+    });
+
+    it("記録より後の修正依頼のコメント・実装AIの作業中のコメント", () => {
+      const fix = comment({ issueNumber: 11, body: "<!-- auto-fix -->\n直して", createdAt: later });
+      expect(
+        getIssueStatus(issue({ labels }), input([pull()], { 11: { checkRuns: [ciRunning] } }, [record, fix]), NOW).stage,
+      ).not.toBe("retrying");
+      const working = comment({ body: "Claude Code is working…", createdAt: later });
+      expect(
+        getIssueStatus(issue({ labels: ["ai:implement", "ai:retry"] }), input([], {}, [record, working]), NOW).stage,
+      ).toBe("implementing");
+    });
+
+    it("進んだ印が無い（記録と同時刻・記録より前）なら、今までどおりやり直し待ち", () => {
+      const status = getIssueStatus(
+        issue({ labels }),
+        input([pull({ createdAt: "2026-10-25T09:00:00Z", updatedAt: "2026-10-25T10:00:00Z" })], {
+          11: { checkRuns: [check({ completedAt: "2026-10-25T10:00:00Z" })] },
+        }, [record]),
+        NOW,
+      );
+      expect(status.stage).toBe("retrying");
+    });
+
+    it("記録が読めない・無いときは、進んでいても今までどおりやり直し待ち", () => {
+      const unreadable = retryComment({ body: "<!-- auto-retry -->\nよく分からない文" });
+      for (const comments of [[], [unreadable]]) {
+        const status = getIssueStatus(
+          issue({ labels }),
+          input([pull({ createdAt: later, updatedAt: later })], { 11: { checkRuns: [ciRunning] } }, comments),
+          NOW,
+        );
+        expect(status.stage).toBe("retrying");
+      }
+    });
+  });
+
   it("記録のコメントが無い・読めないときは回数を出さない", () => {
     expect(
       getIssueStatus(issue({ labels: ["ai:retry"] }), input(), NOW).retry,
@@ -1189,12 +1260,39 @@ describe("getIssueStatus：パイプラインが自動で進める間の猶予",
     expect(getIssueStatus(issue({ labels: ["ai:implement"] }), running([late]), NOW).turn).toBe("human");
   });
 
-  it("PR作成待ち：実装AIがエラーで止まったときは猶予なし", () => {
+  it("PR作成待ち：実装AIのエラー直後（15分未満）も猶予（PRを作成中・AIの番）", () => {
     const error = comment({ body: "**Claude encountered an error after 3m**", createdAt: ago(1) });
     const status = getIssueStatus(issue({ labels: ["ai:implement"] }), running([error]), NOW);
+    expect(status.stage).toBe("prWaiting");
     expect(status.implementError).toBe(true);
-    expect(status.turn).toBe("human");
-    expect(status.grace).toBeNull();
+    expect(status.turn).toBe("ai");
+    expect(status.grace).toBe("creatingPull");
+    expect(issueGraceEndsAt(issue(), [error], "creatingPull", NOW)?.toISOString()).toBe(
+      new Date(NOW.getTime() + 14 * MIN).toISOString(),
+    );
+  });
+
+  it("PR作成待ち：実装AIのエラーから、ちょうど15分・15分より後は人間の番", () => {
+    for (const minutes of [15, 16]) {
+      const error = comment({ body: "**Claude encountered an error after 3m**", createdAt: ago(minutes) });
+      const status = getIssueStatus(issue({ labels: ["ai:implement"] }), running([error]), NOW);
+      expect(status.implementError).toBe(true);
+      expect(status.turn).toBe("human");
+      expect(status.grace).toBeNull();
+    }
+  });
+
+  it("PR作成待ち：パイプラインが動いていないリポジトリは、エラー直後でも人間の番", () => {
+    const error = comment({ body: "**Claude encountered an error after 3m**", createdAt: ago(1) });
+    for (const pipeline of ["notConfigured", "unknown", undefined] as const) {
+      const status = getIssueStatus(
+        issue({ labels: ["ai:implement"] }),
+        { ...input([], {}, [error]), pipeline },
+        NOW,
+      );
+      expect(status.turn).toBe("human");
+      expect(status.grace).toBeNull();
+    }
   });
 
   it("PR作成待ち：完了コメントの時刻が読めないときは人間の番", () => {

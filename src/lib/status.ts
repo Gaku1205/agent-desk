@@ -440,6 +440,42 @@ export function retryRecord(comments: CommentData[], numbers: number[]): RetryRe
   return { count: Number(match[1]), max: Number(match[2]), reason: reason === "" ? null : reason };
 }
 
+/** 最新のやり直しの記録の時刻（回数が読めない記録・記録が無いときは null） */
+function retryRecordAt(comments: CommentData[], numbers: number[]): string | null {
+  if (!retryRecord(comments, numbers)) return null;
+  return (
+    comments
+      .filter((comment) => numbers.includes(comment.issueNumber) && comment.body.includes(RETRY_MARK))
+      .sort(byCreatedAt)
+      .at(-1)?.createdAt ?? null
+  );
+}
+
+/**
+ * やり直しの記録（`since`）より後に、先へ進んだ印があるか：紐づくPRの作成・更新、CIチェックの完了、
+ * 修正依頼のコメント、実装AIの作業中のコメント。`since` と同時刻は進んでいない扱い
+ */
+export function hasProgressedSince(
+  since: string,
+  issueNumber: number,
+  input: StatusInput,
+  pull: PullData | null,
+): boolean {
+  if (input.comments.some((c) => c.issueNumber === issueNumber && isImplementWorkingComment(c) && isAfter(c.createdAt, since))) {
+    return true;
+  }
+  if (!pull) return false;
+  if (isAfter(pull.createdAt, since) || isAfter(pull.updatedAt, since)) return true;
+  if (
+    input.comments.some(
+      (c) => c.issueNumber === pull.number && c.body.includes(AUTO_FIX_MARK) && isAfter(c.createdAt, since),
+    )
+  ) {
+    return true;
+  }
+  return (input.pullChecks[pull.number]?.checkRuns ?? []).some((check) => isAfter(check.completedAt, since));
+}
+
 /** 清書したか：Issue本文に `> 元のメモ：` がある */
 export function isPlanned(issue: IssueData): boolean {
   return issue.body.includes(PLAN_MEMO_MARK);
@@ -656,8 +692,9 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   if (implement) {
     const implementError = isImplementErrorComment(implement);
     // 猶予は、実装AIが終わった時刻から数える（コメントの作成時刻は、始めた時刻）
+    // エラーのコメントでも猶予にする（パイプラインは、エラーで終わってもブランチがあればPRを作る）
     const creatingPull =
-      graceApplies && !implementError && isWithinGrace(implementFinishedAt(implement), now, PULL_GRACE_MS);
+      graceApplies && isWithinGrace(implementFinishedAt(implement), now, PULL_GRACE_MS);
     return result("prWaiting", {
       implementError,
       ...(creatingPull ? { turn: "ai", grace: "creatingPull" } : {}),
@@ -719,6 +756,9 @@ export function getIssueStatus(issue: IssueData, input: StatusInput, now: Date):
   }
   if (open && hasLabel(LABEL.retry) && !(base.pull?.merged ?? false)) {
     const numbers = base.pull ? [issue.number, base.pull.number] : [issue.number];
+    // 記録より後に先へ進んでいれば、ai:retry が残っていても、今の段階を出す
+    const recordAt = retryRecordAt(input.comments, numbers);
+    if (recordAt && hasProgressedSince(recordAt, issue.number, input, base.pull)) return normal;
     return {
       ...normal,
       stage: "retrying",
