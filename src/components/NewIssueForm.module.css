@@ -350,8 +350,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 6px;
   background: var(--bg);
   color: var(--mute);
@@ -401,8 +401,13 @@
 }
 
 @media (max-width: 899px) {
-  .barForm .attach {
+  .attach {
     width: 44px;
     height: 44px;
+  }
+
+  /* 44px にしても、アイコンの左端はメモの線にそろえる（(44-16)/2 = 14） */
+  .form .attach {
+    margin-left: -14px;
   }
 }
