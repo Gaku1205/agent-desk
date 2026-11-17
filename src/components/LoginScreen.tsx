@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { ExpiredNotice } from "./ExpiredNotice";
 import { signIn } from "@/lib/auth";
 import { DEMO_BASE_PATH } from "@/lib/demo/data";
 import { getLoginScope } from "@/lib/loginScope";
@@ -16,6 +18,9 @@ export function LoginScreen() {
   return (
     <main className={styles.login}>
       <h1 className={styles.mark}>agent-desk</h1>
+      <Suspense fallback={null}>
+        <ExpiredNotice />
+      </Suspense>
       <div className={styles.actions}>
         <form action={login}>
           <LoginSubmit />

@@ -1,6 +1,8 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { redirect } from "next/navigation";
+import { SESSION_EXPIRED_PATH } from "@/lib/authExpired";
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
 import { getAllowedLogins, getSettingsRepo } from "@/lib/config";
 import { requestAutoAddCheck } from "@/lib/github/autoAdd";
@@ -44,7 +46,13 @@ export async function runOperation(value: unknown): Promise<OperationResult> {
     const data = await fetchRepoData(client, auth.target, now);
     result = await executeOperation(client, auth.target, input, data, now);
   } catch (error) {
-    return { ok: false, changed: false, message: operationErrorMessage(error) };
+    const message = operationErrorMessage(error);
+    if (message === OPERATION_MESSAGES.unauthorized) redirect(SESSION_EXPIRED_PATH);
+    return { ok: false, changed: false, message };
+  }
+  // 操作の途中で 401 になったときも、ログアウトしてログインの画面へ
+  if (!result.ok && !result.changed && result.message === OPERATION_MESSAGES.unauthorized) {
+    redirect(SESSION_EXPIRED_PATH);
   }
   if (result.ok || result.changed) {
     // 押した結果をすぐ出すため、Webhook を待たずにキャッシュを無効にする
@@ -70,6 +78,7 @@ export async function createNewIssue(value: unknown): Promise<CreateIssueResult>
   if (!auth.ok) return { ok: false, message: auth.message };
 
   const result = await executeCreateIssue(new GitHubClient(auth.token), auth.target, input);
+  if (!result.ok && result.message === OPERATION_MESSAGES.unauthorized) redirect(SESSION_EXPIRED_PATH);
   if (result.ok) {
     // できたIssueをすぐ出すため、Webhook を待たずにキャッシュを無効にする
     invalidateRepoNow(auth.target);

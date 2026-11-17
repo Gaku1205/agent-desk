@@ -1,7 +1,9 @@
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { LoginScreen } from "@/components/LoginScreen";
 import { TopBar } from "@/components/TopBar";
 import { getSignedInLogin } from "@/lib/auth";
+import { isAuthExpired, SESSION_EXPIRED_PATH } from "@/lib/authExpired";
 import { loadTurns } from "@/lib/loadTurns";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
@@ -17,6 +19,10 @@ export default async function AppLayout({
   const syncedAt = loaded?.now ?? null;
 
   if (!login || !loaded || !syncedAt) return <LoginScreen />;
+
+  // トークンが使えなくなった（401）ら、ログアウトして理由つきでログインの画面へ。
+  // 描画中は Cookie を消せないので、Route Handler に任せる
+  if (isAuthExpired(loaded.results)) redirect(SESSION_EXPIRED_PATH);
 
   const { repos } = await loadWatchedRepos();
 
