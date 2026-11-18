@@ -1,9 +1,12 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { DEMO_APP_REPO_URL } from "@/lib/demo/data";
+import { avatarInitial, avatarUrl } from "@/lib/avatar";
+import { shouldCloseMenuOnPick } from "@/lib/menuFocus";
 import { rovingNext } from "@/lib/roving";
 import { useDemo } from "./DemoContext";
 import { BranchIcon, GearIcon, LoginIcon, LogoutIcon } from "./icons";
@@ -16,7 +19,45 @@ type Props = {
   logout?: () => Promise<void>;
   /** リンクの頭（デモでは `/demo`） */
   basePath?: string;
+  /** スマホのメニューの中では `menu`（設定を押したとき、今いるページならスマホのメニューを閉じる） */
+  onPick?: () => void;
 };
+
+/** GitHub のアイコン（丸・24px）。読めなかったときは頭文字1字の丸 */
+function Avatar({ login }: { login: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <span className={styles.initial} aria-hidden="true">
+        {avatarInitial(login)}
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- next.config の images は足さず、github.com から直接読む
+    <img
+      className={styles.avatar}
+      src={avatarUrl(login)}
+      alt=""
+      width={24}
+      height={24}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+/** 「設定」の中身：押したあと次の画面が出るまで、歯車が脈打つ */
+function SettingsLabel() {
+  const { pending } = useLinkStatus();
+  return (
+    <>
+      <span className={styles.gear} data-pending={pending ? "" : undefined}>
+        <GearIcon />
+      </span>
+      設定
+    </>
+  );
+}
 
 /** ログアウトの項目：送信の最中は文言を変え、押せなくする（スマホのメニューと同じ決まり） */
 function LogoutItem() {
@@ -34,8 +75,9 @@ function LogoutItem() {
  * デモではユーザー名の代わりに `デモ` を置き、デモにある物（GitHubで見る・ログイン）を同じ形で出す。
  * docs/spec.md の「PCの3ペイン」・docs/design.md の「左のバーの新サービスとユーザーのメニュー」
  */
-export function SideUser({ login, logout, basePath = "" }: Props) {
+export function SideUser({ login, logout, basePath = "", onPick }: Props) {
   const demo = useDemo();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -46,6 +88,13 @@ export function SideUser({ login, logout, basePath = "" }: Props) {
     () => Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []),
     [],
   );
+
+  // 別のページへ移ったら閉じる（スマホのメニューの中では部品が残るため）
+  const [openPath, setOpenPath] = useState(pathname);
+  if (openPath !== pathname) {
+    setOpenPath(pathname);
+    setOpen(false);
+  }
 
   // 開いたら最初の項目へ。外を押したら閉じる
   useEffect(() => {
@@ -96,7 +145,7 @@ export function SideUser({ login, logout, basePath = "" }: Props) {
   let label: ReactNode;
   let menu: ReactNode;
   if (demo) {
-    label = "デモ";
+    label = <span className={styles.name}>デモ</span>;
     menu = (
       <>
         <a className={styles.item} role="menuitem" href={DEMO_APP_REPO_URL} target="_blank" rel="noreferrer">
@@ -110,12 +159,28 @@ export function SideUser({ login, logout, basePath = "" }: Props) {
       </>
     );
   } else if (login && logout) {
-    label = login;
+    const settingsHref = `${basePath}/settings`;
+    label = (
+      <>
+        <Avatar login={login} />
+        <span className={styles.name}>{login}</span>
+      </>
+    );
     menu = (
       <>
-        <Link className={styles.item} role="menuitem" href={`${basePath}/settings`} onClick={() => setOpen(false)}>
-          <GearIcon />
-          設定
+        <Link
+          className={styles.item}
+          role="menuitem"
+          href={settingsHref}
+          onClick={() => {
+            // 今いるページなら移らないので、すぐ閉じる。別のページへは、次の画面が出るまで開いたまま（歯車が脈打つ）
+            if (shouldCloseMenuOnPick(pathname, settingsHref)) {
+              setOpen(false);
+              onPick?.();
+            }
+          }}
+        >
+          <SettingsLabel />
         </Link>
         <form action={logout} role="none">
           <LogoutItem />
@@ -143,7 +208,7 @@ export function SideUser({ login, logout, basePath = "" }: Props) {
         ref={buttonRef}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <span className={styles.name}>{label}</span>
+        {label}
       </button>
     </div>
   );
