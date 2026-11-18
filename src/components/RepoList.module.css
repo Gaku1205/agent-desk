@@ -42,8 +42,11 @@
   box-shadow: 0 -1px 0 var(--hair-2);
 }
 
-.row:hover {
-  background: var(--hair-2);
+/* 乗せた地は、乗せられる機械（マウス）だけ。タップした行が灰色のまま残らないように */
+@media (hover: hover) {
+  .row:hover {
+    background: var(--hair-2);
+  }
 }
 
 .name {
@@ -70,11 +73,6 @@
   white-space: nowrap;
 }
 
-.links a:hover,
-.settings:hover {
-  color: var(--bone);
-}
-
 .settings {
   display: inline-block;
   margin-top: 32px;
@@ -82,6 +80,13 @@
   font-size: 13px;
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .links a:hover,
+  .settings:hover {
+    color: var(--bone);
+  }
 }
 
 /* ───── PCの3ペイン（左のバーはホームと同じ。右の進捗図の列は無い） ───── */
@@ -136,7 +141,7 @@
   }
 }
 
-/* ───── スマホ（幅899px以下）：1本の列。時刻とリンクは名前の下の行 ───── */
+/* ───── スマホ（幅899px以下）：1本の列。2段＝1段目は名前と数、2段目は時刻とリンク。数もリンクも右端にそろえる ───── */
 @media (max-width: 899px) {
   .sideToggle,
   .side {
@@ -151,24 +156,25 @@
     font-size: 21px;
   }
 
+  /* 上下14px・名前と時刻の間4px。高さは中身で決まる（約72px）。固定の高さは付けない */
   .row {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "name counts"
       "time links";
-    row-gap: 0;
-    padding: 6px 10px;
+    row-gap: 4px;
+    min-height: 0;
+    padding: 14px 10px;
   }
 
   .row > :nth-child(1) {
     grid-area: name;
-    display: flex;
-    align-items: center;
-    min-height: 40px;
   }
 
+  /* 数の点は右端にそろえる（リンクの有無で列の幅が変わっても、右の位置は変えない） */
   .row > :nth-child(2) {
     grid-area: counts;
+    justify-self: end;
   }
 
   .row > :nth-child(3) {
@@ -177,8 +183,7 @@
 
   .row > :nth-child(4) {
     grid-area: links;
-    min-height: 44px;
-    align-items: center;
+    justify-self: end;
   }
 
   .settings {
