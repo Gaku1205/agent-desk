@@ -38,10 +38,25 @@
   background: var(--hair-2);
 }
 
-/* 設定・新しいサービスを作る：行の位置 */
+/* 新しいサービスを作る：行の位置 */
 .line {
   display: grid;
   gap: 14px;
+}
+
+/* 設定：節の白い面の形（角丸12px）。高さは行の数×56px */
+.panelBand {
+  display: block;
+  width: 100%;
+  border-radius: 12px;
+  background: var(--hair-2);
+}
+
+/* 設定の目次の帯は、狭いとき（1列）は出さない */
+@container (max-width: 760px) {
+  .settingsToc {
+    display: none;
+  }
 }
 
 @media (max-width: 899px) {

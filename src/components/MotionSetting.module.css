@@ -1,8 +1,0 @@
-/* 「アニメーション」の選択肢（ランプ＋字を横に並べる。ランプの見た目は SettingsSections.module.css の toggle） */
-
-.choices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-left: -8px;
-}
