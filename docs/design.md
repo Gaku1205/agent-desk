@@ -70,6 +70,7 @@ CSSカスタムプロパティとして `globals.css` に定義し、コード�
 
 - 和文：`IBM Plex Sans JP`（400 / 500 / 700）。欧文・数字：`Geist`（可変）。ワードマーク：`Bricolage Grotesque` 800（`font-variation-settings: "opsz" 96`）
 - 3つとも `next/font/google` で読む（`src/app/layout.tsx`。変数は `--font-jp`・`--font-latin`・`--font-disp`）。本文の指定は `--jp`（Geist → IBM Plex Sans JP の順）
+- 和文のフォントは先読みしない（`preload: false`。2026年11月19日）：日本語のフォントは細かく分かれたファイルで配られ、先読みすると、そのページで使わない分まで全部（woff2 247個・2.8MB）を開くたびに読みに行き、最初の描画が遅れていた。先読みしなければ、画面の文字に要る分だけが読まれ、読めるまでは代わりの字（`system-ui`）で先に出る（`display: "swap"`。読めたら入れ替わる）。欧文の2つ（Geist・Bricolage Grotesque）は今までどおり先読みする（ファイルが1つずつで小さい）
 - 等幅フォントは使わない。番号・時刻・件数は Geist の `tabular-nums`（`.num`）で桁をそろえる。例外は導入（`/setup`）の、打つコマンドの1行（`claude setup-token`）だけ（`ui-monospace, SFMono-Regular, Menlo, monospace`。Issue #517）
 - 大きさの段（PC／スマホ）：
   - 「あなたの番」の題名 30px／21px（700、行の高さ1.4、字間 −0.01em、`text-wrap: balance`）
