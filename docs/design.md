@@ -474,7 +474,7 @@ CSSカスタムプロパティとして `globals.css` に定義し、コード�
 
 2026年11月18日、Issue #460（挙動は `docs/spec.md` の「Dashboard」）。`src/components/Dashboard.tsx`。新しい色は使わない。この節が定める英語の言葉は、`CLAUDE.md` の「英語にしてよい言葉は `docs/design.md` に書いた物だけ」の一覧。
 
-- **英語にしてよい言葉**（このページで使う物。後の Issue で増える分は、その Issue がここへ足す）：`Dashboard`・`Merged`・`Lead time`・`Stopped`・`AI time`・`prev`・`median`・`p90`・`runs`・`limit hits`・`ongoing`・`24h`・`7d`・`AI usage`・`Step`・`Sonnet`・`Opus`・`Fable`・`Total`・`Usage limit hits`・`Parallel 3`・`Serial`・`Throughput`・`Queue`。説明文・文の続きは日本語（`この24時間で、…`・`人間が直したのは`）
+- **英語にしてよい言葉**（このページで使う物。後の Issue で増える分は、その Issue がここへ足す）：`Dashboard`・`Merged`・`Lead time`・`Stopped`・`AI time`・`prev`・`median`・`p90`・`runs`・`limit hits`・`ongoing`・`24h`・`7d`・`AI usage`・`Step`・`Sonnet`・`Opus`・`Fable`・`Total`・`Usage limit hits`・`Parallel 3`・`Serial`・`Throughput`・`Queue`・`Stops`・`Fixed`・`Stuck`。説明文・文の続きは日本語（`この24時間で、…`・`人間が直したのは`）
 - **かかった時間の書き方**：`d`・`h`・`m`・`s`。1日以上は `1d 2h`、1時間以上は `1h 52m`・`9h 41m`、1分以上は `38m`（秒は出さない）、1分未満は `20s`。ちょうど（`2h 0m`）の端は出さない（`2h`）。時刻・日付は今のまま `11:52`・`11/18`
 - **構図**：PC（幅900px以上）は `224px minmax(0, 1fr)` の2ペイン（左はホームと同じ左のバー。折り畳みのボタンも同じ）。中央は1本の列（幅 `min(1080px, 100% − 2×--gutter)`、左右中央、上56px・下96px）。スマホ（899px以下）は左のバーを隠して1本の列（上40px・下72px）。上から 見出し → まとめ →（後の Issue の区画）。区画の間は36px、見出しと中身の間は14px。2列の区画は `repeat(auto-fit, minmax(min(100%, 380px), 1fr))`（狭いと1列に落ちる。区画は後の Issue が足す）
 - **見出し**：左に `Dashboard`（`<h1>`、26px / 700、`--bone`、スマホ21px）と、その下4pxに期間 `11/17 11:00 〜 11/18 11:00 · 12リポジトリ`（13px・`--mute`・`num`）。右に期間の切り替え（`role="tablist"`、各 `role="tab"` に `aria-selected`）：高さ36px、角丸8px、縁 `inset 0 0 0 1px var(--hair)`。選んでいる物は地 `--well`・文字 `--bone`・500、ほかは `--bone-2`。13.5px。左右 14px。幅が狭くても折り返さず、見出しの右に残る
@@ -505,6 +505,13 @@ CSSカスタムプロパティとして `globals.css` に定義し、コード�
   - **グラフの下**：時刻 `05:00`・`11:00`・`17:00`・`23:00` のように6時間おき（12px・`--mute`・`num`）。その下に1行のまとめ（13.5px・`--bone`）、その下に `Actions の実行：62 runs（この24時間）`（12.5px・`--mute`）
   - **読み込み中の骨組み**：見出し・残り・グラフの位置に帯を足す
   - 仮に決めた所：グラフの高さ160px、時刻の間隔（6時間おき）、凡例の並び、残りの棒の色（`--bone-2`）
+- **Stops**（Issue #463。挙動は `docs/spec.md`）。**英語にしてよい言葉**に `Stops`・`Fixed`・`Stuck` を足す。新しい色は使わない（赤 `--fail`・緑 `--ok`・砂時計 `--wait`・ほか `--mute` など）。AI usage の下、GitHub limits の上
+  - **見出し**：注意の三角のアイコン（`TurnKindIcon` の `deployFailed` と同じ形・16px）→ `Stops`（16px / 600・`--bone`、間8px）→ 横に `止まり・失敗`（13px・`--mute`・400）。区画の間36px、見出しと中身の間14px
+  - **構図**：中身は `repeat(auto-fit, minmax(min(100%, 380px), 1fr))`（間 縦24px・横40px。狭いと1列）。左が理由の内訳、右が最近止まった物
+  - **左**：ラベル `止まった理由の内訳`（12.5px・`--mute`）。行（間12px）は `132px minmax(0,1fr) 40px`（狭い所は118px・32px）：アイコン（17px）と名前（13px・`--bone-2`。CI＝盾［進捗図の CI と同じ形］、許可＝鍵、順番待ち＝砂時計［`QueueIcon`・`--wait`］、人間の確認待ち＝人）→ 棒（高さ8px、地 `--hair-2`、棒 `--mute`、角丸3px、いちばん多い理由を100%、最小1%。0回は棒なし）→ 回数（13.5px・`--bone`・`num`・右そろえ）。下16pxに `CIの失敗 5回（うち自動で直った 4回）· やり直し 2回`（13.5px・`--bone`・`num`）。取れない数字は `—`
+  - **右**：ラベル `最近止まった物`（12.5px・`--mute`）。上下を `--hair` の線で区切った行（行の間は `--hair-2`、上下8px、13.5px）：`repo#番号`（`--bone`）・理由（`--bone-2`・1行で、入らなければ「…」）・止まっていた時間（`--mute`・`num`。止まり中は `25m · ongoing`）・状態（12.5px。`Fixed`＝`CheckIcon`＋緑 `--ok`、`Stuck`＝`CrossIcon`＋赤 `--fail`。色だけに頼らず文字も出す）。狭い所（コンテナの幅560px未満）は2段：1段目に `repo#番号` と状態、2段目に理由と時間（コンテナクエリ）。止まった物が無い期間は `この期間に止まった物はありません`（13.5px・`--mute`）
+  - **読み込み中の骨組み**：見出しと中身の位置に帯を足す
+  - 仮に決めた所：棒の色（`--mute`）、行の列の幅、状態の字の大きさ
 
 ## Slots & Queue（`/lanes`）
 

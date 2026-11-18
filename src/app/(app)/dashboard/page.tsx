@@ -3,6 +3,7 @@ import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
 import { loadGithubLimits } from "@/lib/github/limits";
 import { aiUsageAll } from "@/lib/dashboard/aiUsage";
 import { summarizeAll } from "@/lib/dashboard/summary";
+import { stopsAll } from "@/lib/dashboard/stops";
 import { throughputAll } from "@/lib/dashboard/throughput";
 import { loadTurns } from "@/lib/loadTurns";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
@@ -27,6 +28,7 @@ export default async function DashboardPage() {
     <Dashboard
       summaries={summaries}
       throughputs={throughputAll(results, now)}
+      stops={stopsAll(results, now)}
       limits={limits}
       aiUsages={aiUsageAll(results, now)}
       now={now.toISOString()}

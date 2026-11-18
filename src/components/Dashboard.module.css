@@ -279,6 +279,140 @@
   }
 }
 
+/* ───── Stops：左に 止まった理由の内訳、右に 最近止まった物（狭いと1列に落ちる） ───── */
+.stops {
+  container-type: inline-size;
+}
+
+.reasons,
+.recent {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reason {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) 40px;
+  gap: 12px;
+  align-items: center;
+}
+
+.reasonName {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+  color: var(--bone-2);
+  font-size: 13px;
+}
+
+.reasonTrack {
+  height: 8px;
+  background: var(--hair-2);
+  border-radius: 3px;
+}
+
+.reasonFill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--mute);
+}
+
+.reasonCount {
+  color: var(--bone);
+  font-size: 13.5px;
+  text-align: right;
+}
+
+.stopsNote {
+  margin: 16px 0 0;
+  color: var(--bone);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.stopsEmpty {
+  margin: 10px 0 0;
+  color: var(--mute);
+  font-size: 13.5px;
+}
+
+.recent {
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+}
+
+.stop {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto auto;
+  grid-template-areas: "id reason time state";
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 13.5px;
+}
+
+.stop + .stop {
+  box-shadow: 0 -1px 0 var(--hair-2);
+}
+
+.stopId {
+  grid-area: id;
+  color: var(--bone);
+  white-space: nowrap;
+}
+
+.stopReason {
+  grid-area: reason;
+  overflow: hidden;
+  color: var(--bone-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stopTime {
+  grid-area: time;
+  color: var(--mute);
+  white-space: nowrap;
+}
+
+.stopState {
+  grid-area: state;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--fail);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.stopState[data-fixed] {
+  color: var(--ok);
+}
+
+@container (max-width: 559px) {
+  .reason {
+    grid-template-columns: 118px minmax(0, 1fr) 32px;
+    gap: 8px;
+  }
+
+  .stop {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "id state"
+      "reason time";
+    gap: 2px 12px;
+  }
+}
+
 /* ───── GitHub limits：2つの残り（横に並ぶ。狭いと1列）と、1時間ごとに使った量の線グラフ ───── */
 .limits {
   container-type: inline-size;

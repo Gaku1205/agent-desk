@@ -99,6 +99,26 @@ export function CrossIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+/** 止まった理由：許可＝鍵 */
+export function KeyIcon({ size = 17 }: { size?: number }) {
+  return (
+    <LineIcon size={size}>
+      <circle cx="7.5" cy="15.5" r="4.5" />
+      <path d="m10.7 12.3 9.8-9.8M16 7l3 3M14 9l2 2" />
+    </LineIcon>
+  );
+}
+
+/** 止まった理由：人間の確認待ち＝人 */
+export function PersonIcon({ size = 17 }: { size?: number }) {
+  return (
+    <LineIcon size={size}>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
+    </LineIcon>
+  );
+}
+
 /** 進捗図の状態の印：進行中＝円の4分の3の弧（CSS で回す） */
 export function SpinnerIcon({ size = 14 }: { size?: number }) {
   return (

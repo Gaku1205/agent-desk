@@ -80,6 +80,12 @@ export function DashboardSkeleton() {
             <Band width="100%" height={220} />
           </div>
         </div>
+        <div className={dashboardStyles.stops} aria-hidden="true">
+          <div className={styles.line}>
+            <Band width={120} height={16} />
+            <Band width="100%" height={180} />
+          </div>
+        </div>
         <div className={dashboardStyles.limits} aria-hidden="true">
           <div className={styles.line}>
             <Band width={150} height={16} />

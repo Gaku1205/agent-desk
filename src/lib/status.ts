@@ -139,7 +139,7 @@ export const PULL_GRACE_MS = 15 * 60 * 1000;
 /** Issueを作ってから、パイプラインの受付が `ai:` ラベルを付けるのを待つ間（この間は誰の番も「AI」） */
 export const INTAKE_GRACE_MS = 10 * 60 * 1000;
 /** パイプラインの修正依頼コメントの印と、依頼時の先頭コミット（scripts/pipeline-lib.sh） */
-const AUTO_FIX_MARK = "<!-- auto-fix -->";
+export const AUTO_FIX_MARK = "<!-- auto-fix -->";
 const AUTO_FIX_SHA_PATTERN = /<!--\s*auto-fix-sha:\s*([0-9a-f]+)\s*-->/;
 /** 自動で直す回数の上限（普通2回＋最後に opus 1回。1か所に決める：flowBranch.ts の FIX_MAX） */
 export const MAX_AUTO_FIX = FIX_MAX;
@@ -153,8 +153,8 @@ export function readFixLimit(body: string | null | undefined): number {
 /** 清書したIssueの本文にある印 */
 const PLAN_MEMO_MARK = "> 元のメモ：";
 /** パイプラインのやり直しの記録コメントの印（`.github/scripts/pipeline-lib.sh` の `RETRY_MARK`） */
-const RETRY_MARK = "<!-- auto-retry -->";
-const RETRY_COUNT_PATTERN = /やり直し\s*(\d+)\s*\/\s*(\d+)\s*回/;
+export const RETRY_MARK = "<!-- auto-retry -->";
+export const RETRY_COUNT_PATTERN = /やり直し\s*(\d+)\s*\/\s*(\d+)\s*回/;
 const RETRY_REASON_PATTERN = /^理由：(.*)$/m;
 const STUCK_PREFIX = "⏸ 自動で進めるのを止めました：";
 export const DEFAULT_STUCK_REASON = "自動で進められず止まりました";
