@@ -198,8 +198,8 @@ describe("barRatios", () => {
 });
 
 describe("aiUsageAll", () => {
-  it("24h と 7d を作る", () => {
+  it("24h・7d・30d を作る", () => {
     const all = aiUsageAll([result({})], NOW);
-    expect(Object.keys(all)).toEqual(["24h", "7d"]);
+    expect(Object.keys(all)).toEqual(["24h", "7d", "30d"]);
   });
 });

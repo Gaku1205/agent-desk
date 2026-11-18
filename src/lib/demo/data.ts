@@ -611,6 +611,15 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
   addDeployed(ctx, 7, 40,"最初の画面にタスクの一覧を出す", 9 * 24 * 60, { unknown: true });
 
   addStepLogs(ctx);
+
+  // Dashboard の `30d` 用に、もっと古い公開済み（7〜30日前に3件、その前の30日［31〜60日前］に3件）。
+  // 直近14日の表示には出ない。進捗ログは付けない（AI time を今に寄せないため）
+  addDeployed(ctx, 6, 51, "タスクを完了にするチェックボックスを足す", 14 * 24 * 60);
+  addDeployed(ctx, 5, 52, "タスクの並び順を期限の近い順にする", 21 * 24 * 60, { planned: true });
+  addDeployed(ctx, 4, 53, "タスクを削除できるようにする", 26 * 24 * 60);
+  addDeployed(ctx, 3, 54, "タスクの一覧の余白を整える", 36 * 24 * 60);
+  addDeployed(ctx, 2, 55, "ダークモードに合わせて色を変える", 44 * 24 * 60, { planned: true });
+  addDeployed(ctx, 1, 56, "最初のタスクの追加画面を作る", 52 * 24 * 60);
   return ctx.data;
 }
 

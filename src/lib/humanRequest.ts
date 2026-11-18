@@ -1,7 +1,7 @@
 import type { CommentData } from "./github/types";
 
 /** 清書AIが、人間にしかできない作業をIssueのコメントで頼むときの1行目の印（`claude-plan.yml`） */
-const HUMAN_REQUEST_MARK = "<!-- human-request -->";
+export const HUMAN_REQUEST_MARK ="<!-- human-request -->";
 const CLAUDE_BOT = "claude[bot]";
 const HEADING_PATTERN = /^#{1,6}\s/;
 const LIST_MARK_PATTERN = /^(?:[-*]|\d+\.)\s+/;

@@ -1,7 +1,19 @@
-/** Dashboard の期間（`24h`・`7d`）。前の期間も、直近14日の中に収まる */
+/** Dashboard の期間（`24h`・`7d`・`30d`）。`24h`・`7d` は前の期間も直近14日の中に収まる。`30d` は前の30日を合わせて60日分が要る */
 
-export const PERIOD_KEYS = ["24h", "7d"] as const;
+export const PERIOD_KEYS = ["24h", "7d", "30d"] as const;
 export type PeriodKey = (typeof PERIOD_KEYS)[number];
+
+/** `loadTurns` の直近14日だけで数えられる期間（追加で GitHub を読まない） */
+export const LOCAL_PERIOD_KEYS = ["24h", "7d"] as const;
+export type LocalPeriodKey = (typeof LOCAL_PERIOD_KEYS)[number];
+
+/** 30日分の取得（`src/lib/github/extended.ts`）が要る期間か */
+export function needsExtendedData(key: PeriodKey): boolean {
+  return !(LOCAL_PERIOD_KEYS as readonly PeriodKey[]).includes(key);
+}
+
+/** 30日分の取得がさかのぼる日数（30日＋前の30日） */
+export const EXTENDED_DAYS = 60;
 
 const HOUR_MS = 60 * 60 * 1000;
 const JST_OFFSET_MS = 9 * HOUR_MS;
@@ -9,12 +21,14 @@ const JST_OFFSET_MS = 9 * HOUR_MS;
 const PERIOD_MS: Record<PeriodKey, number> = {
   "24h": 24 * HOUR_MS,
   "7d": 7 * 24 * HOUR_MS,
+  "30d": 30 * 24 * HOUR_MS,
 };
 
 /** まとめの文の「この24時間で」「この7日で」 */
 const PERIOD_WORD: Record<PeriodKey, string> = {
   "24h": "24時間",
   "7d": "7日",
+  "30d": "30日",
 };
 
 export type PeriodRange = {
