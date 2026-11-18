@@ -94,7 +94,7 @@ query RepoData(
     ) @include(if: $withPulls) {
       pageInfo { hasNextPage endCursor }
       nodes {
-        number title body state url createdAt updatedAt mergedAt headRefName headRefOid
+        number title body state url createdAt updatedAt mergedAt headRefName headRefOid mergeable
         labels(first: 100) { nodes { name } }
         files(first: 100) { totalCount nodes { path } }
         ${COMMENTS}
@@ -198,6 +198,8 @@ export type GqlPull = Omit<GqlIssue, "closedAt"> & {
   mergedAt?: string | null;
   headRefName: string;
   headRefOid: string;
+  /** main とぶつかっているか（`CONFLICTING` のときだけ `conflicting` になる） */
+  mergeable?: "MERGEABLE" | "CONFLICTING" | "UNKNOWN" | null;
   files?: { totalCount?: number | null; nodes?: ({ path?: string | null } | null)[] | null } | null;
   commits?: Nodes<{
     commit?: { statusCheckRollup?: { contexts?: Nodes<GqlCheckContext> } | null } | null;
@@ -299,6 +301,7 @@ export function convertGqlPull(raw: GqlPull): PullData {
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
     mergedAt: raw.mergedAt ?? null,
+    ...(raw.mergeable === "CONFLICTING" ? { conflicting: true } : {}),
     ...convertGqlFiles(raw),
   };
 }

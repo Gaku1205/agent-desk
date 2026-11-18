@@ -1,3 +1,4 @@
+import { conflictKind, conflictText } from "./conflict";
 import { failureReasonText, parseFailureReason } from "./failureReason";
 import { trimTrailingPeriod } from "./humanRequest";
 import { MAX_AUTO_FIX, type IssueStatus } from "./status";
@@ -51,6 +52,10 @@ export function failureLogUrl(status: IssueStatus, repo: string): string | null 
 /** 段階から、説明文（あなたの番用）と短い説明（パイプライン用）を決める（docs/design.md の「段階ごとの説明文」） */
 export function describeStatus(status: IssueStatus, options: DescribeOptions = {}): Description {
   const ci = ciText(status);
+  if (conflictKind(status)) {
+    const text = conflictText("waiting");
+    return { long: text, short: text };
+  }
   switch (status.stage) {
     case "stuck":
       return {
