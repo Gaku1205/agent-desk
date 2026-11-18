@@ -2,11 +2,12 @@
 
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { PLAY_BUTTON_LABEL } from "@/lib/demo/playback";
 import { formatResetTime, formatSyncTime, getDisplayedSyncTime } from "@/lib/refresh";
 import { shouldCloseMenuOnPick, shouldRestoreMenuFocus } from "@/lib/menuFocus";
+import { hasHiddenBelow } from "@/lib/sideScroll";
 import { revealScrollLeft } from "@/lib/tabScroll";
 import type { TurnCounts } from "@/lib/turn";
 import { useShell } from "./AppShell";
@@ -179,26 +180,47 @@ export function RepoTabs({
 export function SideRepos(props: Pick<Props, "repos" | "counts" | "runningCounts" | "basePath" | "login" | "logout">) {
   const pathname = usePathname();
   const newServiceHref = `${props.basePath ?? ""}/new/service`;
+  const listRef = useRef<HTMLDivElement>(null);
+  const [hiddenBelow, setHiddenBelow] = useState(false);
+  // 札が下の段の下に隠れているときだけ、境目に線を出す（スクロール時・大きさが変わったとき）
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const update = () => setHiddenBelow(hasHiddenBelow(list));
+    update();
+    list.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(list);
+    for (const child of Array.from(list.children)) observer.observe(child);
+    return () => {
+      list.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, [props.repos.length]);
   return (
     <aside className={styles.side} aria-label="リポジトリの一覧">
-      <span className={styles.sideLbl}>
-        <RepoIcon />
-        リポジトリ
-        <CountsKey />
-      </span>
-      <RepoTabs {...props} />
-      <Link
-        href={newServiceHref}
-        className={styles.sideNew}
-        aria-label="新しいサービスを作る"
-        aria-current={pathname.toLowerCase() === newServiceHref ? "page" : undefined}
-      >
-        <PlusIcon />
-        <span aria-hidden="true">新サービス</span>
-      </Link>
-      <div className={styles.sideBottom}>
-        <ParallelToggle variant="side" />
-        <SideUser login={props.login} logout={props.logout} basePath={props.basePath} />
+      <div className={styles.sideList} ref={listRef}>
+        <span className={styles.sideLbl}>
+          <RepoIcon />
+          リポジトリ
+          <CountsKey />
+        </span>
+        <RepoTabs {...props} />
+      </div>
+      <div className={styles.sideFoot} data-more={hiddenBelow ? "true" : undefined}>
+        <Link
+          href={newServiceHref}
+          className={styles.sideNew}
+          aria-label="新しいサービスを作る"
+          aria-current={pathname.toLowerCase() === newServiceHref ? "page" : undefined}
+        >
+          <PlusIcon />
+          <span aria-hidden="true">新サービス</span>
+        </Link>
+        <div className={styles.sideBottom}>
+          <ParallelToggle variant="side" />
+          <SideUser login={props.login} logout={props.logout} basePath={props.basePath} />
+        </div>
       </div>
     </aside>
   );
