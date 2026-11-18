@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, useTransition, type ClipboardEvent, type DragEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type ClipboardEvent, type DragEvent, type FormEvent, type ReactNode } from "react";
 import { createNewIssue, uploadNewIssueImage } from "@/app/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
 import { focusAfterRemove, type FocusAfterRemove } from "@/lib/imageFocus";
@@ -9,7 +9,7 @@ import { IMAGE_ACCEPT, IMAGE_FORM_FIELDS, IMAGE_HEAD_BYTES, isFileDrag, pickAdda
 import type { CreateIssueResult, UploadImageResult } from "@/lib/operations";
 import { checkNewIssueTitle, composeNewIssue, MAX_NEW_ISSUE_TITLE } from "@/lib/newIssue";
 import { useDemo } from "./DemoContext";
-import { CrossIcon, FileIcon, ImageIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
+import { CrossIcon, EnterIcon, FileIcon, ImageIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
 import { Select } from "./Select";
 import { Sheet } from "./Sheet";
 import settingsStyles from "./SettingsSections.module.css";
@@ -46,6 +46,11 @@ async function uploadImage(owner: string, repo: string, file: File): Promise<Upl
     () => uploadNewIssueImage(formData),
     () => ({ ok: false, message: ACTION_UNREACHABLE_MESSAGE }),
   );
+}
+
+/** メモの囲み：ページでは label、bar では送るボタンが中に入るので div（名前は入力の aria-label） */
+function MemoWrap({ as, className, children }: { as: "div" | "label"; className: string; children: ReactNode }) {
+  return as === "div" ? <div className={className}>{children}</div> : <label className={className}>{children}</label>;
 }
 
 function hasFiles(event: DragEvent): boolean {
@@ -248,6 +253,7 @@ export function NewIssueForm({
     });
   }
 
+  const memoLabel = service ? "どんなサービスを作りたいか" : template ? "新サービスのメモ" : "1行のメモ";
   const empty = (
     <p className={styles.empty}>
       {service
@@ -298,19 +304,18 @@ export function NewIssueForm({
                 )}
                 {bar && newServiceHref && (
                   <Link href={newServiceHref} className={styles.barLink}>
-                    <PlusIcon />
-                    <span className={styles.barLinkText}>新しいサービスを作る</span>
+                    <PlusIcon size={18} />
+                    <span className={styles.hidden}>新しいサービスを作る</span>
                   </Link>
                 )}
-                <label className={`${styles.field} ${bar ? styles.barMemo : ""}`}>
-                  <span className={bar ? styles.hidden : styles.label}>
-                    {service ? "どんなサービスを作りたいか" : template ? "新サービスのメモ" : "1行のメモ"}
-                  </span>
+                <MemoWrap as={bar ? "div" : "label"} className={`${styles.field} ${bar ? styles.barMemo : ""}`}>
+                  {!bar && <span className={styles.label}>{memoLabel}</span>}
                   <span className={styles.memo}>
                     {template && <span className={styles.prefix}>新サービス：</span>}
                     <input
                       ref={inputRef}
                       className={styles.input}
+                      aria-label={bar ? memoLabel : undefined}
                       value={title}
                       onChange={(event) => {
                         setTitle(event.target.value);
@@ -323,8 +328,21 @@ export function NewIssueForm({
                       aria-invalid={status.kind === "error" ? true : undefined}
                       placeholder={template ? "毎朝の天気と予定のページ" : "お問い合わせに自動で返事を送る"}
                     />
+                    {bar && (
+                      <button
+                        type="submit"
+                        className={styles.send}
+                        data-ready={title.trim() !== "" ? "" : undefined}
+                        disabled={saving || title.trim() === ""}
+                        aria-busy={saving}
+                        aria-label="Issueを作る"
+                        title="Issueを作る"
+                      >
+                        <EnterIcon size={20} />
+                      </button>
+                    )}
                   </span>
-                </label>
+                </MemoWrap>
                 {imageMessage && (
                   <p className={`${settingsStyles.error} ${styles.imageMessage}`} role="alert">
                     {imageMessage}
@@ -373,7 +391,7 @@ export function NewIssueForm({
                   aria-label="画像を付ける"
                   title="画像を付ける"
                 >
-                  <ImageIcon />
+                  <ImageIcon size={18} />
                 </button>
                 {template && (
                   <div className={styles.omakase}>
@@ -396,10 +414,12 @@ export function NewIssueForm({
                   </div>
                 )}
                 <div className={`${settingsStyles.save} ${styles.actions}`}>
-                  <button type="submit" className={settingsStyles.button} disabled={saving} aria-busy={saving}>
-                    {service ? <PlusIcon /> : <WriteIcon />}
-                    {saving ? "作成中…" : service ? "サービスを作る" : "Issueを作る"}
-                  </button>
+                  {!bar && (
+                    <button type="submit" className={settingsStyles.button} disabled={saving} aria-busy={saving}>
+                      {service ? <PlusIcon /> : <WriteIcon />}
+                      {saving ? "作成中…" : service ? "サービスを作る" : "Issueを作る"}
+                    </button>
+                  )}
                   {status.kind === "created" && (
                     <span className={settingsStyles.saved} role="status">
                       {status.number !== null ? `#${status.number} を作りました` : "作りました。あなたの番に出ます"}

@@ -101,7 +101,7 @@
   font-size: 12.5px;
 }
 
-/* ───── PCの3ペインの中央の下：1行の入力欄（docs/design.md の「PCの3ペイン」） ───── */
+/* ───── PCの3ペインの中央の下：入力欄（docs/design.md の「PCの3ペイン」） ───── */
 
 .bar {
   padding: 14px var(--gutter);
@@ -114,13 +114,12 @@
   width: 100%;
 }
 
-/* 上：メモ（主役。幅いっぱい）。下の1行：左に補助（選択欄・新しいサービス）、右端に Issueを作る。幅によらず同じ形（Issue #373）。
-   container-type で入力欄の幅を測る。「＋だけ」にするかは、この幅で決める（@container。画面の幅では決めない） */
+/* 上：角丸の枠（中に メモの入力 と 送るボタン ↵）。その下に、小さなアイコンの行（＋ → 画像 → リポジトリの選択欄）。
+   幅によらず同じ形（Issue #438。Claude のチャットの入力欄と同じ形） */
 .barForm {
-  container-type: inline-size;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 12px;
+  gap: 8px 4px;
   align-items: center;
 }
 
@@ -130,28 +129,62 @@
   min-width: 0;
 }
 
+/* 枠：1pxの線 --hair（フォーカス中は --edge-line）・角丸16px・地 --bg。高さ52px */
 .barMemo .memo {
-  max-width: none;
-}
-
-.barMemo .input,
-.barMemo .prefix {
+  box-sizing: border-box;
+  align-items: center;
   height: 52px;
-  line-height: 52px;
+  max-width: none;
+  padding: 0 4px 0 16px;
+  border: 1px solid var(--hair);
+  border-radius: 16px;
+  background: var(--bg);
+  box-shadow: none;
+}
+
+.barMemo .memo:focus-within {
+  border-color: var(--edge-line);
+  box-shadow: none;
 }
 
 .barMemo .input,
 .barMemo .prefix {
+  height: 50px;
+  line-height: 50px;
   font-size: 16px;
 }
 
+/* 送るボタン（↵）：枠の中の右端。押せる大きさは44px四方 */
+.send {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  color: var(--mute);
+}
+
+.send[data-ready] {
+  color: var(--bone);
+}
+
+.send:disabled {
+  opacity: 0.6;
+}
+
+.send:not(:disabled):hover {
+  color: var(--bone);
+}
+
+/* 補助の行（枠の外の下。高さ36px）：＋ → 画像 → リポジトリの選択欄 */
 .barRepo {
-  order: 2;
+  order: 4;
   flex: 0 1 auto;
   min-width: 0;
 }
 
-/* 補助の選択欄：内容に合わせた小さい形。長い名前は「…」 */
 .barForm .barRepo > * {
   width: auto;
   max-width: 220px;
@@ -159,6 +192,7 @@
 
 .barForm .barRepo button {
   gap: 6px;
+  height: 36px;
   color: var(--mute);
   font-size: 12.5px;
 }
@@ -178,63 +212,24 @@
 
 .barLink {
   display: inline-flex;
-  order: 3;
-  /* 基準を0にして、折り返さず残りの幅に収める（入らなければ文字を「…」で切る） */
-  flex: 1 1 0;
-  gap: 6px;
-  align-items: center;
-  min-width: 0;
-  height: 36px;
-  color: var(--mute);
-  font-size: 12.5px;
-  white-space: nowrap;
-}
-
-.barLink svg {
+  order: 2;
   flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  color: var(--mute);
 }
 
 .barLink:hover {
   color: var(--bone);
+  background: var(--hair-2);
 }
 
-.barLinkText {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* 入りきらない入力欄の幅：＋だけ（44px四方。文字は読み上げ用に残す）。しきい値は入力欄の幅で決める（@container）。
-   しきい値の値と理由は docs/design.md の「入力欄の幅」。行を折り返さないよう、選択欄は最大110px（長い名前は「…」） */
-@container (max-width: 599px) {
-  .barForm .barRepo > * {
-    max-width: 110px;
-  }
-
-  .barLink {
-    position: relative;
-    flex: 0 0 44px;
-    width: 44px;
-    height: 44px;
-    justify-content: center;
-  }
-
-  .barLinkText {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    clip-path: inset(50%);
-  }
-}
-
-/* Issueを作る と、できた／失敗の文は、ボタンだけ右端・文は次の行 */
+/* できた／失敗の文は次の行 */
 .barForm .actions {
   display: contents;
-}
-
-.barForm .actions button {
-  order: 4;
-  margin-left: auto;
 }
 
 .barForm .actions > span {
@@ -247,26 +242,10 @@
   flex-basis: 100%;
 }
 
-/* 狭い幅：行は1つのまま。押せる所は高さ44px（Issue #364） */
+/* 狭い幅：下の余白だけ足す（キーボード・ホームバーに隠れない。Issue #364） */
 @media (max-width: 899px) {
   .bar {
     padding-bottom: calc(14px + env(safe-area-inset-bottom));
-  }
-
-  .barForm {
-    gap: 4px 8px;
-  }
-
-  .barLink {
-    height: 44px;
-  }
-
-  .barForm .barRepo > * {
-    max-width: 110px;
-  }
-
-  .barForm .actions button {
-    height: 44px;
   }
 }
 
@@ -306,10 +285,13 @@
 /* ───── 画像を付ける（貼り付け・ドラッグ・ファイル選択。docs/design.md の「Issueを書く」） ───── */
 
 /* 画像のファイルを落とせる間は、メモの線を --bone にして示す */
-.form[data-dropping] .memo,
-.barForm[data-dropping] .memo {
+.form[data-dropping] .memo {
   border-bottom-color: var(--bone);
   box-shadow: 0 1px 0 var(--bone);
+}
+
+.barForm[data-dropping] .barMemo .memo {
+  border-color: var(--bone);
 }
 
 .imageMessage {
@@ -396,18 +378,17 @@
   margin-left: -10px;
 }
 
+/* 下の入力欄：＋ の次（アイコン18px・角丸8px） */
 .barForm .attach {
-  order: 2;
+  order: 3;
+  border-radius: 8px;
 }
 
 @media (max-width: 899px) {
-  .attach {
+  .form .attach {
     width: 44px;
     height: 44px;
-  }
-
-  /* 44px にしても、アイコンの左端はメモの線にそろえる（(44-16)/2 = 14） */
-  .form .attach {
+    /* 44px にしても、アイコンの左端はメモの線にそろえる（(44-16)/2 = 14） */
     margin-left: -14px;
   }
 }

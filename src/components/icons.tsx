@@ -191,6 +191,16 @@ export function WriteIcon({ size = LABEL }: IconProps) {
   );
 }
 
+/** 送る＝↵（Lucide の corner-down-left） */
+export function EnterIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M20 4v7a4 4 0 0 1-4 4H4" />
+      <path d="m9 10-5 5 5 5" />
+    </LineIcon>
+  );
+}
+
 /** 画像を付ける＝山と太陽の入った四角 */
 export function ImageIcon({ size = LABEL }: IconProps) {
   return (
