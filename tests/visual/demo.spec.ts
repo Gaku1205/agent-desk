@@ -92,6 +92,12 @@ test.describe("デモの画面", () => {
     await expect(page).toHaveScreenshot("settings.png");
   });
 
+  test("Dashboard", async ({ page }) => {
+    await page.goto("/demo/dashboard");
+    await settle(page);
+    await expect(page).toHaveScreenshot("dashboard.png");
+  });
+
   test("メニューを開いた状態（スマホ）", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile", "メニューボタンはスマホだけ");
     await page.goto("/demo");
