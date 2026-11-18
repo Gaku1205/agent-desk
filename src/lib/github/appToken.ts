@@ -11,6 +11,7 @@ import { timedCall } from "./callLog";
 import { GitHubClient, type Fetcher } from "./client";
 import { GitHubError } from "./errors";
 import { shareInFlight } from "../inFlight";
+import type { LiveRateHistories } from "../dashboard/rateHistoryStore";
 import {
   getGraphqlRateHistory,
   getGraphqlRateLimit,
@@ -374,6 +375,20 @@ export function clearAppRateLimitForTest(): void {
 /** 使った App の鍵（インストールごと）の REST の残りの履歴 */
 export function getAppRestHistories(): RateHistoryPoint[][] {
   return [...usedInstallationIds].map((id) => getRateHistory(installationKeyId(id)));
+}
+
+/**
+ * メモリにある履歴の点を、保存用の鍵の名前（`user`・`app-<インストールID>`。トークンもハッシュも入らない）ごとに返す。
+ * REST は App の鍵だけ（Dashboard の Pipeline）、GraphQL はログインした人のトークンと App の鍵
+ */
+export function getLiveRateHistories(userToken: string): LiveRateHistories {
+  const live: LiveRateHistories = { rest: {}, graphql: {} };
+  for (const id of usedInstallationIds) {
+    live.rest[`app-${id}`] = getRateHistory(installationKeyId(id));
+    live.graphql[`app-${id}`] = getGraphqlRateHistory(installationKeyId(id));
+  }
+  if (userToken) live.graphql.user = getGraphqlRateHistory(userToken);
+  return live;
 }
 
 /** ログインした人のトークンと、使った App の鍵の GraphQL の残りの履歴・いまの残り */

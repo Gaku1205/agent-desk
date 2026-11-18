@@ -27,18 +27,30 @@ export function hourStarts(nowMs: number, slots: number = HOUR_SLOTS): number[] 
 export function hourlyUsed(samples: RateSample[], nowMs: number, slots: number = HOUR_SLOTS): (number | null)[] {
   const starts = hourStarts(nowMs, slots);
   const used: (number | null)[] = starts.map(() => null);
+  for (const { slotStart, amount } of usedIncrements(samples)) {
+    const slot = starts.indexOf(slotStart);
+    if (slot < 0) continue;
+    used[slot] = (used[slot] ?? 0) + amount;
+  }
+  return used;
+}
+
+/**
+ * 点の列から、数えられる組ごとの「使った量」を出す（あとの点の1時間の枠の始まり ms と、減った分）。
+ * 数える決まりは `hourlyUsed` と同じ（同じ回復の周期の中で減った分だけ）。保存した枠との合わせ方（`rateHistoryStore.ts`）も使う
+ */
+export function usedIncrements(samples: RateSample[]): { slotStart: number; amount: number }[] {
   const sorted = [...samples].sort((a, b) => a.at - b.at);
+  const out: { slotStart: number; amount: number }[] = [];
   for (let i = 1; i < sorted.length; i++) {
     const prev = sorted[i - 1];
     const next = sorted[i];
     if (next.at - prev.at > HOUR_MS) continue;
     if (prev.resetAt === null || prev.resetAt !== next.resetAt) continue;
     if (next.remaining > prev.remaining) continue;
-    const slot = starts.findIndex((start) => next.at >= start && next.at < start + HOUR_MS);
-    if (slot < 0) continue;
-    used[slot] = (used[slot] ?? 0) + (prev.remaining - next.remaining);
+    out.push({ slotStart: Math.floor(next.at / HOUR_MS) * HOUR_MS, amount: prev.remaining - next.remaining });
   }
-  return used;
+  return out;
 }
 
 /** 複数の鍵の1時間ごとの使った量を足す。全部 null の時間帯だけ null */
@@ -80,9 +92,12 @@ export function limitsSummary(
   pipeline: (number | null)[],
   reads: (number | null)[],
 ): string {
-  if (![...pipeline, ...reads].some((value) => value !== null)) {
+  const hours = observedHours(pipeline, reads);
+  if (hours === 0) {
     return "使った量の履歴がまだありません。サーバーが GitHub を読むたびにたまります。";
   }
+  // 記録が24時間に満たないときは、何時間分を見たかを言う（記録の無い時間を「超えていない」と言い切らない）
+  const seen = hours < starts.length ? `記録があるのは直近 ${hours} 時間分だけです。` : "";
   const parts: string[] = [];
   const over = (name: string, series: (number | null)[]) => {
     const slots = exceededSlots(series);
@@ -90,8 +105,19 @@ export function limitsSummary(
   };
   over("Pipeline", pipeline);
   over("agent-desk reads", reads);
-  if (parts.length === 0) return `この24時間、上限 ${RATE_LIMIT.toLocaleString("en-US")} を超えた時間帯はありません。`;
-  return `上限 ${RATE_LIMIT.toLocaleString("en-US")} を超えた時間帯があります：${parts.join("、")}。`;
+  const limit = RATE_LIMIT.toLocaleString("en-US");
+  if (parts.length === 0) return `${seen ? `${seen}その間、` : "この24時間、"}上限 ${limit} を超えた時間帯はありません。`;
+  return `${seen}上限 ${limit} を超えた時間帯があります：${parts.join("、")}。`;
+}
+
+/** 記録のある最初の枠から「今」の枠までの枠の数。記録が全く無ければ 0 */
+export function observedHours(...seriesList: (number | null)[][]): number {
+  let hours = 0;
+  for (const series of seriesList) {
+    const first = series.findIndex((value) => value !== null);
+    if (first >= 0) hours = Math.max(hours, series.length - first);
+  }
+  return hours;
 }
 
 /** 残りの横棒の長さ（0〜1）。残りが不明なら null */

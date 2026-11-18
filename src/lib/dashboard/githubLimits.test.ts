@@ -113,13 +113,12 @@ describe("limitsSummary", () => {
   });
 
   it("超えた時間帯が無ければそう書く", () => {
-    const series = [...none];
-    series[23] = 300;
+    const series = Array<number | null>(24).fill(300);
     expect(limitsSummary(starts, series, none)).toBe("この24時間、上限 5,000 を超えた時間帯はありません。");
   });
 
   it("超えた時間帯を書く", () => {
-    const series = [...none];
+    const series = Array<number | null>(24).fill(300);
     series[23] = 5200;
     series[22] = 5100;
     expect(limitsSummary(starts, series, none)).toBe(

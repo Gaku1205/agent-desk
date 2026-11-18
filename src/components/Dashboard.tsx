@@ -272,13 +272,17 @@ const CHART_W = 720;
 const CHART_H = 160;
 const CHART_PAD = 6;
 
-/** 値の列を、null で切った線の path にする。1点だけの所は点（長さ0の線）にする */
-function linePath(series: (number | null)[], yMax: number): string {
+/**
+ * 値の列を、null で切った線の path と、孤立した1つの値の丸の path（長さ0の線を丸い端で描く。別の path にして、
+ * 線の太さ・破線の指定を受けないようにする）にする
+ */
+function linePath(series: (number | null)[], yMax: number): { line: string; dots: string } {
   const step = (CHART_W - 2 * CHART_PAD) / Math.max(series.length - 1, 1);
   const parts: string[] = [];
+  const dots: string[] = [];
   let run: [number, number][] = [];
   const flush = () => {
-    if (run.length === 1) parts.push(`M${run[0][0]} ${run[0][1]}h0`);
+    if (run.length === 1) dots.push(`M${run[0][0]} ${run[0][1]}h0`);
     else if (run.length > 1) parts.push(`M${run.map(([x, y]) => `${x} ${y}`).join("L")}`);
     run = [];
   };
@@ -292,7 +296,7 @@ function linePath(series: (number | null)[], yMax: number): string {
     run.push([x, y]);
   });
   flush();
-  return parts.join("");
+  return { line: parts.join(""), dots: dots.join("") };
 }
 
 /** GitHub limits：2つの残りと、1時間ごとに使った量の線グラフ */
@@ -302,6 +306,8 @@ function GithubLimitsSection({ limits }: { limits: GithubLimits }) {
   const limitY = CHART_H - CHART_PAD - (RATE_LIMIT / yMax) * (CHART_H - 2 * CHART_PAD);
   const summary = limitsSummary(limits.hourStarts, limits.pipelineUsed, limits.readsUsed);
   const last = limits.hourStarts.length - 1;
+  const reads = linePath(limits.readsUsed, yMax);
+  const pipeline = linePath(limits.pipelineUsed, yMax);
   return (
     <section className={styles.limits} aria-labelledby={headingId}>
       <h2 className={styles.usageHead} id={headingId}>
@@ -349,8 +355,10 @@ function GithubLimitsSection({ limits }: { limits: GithubLimits }) {
             className={styles.limitLine}
             vectorEffect="non-scaling-stroke"
           />
-          <path d={linePath(limits.readsUsed, yMax)} className={styles.readsLine} vectorEffect="non-scaling-stroke" />
-          <path d={linePath(limits.pipelineUsed, yMax)} className={styles.pipelineLine} vectorEffect="non-scaling-stroke" />
+          <path d={reads.line} className={styles.readsLine} vectorEffect="non-scaling-stroke" />
+          <path d={reads.dots} className={styles.readsDot} vectorEffect="non-scaling-stroke" />
+          <path d={pipeline.line} className={styles.pipelineLine} vectorEffect="non-scaling-stroke" />
+          <path d={pipeline.dots} className={styles.pipelineDot} vectorEffect="non-scaling-stroke" />
         </svg>
         <ol className={`${styles.hours} num`} aria-hidden="true">
           {limits.hourStarts.map((start, i) =>
