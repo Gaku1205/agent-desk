@@ -289,6 +289,37 @@ export function resolveParallelState(
   return { period, limit: period === "night" ? settings.night : settings.day, override };
 }
 
+/** 別タブへ保存した設定を知らせる BroadcastChannel の名前 */
+export const PARALLEL_SETTINGS_CHANNEL = "agent-desk:parallel-settings";
+
+/** 読み込んだ設定と手の上書き（画面が持つ状態） */
+export type ParallelSnapshotLike = { settings: ParallelSettings; override: string | null };
+
+/** 保存した設定を状態に入れる。手の上書きはそのまま残す（効いていれば上書きが勝つ） */
+export function applySavedParallelSettings(
+  snapshot: ParallelSnapshotLike | null,
+  saved: ParallelSettings,
+): ParallelSnapshotLike {
+  return { settings: saved, override: snapshot?.override ?? null };
+}
+
+/** 別タブから届いた値を確かめる。設定として正しくなければ null（無視する） */
+export function parseSavedParallelMessage(data: unknown): ParallelSettings | null {
+  const checked = checkParallelSettings(data);
+  return checked.ok ? checked.settings : null;
+}
+
+/** 保存した設定のとき、左のバー・メニューに出る文言（今が昼なら昼の数、夜なら夜の数。上書きが効いていればその上限） */
+export function describeParallelBarAfterSave(
+  now: Date,
+  snapshot: ParallelSnapshotLike | null,
+  saved: ParallelSettings,
+  timeZone: string = DEFAULT_PARALLEL_TZ,
+): string {
+  const next = applySavedParallelSettings(snapshot, saved);
+  return describeParallelBar(resolveParallelState(now, next.settings, next.override, timeZone));
+}
+
 /** 押したときの変更：上書きを書く（`set`）か、消して時間帯の決まりに戻す（`clear`） */
 export type ParallelToggle =
   | { mode: "set"; override: ParallelOverride }

@@ -17,7 +17,15 @@ import {
   type ParallelSnapshot,
 } from "@/app/(app)/settings/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
-import { planParallelToggle, resolveParallelState, type ParallelState } from "@/lib/parallel";
+import {
+  applySavedParallelSettings,
+  PARALLEL_SETTINGS_CHANNEL,
+  parseSavedParallelMessage,
+  planParallelToggle,
+  resolveParallelState,
+  type ParallelSettings,
+  type ParallelState,
+} from "@/lib/parallel";
 
 /** 帯（PCは左のバー・スマホはメニュー）の並列のボタンが使う物 */
 export type ParallelView = {
@@ -34,6 +42,13 @@ export type ParallelView = {
 const ParallelContext = createContext<ParallelView | null>(null);
 
 export const ParallelViewProvider = ParallelContext.Provider;
+
+/** 設定で保存した値を帯に渡す入口。デモ（Provider の外）では null */
+const ParallelSavedContext = createContext<((saved: ParallelSettings) => void) | null>(null);
+
+export function useParallelSaved(): ((saved: ParallelSettings) => void) | null {
+  return useContext(ParallelSavedContext);
+}
 
 export function useParallelView(): ParallelView | null {
   return useContext(ParallelContext);
@@ -92,5 +107,42 @@ export function ParallelProvider({ children }: { children: ReactNode }) {
     });
   }, [snapshot]);
 
-  return <ParallelContext.Provider value={{ state, busy, error, toggle }}>{children}</ParallelContext.Provider>;
+  // 設定で保存した値を受け取る入口（読み直さず、保存した値で更新する）
+  const applySaved = useCallback((saved: ParallelSettings) => {
+    setSnapshot((current) => applySavedParallelSettings(current, saved));
+  }, []);
+
+  // 同じブラウザの別タブで保存された設定を受け取る（BroadcastChannel が無い環境では何もしない）
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    let channel: BroadcastChannel;
+    try {
+      channel = new BroadcastChannel(PARALLEL_SETTINGS_CHANNEL);
+    } catch {
+      return;
+    }
+    channel.onmessage = (event: MessageEvent) => {
+      const saved = parseSavedParallelMessage(event.data);
+      if (saved) applySaved(saved);
+    };
+    return () => channel.close();
+  }, [applySaved]);
+
+  return (
+    <ParallelSavedContext.Provider value={applySaved}>
+      <ParallelContext.Provider value={{ state, busy, error, toggle }}>{children}</ParallelContext.Provider>
+    </ParallelSavedContext.Provider>
+  );
+}
+
+/** 保存した並列の設定を、別タブへ知らせる（届かない環境では何もしない） */
+export function broadcastParallelSettings(saved: ParallelSettings): void {
+  if (typeof BroadcastChannel === "undefined") return;
+  try {
+    const channel = new BroadcastChannel(PARALLEL_SETTINGS_CHANNEL);
+    channel.postMessage(saved);
+    channel.close();
+  } catch {
+    // 届かなくても、5分ごとの読み直しで揃う
+  }
 }
