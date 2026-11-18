@@ -1,3 +1,4 @@
+import { gunzipSync, gzipSync } from "node:zlib";
 import { revalidateTag, unstable_cache, updateTag } from "next/cache";
 import { after } from "next/server";
 import { repoChangeKey, type ChangeMarks } from "../changeMarks";
@@ -144,6 +145,21 @@ async function releasedChangedAt(repo: WatchedRepo, now: number): Promise<number
   return Math.max(decision.released ?? 0, release.changedAt);
 }
 
+/**
+ * Next.js のキャッシュに覚える前に、データを縮める（gzip して base64 の文字列にする）。
+ * Next.js は、JSON にして 2MB を超える物を覚えない（黙って捨てる。`next/dist/server/lib/incremental-cache`）。
+ * Issue・PR の多いリポジトリ（14日で数百件。コメント・チェックつき）はこれを超え、毎回 GitHub から取り直していた
+ * （ページ送りが何回も順に並ぶので、そのリポジトリだけで十数秒）。縮めると数分の1になる
+ */
+export function packCached<T>(value: T): string {
+  return gzipSync(JSON.stringify(value)).toString("base64");
+}
+
+/** `packCached` で縮めた物を戻す */
+export function unpackCached<T>(packed: string): T {
+  return JSON.parse(gunzipSync(Buffer.from(packed, "base64")).toString("utf8")) as T;
+}
+
 /** 同じインスタンスで、同じ印のデータを同時に取りに行っている物（リクエストをまたいで1回にまとめる） */
 const loadingRepoData = new Map<string, Promise<RepoData>>();
 
@@ -151,7 +167,7 @@ const loadingRepoData = new Map<string, Promise<RepoData>>();
 export type AppRepoData = { data: RepoData; changeMark: string };
 
 /**
- * App の鍵で読むリポジトリのデータを、最大5分覚える。
+ * App の鍵で読むリポジトリのデータを、最大5分覚える（縮めて覚える。2MB を超えると Next.js が覚えないため）。
  * キーはリポジトリと取り直してよい印の「最後に変わった時刻」（鍵は1時間で替わるので入れない。App の鍵で読むのは、
  * ログインした人が読めると確かめた物だけ）。変化ごとに別の入れ物になるので、取得の途中に Webhook が来ても、
  * 保存した瞬間にその無効化が消えることは無い（次の印で取り直される）。
@@ -162,10 +178,13 @@ export async function cachedRepoData(
   load: () => Promise<RepoData>,
 ): Promise<AppRepoData> {
   const mark = await releasedChangedAt(repo, Date.now());
-  const keyParts = ["repo-data", DEPLOY_KEY, repoChangeKey(repo), String(mark)];
+  // 縮めて覚える（`packCached`。キーの名前は、縮める前に覚えた物を読まないように変えてある）
+  const keyParts = ["repo-data-gz", DEPLOY_KEY, repoChangeKey(repo), String(mark)];
   // 同時に来た別のリクエスト（取り直しの途中のページ移動・別のタブ）が同じ印を読むときは、取得を1回にまとめる
-  const data = await shareInFlight(loadingRepoData, keyParts.join("|"), () =>
-    unstable_cache(() => load(), keyParts, { revalidate: REPO_CACHE_SECONDS })(),
+  const data = await shareInFlight(loadingRepoData, keyParts.join("|"), async () =>
+    unpackCached<RepoData>(
+      await unstable_cache(async () => packCached(await load()), keyParts, { revalidate: REPO_CACHE_SECONDS })(),
+    ),
   );
   return { data, changeMark: new Date(mark).toISOString() };
 }
