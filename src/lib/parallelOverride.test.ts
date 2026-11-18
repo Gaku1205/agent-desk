@@ -130,10 +130,11 @@ describe("planParallelToggle", () => {
 });
 
 describe("describeParallelBar / describeParallelButton", () => {
-  it("昼は 並列3、夜は 夜：1件ずつ（2以上なら 夜：並列2）", () => {
-    expect(describeParallelBar({ period: "day", limit: 3, override: null })).toBe("並列3");
-    expect(describeParallelBar({ period: "night", limit: 1, override: null })).toBe("夜：1件ずつ");
-    expect(describeParallelBar({ period: "night", limit: 2, override: null })).toBe("夜：並列2");
+  it("昼は 3件まで、夜は 1件ずつ（2以上なら 2件まで）", () => {
+    expect(describeParallelBar({ period: "day", limit: 3, override: null })).toBe("3件まで");
+    expect(describeParallelBar({ period: "day", limit: 1, override: null })).toBe("1件まで");
+    expect(describeParallelBar({ period: "night", limit: 1, override: null })).toBe("1件ずつ");
+    expect(describeParallelBar({ period: "night", limit: 2, override: null })).toBe("2件まで");
   });
 
   it("ボタンの説明：押すとどうなるか、上書き中は期限も言う", () => {

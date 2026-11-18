@@ -22,13 +22,19 @@ export function ParallelToggle({ variant }: { variant: "side" | "menu" }) {
         onClick={toggle}
         disabled={busy}
         aria-busy={busy}
-        aria-label={`並列：${description}`}
+        role="switch"
+        aria-checked={state.period === "day"}
+        aria-label="並列で動かす"
         title={description}
         data-override={state.override ? "" : undefined}
         data-period={state.period}
       >
+        <span className={styles.label}>並列</span>
         <span className={`${styles.now} num`}>{describeParallelBar(state)}</span>
         {state.override && <span className={styles.manual}>手動</span>}
+        <span className={styles.track} aria-hidden="true">
+          <span className={styles.thumb} />
+        </span>
       </button>
       {error && (
         <p className={styles.error} role="alert">
