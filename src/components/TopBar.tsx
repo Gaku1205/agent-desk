@@ -25,6 +25,8 @@ type Props = {
   counts: TurnCounts;
   /** 各ページの「実行中のパイプライン」の件数 */
   runningCounts: TurnCounts;
+  /** 件数がまだ届いていない（他のリポジトリの読み込み待ち）。件数は「–」で出す */
+  countsPending?: boolean;
   /** リンクの頭（デモでは `/demo`） */
   basePath?: string;
   /** ログイン中のユーザー名（デモでは無し） */
@@ -40,8 +42,19 @@ type Props = {
  * 数だけが並んで何の数か分からない（同じ数だとバグに見える）ので、誌面の左の凡例と同じ色の点を前に付け、
  * 今いるページの札（labeled）だけは短い名札（あなたの番・AI）も付ける。意味は title と読み上げでも言う
  */
-export function Counts({ turn, running, labeled }: { turn: number; running: number; labeled: boolean }) {
-  const text = `あなたの番 ${turn}件、AIが動いている ${running}件`;
+export function Counts({
+  turn,
+  running,
+  labeled,
+  pending: countsPending = false,
+}: {
+  turn: number;
+  running: number;
+  labeled: boolean;
+  /** 件数がまだ届いていない。数の代わりに「–」を出す */
+  pending?: boolean;
+}) {
+  const text = countsPending ? "件数を読み込み中" : `あなたの番 ${turn}件、AIが動いている ${running}件`;
   // 押した札の点：次の画面が出るまで脈打つ（動きを減らすときは色だけ）。<Link> の子の部品の中で使う
   const { pending } = useLinkStatus();
   return (
@@ -54,11 +67,11 @@ export function Counts({ turn, running, labeled }: { turn: number; running: numb
     >
       <b className={styles.countTurn} aria-hidden="true">
         {labeled && <span className={styles.countName}>あなたの番</span>}
-        {turn}
+        {countsPending ? "–" : turn}
       </b>
       <b className={styles.countRunning} aria-hidden="true">
         {labeled && <span className={styles.countName}>AI</span>}
-        {running}
+        {countsPending ? "–" : running}
       </b>
     </i>
   );
@@ -112,9 +125,10 @@ export function RepoTabs({
   repos,
   counts,
   runningCounts,
+  countsPending = false,
   basePath = "",
   onPick,
-}: Pick<Props, "repos" | "counts" | "runningCounts" | "basePath"> & { onPick?: () => void }) {
+}: Pick<Props, "repos" | "counts" | "runningCounts" | "countsPending" | "basePath"> & { onPick?: () => void }) {
   const pathname = usePathname();
   const isCurrent = (href: string) => pathname.toLowerCase() === href.toLowerCase();
   const home = basePath || "/";
@@ -147,7 +161,7 @@ export function RepoTabs({
       >
         <GridIcon />
         <span>全部</span>
-        <Counts turn={counts.total} running={runningCounts.total} labeled={isCurrent(home)} />
+        <Counts turn={counts.total} running={runningCounts.total} labeled={isCurrent(home)} pending={countsPending} />
       </Link>
       {shown.map(({ owner, repo }) => {
         const href = `${basePath}/repos/${owner}/${repo}`;
@@ -167,6 +181,7 @@ export function RepoTabs({
               turn={counts.byRepo[key] ?? 0}
               running={runningCounts.byRepo[key] ?? 0}
               labeled={isCurrent(href)}
+              pending={countsPending}
             />
           </Link>
         );
@@ -190,7 +205,9 @@ export function RepoTabs({
 }
 
 /** PCの3ペインの左：リポジトリの一覧（上端の帯の札を縦に並べた物。docs/design.md の「PCの3ペイン」） */
-export function SideRepos(props: Pick<Props, "repos" | "counts" | "runningCounts" | "basePath" | "login" | "logout">) {
+export function SideRepos(
+  props: Pick<Props, "repos" | "counts" | "runningCounts" | "countsPending" | "basePath" | "login" | "logout">,
+) {
   const pathname = usePathname();
   const newServiceHref = `${props.basePath ?? ""}/new/service`;
   const listRef = useRef<HTMLDivElement>(null);
@@ -263,7 +280,7 @@ export function SyncButton({ className }: { className?: string }) {
         data-fast={fastRefresh ? "true" : undefined}
         aria-hidden="true"
       />
-      {refreshing ? "更新中" : "同期"} {formatSyncTime(getDisplayedSyncTime(syncedAt))}
+      {refreshing ? "同期中" : "同期"} {formatSyncTime(getDisplayedSyncTime(syncedAt))}
     </button>
   );
 }

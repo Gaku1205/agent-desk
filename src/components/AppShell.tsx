@@ -46,6 +46,47 @@ export type ShellState = {
 
 const ShellContext = createContext<ShellState | null>(null);
 
+/**
+ * 自動更新の計画。全リポジトリを読み終えてからサーバーが決める物で、layout が Suspense で後から流す
+ * （中央の中身を待たせないため）。届くまでは自動では取り直さない
+ */
+export type ShellPlan = {
+  /** サーバーがこの計画を作った時刻（ISO文字列）。同期が反映されたかの印にも使う。届く前は空 */
+  loadedAt: string;
+  /** 自動で取り直す間隔。取り直しのたびにサーバーが決め直す。null は自動では取り直さない */
+  refreshIntervalMs: number | null;
+  /** 自動更新を止めているとき、再開する時刻（ISO文字列） */
+  resumeAt: string | null;
+  /** Webhook で「変わった」ときだけ取り直すリポジトリ（`owner/repo`） */
+  changeRepos: string[];
+  /** そのリポジトリの、今のデータに反映済みの「変わった」印 */
+  appliedChangeMarks: ChangeMarks;
+  /** 今までどおりの間隔の取り直しが要るか（ログインした人のトークンで読むリポジトリがある） */
+  needsIntervalRefresh: boolean;
+  /** 次に猶予（PR作成待ち・未着手）が終わる時刻の少し後（ISO文字列）。猶予の中の物が無ければ null */
+  graceRefreshAt: string | null;
+};
+
+const NO_PLAN: ShellPlan = {
+  loadedAt: "",
+  refreshIntervalMs: null,
+  resumeAt: null,
+  changeRepos: [],
+  appliedChangeMarks: {},
+  needsIntervalRefresh: false,
+  graceRefreshAt: null,
+};
+
+const SetPlanContext = createContext<((plan: ShellPlan) => void) | null>(null);
+
+/** 後から届いた自動更新の計画を AppShell に渡す（`LayoutFeed` が使う） */
+export function useSetShellPlan(): ((plan: ShellPlan) => void) | null {
+  return useContext(SetPlanContext);
+}
+
+/** 同期を押したあと、反映が届かなくても「同期中」を止める上限 */
+const SYNC_WAIT_LIMIT_MS = 30_000;
+
 /** 自動更新を持たない画面（デモ）が、同じ部品を使うために中身を直接渡す */
 export const ShellProvider = ShellContext.Provider;
 
@@ -104,33 +145,31 @@ async function loadChangeMarks(repos: string[]): Promise<ChangeMarksResult> {
 /** 自動更新・更新ボタン・スマホのメニューの開閉を、画面全体で共有する */
 export function AppShell({
   initialSyncedAt,
-  refreshIntervalMs,
-  resumeAt,
-  changeRepos,
-  appliedChangeMarks,
-  needsIntervalRefresh,
-  graceRefreshAt,
   children,
 }: {
-  /** サーバーが最初に取った時刻（ISO文字列） */
+  /** サーバーが最初に描いた時刻（ISO文字列） */
   initialSyncedAt: string;
-  /** 自動で取り直す間隔。取り直しのたびにサーバーが決め直す。null は自動では取り直さない */
-  refreshIntervalMs: number | null;
-  /** 自動更新を止めているとき、再開する時刻（ISO文字列） */
-  resumeAt: string | null;
-  /** Webhook で「変わった」ときだけ取り直すリポジトリ（`owner/repo`） */
-  changeRepos: string[];
-  /** そのリポジトリの、今のデータに反映済みの「変わった」印 */
-  appliedChangeMarks: ChangeMarks;
-  /** 今までどおりの間隔の取り直しが要るか（ログインした人のトークンで読むリポジトリがある） */
-  needsIntervalRefresh: boolean;
-  /** 次に猶予（PR作成待ち・未着手）が終わる時刻の少し後（ISO文字列）。猶予の中の物が無ければ null */
-  graceRefreshAt: string | null;
   children: ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [refreshing, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
+  const [plan, setPlan] = useState<ShellPlan>(NO_PLAN);
+  const { refreshIntervalMs, resumeAt, changeRepos, appliedChangeMarks, needsIntervalRefresh, graceRefreshAt } = plan;
+  // 手で押した同期を押した時点の計画の時刻。新しい計画（＝全リポジトリの取り直しの結果）が届くまで「同期中」にする
+  const [syncFrom, setSyncFrom] = useState<string | null>(null);
+  const planLoadedAtRef = useRef(plan.loadedAt);
+  useEffect(() => {
+    planLoadedAtRef.current = plan.loadedAt;
+  }, [plan.loadedAt]);
+  const waitingForSync = syncFrom !== null && plan.loadedAt === syncFrom;
+  const refreshing = pending || waitingForSync;
+  // 届かないまま待ち続けないための上限
+  useEffect(() => {
+    if (!waitingForSync) return;
+    const timer = setTimeout(() => setSyncFrom(null), SYNC_WAIT_LIMIT_MS);
+    return () => clearTimeout(timer);
+  }, [waitingForSync]);
   const [syncedAt, setSyncedAt] = useState(() => new Date(initialSyncedAt));
   const [requestedAt, setRequestedAt] = useState(syncedAt);
   // 手で押した同期が届かなかったとき、同期の時刻を戻す先（最後に取り直せた時刻）
@@ -160,7 +199,9 @@ export function AppShell({
 
   // 手で押す「同期」：キャッシュを無視して、すぐ取り直す
   const refresh = useCallback(() => {
+    // 押した瞬間に「同期中」にする（サーバーの返事を待たない）
     setRequestedAt(new Date());
+    setSyncFrom(planLoadedAtRef.current);
     startTransition(async () => {
       // 呼び出しが投げても（通信が切れた・古い画面のまま押した）、画面を落とさない。
       // 取り直せていないので、同期の時刻は進めない（最後に取り直せた時刻のまま）
@@ -171,7 +212,10 @@ export function AppShell({
         },
         () => false,
       );
-      if (!reached) setRequestedAt(syncedAtRef.current);
+      if (!reached) {
+        setRequestedAt(syncedAtRef.current);
+        setSyncFrom(null);
+      }
     });
   }, []);
 
@@ -262,8 +306,10 @@ export function AppShell({
 
   return (
     <ShellContext.Provider value={value}>
-      {children}
-      <KeyboardHelp />
+      <SetPlanContext.Provider value={setPlan}>
+        {children}
+        <KeyboardHelp />
+      </SetPlanContext.Provider>
     </ShellContext.Provider>
   );
 }
