@@ -105,6 +105,7 @@ export type LanesSource = {
 
 const QUEUE_LABEL = "ai:queue";
 const BLOCKED_LABEL = "ai:blocked";
+const IMPLEMENT_LABEL = "ai:implement";
 const PRIORITY_LABEL = "priority:high";
 const HOLD_LABEL = "ai:hold";
 
@@ -319,6 +320,8 @@ export function buildLanesSource(results: readonly RepoResult[], now: Date): Lan
     const repoWorks: SlotWork[] = [];
     for (const row of [...rows].sort((a, b) => a.issue.number - b.issue.number)) {
       if (!occupiesSlot(row.status)) continue;
+      // パイプラインが並列に数えるのは `ai:implement` の Issue だけ（人間が出した PR の Issue は席にしない）
+      if (!(issues.get(row.issue.number)?.labels ?? []).includes(IMPLEMENT_LABEL)) continue;
       const flow = getFlow(row.status);
       const current = flow.steps[flow.at];
       const started = currentLogRow(data, row.issue.number, current.key, now)?.started ?? null;

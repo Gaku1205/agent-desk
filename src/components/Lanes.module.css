@@ -111,6 +111,13 @@
   font-weight: 400;
 }
 
+/* 上限より多く動いている理由（見出しの下。このページの補足の文と同じ文字） */
+.slotsNote {
+  margin: -6px 0 12px;
+  color: var(--mute);
+  font-size: 13px;
+}
+
 /* 上下を線で区切った一覧（カードにしない） */
 .list {
   margin: 0;

@@ -111,6 +111,14 @@ export function assignSlots(source: LanesSource, limit: number | null): Lanes {
   };
 }
 
+/**
+ * 上限より多く動いているときの一文（Slots の見出しの下）。上限以内・上限が分からないときは null
+ */
+export function overLimitNote(running: number, limit: number | null): string | null {
+  if (limit === null || running <= limit) return null;
+  return `上限（${limit}件）より多く動いています。上限は、新しく始める数だけを決めます。もう動いている作業は止めません。`;
+}
+
 /** 数を `3件まで`・`1件ずつ`（夜だけ、1のとき）に */
 function countText(n: number, night: boolean): string {
   return night && n === 1 ? "1件ずつ" : `${n}件まで`;

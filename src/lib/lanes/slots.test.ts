@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ParallelSettings, ParallelState } from "../parallel";
-import { assignSlots, freeSlotReason, lanesHeadline, queueReasonText, type QueueEntry } from "./slots";
+import { assignSlots, freeSlotReason, lanesHeadline, overLimitNote, queueReasonText, type QueueEntry } from "./slots";
 import type { LanesSource, QueueSource, RunEntry, SlotWork } from "./source";
 
 function work(number: number): SlotWork {
@@ -159,5 +159,19 @@ describe("lanesHeadline", () => {
     expect(lanesHeadline(now, settings, manual)).toBe(
       "いま 11:13 · 昼（7:00〜23:00）は 3件まで、夜は 1件ずつ · 手動で切り替え中",
     );
+  });
+});
+
+describe("overLimitNote：上限より多く動いている一文", () => {
+  it("上限より多いときだけ出す", () => {
+    expect(overLimitNote(5, 1)).toBe(
+      "上限（1件）より多く動いています。上限は、新しく始める数だけを決めます。もう動いている作業は止めません。",
+    );
+  });
+
+  it("上限以内・上限が読めないときは出さない", () => {
+    expect(overLimitNote(1, 1)).toBeNull();
+    expect(overLimitNote(0, 3)).toBeNull();
+    expect(overLimitNote(5, null)).toBeNull();
   });
 });
