@@ -1,6 +1,5 @@
 "use server";
 
-import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { SESSION_EXPIRED_PATH } from "@/lib/authExpired";
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
@@ -59,8 +58,8 @@ export async function runOperation(value: unknown): Promise<OperationResult> {
   }
   if (result.ok || result.changed) {
     // 押した結果をすぐ出すため、Webhook を待たずにキャッシュを無効にする
+    // 画面の取り直しは、呼んだ側が裏で行う（ここで `refresh()` すると、新しい画面が出るまで返事が遅れ、骨組みに戻る）
     invalidateRepoNow(auth.target);
-    refresh();
   }
   return result;
 }
@@ -85,7 +84,6 @@ export async function createNewIssue(value: unknown): Promise<CreateIssueResult>
   if (result.ok) {
     // できたIssueをすぐ出すため、Webhook を待たずにキャッシュを無効にする
     invalidateRepoNow(auth.target);
-    refresh();
   }
   return result;
 }
@@ -156,5 +154,5 @@ export async function syncNow(): Promise<void> {
     // 工場が作った新しいリポジトリを、次の同期で探す（前に調べてから5分たっていなければ、たった後で）
     requestAutoAddCheck(getSettingsRepo());
   }
-  refresh();
+  // 画面の取り直しは、呼んだ側が裏で行う
 }

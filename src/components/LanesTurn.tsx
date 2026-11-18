@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { startTransition, useEffect, useRef, useState, useTransition } from "react";
 import { runOperation } from "@/app/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
 import { DEMO_OP_DELAY_MS } from "@/lib/demo/ops";
@@ -56,7 +57,8 @@ export function LanesTurn({ item, wait, mergeOrder, basePath, onHold, onGone }: 
   const sig = turnSig(item);
   const kind = turnKind(status);
   const demo = useDemo();
-  const [, startTransition] = useTransition();
+  const router = useRouter();
+  const [, startAction] = useTransition();
   const [op, setOp] = useState<Op | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -144,7 +146,7 @@ export function LanesTurn({ item, wait, mergeOrder, basePath, onHold, onGone }: 
       demo.operate({ owner, repo, number: issue.number }, operation);
       return;
     }
-    startTransition(async () => {
+    startAction(async () => {
       const result = await callAction<OperationResult>(
         () => runOperation({ kind: operation, owner, repo, issueNumber: issue.number }),
         () => ({ ok: false, changed: false, message: ACTION_UNREACHABLE_MESSAGE }),
@@ -152,7 +154,11 @@ export function LanesTurn({ item, wait, mergeOrder, basePath, onHold, onGone }: 
       if (!result.ok && !result.changed) {
         setOp(null);
         setError(result.message);
-      } else if (result.ok) {
+        return;
+      }
+      // 画面の取り直しは裏で行う（骨組みに戻さず、届くまで今の中身を出し続ける）
+      startTransition(() => router.refresh());
+      if (result.ok) {
         succeed();
       } else {
         // 押した時点で段階が変わっていて何もしなかった：結果は出さず、すぐ片づける

@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
+  startTransition,
   useEffect,
   useRef,
   useState,
@@ -109,6 +111,7 @@ export function NewIssueForm({
   const [title, setTitle] = useState("");
   const [omakase, setOmakase] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const router = useRouter();
   const [saving, startSaving] = useTransition();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -285,6 +288,8 @@ export function NewIssueForm({
         setStatus({ kind: "created", number: result.number, url: result.url });
         setTitle("");
         clearImages();
+        // できたIssueを出すための取り直しは裏で行う（骨組みに戻さない）
+        startTransition(() => router.refresh());
       } else {
         setStatus({ kind: "error", message: result.message });
       }

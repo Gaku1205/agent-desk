@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, useTransition, type KeyboardEvent } from "react";
+import { useRouter } from "next/navigation";
+import { startTransition, useEffect, useLayoutEffect, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { runOperation } from "@/app/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
 import type { OperationResult } from "@/lib/operations";
@@ -93,7 +94,8 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
   const key = `${owner}/${repo}#${issue.number}`;
   const kind = turnKind(status);
   const progress = getProgress(status);
-  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  const [pending, startAction] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [hit, setHit] = useState<string | null>(null);
@@ -247,7 +249,7 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
       demo.operate({ owner, repo, number: issue.number }, kind, kind === "answer" ? answerBody : undefined);
       return;
     }
-    startTransition(async () => {
+    startAction(async () => {
       // 呼び出しが投げても（通信が切れた・古い画面のまま押した）、画面を落とさず、理由をこの行に出す（書きかけの答えを残す）
       const result = await callAction<OperationResult>(
         () =>
@@ -264,7 +266,11 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
         // 元のボタン（マージは「マージする」）と説明文に戻し、理由を出す
         setOp(null);
         setError(result.message);
-      } else if (result.ok) {
+        return;
+      }
+      // 画面の取り直しは裏で行う（骨組みに戻さず、届くまで今の中身を出し続ける）
+      startTransition(() => router.refresh());
+      if (result.ok) {
         succeed();
       } else {
         // 押した時点で段階が変わっていて何もしなかった：結果は出さず、今までどおりすぐ片づける

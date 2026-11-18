@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { startTransition as startRefresh, useEffect, useState, useTransition } from "react";
 import { runOperation } from "@/app/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
 import { DEMO_OP_DELAY_MS } from "@/lib/demo/ops";
@@ -16,6 +17,7 @@ type Phase = "idle" | "busy" | "done" | "gone";
 /** Paused の1行（Issue #520。docs/design.md の「Slots & Queue」）：理由・止めてからの時間・`今すぐ始める` */
 function PausedRow({ entry, now }: { entry: PausedEntry; now: Date }) {
   const demo = useDemo();
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -52,6 +54,8 @@ function PausedRow({ entry, now }: { entry: PausedEntry; now: Date }) {
         setPhase("idle");
         setError(result.message);
       } else {
+        // 画面の取り直しは裏で行う（骨組みに戻さず、届くまで今の中身を出し続ける）
+        startRefresh(() => router.refresh());
         setPhase(result.ok ? "done" : "gone");
       }
     });
