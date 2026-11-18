@@ -116,6 +116,42 @@ test.describe("デモの画面", () => {
     expect(focusedInCurrent).toBe(true);
   });
 
+  test("札を押した瞬間に、押した札が「今いる」の見た目になり、前にいた札は戻る（次の画面が遅くても）", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile", "札はPCの帯・左のバーで確かめる");
+    await page.goto("/demo");
+    await page.evaluate(() => document.fonts.ready);
+    const nav = page.getByRole("navigation", { name: "リポジトリ" }).first();
+    const home = nav.getByRole("link", { name: /^全部/ });
+    const target = nav.getByRole("link", { name: /^すべてのリポジトリ/ });
+    const bg = (l: typeof home) => l.evaluate((el) => getComputedStyle(el).backgroundColor);
+    const currentBg = await bg(home);
+    const idleBg = await bg(target);
+    expect(currentBg).not.toBe(idleBg);
+
+    // 次の画面のデータ（RSC）の返事を止めて、遅いページへの移動を作る
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(/[?&]_rsc=/, async (route) => {
+      await gate;
+      await route.continue();
+    });
+
+    await target.click();
+    // 返事を待たずに、押した札が「今いる」の見た目に、前にいた札が戻る
+    await expect(target.locator("[data-pending]")).toHaveCount(1);
+    expect(await bg(target)).toBe(currentBg);
+    expect(await bg(home)).toBe(idleBg);
+    // 上の帯・左のバーは消えない
+    await expect(page.locator("header")).toBeVisible();
+    await expect(nav).toBeVisible();
+
+    release();
+    await expect(page).toHaveURL(/\/demo\/repos$/);
+    await expect(target).toHaveAttribute("aria-current", "page");
+  });
+
   test("横にはみ出さない", async ({ page }) => {
     for (const path of ["/demo", REPO_PAGE]) {
       await page.goto(path);
