@@ -228,6 +228,19 @@ GitHub の認証が切れたとき（サーバーで GitHub を呼んで **401**
   - 「動いている」件数の数え方は `isRunningStage`（企画中・AI作業中・CI中・レビュー中・修正中・公開中）。待機中（順番待ち・やり直し待ち）はどちらの数にも入れない。取れなかったリポジトリは数えない
 - `WATCHED_REPOS` に無いリポジトリのURLは 404
 
+### アプリのアイコン（全ページ共通）
+
+2026年11月19日、Issue #552。見た目は `docs/design.md` の「アプリのアイコン」。`src/app/` の直下に置くので、ログインの画面・デモ・`/auth-error` を含む全ページで、ログイン前でも取れる（ログインの確認は `(app)/layout.tsx` の中だけ）。
+
+| 出る所 | ファイル |
+| --- | --- |
+| タブ・ブックマーク | `src/app/icon.svg`（`<link rel="icon">`） |
+| iPhone のホーム画面 | `src/app/apple-icon.tsx`（180×180 の PNG、角丸なし） |
+| Android のホーム画面 | `src/app/manifest.ts`（`name`・`short_name` は `agent-desk`、`display: standalone`、`start_url: /`）と、`src/app/icons/` の下の PNG（192・512・maskable 512） |
+| アドレスバーの色 | `layout.tsx` の `viewport.themeColor`（ライトもダークも `#4f46e5`） |
+
+`favicon.ico` は置かない（依存を足さずには作れないため）。
+
 ### すべてのリポジトリ（`/repos`）
 
 2026年11月18日、Issue #451。監視中のリポジトリが増え（12個）、左のバー（スマホはメニュー）の一覧が長くなったので、左のバーには動きのあるリポジトリだけを出し、全部はこのページで一覧する。
