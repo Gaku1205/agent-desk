@@ -24,6 +24,9 @@ export type DemoOp = {
   issue?: { title: string; body: string };
 };
 
+/** 「あなたの番」のボタンを押してから、データに当てるまで（その間、ボタンは `〜中…`） */
+export const DEMO_OP_DELAY_MS = 420;
+
 /** デモで答えのコメントを書く人（bot ではない名前） */
 export const DEMO_ANSWER_AUTHOR = "you";
 

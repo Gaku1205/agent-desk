@@ -12,6 +12,7 @@ import {
   demoAutoAddResult,
   pressDemo,
 } from "@/lib/demo/data";
+import { DEMO_OP_DELAY_MS } from "@/lib/demo/ops";
 import {
   advancePlayback,
   isPlaybackDone,
@@ -38,8 +39,6 @@ const DEMO_PARALLEL_SETTINGS: ParallelSettings = { day: 3, night: 1, nightHours:
 
 /** 「デモでは実際には動きません」を出しておく長さ */
 const NOTICE_MS = 2000;
-/** 押してから、データに当てるまで（行が畳み終わる頃。光はその間に次の列へ飛んで行く） */
-const DEMO_OP_DELAY_MS = 420;
 
 /**
  * デモの画面全体。サンプルのデータと再生の状態を持ち、本物と同じ部品に渡す。
