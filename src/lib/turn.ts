@@ -22,6 +22,7 @@ import { latestQuestionComment, parseQuestionComment, type ParsedQuestion } from
 import { latestFactoryComment, parseFactoryTalk, type FactoryTalk } from "./factoryTalk";
 import { holdBlockingNote, parseHoldBlocking } from "./holdBlocking";
 import { turnKind } from "./turnKind";
+import { isAiReviewDone } from "./reviewDone";
 
 /** 「あなたの番」で押せる操作（サーバー側で実行する物） */
 export type OperationKind =
@@ -120,19 +121,22 @@ function operation(kind: OperationKind): TurnButton {
 }
 
 /** マージ待ちで `ai:hold` があり、まだレビューしていない */
-function needsReviewRequest(status: IssueStatus, data: Pick<RepoData, "comments">): boolean {
+function needsReviewRequest(
+  status: IssueStatus,
+  data: Pick<RepoData, "comments"> & Partial<Pick<RepoData, "pullChecks">>,
+): boolean {
   return (
     status.stage === "mergeWaiting" &&
     status.mergeWait === "hold" &&
     status.pull !== null &&
-    reviewOutcome(data.comments, status.pull.number) === null
+    !isAiReviewDone(data.comments, status.pull.number, data.pullChecks?.[status.pull.number])
   );
 }
 
 /** 段階から、出すボタンを決める */
 export function turnButtons(
   status: IssueStatus,
-  data: Pick<RepoData, "comments" | "pipeline">,
+  data: Pick<RepoData, "comments" | "pipeline"> & Partial<Pick<RepoData, "pullChecks">>,
 ): TurnButton[] {
   switch (status.stage) {
     case "stuck":
@@ -165,7 +169,7 @@ export function turnButtons(
 export function isOperationAvailable(
   kind: OperationKind,
   status: IssueStatus,
-  data: Pick<RepoData, "comments" | "pipeline">,
+  data: Pick<RepoData, "comments" | "pipeline"> & Partial<Pick<RepoData, "pullChecks">>,
 ): boolean {
   return turnButtons(status, data).some(
     (button) => button.type === "operation" && button.kind === kind,
