@@ -3,15 +3,62 @@ import { GitHubClient } from "./client";
 import { GitHubError } from "./errors";
 import { getReadRateLimit } from "./appToken";
 import {
+  getGraphqlRateHistory,
   getGraphqlRateLimit,
+  getRateHistory,
   getRateLimit,
   getRateLimits,
+  HISTORY_MAX_POINTS,
+  HISTORY_MS,
   parseGraphqlRateLimit,
   parseRateLimit,
   rateLimitForTest,
+  rememberGraphqlRateLimit,
+  rememberRateLimit,
 } from "./rateLimit";
 
 const TOKEN = "ghp_secret_token_value";
+
+describe("残りの履歴", () => {
+  beforeEach(() => rateLimitForTest.clear());
+
+  const headers = (remaining: number) =>
+    new Headers({ "x-ratelimit-remaining": String(remaining), "x-ratelimit-reset": "2000000000" });
+
+  it("覚えるたびに時刻つきの点を足す。キーにトークンそのものは入らない", () => {
+    rememberRateLimit(TOKEN, headers(4000), 1_000);
+    rememberRateLimit(TOKEN, headers(3900), 2_000);
+    expect(getRateHistory(TOKEN)).toEqual([
+      { at: 1_000, remaining: 4000, resetAt: 2000000000 },
+      { at: 2_000, remaining: 3900, resetAt: 2000000000 },
+    ]);
+    expect(rateLimitForTest.historyKeys().join("")).not.toContain(TOKEN);
+  });
+
+  it("GraphQL は別に覚える", () => {
+    rememberGraphqlRateLimit(TOKEN, { remaining: 4900, resetAt: 5 }, 1_000);
+    expect(getGraphqlRateHistory(TOKEN)).toHaveLength(1);
+    expect(getRateHistory(TOKEN)).toHaveLength(0);
+  });
+
+  it("残りが無い返事は覚えない", () => {
+    rememberRateLimit(TOKEN, new Headers(), 1_000);
+    expect(getRateHistory(TOKEN)).toHaveLength(0);
+  });
+
+  it("25時間より古い点は捨てる", () => {
+    rememberRateLimit(TOKEN, headers(4000), 0);
+    rememberRateLimit(TOKEN, headers(3900), HISTORY_MS + 1);
+    expect(getRateHistory(TOKEN)).toHaveLength(1);
+  });
+
+  it("点の数の上限を超えたら古い物から捨てる", () => {
+    for (let i = 0; i < HISTORY_MAX_POINTS + 5; i++) rememberRateLimit(TOKEN, headers(1000), 1000 + i);
+    const points = getRateHistory(TOKEN);
+    expect(points).toHaveLength(HISTORY_MAX_POINTS);
+    expect(points[0].at).toBe(1005);
+  });
+});
 
 function res(status: number, headers: Record<string, string>, body: unknown = {}): Response {
   return new Response(status === 304 ? null : JSON.stringify(body), { status, headers });

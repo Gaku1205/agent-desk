@@ -39,11 +39,31 @@ export function parseGraphqlRateLimit(value: unknown): RateLimitInfo {
   return { remaining, resetAt: Number.isNaN(resetMs) ? null : Math.floor(resetMs / 1000) };
 }
 
+/** 履歴を持つ時間（直近24時間に、余裕の1時間） */
+export const HISTORY_MS = 25 * 60 * 60 * 1000;
+/** 1つのキーが持つ点の上限（超えたら古い物から捨てる） */
+export const HISTORY_MAX_POINTS = 2000;
+
+/** 残りを覚えたときの点（`at` は ms、`resetAt` はUNIX秒） */
+export type RateHistoryPoint = { at: number; remaining: number; resetAt: number | null };
+
+/** サーバーのメモリ。キーは `rateLimits` と同じ（トークンのハッシュ）。再起動で空に戻る */
+const rateHistory = new Map<string, RateHistoryPoint[]>();
+
+function recordHistory(key: string, info: RateLimitInfo, nowMs: number): void {
+  if (info.remaining === null) return;
+  const points = (rateHistory.get(key) ?? []).filter((point) => nowMs - point.at <= HISTORY_MS);
+  points.push({ at: nowMs, remaining: info.remaining, resetAt: info.resetAt });
+  if (points.length > HISTORY_MAX_POINTS) points.splice(0, points.length - HISTORY_MAX_POINTS);
+  rateHistory.set(key, points);
+}
+
 /** 返事のヘッダーに残りがあれば、そのトークンの分として覚える（無ければ前の物のまま） */
-export function rememberRateLimit(token: string, headers: Headers): void {
+export function rememberRateLimit(token: string, headers: Headers, nowMs: number = Date.now()): void {
   const info = parseRateLimit(headers);
   if (info.remaining === null) return;
   rateLimits.set(tokenKey(token), info);
+  recordHistory(tokenKey(token), info, nowMs);
 }
 
 /** GraphQL の枠（REST とは別）のキー */
@@ -52,9 +72,20 @@ function graphqlKey(token: string): string {
 }
 
 /** GraphQL の残り（問い合わせの `rateLimit`、無ければ返事のヘッダー）を、そのトークンの分として覚える */
-export function rememberGraphqlRateLimit(token: string, info: RateLimitInfo): void {
+export function rememberGraphqlRateLimit(token: string, info: RateLimitInfo, nowMs: number = Date.now()): void {
   if (info.remaining === null) return;
   rateLimits.set(graphqlKey(token), info);
+  recordHistory(graphqlKey(token), info, nowMs);
+}
+
+/** そのトークンの REST の残りの履歴（古い順。トークンそのものは入っていない） */
+export function getRateHistory(token: string): RateHistoryPoint[] {
+  return rateHistory.get(tokenKey(token)) ?? [];
+}
+
+/** そのトークンの GraphQL の残りの履歴（古い順） */
+export function getGraphqlRateHistory(token: string): RateHistoryPoint[] {
+  return rateHistory.get(graphqlKey(token)) ?? [];
 }
 
 /** 覚えている REST の残りと回復する時刻。まだ返事を受けていなければ不明 */
@@ -75,5 +106,9 @@ export function getRateLimits(token: string): RateLimitInfo[] {
 /** テスト用 */
 export const rateLimitForTest = {
   keys: (): string[] => [...rateLimits.keys()],
-  clear: (): void => rateLimits.clear(),
+  clear: (): void => {
+    rateLimits.clear();
+    rateHistory.clear();
+  },
+  historyKeys: (): string[] => [...rateHistory.keys()],
 };

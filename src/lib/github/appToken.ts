@@ -9,7 +9,14 @@ import {
 } from "./appAuth";
 import { GitHubClient, type Fetcher } from "./client";
 import { GitHubError } from "./errors";
-import { getRateLimits, type RateLimitInfo } from "./rateLimit";
+import {
+  getGraphqlRateHistory,
+  getGraphqlRateLimit,
+  getRateHistory,
+  getRateLimits,
+  type RateHistoryPoint,
+  type RateLimitInfo,
+} from "./rateLimit";
 
 // このファイルはサーバーだけで使う（App の秘密鍵・インストールの鍵を扱う）。
 // クライアントのコンポーネントから import しない。鍵はログ・エラー文に出さない。
@@ -281,6 +288,71 @@ export function lowestRateLimit(
     if (lowest.remaining === null || info.remaining < lowest.remaining) lowest = info;
   }
   return lowest;
+}
+
+/** `GET /rate_limit` を覚える時間 */
+export const APP_RATE_LIMIT_TTL_MS = 5 * 60 * 1000;
+
+export type AppRateLimit = RateLimitInfo & { limit: number | null };
+
+let appRateLimitMemo: { at: number; value: AppRateLimit } | null = null;
+
+const UNKNOWN_APP_RATE_LIMIT: AppRateLimit = { remaining: null, resetAt: null, limit: null };
+
+/** `GET /rate_limit` の返事の `resources.core`。形が違えば不明 */
+export function parseAppRateLimit(body: unknown): AppRateLimit {
+  const core = ((body ?? {}) as { resources?: { core?: Record<string, unknown> } }).resources?.core;
+  const num = (value: unknown): number | null =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+  return { remaining: num(core?.remaining), resetAt: num(core?.reset), limit: num(core?.limit) };
+}
+
+/**
+ * パイプラインの App のインストールの鍵で `GET /rate_limit`（これ自体は回数を消費しない）を呼び、REST の残りを取る。
+ * 5分覚える（失敗も5分）。App の鍵が使えないときは不明。新しい環境変数は使わない
+ */
+export async function getAppRateLimit(
+  repo: WatchedRepo | undefined,
+  options: { env?: Env; fetcher?: Fetcher; nowMs?: number } = {},
+): Promise<AppRateLimit> {
+  const nowMs = options.nowMs ?? Date.now();
+  if (appRateLimitMemo && nowMs - appRateLimitMemo.at < APP_RATE_LIMIT_TTL_MS) return appRateLimitMemo.value;
+  let value = UNKNOWN_APP_RATE_LIMIT;
+  if (repo) {
+    const access = await resolveAppAccess(repo, options);
+    if (access) {
+      try {
+        const body = await new GitHubClient(access.token, options.fetcher ?? fetch, {
+          source: "app",
+          keyId: access.keyId,
+        }).get("/rate_limit");
+        value = parseAppRateLimit(body);
+      } catch {
+        value = UNKNOWN_APP_RATE_LIMIT;
+      }
+    }
+  }
+  appRateLimitMemo = { at: nowMs, value };
+  return value;
+}
+
+/** テスト用：`GET /rate_limit` の記憶を消す */
+export function clearAppRateLimitForTest(): void {
+  appRateLimitMemo = null;
+}
+
+/** 使った App の鍵（インストールごと）の REST の残りの履歴 */
+export function getAppRestHistories(): RateHistoryPoint[][] {
+  return [...usedInstallationIds].map((id) => getRateHistory(installationKeyId(id)));
+}
+
+/** ログインした人のトークンと、使った App の鍵の GraphQL の残りの履歴・いまの残り */
+export function getReadsGraphql(userToken: string): { histories: RateHistoryPoint[][]; current: RateLimitInfo } {
+  const keys = [userToken, ...[...usedInstallationIds].map(installationKeyId)];
+  return {
+    histories: keys.map(getGraphqlRateHistory),
+    current: lowestRateLimit(keys.map(getGraphqlRateLimit)),
+  };
 }
 
 /** ログインした人のトークンと、使った App の鍵の、REST と GraphQL の残りのうち、いちばん少ない物 */

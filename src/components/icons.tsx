@@ -192,6 +192,17 @@ export function ChipIcon({ size = LABEL }: IconProps) {
   );
 }
 
+/** メーター（Dashboard の GitHub limits）：半円の目盛りと針 */
+export function GaugeIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M4 18a8 8 0 1 1 16 0" />
+      <path d="M12 18l4-5" />
+      <path d="M12 7v1.5M6.3 9.3l1 1M17.7 9.3l-1 1" />
+    </LineIcon>
+  );
+}
+
 /** Issueを書く＝ペン付きの四角 */
 /** 棒グラフ（Dashboard） */
 export function ChartIcon({ size = LABEL }: IconProps) {

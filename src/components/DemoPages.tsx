@@ -12,6 +12,7 @@ import { DEFAULT_PARALLEL_SETTINGS } from "@/lib/parallel";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems, filterTurnItems } from "@/lib/turn";
 import { aiUsageAll } from "@/lib/dashboard/aiUsage";
+import { hourStarts, type GithubLimits } from "@/lib/dashboard/githubLimits";
 import { summarizeAll } from "@/lib/dashboard/summary";
 import { Dashboard } from "./Dashboard";
 import { useDemoState } from "./DemoContext";
@@ -101,13 +102,34 @@ export function DemoRepos() {
   return <RepoList rows={buildRepoRows(repos, results, items, now)} now={now.toISOString()} nav={nav} />;
 }
 
+/** デモの GitHub limits：デモのデータ（途中に足りない時間帯が1つ、上限を超えた時間帯が1つ） */
+function demoGithubLimits(now: Date, runs: number | null): GithubLimits {
+  const reset = Math.floor(now.getTime() / 1000) + 22 * 60;
+  const pipelineUsed: (number | null)[] = [
+    420, 380, 150, 90, 60, 40, 30, 20, 25, 60, 410, 880, 1500, 2100, 2650, 3100, 2400, 5200, 3900, 1800, null, 900, 1300, 1088,
+  ];
+  const readsUsed: (number | null)[] = [
+    80, 60, 40, 40, 30, 30, 20, 20, 30, 90, 160, 240, 310, 380, 420, 380, 350, 410, 380, 300, null, 180, 220, 240,
+  ];
+  return {
+    pipeline: { remaining: 3912, limit: 5000, resetAt: reset },
+    reads: { remaining: 4620, limit: 5000, resetAt: reset },
+    hourStarts: hourStarts(now.getTime()),
+    pipelineUsed,
+    readsUsed,
+    runs,
+  };
+}
+
 /** デモの Dashboard：デモのデータで、本物と同じ集計を出す */
 export function DemoDashboard() {
   const { results, now, repos } = useDemoState();
   const nav = useDemoNav();
+  const summaries = summarizeAll(results, now);
   return (
     <Dashboard
-      summaries={summarizeAll(results, now)}
+      summaries={summaries}
+      limits={demoGithubLimits(now, summaries["24h"].runs)}
       aiUsages={aiUsageAll(results, now)}
       now={now.toISOString()}
       repoCount={repos.length}
