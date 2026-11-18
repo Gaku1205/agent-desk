@@ -11,6 +11,7 @@ import {
 } from "@/lib/flowExtraBranches";
 import type { FlowTargetData as FlowTarget } from "@/lib/flowTarget";
 import { CheckIcon, CrossIcon, FlowStepIcon, SpinnerIcon } from "./icons";
+import { QueueIcon } from "./QueueIcon";
 import styles from "./FlowMap.module.css";
 
 function StateMark({ state }: { state: FlowState }) {
@@ -103,6 +104,11 @@ function ExtraBranchBox({ branch }: { branch: ExtraBranch }) {
             <span className={styles.try} role="img" aria-label={extraRowLabel(row)}>
               <StateMark state={row.state} />
               <span className={styles.tryName} aria-hidden="true">
+                {row.label === "順番待ち" && (
+                  <span className={styles.tryIcon}>
+                    <QueueIcon size={12} />
+                  </span>
+                )}
                 {row.label}
               </span>
             </span>

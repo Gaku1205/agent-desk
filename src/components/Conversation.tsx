@@ -22,6 +22,7 @@ import {
   visiblePast,
 } from "@/lib/pastLog";
 import { LampLabel, LampWait } from "./LampMark";
+import { QueueIcon } from "./QueueIcon";
 import { SmartLink } from "./SmartLink";
 import styles from "./Conversation.module.css";
 
@@ -372,8 +373,11 @@ export function Conversation({
           aria-controls="queue-list"
           onClick={() => setQueueOpen((open) => !open)}
         >
-          <span>
-            順番待ち <span className="num">{queue.length}</span>件（次：<span className="num">{nextLabel}</span>）
+          <span className={styles.queueIcon}>
+            <QueueIcon size={12} />
+            <span>
+              順番待ち <span className="num">{queue.length}</span>件（次：<span className="num">{nextLabel}</span>）
+            </span>
           </span>
           <span aria-hidden="true"> {queueOpen ? "▴" : "▾"}</span>
         </button>
@@ -387,18 +391,21 @@ export function Conversation({
               return (
                 <li key={message.key} className={styles.queueRow} data-key={message.key}>
                   <p className={styles.meta}>
-                    <button
-                      type="button"
-                      className={`${styles.pick} num`}
-                      aria-pressed={isSelected || isOpen}
-                      aria-label={`${label} の進捗図を見る`}
-                      onClick={() => {
-                        if (isDesktop()) onSelect?.(message.key);
-                        else toggleOpen(message.key);
-                      }}
-                    >
-                      {label}
-                    </button>
+                    <span className={styles.queueIcon}>
+                      <QueueIcon size={12} />
+                      <button
+                        type="button"
+                        className={`${styles.pick} num`}
+                        aria-pressed={isSelected || isOpen}
+                        aria-label={`${label} の進捗図を見る`}
+                        onClick={() => {
+                          if (isDesktop()) onSelect?.(message.key);
+                          else toggleOpen(message.key);
+                        }}
+                      >
+                        {label}
+                      </button>
+                    </span>
                     <span className={styles.sep} aria-hidden="true">
                       ·
                     </span>
