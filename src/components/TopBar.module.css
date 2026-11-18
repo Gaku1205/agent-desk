@@ -401,12 +401,13 @@
 
 /* 狭い左ペインで1行に収める：凡例の間と点の間を詰める */
 .side .sideLbl {
-  gap: 5px;
-  margin: 0 4px 8px;
+  gap: 3px;
+  /* アイコンの左端は下の札のアイコン（22px）、凡例の右端は札の数の右端（202px）にそろえる */
+  margin: 0 10px 8px;
 }
 
 .side .key {
-  gap: 6px;
+  gap: 4px;
 }
 
 .side .keyTurn,
@@ -690,9 +691,15 @@
     font-size: 12px;
   }
 
+  /* 中身の左端は上の項目のアイコンの左端（29px）。押せる範囲は今のまま（内側の余白で合わせる） */
+  .foot .demo,
+  .foot .paused {
+    padding-left: 7px;
+  }
+
   .foot .sync {
     height: 44px;
-    padding: 0;
+    padding: 0 0 0 7px;
   }
 
 }
