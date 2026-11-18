@@ -182,6 +182,18 @@ export function RepoIcon({ size = LABEL }: IconProps) {
 }
 
 /** Issueを書く＝ペン付きの四角 */
+/** 棒グラフ（Dashboard） */
+export function ChartIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M3 21h18" />
+      <path d="M6 21V12" />
+      <path d="M12 21V4" />
+      <path d="M18 21v-6" />
+    </LineIcon>
+  );
+}
+
 export function WriteIcon({ size = LABEL }: IconProps) {
   return (
     <LineIcon size={size}>

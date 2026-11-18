@@ -1,0 +1,220 @@
+/* Dashboard（/dashboard）。左のバーはホームと同じ、中央は最大1080pxの1本の列（docs/design.md の「Dashboard」） */
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 36px; /* 区画の間（後の Issue の区画が下に続く） */
+  width: min(1080px, 100% - 2 * var(--gutter));
+  min-height: calc(100svh - var(--top-h));
+  margin: 0 auto;
+  padding: 56px 0 96px;
+}
+
+.head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: -22px; /* 見出しと中身の間は14px（gap 36px − 22px） */
+}
+
+.title {
+  min-width: 0;
+}
+
+.h1 {
+  color: var(--bone);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.range {
+  margin: 4px 0 0;
+  color: var(--mute);
+  font-size: 13px;
+}
+
+/* 期間の切り替え：選んでいる物は地 --well・--bone・500、ほかは --bone-2 */
+.tabs {
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 36px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--hair);
+}
+
+.tab {
+  padding: 0 14px;
+  border-radius: 8px;
+  color: var(--bone-2);
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: var(--bone);
+}
+
+.tab[aria-selected="true"] {
+  background: var(--well);
+  color: var(--bone);
+  font-weight: 500;
+}
+
+/* まとめ：コンテナクエリで、表の行を2段に折る */
+.summary {
+  container-type: inline-size;
+}
+
+.sentence {
+  margin: 0;
+  color: var(--bone);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+/* 上下を線で区切った表（カードのタイルにしない） */
+.table {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 24px;
+  margin: 24px 0 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+}
+
+.cell {
+  min-width: 0;
+}
+
+.label {
+  color: var(--mute);
+  font-size: 12.5px;
+}
+
+.value {
+  margin: 2px 0 0;
+  color: var(--bone);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.note {
+  margin: 0;
+  color: var(--mute);
+  font-size: 12.5px;
+}
+
+@container (max-width: 559px) {
+  .sentence {
+    font-size: 22px;
+  }
+
+  .table {
+    display: block;
+    padding: 0;
+  }
+
+  .cell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 16px;
+    align-items: baseline;
+    padding: 12px 0;
+  }
+
+  .cell + .cell {
+    box-shadow: 0 -1px 0 var(--hair-2);
+  }
+
+  .value {
+    margin: 0;
+  }
+
+  .note {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ───── PCの3ペイン（左のバーはホームと同じ。右の進捗図の列は無い） ───── */
+@media (min-width: 900px) {
+  .panes {
+    display: grid;
+    grid-template-columns: 224px minmax(0, 1fr);
+    align-items: start;
+    transition: grid-template-columns 150ms var(--ease);
+  }
+
+  .side {
+    position: sticky;
+    top: var(--top-h);
+    height: calc(100svh - var(--top-h));
+    overflow: hidden;
+    box-shadow: inset -1px 0 0 var(--hair);
+  }
+
+  .side > aside {
+    width: 224px;
+    padding-top: 44px;
+  }
+
+  .sideToggle {
+    position: fixed;
+    top: calc(var(--top-h) + 8px);
+    left: 12px;
+    z-index: 6;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    color: var(--mute);
+  }
+
+  .sideToggle:hover {
+    color: var(--bone);
+  }
+
+  :global(:root[data-side="closed"]) .panes {
+    grid-template-columns: 0 minmax(0, 1fr);
+  }
+
+  :global(:root[data-side="closed"]) .side {
+    overflow: hidden;
+    visibility: hidden;
+    box-shadow: none;
+    transition: visibility 0s linear 150ms;
+  }
+}
+
+/* ───── スマホ（幅899px以下）：左のバーを隠して1本の列 ───── */
+@media (max-width: 899px) {
+  .sideToggle,
+  .side {
+    display: none;
+  }
+
+  .main {
+    padding: 40px 0 72px;
+  }
+
+  .h1 {
+    font-size: 21px;
+  }
+
+  .tab {
+    min-width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panes {
+    transition: none;
+  }
+}
