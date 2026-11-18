@@ -105,6 +105,14 @@ describe("GraphQL の返事 → 今の型（REST からの変換と同じ結果�
     expect(pull.mergeCommitSha).toBeNull();
   });
 
+  it("mergeable が CONFLICTING のときだけ conflicting を true にする", () => {
+    expect(convertGqlPull(gqlPull(11, { mergeable: "CONFLICTING" })).conflicting).toBe(true);
+    expect(convertGqlPull(gqlPull(12, { mergeable: "MERGEABLE" })).conflicting).toBeFalsy();
+    expect(convertGqlPull(gqlPull(13, { mergeable: "UNKNOWN" })).conflicting).toBeFalsy();
+    expect(convertGqlPull(gqlPull(14, { mergeable: null })).conflicting).toBeFalsy();
+    expect(convertGqlPull(gqlPull(15, {})).conflicting).toBeFalsy();
+  });
+
   it("変更ファイルの名前を持たせる", () => {
     const pull = convertGqlPull(
       gqlPull(6, { files: { totalCount: 2, nodes: [{ path: "a.ts" }, { path: "b.ts" }] } }),

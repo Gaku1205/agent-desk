@@ -12,6 +12,7 @@ import {
 } from "@/lib/parallel";
 import { useDemo } from "./DemoContext";
 import { SaveIcon } from "./icons";
+import { broadcastParallelSettings, useParallelSaved } from "./ParallelContext";
 import styles from "./ParallelSetting.module.css";
 import { Select } from "./Select";
 import settingsStyles from "./SettingsSections.module.css";
@@ -55,6 +56,7 @@ export function ParallelSetting({ initial }: { initial: ParallelSettings }) {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [saving, startSaving] = useTransition();
   const demo = useDemo();
+  const applySaved = useParallelSaved();
   const minute = useSyncExternalStore(subscribeMinute, minuteNow, () => null);
 
   const draft: ParallelSettings = {
@@ -102,7 +104,11 @@ export function ParallelSetting({ initial }: { initial: ParallelSettings }) {
         () => saveParallel(checked.settings),
         () => ({ ok: false, message: ACTION_UNREACHABLE_MESSAGE }),
       );
-      if (result.ok) setSaved(checked.settings);
+      if (result.ok) {
+        setSaved(checked.settings);
+        applySaved?.(checked.settings);
+        broadcastParallelSettings(checked.settings);
+      }
       setStatus(result.ok ? { kind: "saved" } : { kind: "error", message: result.message });
     });
   }

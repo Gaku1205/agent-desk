@@ -31,6 +31,32 @@ function status(overrides: Partial<IssueStatus>): IssueStatus {
   };
 }
 
+describe("chatLine（コンフリクト）", () => {
+  const conflictPull = { conflicting: true } as NonNullable<IssueStatus["pull"]>;
+
+  it("マージ待ちでコンフリクトなら、自動でマージしますを出さない", () => {
+    for (const mergeWait of ["autoMerge", "needsReview"] as const) {
+      expect(chatLine(status({ stage: "mergeWaiting", mergeWait, pull: conflictPull }))).toEqual({
+        speaker: "パイプライン",
+        text: "main とぶつかっています",
+      });
+    }
+  });
+
+  it("修正の依頼が出ているときは、AIが解消しますを付ける", () => {
+    expect(chatLine(status({ stage: "fixing", pull: conflictPull }))).toEqual({
+      speaker: "AI",
+      text: "main とぶつかっています。AIが解消します",
+    });
+  });
+
+  it("コンフリクトでなければ今までどおり", () => {
+    expect(
+      chatLine(status({ stage: "mergeWaiting", mergeWait: "autoMerge", pull: { conflicting: false } as NonNullable<IssueStatus["pull"]> })).text,
+    ).toBe("CIもレビューもOKです。まもなく自動でマージします");
+  });
+});
+
 describe("chatLine", () => {
   it("AIの番の段階は「〇〇が△△しています」の形（頭に「いま」を付けない）", () => {
     expect(chatLine(status({ stage: "planning" }))).toEqual({ speaker: "企画AI", text: "企画AIがIssueを清書しています" });
