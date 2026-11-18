@@ -1,5 +1,6 @@
 import { RepoList } from "@/components/RepoList";
 import { getSignedInLogin } from "@/lib/auth";
+import { loadErrorsOf } from "@/lib/loadErrors";
 import { loadTurns } from "@/lib/loadTurns";
 import { buildRepoRows } from "@/lib/repoList";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
@@ -16,6 +17,7 @@ export default async function ReposPage() {
     <RepoList
       rows={buildRepoRows(repos, results, items, now)}
       now={now.toISOString()}
+      errors={loadErrorsOf(results)}
       nav={{
         repos,
         counts: countTurnItems(items),

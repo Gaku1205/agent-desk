@@ -2,6 +2,7 @@ import { Dashboard } from "@/components/Dashboard";
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
 import { loadGithubLimits } from "@/lib/github/limits";
 import { buildLocalBundles } from "@/lib/dashboard/bundle";
+import { loadErrorsOf } from "@/lib/loadErrors";
 import { loadTurns } from "@/lib/loadTurns";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
@@ -32,6 +33,7 @@ export default async function DashboardPage() {
       limits={limits}
       now={now.toISOString()}
       repoCount={repos.length}
+      errors={loadErrorsOf(results)}
       nav={{
         repos,
         counts: countTurnItems(items),

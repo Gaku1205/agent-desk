@@ -2,6 +2,7 @@ import { Lanes } from "@/components/Lanes";
 import { getSignedInLogin } from "@/lib/auth";
 import { buildLanesSource } from "@/lib/lanes/source";
 import { buildUsageSource } from "@/lib/lanes/usage";
+import { loadErrorsOf } from "@/lib/loadErrors";
 import { loadTurns } from "@/lib/loadTurns";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
@@ -22,6 +23,7 @@ export default async function LanesPage() {
       usage={buildUsageSource(results, now)}
       items={items}
       now={now.toISOString()}
+      errors={loadErrorsOf(results)}
       nav={{
         repos,
         counts: countTurnItems(items),
