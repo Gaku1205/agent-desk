@@ -524,12 +524,12 @@ CIが失敗したとき、CIの行の下に字下げした枠が開き、中に�
 
 - 1回の問い合わせで取る物（`repository(owner, name)` の中）
   - `isTemplate`
-  - Issue：`issues(first: 100, filterBy: { since: 直近14日の境目 }, orderBy: { field: UPDATED_AT, direction: DESC })` の番号・題名・本文・状態・ラベル・URL・作成・更新・閉じた時刻、コメント（`comments(last: 100)`。本文・作成と更新の時刻・URL・作者。更新の時刻とURLは「AIが今していること」に使う）、ラベルの付け外し（`timelineItems(last: 50, itemTypes: [LABELED_EVENT, UNLABELED_EVENT])`）
-  - 人間待ちの Issue（Issue #356）：開いている Issue のうち、`ai:stuck`・`ai:skip`・`ai:question`・`factory:wait` のどれかが付いている物は、更新日で絞らずに取る。ラベルの絞り込みは「すべて付いている」なので、ラベルごとに `issues(first: 100, states: OPEN, labels: ["ai:stuck"], orderBy: { field: UPDATED_AT, direction: DESC })` を別名（alias）で4つ、同じ問い合わせの中に足す（`since` は付けない。取る項目は上の Issue と同じ）。HTTP の呼び出しは増えない。ページ送りはしない（各100件まで）。続きの問い合わせ（`withMain: false`）には入れない
-  - PR：`pullRequests(first: 100, orderBy: { field: UPDATED_AT, direction: DESC })` の番号・題名・本文・状態・マージの時刻・ラベル・URL・ブランチ名（`headRefName`）・先頭コミット（`headRefOid`）・作成・更新の時刻、コメント・ラベルの付け外し（Issue と同じ）、先頭コミットのチェック（`commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) } } } }` の CheckRun の名前・状態・結果・作ったアプリ・完了時刻）、マージコミット（`mergeCommit { oid status { contexts } }` の context・状態・説明・リンク先・時刻）
+  - Issue：`issues(first: 50, filterBy: { since: 直近14日の境目 }, orderBy: { field: UPDATED_AT, direction: DESC })` の番号・題名・本文・状態・ラベル・URL・作成・更新・閉じた時刻、コメント（`comments(last: 100)`。本文・作成と更新の時刻・URL・作者。更新の時刻とURLは「AIが今していること」に使う）、ラベルの付け外し（`timelineItems(last: 50, itemTypes: [LABELED_EVENT, UNLABELED_EVENT])`）
+  - 人間待ちの Issue（Issue #356）：開いている Issue のうち、`ai:stuck`・`ai:skip`・`ai:question`・`factory:wait` のどれかが付いている物は、更新日で絞らずに取る。ラベルの絞り込みは「すべて付いている」なので、ラベルごとに `issues(first: 30, states: OPEN, labels: ["ai:stuck"], orderBy: { field: UPDATED_AT, direction: DESC })` を別名（alias）で4つ、同じ問い合わせの中に足す（`since` は付けない。取る項目は上の Issue と同じ）。HTTP の呼び出しは増えない。ページ送りはしない（各30件まで。更新の新しい順）。続きの問い合わせ（`withMain: false`）には入れない
+  - PR：`pullRequests(first: 50, orderBy: { field: UPDATED_AT, direction: DESC })` の番号・題名・本文・状態・マージの時刻・ラベル・URL・ブランチ名（`headRefName`）・先頭コミット（`headRefOid`）・作成・更新の時刻、コメント・ラベルの付け外し（Issue と同じ）、先頭コミットのチェック（`commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) } } } }` の CheckRun の名前・状態・結果・作ったアプリ・完了時刻）、マージコミット（`mergeCommit { oid status { contexts } }` の context・状態・説明・リンク先・時刻）
   - main の直近30コミットの公開ステータス（「main の最後に公開が成功した時刻」）
   - 回数制限：`rateLimit { cost remaining resetAt }`（「更新」）
-- ページ送り：Issue は `pageInfo` に続きがあれば、PR は続きがあり、かつそのページのいちばん古いPRの更新が直近14日の中なら、続きだけ（`after` に `endCursor`）をもう1回問い合わせる。Issue・PR それぞれ最大5ページ（500件）まで。続きの問い合わせには、main は入れない
+- ページ送り：Issue は `pageInfo` に続きがあれば、PR は続きがあり、かつそのページのいちばん古いPRの更新が直近14日の中なら、続きだけ（`after` に `endCursor`）をもう1回問い合わせる。Issue・PR それぞれ最大10ページ（500件）まで。続きの問い合わせには、main は入れない
 - 取ったあとで直近14日に絞る：Issue と PR は更新時刻、コメントは作成時刻。ただし人間待ちの Issue（開いていて、上の4ラベルのどれかが付いている物）は絞らない（コメント・ラベルの付け外しも同じ）。直近14日の Issue と人間待ちの Issue は、番号で重複を除いて合わせる。閉じた Issue は、ラベルが付いていても14日より前なら取らない
 - 今の型への変え方（REST から変えていたときと同じ結果にする。`src/lib/github/graphql.test.ts` で REST からの変換と比べる）
   - 状態・結果の英字（`OPEN`・`COMPLETED`・`SUCCESS` など）は小文字にする。PRの `MERGED` は `closed`（マージ済みかはマージの時刻で決める）
@@ -541,7 +541,8 @@ CIが失敗したとき、CIの行の下に字下げした枠が開き、中に�
 - GraphQL の返事に `errors` があるときは、そのリポジトリを取れなかったことにする（`type` が `RATE_LIMITED` ならレート制限、`NOT_FOUND` なら見つからない、`FORBIDDEN` なら権限なし、ほかは「取れませんでした」。HTTP の 401・403・404・429 は REST と同じ分け方）
 - GraphQL で取れない物（パイプラインの状態＝`pipeline.yml` の実行、見張り役の最後の実行＝`watchdog.yml` の実行、ランプの実行＝`actions/runs` の3つ。Actions の runs）は REST のまま。ただしリポジトリごとに5分に1回だけ取り直し、間はサーバーのメモリに覚えた前の値を使う（キーはトークンのハッシュ＋リポジトリ、件数に上限あり、再起動で消えてよい）
 - **今のステップ名**（「AIが今していること」。2026年11月16日、Issue #347）：作業中のコメントが無い、開いている Issue のうち、関わる実行が実行中（`in_progress`）の物だけ、その中でいちばん新しく更新された実行1つについて `GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs?filter=latest&per_page=30` を呼ぶ（リポジトリごとに最大3つ。選び方は `src/lib/aiActivity.ts` の `stepProbeRunIds`、返事の読み方は `currentStepFromJobs`）。ETag つき（下の箇条書き）で、同期のたびに取る（間隔は「更新」のまま）。実行の一覧（`actions/runs`）は今までどおり5分に1回。取れなかったときは、その実行のステップ名だけを出さない（ほかは落とさない）
-- 呼ぶ数の目安：監視リポジトリ3つ・直近14日のPRが100件で、1回の同期が GraphQL 6回以内、REST 0回（人間待ちの一覧は同じ問い合わせの中なので増えない。5分ごとの Actions の runs と、5分に1回までの「新しいサービスを自動で足す」の探し方を除く）
+- 点数（GraphQL の回数制限。2026年11月18日）：GraphQL の枠（1時間5,000点）は、パイプラインの App を入れた全部のリポジトリで分け合い、点数は実際に返った件数ではなく、問い合わせに書いた `first` の数で決まる（つながり＝connection ごとに、親の数だけ「要求」を数え、合計を100で割って四捨五入。返事の `rateLimit.cost`）。1ページの件数（`REPO_PAGE_SIZE`＝50、人間待ちは `WAITING_PAGE_SIZE`＝30。`src/lib/github/graphql.ts`）は、この点数を抑えるための数。見積もりは純粋関数 `repoQueryCost`（入力：Issue・PR・main を含めるか。出力：点数）：1回目の問い合わせ（Issue 151＋人間待ち 364＋PR 251＋main 1＝767 要求）が8点、続きは Issue だけ2点・PR だけ3点・両方4点。Issue・PR・人間待ちを100件ずつ取っていたときは1回目が20点（2,007 要求）で、12個のリポジトリを Webhook のたびに取り直すと、1時間で5,000点を使い切った。件数を増やすときは、この点数を確かめる（`src/lib/github/fetchCount.test.ts`）
+- 呼ぶ数の目安：監視リポジトリ3つ・直近14日のPRが100件で、1回の同期が GraphQL 6回以内（1リポジトリにつき、1回目とPRの続きの2回）、REST 0回（人間待ちの一覧は同じ問い合わせの中なので増えない。5分ごとの Actions の runs と、5分に1回までの「新しいサービスを自動で足す」の探し方を除く）
 - REST の問い合わせ（Actions の runs など）は、前回の返事の `ETag` を `If-None-Match` に付けて送る。変わっていなければ 304 が返り、GitHubの回数制限に数えられない。304 のときは前回の中身を使う（サーバーのメモリに、トークンとURLごとに覚えておく。トークンそのものはキーにせず、ハッシュにする）。GraphQL（POST）には ETag は無い
 
 ### Webhook で取り直す
@@ -551,18 +552,20 @@ GitHub から「変わった」と知らせてもらい（パイプラインの 
 - 受け取る：Route Handler `POST /api/github/webhook`（`src/app/api/github/webhook/route.ts`）。ログインは要らない（署名が認証の代わり。ログインの確かめは `(app)` のレイアウトの中だけで、このパスは止めない）。判定は `decideWebhook`（入力：環境変数の合言葉・署名・イベント・本文・監視リポジトリ。出力：返す番号と、無効にするリポジトリ）
   - 環境変数 `GITHUB_WEBHOOK_SECRET` が無い（空）ときは 404（Webhook を使わない設定）
   - `X-Hub-Signature-256`（`sha256=` ＋本文の HMAC-SHA256 の16進）を、`GITHUB_WEBHOOK_SECRET` で Node の `crypto` を使って確かめる（比べるのは `timingSafeEqual`。`verifyWebhookSignature`）。合わない・無いときは 401
-  - 使うイベント（`X-GitHub-Event`）は `issues`・`issue_comment`・`pull_request`・`pull_request_review_comment`・`check_run`・`check_suite`・`status`・`workflow_run`・`label` だけ（`isUsedWebhookEvent`）。ほか（`ping` など）・本文の `repository.full_name` が無い物は 204 で無視
+  - 使うイベント（`X-GitHub-Event`）は `issues`・`issue_comment`・`pull_request`・`pull_request_review_comment`・`check_run`・`status`・`workflow_run`・`label` だけ（`isUsedWebhookEvent`）。`check_suite` は使わない（画面のデータは変わらない。チェックの変化は `check_run`、実行の変化は `workflow_run` で来る）。ほか（`ping` など）・本文の `repository.full_name` が無い物は 204 で無視
+  - 画面のデータが変わらない知らせも 204 で無視する（`isNoChangeWebhook`。入力：イベントと本文。出力：無視するか。2026年11月18日）：`workflow_run` のうち、実行が作られただけの物（`action` が `requested`）と、何もせず飛ばされた実行の完了（`action` が `completed` で `workflow_run.conclusion` が `skipped`）。パイプラインは、コメントやほかの実行の完了のたびに「条件に合わないので飛ばす」実行を何本も作り（実行の3〜5割）、そのたびに取り直すと GraphQL の枠を使うため。動き出し（`in_progress`）と、飛ばされていない完了（成功・失敗・取り消し）は使う。ほかのイベント・形が読めない本文は、今までどおり使う（取り直す側に倒す）
   - 監視しているリポジトリ（`isWatchedRepo`。大文字・小文字は区別しない）の物だけを使う。監視リポジトリは、環境変数 `WATCHED_REPOS` と、設定の監視リポジトリ（`SETTINGS_REPO` の Variable `AGENT_DESK_WATCHED_REPOS`。ログインした人がいないので App の鍵で読み、最大5分キャッシュに覚える。設定を保存したらタグ `watched-repos` を無効にして覚え直す）を合わせた物。設定の保存先があるのに読めない（App が入っていない・権限が無い）ときは、分からないので使う側に倒す（印を進めるだけで害は無い）。監視していない物は 204
   - 使う物は、タグ `repo:<owner>/<repo>`（小文字）を `revalidateTag(タグ, { expire: 0 })` で無効にして 202 を返す。本文の中身は保存しない・ログに出さない
 - 覚えておく：Next.js のキャッシュのタグ（`unstable_cache`。Cache Components の `use cache`・`cacheTag` は画面全体の作りが変わるので使わない。Vercel では、タグの無効化が全部のインスタンスに効く）
   - 「変わった」時刻：リポジトリごとの「最後に変わった時刻」（`changedAt`）を、タグ `repo:<owner>/<repo>` つきで期限なしに覚える。タグが無効になった後に初めて読んだ時刻になり、次に無効になるまで変わらない（Webhook が来ると進む）
-  - 「取り直してよい印」：リポジトリごとに「取り直しを許した `changedAt`」と「許した時刻」（＝前に取った時刻）を、別のタグ `release:<owner>/<repo>` つきで期限なしに覚える（Webhook のタグは付けないので、Webhook では消えない）。初めて読むときは、その時の `changedAt` と今の時刻になる。サーバーのメモリには覚えないので、どのインスタンスでも同じ値になる
+  - 「取り直してよい印」：リポジトリごとに「取り直しを許した `changedAt`」と「許した時刻」（＝前に取った時刻）、「次の取り直しまであける時間」（下の「取り直しの下限」。無い印は15秒として読む）を、別のタグ `release:<owner>/<repo>` つきで期限なしに覚える（Webhook のタグは付けないので、Webhook では消えない）。初めて読むときは、その時の `changedAt` と今の時刻になる。サーバーのメモリには覚えないので、どのインスタンスでも同じ値になる
   - App の鍵で読むリポジトリの `fetchRepoData` の結果を、キー「リポジトリ（と公開ごとの ID）＋取り直してよい印の `changedAt`」で覚える（`cachedRepoData`）。変化ごとに別の入れ物になるので、取得の途中に Webhook が来ても、その変化は次の印で必ず取り直される（キーがリポジトリだけだと、取得の途中の無効化が、保存した瞬間に上書きされて消える）。鍵は入れない（App の鍵で読むのは、ログインした人が読めると確かめた物だけ）。寿命は最大5分（Webhook が届かなかったときの保険）。取ったデータと一緒に、そのデータに反映済みの印（取り直してよい印の `changedAt`）を返す
   - ログインした人のトークンで読むリポジトリ（App の鍵が使えない物）はキャッシュに覚えず、今までどおりの間隔で取り直す
   - 画面に見せる「変わった」印は、取り直してよい印の `changedAt`。`GET /api/changes?repo=owner/repo&repo=…` が、渡したリポジトリ（最大50件）ごとの印を `{ "changes": { "owner/repo": "ISO時刻" } }` で返す（キャッシュから。GitHub には問い合わせない）。ログインしていなければ 401、`GITHUB_WEBHOOK_SECRET` が無ければ 404
   - 取り直しの下限：同じリポジトリの取り直しは、前に取ってから**最短15秒**あける（`REFETCH_MIN_INTERVAL_MS`。定数で、設定にはしない。CI が動いている間に「変わった」が数秒おきに来ても、読み取りの鍵の枠を使い切らないため）。サーバーで決める（端末やタブ、インスタンスが増えても取り直しは増えない）。`/api/changes`（`getChangeMarks`）が、`changedAt`・取り直してよい印・今から、純粋関数 `decideRefetch`（`src/lib/refetchLimit.ts`。出力：今取り直すか、何秒後か）で決め、取り直してよいときだけ `release:` のタグを `revalidateTag(タグ, { expire: 0 })` で無効にして印を進める（ページの表示の中ではタグを無効にできないため、印を進めるのは `/api/changes` だけ）
     - 取り直してよい印の後に変わっていて、前に取ってから15秒以上たっていれば、すぐ印を進める（しばらく静かだったリポジトリの最初の変化はすぐ。ちょうど15秒でも進める）
     - 15秒たっていなければ、前の印のまま返す。ページも前の印のデータを返す（GitHub には問い合わせない）。この間に何回変わっても、15秒たった後の最初の `/api/changes` で1回だけ印を進める（最後の知らせも取りこぼさない）
+    - 変わり続けているリポジトリは、あける時間を延ばす（2026年11月18日。作業が続くリポジトリを15秒ごと＝1時間240回取り直すと、2つあるだけで GraphQL の枠を使い切るため）。印を進めるたびに、次の取り直しまであける時間を決めて、取り直してよい印と一緒に覚える（純粋関数 `nextRefetchIntervalMs`。入力：今回まで使っていたあける時間・前に取ってからの時間。出力：次にあける時間）：前に取ってから**2分**（`REFETCH_QUIET_RESET_MS`）たたないうちにまた取り直すときは、前の2倍（15秒 → 30秒 → **60秒**。上限は `REFETCH_MAX_INTERVAL_MS`）。2分以上静かだったあとは15秒に戻す。上の2つの「15秒」は、覚えているあける時間に読み替える（`decideRefetch` の `minIntervalMs`）。変わり続けるリポジトリの取り直しは1時間に60回ほどになり、静かなあとの最初の変化は今までどおりすぐ、その次は15秒後に出る。定数で、設定にはしない。手で押す「同期」・ボタン操作の後は、あける時間も15秒に戻る
   - ボタンの操作（`runOperation`）が成功したら、そのリポジトリのタグを無効にしてから取り直す（Webhook を待たずに結果を出すため）。手で押す「同期」（`syncNow`）も同じ。どちらも下限を無視してすぐ取り直す（`invalidateRepoNow`。`repo:` と `release:` の両方のタグを無効にする）
 - 画面（`src/components/AppShell.tsx`、`src/lib/changeMarks.ts` の `startChangeWatch`）
   - サーバーは、App の鍵で読めたリポジトリ（`ok` で、`readSource` が `app` の物）を「Webhook で取り直すリポジトリ」として、そのデータに反映済みの印と一緒に渡す。App の鍵で読もうとして失敗したリポジトリは入れず、今までどおりの間隔で取り直す（一時的なエラーが5分残らないように）。`GITHUB_WEBHOOK_SECRET` が無ければ空（`src/lib/refresh.ts` の `getChangeWatchPlan`）

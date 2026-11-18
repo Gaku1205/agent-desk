@@ -25,6 +25,15 @@ const ISSUE_FIELDS = `number title body state url createdAt updatedAt closedAt
         ${COMMENTS}
         ${LABEL_EVENTS}`;
 
+/**
+ * 1ページで取る Issue・PR の数。GraphQL の回数制限（1時間5,000点）は、実際に返った数ではなく、問い合わせに書いた
+ * `first` の数で点数が決まる（下の `repoQueryCost`）。100件だと1回の同期が約20点で、12個のリポジトリを
+ * Webhook のたびに取り直すと1時間で使い切った（2026年11月18日）。50件にして、足りない分は続きを問い合わせる
+ */
+export const REPO_PAGE_SIZE = 50;
+/** 人間待ちの Issue（ラベルごと）を取る数。ページ送りはしない */
+export const WAITING_PAGE_SIZE = 30;
+
 /** 人間の判断を待つラベル。開いている物は、更新日で絞らずに取る（別名は `waiting<番号>`） */
 export const WAITING_LABELS = ["ai:stuck", "ai:skip", "ai:question", "factory:wait"] as const;
 
@@ -33,7 +42,7 @@ const waitingAlias = (index: number): string => `waiting${index}`;
 /** ラベルの絞り込みは「すべて付いている」なので、ラベルごとの一覧を別名で足す（1回目の問い合わせだけ） */
 const WAITING_ISSUES = WAITING_LABELS.map(
   (label, index) => `${waitingAlias(index)}: issues(
-      first: 100
+      first: ${WAITING_PAGE_SIZE}
       states: OPEN
       labels: ["${label}"]
       orderBy: { field: UPDATED_AT, direction: DESC }
@@ -67,7 +76,7 @@ query RepoData(
   repository(owner: $owner, name: $name) {
     isTemplate
     issues(
-      first: 100
+      first: ${REPO_PAGE_SIZE}
       after: $issuesAfter
       filterBy: { since: $since }
       orderBy: { field: UPDATED_AT, direction: DESC }
@@ -79,7 +88,7 @@ query RepoData(
     }
     ${WAITING_ISSUES}
     pullRequests(
-      first: 100
+      first: ${REPO_PAGE_SIZE}
       after: $pullsAfter
       orderBy: { field: UPDATED_AT, direction: DESC }
     ) @include(if: $withPulls) {
@@ -115,6 +124,22 @@ query RepoData(
 }
 fragment Statuses on Status { contexts { context state description targetUrl createdAt } }
 `;
+
+/**
+ * 同期の問い合わせ1回の点数の見積もり（GitHub の計算式）。つながり（connection）ごとに、親の数だけ「要求」を数え、
+ * 合計を100で割って四捨五入する（最低1点）。返事の `rateLimit.cost` と同じ数え方。
+ * - Issue：一覧で1、Issue 1件ごとにラベル・コメント・ラベルの付け外しの3
+ * - 人間待ちの Issue：ラベル（4つ）ごとに、一覧で1、Issue 1件ごとに3（1回目の問い合わせ＝`withMain` だけ）
+ * - PR：一覧で1、PR 1件ごとにラベル・コメント・ラベルの付け外し・コミットの4と、先頭コミットのチェックの1
+ * - main の直近のコミット：1（1回目の問い合わせだけ）
+ */
+export function repoQueryCost(parts: { withIssues: boolean; withPulls: boolean; withMain: boolean }): number {
+  let requests = 0;
+  if (parts.withIssues) requests += 1 + REPO_PAGE_SIZE * 3;
+  if (parts.withPulls) requests += 1 + REPO_PAGE_SIZE * 5;
+  if (parts.withMain) requests += WAITING_LABELS.length * (1 + WAITING_PAGE_SIZE * 3) + 1;
+  return Math.max(1, Math.round(requests / 100));
+}
 
 /** GraphQL の返事のうち、使う項目だけの形（どれも欠けうるものとして読む） */
 type Nodes<T> = { nodes?: (T | null)[] | null } | null;

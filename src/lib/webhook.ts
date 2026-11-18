@@ -5,18 +5,36 @@ import type { WatchedRepo } from "./config";
 // GitHub の Webhook と「変わった」印の判定（docs/spec.md の「更新」）。
 // Webhook の本文は保存しない・ログに出さない。
 
-/** 使うイベント（`X-GitHub-Event`）。ほかは 204 で無視する */
+/**
+ * 使うイベント（`X-GitHub-Event`）。ほかは 204 で無視する。
+ * `check_suite` は使わない（画面のデータは変わらない。チェックの変化は `check_run`、実行の変化は `workflow_run` で来る）
+ */
 export const WEBHOOK_EVENTS: readonly string[] = [
   "issues",
   "issue_comment",
   "pull_request",
   "pull_request_review_comment",
   "check_run",
-  "check_suite",
   "status",
   "workflow_run",
   "label",
 ];
+
+/**
+ * 画面のデータが変わらない知らせか（取り直さない。GraphQL の回数制限の枠を使わないため）。
+ * `workflow_run` のうち、実行が作られただけ（`requested`）と、何もせず飛ばされた実行の完了（`conclusion` が `skipped`）。
+ * パイプラインは、コメントやほかの実行の完了のたびに「条件に合わないので飛ばす」実行を何本も作る（全体の3〜5割）。
+ * 動き出し（`in_progress`）と、飛ばされていない完了は使う
+ */
+export function isNoChangeWebhook(event: string | null, payload: unknown): boolean {
+  if (event !== "workflow_run") return false;
+  if (typeof payload !== "object" || payload === null) return false;
+  const { action, workflow_run: run } = payload as { action?: unknown; workflow_run?: unknown };
+  if (action === "requested") return true;
+  const conclusion =
+    typeof run === "object" && run !== null ? (run as { conclusion?: unknown }).conclusion : undefined;
+  return action === "completed" && conclusion === "skipped";
+}
 
 /** 1回の `/api/changes` で見るリポジトリの数の上限 */
 export const CHANGES_MAX_REPOS = 50;
@@ -76,7 +94,7 @@ export type WebhookDecision =
 
 /**
  * Webhook をどう扱うか。環境変数が無ければ 404、署名が合わなければ 401、
- * 使わないイベント・監視していないリポジトリは 204、使う物は 202 でタグを無効にする
+ * 使わないイベント・画面のデータが変わらない知らせ・監視していないリポジトリは 204、使う物は 202 でタグを無効にする
  */
 export async function decideWebhook(input: {
   secret: string | undefined;
@@ -95,6 +113,7 @@ export async function decideWebhook(input: {
   } catch {
     return { status: 204 };
   }
+  if (isNoChangeWebhook(event, payload)) return { status: 204 };
   const target = webhookRepo(payload);
   if (!target) return { status: 204 };
   if (!isWatchedRepo(target, await loadWatched())) return { status: 204 };
