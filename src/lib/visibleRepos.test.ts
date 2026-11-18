@@ -8,8 +8,8 @@ const repos = [
   { owner: "o", repo: "c" },
   { owner: "o", repo: "d" },
 ];
-const turn: TurnCounts = { total: 1, byRepo: { "o/a": 1 } };
-const running: TurnCounts = { total: 2, byRepo: { "o/c": 2, "o/d": 0 } };
+const turn: TurnCounts = { byRepo: { "o/a": 1 } };
+const running: TurnCounts = { byRepo: { "o/c": 2, "o/d": 0 } };
 
 describe("visibleRepos", () => {
   it("あなたの番かAIの番が1件以上の物だけを、入力の並びのまま返す", () => {
@@ -21,7 +21,7 @@ describe("visibleRepos", () => {
   });
 
   it("全部が 0・0 なら空", () => {
-    const zero: TurnCounts = { total: 0, byRepo: {} };
+    const zero: TurnCounts = { byRepo: {} };
     expect(visibleRepos(repos, zero, zero, null)).toEqual([]);
   });
 });

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { PLAY_BUTTON_LABEL } from "@/lib/demo/playback";
 import { formatResetTime, formatSyncTime, getDisplayedSyncTime } from "@/lib/refresh";
 import { shouldCloseMenuOnPick, shouldRestoreMenuFocus } from "@/lib/menuFocus";
+import { newIssueHref } from "@/lib/issueRepo";
 import { hasHiddenBelow } from "@/lib/sideScroll";
 import { revealScrollLeft } from "@/lib/tabScroll";
 import { currentRepoFromPath, visibleRepos } from "@/lib/visibleRepos";
@@ -120,7 +121,7 @@ function SkipLink() {
   );
 }
 
-/** リポジトリの切り替え（全部 → 各リポジトリ）。上端の帯とスマホのメニューで同じ物 */
+/** リポジトリの切り替え（各リポジトリ → すべてのリポジトリ）。上端の帯とスマホのメニューで同じ物 */
 export function RepoTabs({
   repos,
   counts,
@@ -131,9 +132,9 @@ export function RepoTabs({
 }: Pick<Props, "repos" | "counts" | "runningCounts" | "countsPending" | "basePath"> & { onPick?: () => void }) {
   const pathname = usePathname();
   const isCurrent = (href: string) => pathname.toLowerCase() === href.toLowerCase();
-  const home = basePath || "/";
   const allReposHref = `${basePath}/repos`;
-  // 動きのあるリポジトリ（あなたの番かAIの番が1件以上）と、今開いているリポジトリだけを出す。全部は「すべてのリポジトリ」で見る
+  // 動きのあるリポジトリ（あなたの番かAIの番が1件以上）と、今開いているリポジトリだけを出す。全部は「すべてのリポジトリ」で見る。
+  // ホームへはワードマークで戻る（ホームにいる間は、どの札も「今いる」にならない）
   const shown = visibleRepos(repos, counts, runningCounts, currentRepoFromPath(pathname));
   const navRef = useRef<HTMLElement>(null);
   // 札が増えて横にスクロールするとき、今いる札が見える位置に来る（動きは付けない）
@@ -153,16 +154,6 @@ export function RepoTabs({
   }, [pathname]);
   return (
     <nav className={styles.repos} aria-label="リポジトリ" ref={navRef}>
-      <Link
-        href={home}
-        className={styles.tab}
-        aria-current={isCurrent(home) ? "page" : undefined}
-        onClick={shouldCloseMenuOnPick(pathname, home) ? onPick : undefined}
-      >
-        <GridIcon />
-        <span>全部</span>
-        <Counts turn={counts.total} running={runningCounts.total} labeled={isCurrent(home)} pending={countsPending} />
-      </Link>
       {shown.map(({ owner, repo }) => {
         const href = `${basePath}/repos/${owner}/${repo}`;
         const key = `${owner}/${repo}`.toLowerCase();
@@ -381,7 +372,7 @@ function MenuSheet(props: Props) {
   const { menuOpen, closeMenu } = useShell();
   const demo = useDemo();
   const pathname = usePathname();
-  const newIssueHref = `${props.basePath ?? ""}/new`;
+  const newIssueLink = newIssueHref(props.basePath ?? "", currentRepoFromPath(pathname));
   const newServiceHref = `${props.basePath ?? ""}/new/service`;
   const paneRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -417,9 +408,9 @@ function MenuSheet(props: Props) {
           <PendingMark />
         </Link>
         <Link
-          href={newIssueHref}
+          href={newIssueLink}
           className={styles.lnk}
-          onClick={shouldCloseMenuOnPick(pathname, newIssueHref) ? closeMenu : undefined}
+          onClick={shouldCloseMenuOnPick(pathname, newIssueLink) ? closeMenu : undefined}
         >
           <WriteIcon />
           Issueを書く

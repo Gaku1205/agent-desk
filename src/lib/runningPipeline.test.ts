@@ -74,12 +74,13 @@ describe("countRunningPipelineRows", () => {
       { owner: "o", repo: "x", ok: false, error: { kind: "not_found", message: "見つかりません" } } as RepoResult,
     ];
     const counts = countRunningPipelineRows(results, NOW);
-    expect(counts).toEqual({ total: 3, byRepo: { "o/a": 2, "o/b": 1 } });
-    expect(counts.total).toBe(buildRunningPipelineRows(results, NOW).length);
+    expect(counts).toEqual({ byRepo: { "o/a": 2, "o/b": 1 } });
+    const rows = buildRunningPipelineRows(results, NOW);
+    expect(Object.values(counts.byRepo).reduce((sum, n) => sum + n, 0)).toBe(rows.length);
   });
 
   it("動いている物が無ければ 0 件", () => {
-    expect(countRunningPipelineRows([], NOW)).toEqual({ total: 0, byRepo: {} });
+    expect(countRunningPipelineRows([], NOW)).toEqual({ byRepo: {} });
   });
 });
 

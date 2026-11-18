@@ -99,9 +99,9 @@ export function DemoRepos() {
 }
 
 /** デモのIssueを書く画面：GitHub には送らず、サンプルのデータにIssueが増える（landing-page はテンプレートの見本） */
-export function DemoNewIssue() {
+export function DemoNewIssue({ initialRepo }: { initialRepo?: string }) {
   const { repos } = useDemoState();
-  return <NewIssueForm repos={newIssueRepos(repos)} />;
+  return <NewIssueForm repos={newIssueRepos(repos)} initialRepo={initialRepo} />;
 }
 
 /** デモの新しいサービスを作る画面：送り先はテンプレートの見本（landing-page）だけ */

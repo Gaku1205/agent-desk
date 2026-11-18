@@ -9,7 +9,7 @@ import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { LayoutStream } from "./LayoutStream";
 import { logout } from "./logout";
 
-const NO_COUNTS = { total: 0, byRepo: {} };
+const NO_COUNTS = { byRepo: {} };
 
 /** 本物の画面。ログインしていなければ、どのURLでもログインボタンだけを出す */
 export default async function AppLayout({
