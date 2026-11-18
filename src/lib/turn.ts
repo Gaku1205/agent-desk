@@ -269,7 +269,7 @@ export function waitingSince(issue: IssueData, status: IssueStatus, data: RepoDa
 
 /** 強い色の行（止まった・公開失敗。種類の札と同じ判定）か */
 export function isUrgentTurn(item: Pick<TurnItem, "status">): boolean {
-  return turnKind(item.status).tone !== "calm";
+  return turnKind(item.status).group === "fix";
 }
 
 /** 順番待ちを止めている `ai:hold` のマージ待ちか */

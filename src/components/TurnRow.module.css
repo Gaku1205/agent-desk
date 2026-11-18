@@ -4,7 +4,9 @@
   padding: 32px 36px;
   border-radius: 14px;
   background: var(--raise);
-  box-shadow: inset 0 0 0 1px var(--hair);
+  box-shadow:
+    inset 2px 0 0 var(--kind-line, transparent),
+    inset 0 0 0 1px var(--hair);
 }
 
 /* 前の1件を片づけて替わった1件：不透明度だけの短いフェード */
@@ -32,19 +34,14 @@
   font-size: 13px;
 }
 
-/* 種類の札：強い色は止まった（アンバー）と公開失敗（赤）だけ */
+/* 種類の札：記号＋英語の名前。色は4つのまとまり（globals.css の [data-group]） */
 .kind {
-  color: var(--bone);
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  color: var(--kind-text, var(--bone));
   font-weight: 700;
   white-space: nowrap;
-}
-
-.kind[data-tone="human"] {
-  color: var(--accent);
-}
-
-.kind[data-tone="fail"] {
-  color: var(--fail-soft);
 }
 
 .id,
@@ -193,21 +190,13 @@
   background: var(--bone-hover);
 }
 
-.acts[data-tone="human"] .primary {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-
-.acts[data-tone="human"] .primary:hover {
-  background: var(--accent-hover);
-}
-
-.acts[data-tone="fail"] .primary {
+/* 色つきの塗りは Fix（止まった・公開失敗）だけ。ほかは文字色の塗り */
+.acts[data-group="fix"] .primary {
   background: var(--fail);
   color: var(--fail-ink);
 }
 
-.acts[data-tone="fail"] .primary:hover {
+.acts[data-group="fix"] .primary:hover {
   background: var(--fail-hover);
 }
 

@@ -5,6 +5,7 @@ import { rovingNext } from "@/lib/roving";
 import { formatWait, turnItemKey, type TurnItem } from "@/lib/turn";
 import { isTurnListFoldable } from "@/lib/turnList";
 import { turnKind } from "@/lib/turnKind";
+import { TurnKindIcon } from "./TurnKindIcon";
 import styles from "./TurnList.module.css";
 
 type Props = {
@@ -74,13 +75,16 @@ export function TurnList({ items, now, showRepo, onPick }: Props) {
                 <button
                   type="button"
                   className={styles.row}
-                  data-tone={kind.tone}
+                  data-group={kind.group}
                   data-list-key={key}
                   tabIndex={index === activeIndex ? 0 : -1}
                   onFocus={() => setActive(index)}
                   onClick={() => onPick(key)}
                 >
-                  <span className={styles.kind}>{kind.label}</span>
+                  <span className={styles.kind}>
+                    <TurnKindIcon icon={kind.icon} size={13} />
+                    {kind.label}
+                  </span>
                   <span className={`${styles.ref} num`}>{ref}</span>
                   <span className={styles.title}>{item.issue.title}</span>
                   <span className={`${styles.wait} num`}>{wait}</span>
