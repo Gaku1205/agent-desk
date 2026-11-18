@@ -73,6 +73,43 @@
   color: var(--accent);
 }
 
+/* 押した物の印：見えない。押している間だけ data-pending が付き、下の :has() で見た目を変える */
+.pendingMark {
+  display: none;
+}
+
+/*
+ * 押した瞬間の反応：次の画面が出るまでの間、押した札・新サービスを「今いる」（aria-current="page"）と同じ見た目にし、
+ * 押す前にいた物は「今いる」でなくす。色は即座に変える（transition を付けない。100ms 以内）
+ */
+.tab:has([data-pending]),
+.sideNew:has([data-pending]) {
+  background: var(--well);
+  color: var(--bone);
+  transition: none;
+}
+
+.tab:has([data-pending]) > svg,
+.sideNew:has([data-pending]) > svg {
+  color: var(--accent);
+}
+
+.top:has([data-pending]) .tab[aria-current="page"]:not(:has([data-pending])),
+.side:has([data-pending]) .tab[aria-current="page"]:not(:has([data-pending])),
+.side:has([data-pending]) .sideNew[aria-current="page"]:not(:has([data-pending])),
+.pane:has([data-pending]) .tab[aria-current="page"]:not(:has([data-pending])) {
+  background: transparent;
+  color: var(--mute);
+  transition: none;
+}
+
+.top:has([data-pending]) .tab[aria-current="page"]:not(:has([data-pending])) > svg,
+.side:has([data-pending]) .tab[aria-current="page"]:not(:has([data-pending])) > svg,
+.side:has([data-pending]) .sideNew[aria-current="page"]:not(:has([data-pending])) > svg,
+.pane:has([data-pending]) .tab[aria-current="page"]:not(:has([data-pending])) > svg {
+  color: inherit;
+}
+
 .tabName {
   min-width: 0;
   overflow: hidden;
@@ -649,6 +686,12 @@
     padding: 0 12px;
     border-radius: 6px;
     color: var(--bone-2);
+  }
+
+  /* 押した物は「今いる」の見た目（札と同じ地 --well・文字 --bone）。メニューの項目は普段「今いる」の見た目が無いので、押している間だけ */
+  .lnk:has([data-pending]) {
+    background: var(--well);
+    color: var(--bone);
   }
 
   /* 押した札の同期中、動きを減らすときは「設定」の歯車・文字も --bone（押した札の点と同じ決まり） */

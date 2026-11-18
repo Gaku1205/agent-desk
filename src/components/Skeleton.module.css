@@ -1,0 +1,55 @@
+/*
+ * 読み込み中の骨組み（docs/design.md の「読み込み中の骨組み」）。
+ * 色は --hair-2 の帯だけ。回る印・文字・動きは無い（動きを減らす設定かどうかに関わらず止まっている）
+ */
+
+.band {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  border-radius: 6px;
+  background: var(--hair-2);
+}
+
+/* 「いまの様子」の行の位置：上 56px（スマホ 40px）、行の間 22px */
+.past {
+  display: grid;
+  gap: 22px;
+  padding-top: 56px;
+}
+
+.row {
+  display: grid;
+  gap: 8px;
+}
+
+/* 「あなたの番」の面（角丸 14px）。見出しの行の下 */
+.face {
+  height: 200px;
+  border-radius: 14px;
+  background: var(--hair-2);
+}
+
+/* 入力欄の位置（画面の下端に付いたまま） */
+.composerBar {
+  height: 56px;
+  margin: 0 var(--gutter) 16px;
+  border-radius: 8px;
+  background: var(--hair-2);
+}
+
+/* 設定・新しいサービスを作る：行の位置 */
+.line {
+  display: grid;
+  gap: 14px;
+}
+
+@media (max-width: 899px) {
+  .past {
+    padding-top: 40px;
+  }
+
+  .composerBar {
+    display: none;
+  }
+}
