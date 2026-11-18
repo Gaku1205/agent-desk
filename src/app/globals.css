@@ -14,12 +14,15 @@
   --accent-soft: #4338ca;
   --accent-hover: #4338ca;
   --accent-ink: #ffffff;
-  --ok: #15803d;
-  --wait: #9333ea;
-  --fail: #dc2626;
+  --ok: #1a7f37;
+  --wait: #8250df;
+  --attention: #9a6700;
+  --attention-line: #bf8700;
+  --start: #0969da;
+  --fail: #d1242f;
   --fail-ink: #ffffff;
-  --fail-hover: #b91c1c;
-  --fail-soft: #b91c1c;
+  --fail-hover: #a40e26;
+  --fail-soft: #d1242f;
   --fail-dim: rgba(185, 28, 28, 0.85);
   --fail-edge: rgba(185, 28, 28, 0.35);
   --fail-wash: rgba(220, 38, 38, 0.08);
@@ -40,6 +43,28 @@
   color-scheme: light;
 }
 
+/* 「あなたの番」の種類の色：4つのまとまり（Fix・Answer・Ship・Start）。GitHub の Primer と同じ色使い。
+   --kind-text＝札の文字と記号、--kind-line＝行の左の縦線（2px）。docs/design.md の「あなたの番の種類と色」 */
+[data-group="fix"] {
+  --kind-text: var(--fail-soft);
+  --kind-line: var(--fail);
+}
+
+[data-group="answer"] {
+  --kind-text: var(--attention);
+  --kind-line: var(--attention-line);
+}
+
+[data-group="ship"] {
+  --kind-text: var(--ok);
+  --kind-line: var(--ok);
+}
+
+[data-group="start"] {
+  --kind-text: var(--start);
+  --kind-line: var(--start);
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #121212;
@@ -51,12 +76,15 @@
     --accent-soft: #a5b4fc;
     --accent-hover: #a5b4fc;
     --accent-ink: #121212;
-    --ok: #4ade80;
-    --wait: #c084fc;
-    --fail: #f25c5c;
+    --ok: #3fb950;
+    --wait: #ab7df8;
+    --attention: #d29922;
+    --attention-line: #d29922;
+    --start: #4493f8;
+    --fail: #f85149;
     --fail-ink: #121212;
-    --fail-hover: #ff7676;
-    --fail-soft: #ff8a8d;
+    --fail-hover: #ff7b72;
+    --fail-soft: #f85149;
     --fail-dim: rgba(255, 138, 141, 0.72);
     --fail-edge: rgba(255, 138, 141, 0.32);
     --fail-wash: rgba(242, 92, 92, 0.1);
@@ -88,12 +116,15 @@
   --accent-soft: #a5b4fc;
   --accent-hover: #a5b4fc;
   --accent-ink: #121212;
-  --ok: #4ade80;
-  --wait: #c084fc;
-  --fail: #f25c5c;
+  --ok: #3fb950;
+  --wait: #ab7df8;
+  --attention: #d29922;
+  --attention-line: #d29922;
+  --start: #4493f8;
+  --fail: #f85149;
   --fail-ink: #121212;
-  --fail-hover: #ff7676;
-  --fail-soft: #ff8a8d;
+  --fail-hover: #ff7b72;
+  --fail-soft: #f85149;
   --fail-dim: rgba(255, 138, 141, 0.72);
   --fail-edge: rgba(255, 138, 141, 0.32);
   --fail-wash: rgba(242, 92, 92, 0.1);

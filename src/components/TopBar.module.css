@@ -202,7 +202,7 @@
 
 .countRunning,
 .keyRunning {
-  color: var(--bone-2);
+  color: var(--ok);
 }
 
 /* メニューの凡例（スマホ）：点つきで、2つの数が何かを言う */
@@ -225,7 +225,7 @@
 }
 
 .keyRunning::before {
-  color: var(--bone-2);
+  color: var(--ok);
 }
 
 /* 本文へ移るリンク：フォーカスしたときだけ見える */

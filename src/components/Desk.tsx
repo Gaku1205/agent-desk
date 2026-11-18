@@ -21,6 +21,7 @@ import { SideRepos, type TopBarRepo } from "./TopBar";
 import { TurnList } from "./TurnList";
 import { TurnRow } from "./TurnRow";
 import { pickTurn } from "@/lib/turnList";
+import { TURN_GROUPS } from "@/lib/turnKind";
 
 export type DeskScope =
   | { kind: "all"; repoCount: number }
@@ -287,6 +288,16 @@ export function Desk({
           <h1 className={styles.h1} id="turn-title" tabIndex={-1}>
             {current ? "あなたの番" : "今はAIの番です"}
           </h1>
+          {current && waiting.length >= 2 && (
+            <ul className={styles.legend} aria-label="色の見方">
+              {TURN_GROUPS.map((g) => (
+                <li key={g.group} data-group={g.group}>
+                  <span className={styles.swatch} aria-hidden="true" />
+                  {g.label}
+                </li>
+              ))}
+            </ul>
+          )}
           {rest > 0 && (
             <p className={styles.rest}>
               ほかに <b className="num">{rest}</b>件
