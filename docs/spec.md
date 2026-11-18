@@ -41,6 +41,7 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
 - 公開かどうかは、トークン無しの `GET https://api.github.com/repos/{owner}/{repo}` の `private` で調べる。公開と分かった結果はサーバーのメモリに約1時間覚える。調べられなかったとき（通信失敗・404・403・`private` が読めない等）は「公開か不明」として `repo` にし、失敗は覚えない
 - 設定画面で保存したリポジトリ（Variable）はログイン前に読めないので、判定には使わない。設定画面で非公開リポジトリを足したら、環境変数も合わせて直す
 - すでにログイン済みのセッションのトークンは作り直さない（次にログインしたときから効く）
+- **例外：導入（`/setup`）**（2026年11月18日、Issue #517）：導入のページは Secret を書くので `repo` の権限が要る。ログインのトークンに `repo` が無いとき（GitHub の返事の `X-OAuth-Scopes` で調べる）だけ、段の中に `権限を足してログインし直す` を出し、このページから押したときだけ `read:user repo` でログインし直す（戻り先は `/setup?repo=…`）。ほかのページのログインの決め方は変えない。テンプレートから作る `POST /repos/{template_owner}/{template_repo}/generate` は、GitHub のドキュメントでは `public_repo`（公開）か `repo`（非公開）の権限で足り、`workflow` は要らないので頼まない
 
 ### ログインの拒否・エラーの画面（`/auth-error`）
 
@@ -209,6 +210,7 @@ GitHub の認証が切れたとき（サーバーで GitHub を呼んで **401**
 | ホーム | `/` | あなたの番（全リポジトリ。大きい1件＋残りの一覧）＋いまの様子（全リポジトリの直近14日のIssue。出来事を溶かした会話） |
 | リポジトリのページ | `/repos/{owner}/{repo}` | あなたの番（そのリポジトリだけ）＋いまの様子（そのリポジトリだけ） |
 | すべてのリポジトリ | `/repos` | 監視中の全部のリポジトリの一覧（あなたの番・AIの番の数、最後に動いた時刻、GitHub へのリンク）。下の「すべてのリポジトリ」 |
+| 導入 | `/setup` | 新しいリポジトリにパイプラインを入れる5つの段。下の「導入（`/setup`）」 |
 
 - 全ページの上端に帯（ワードマーク、監視リポジトリの切り替え、それぞれの「あなたの番」の件数と「動いている」件数（数の前に、凡例と同じ色の点を付ける。今いるページの札には、さらに短い名札 `あなたの番`・`AI` も付けて、何の数かを画面で分かるようにする。同じ数が並ぶとバグに見えるので、デモのデータは2つの数が同じにならないようにする）、同期。2026年11月16日、Issue #312 で、PC（幅900px以上）の帯に残すのは**ワードマークと同期（と、デモの印・自動更新を止めている知らせ）だけ**にした。Issueを書く・新しいサービスを作る・設定・ユーザー名とログアウトは、PCではホームとリポジトリのページの左のバーに置く（「PCの3ペイン」）。スマホではメニューボタンで開くメニューの中に、新しいサービスを作る（「新しいサービスを作る」の節）、Issueを書く（「Issueを書く」の節）、並列、同期、ユーザーの行［GitHub のアイコン＋ログイン名。押すと行の上に `設定`・`ログアウト` のメニューが開く。ログアウトは押している間 `ログアウト中…` と出して押せない。Issue #449］の順に置く）。帯はスクロールしても画面の上に見え続ける（PC・スマホとも）。リポジトリが増えて札が入りきらないときは、札の並びだけが横にスクロールし（右側の操作とは重ならない）、今いる札が見える位置に来る（位置の計算は `src/lib/tabScroll.ts`）。札や「設定」を押したら、次の画面が出るまでの間、押した札の点（「設定」は歯車）が脈打つ
   - PC（幅900px以上）のホームとリポジトリのページでは、札は帯に出さず、左の一覧に縦に並べる（「PCの3ペイン」）
@@ -228,6 +230,7 @@ GitHub の認証が切れたとき（サーバーで GitHub を呼んで **401**
   - 各行：リポジトリ名（押すとそのリポジトリのページ）／あなたの番・AIの番の数（左のバーの点と同じ）／最後に動いた時刻／右端に `GitHub ↗`（`https://github.com/{owner}/{repo}`、新しいタブ）。公開済みの最新（PRのマージが新しい物）の公開先が成功のときだけ、`開く ↗` なども並べる（「公開先のリンク」と同じ決まり。`deployLinks`）
   - 最後に動いた時刻：そのリポジトリの「いまの様子」の出来事（`buildTrailEvents`。直近3日）のいちばん新しい時刻。24時間以内は `3時間前`、今年は `11/18 09:07`（日本時間）、去年以前は `2025/11/18 09:07`、出来事が無ければ `—`（`formatLastActivity`）。取れなかったリポジトリは数を 0・0、時刻を `—`
   - ページの下に文字リンク `設定で監視するリポジトリを変える`（`/settings`、デモは `/demo/settings`）。監視の追加・外しは今のまま設定のページ
+  - 見出しの右に `＋ Setup`（`/setup`、デモは `/demo/setup`。下の「導入」。Issue #517）
   - 検索・絞り込み・並べ替えのボタンは置かない
 - データは、ほかのページと同じ取り方（`loadTurns` と `loadWatchedRepos` の結果）。このページのために GitHub を読む回数は増やさない
 
@@ -957,11 +960,37 @@ PCでは左のバーのユーザーのメニュー、スマホではメニュー
 - 「Issueを書く」（`/new`）・下の入力欄（Issueを作る）の挙動は変えない。区別は文言と置き場所だけ（`/new/service` の見出しの下に「今あるリポジトリに頼むときは、「Issueを書く」から」を添える）
 - デモ：`/demo/new/service`。送り先はテンプレートの見本 `demo/landing-page`。GitHub には送らず、サンプルのデータにIssueが増える
 
+### 導入（`/setup`）
+
+2026年11月18日、Issue #517。パイプラインを新しいリポジトリに入れる手順（とくに「パイプライン用の GitHub App を作る」の8手順）を、上から順に押すだけにする。GitHub の **App Manifest**（設定を書いた JSON を送ると、全部埋まった「App を作る」画面が開き、押すのは Create だけ。戻ってきた `code` を交換すると App ID と秘密鍵が受け取れる）を使う。見た目は `docs/design.md` の「導入」。
+
+- URL：`/setup`。`/setup?repo=owner/name` で、そのリポジトリの続きから開く（途中で閉じても、開き直せば今の段から）。入口は `/repos` の見出しの右の `＋ Setup`
+- **5つの段**（上から順。済んだ段は畳んで結果を出し、今の段だけ開いて操作を出す。まだの段は押せない）：
+  1. **Repository**：名前（`owner/` は付けない。英数字・`.`・`_`・`-` の100文字まで）・`Public`／`Private`（既定 `Public`）・`作る`。`POST /repos/Gaku1205/ai-dev-template/generate`（`owner` はログインした人、`include_all_branches: false`）で作り、`/setup?repo=<ログイン名>/<名前>` へ移る。同じ名前がもうあれば（422）`その名前のリポジトリはもうあります`。文字ボタン `作ってあるリポジトリを使う` を押すと、ログインした人のリポジトリのうち `Gaku1205/ai-dev-template` から作られた物（`fetchOwnedRepos`。作った順に新しい物から50件）だけを選択欄に出し、`使う` でそのリポジトリへ移る。選べる物が無ければ `テンプレートから作ったリポジトリがありません`
+  2. **Pipeline App**：`GitHub で App を作る` を押すと、サーバーが推測できない `state`（32バイトの乱数）を作って署名つきの Cookie（下の「安全の決まり」）に置き、Manifest をフォームで `https://github.com/settings/apps/new?state=…` に送る（同じタブ）。Manifest（`src/lib/appManifest.ts` の `buildAppManifest`）：名前 `<ログイン名>-ai-pipeline`（使われていたら GitHub の画面で変えてもらう）、`url` はこのアプリの URL、Webhook は無効（`hook_attributes.active: false`）、`public: false`（Only on this account）、`redirect_url` は受け取り口 `/api/setup/app`、`setup_url` は `/api/setup/installed?repo=…`（`setup_on_update: true`）、権限は `docs/pipeline-setup.md` の「パイプライン用の GitHub App の作り方」と同じ7つ（Actions・Checks・Commit statuses が Read、Contents・Issues・Pull requests・Workflows が Read and write）、イベントは無し
+     - 戻ってきたら（`/api/setup/app?code&state`）、サーバーで `state` を確かめ、`POST /app-manifests/{code}/conversions` で交換し、**受け取った秘密鍵をその場で Secret `PIPELINE_APP_PRIVATE_KEY` に、App ID を Variable `PIPELINE_APP_ID` に、App の名前（slug）を Variable `PIPELINE_APP_SLUG` に書き、秘密鍵はすぐ捨てる**（同時に返る `client_secret`・`webhook_secret` も捨てる）。`/setup?repo=…` に戻る
+     - 続けて `このリポジトリに入れる`（`https://github.com/apps/<slug>/installations/new?state=<owner/name>`、同じタブ）。GitHub が `setup_url` に戻すと、受け取り口がそのリポジトリを「入れた」と覚え（Cookie `agent-desk-setup-installed`。入れたリポジトリ名だけ、秘密ではない）、`/setup?repo=…` に戻す。戻り先のリポジトリは `state`（`owner/name` の形のときだけ）、無ければ `repo`。Cookie が消えていたとき用に、横に文字ボタン `入れてある`（押すと同じく覚える）
+     - 文字ボタン `App はもう持っている`：App ID（数字）と .pem の中身を貼る欄と `保存`。サーバーで鍵を読み、App の JWT で `GET /app`（ID が合うか・slug）と `GET /repos/{owner}/{repo}/installation`（入っているか）を確かめてから、同じく Secret と Variable に書いて捨てる。鍵として読めない・ID が合わなければ `App ID と秘密鍵を確かめてください`（鍵の中身はエラーに入れない）。入っていれば、そのまま済み
+  3. **Claude**：①`Claude のアプリを入れる ↗`（`https://github.com/apps/claude/installations/new`、新しいタブ）と `入れた` のチェック（ログインのトークンでは確かめられないので、本人のチェックを信じる。入っていなければ診断で分かる）。②`claude setup-token` の1行（コピーのボタンつき）と、出てきたトークンを貼る欄（`type="password"`）・`保存`。`入れた` にチェックし、トークンを貼ると `保存` が押せる。Secret `CLAUDE_CODE_OAUTH_TOKEN` に書く。保存後は値を二度と出さず `保存済み` だけ
+  4. **設定**：段に入ったら自動で `Automatically delete head branches` をオンにする（`PATCH /repos/{owner}/{repo}` の `delete_branch_on_merge: true`）。押す物は無い。失敗したら理由と `もう一度`
+  5. **Check**：`診断する` で Doctor（`doctor.yml`）を `POST /repos/{owner}/{repo}/actions/workflows/doctor.yml/dispatches`（`ref` は既定のブランチ）で動かし、終わるまで段の中に `診断中…`（`role="status"`）。4秒ごとに `GET …/workflows/doctor.yml/runs?per_page=5` を読み、押した時刻（から10秒前）より後に作られた実行を見る。結果は実行の `conclusion`（`success` なら ✓、それ以外は ✗）と、実行のページへのリンク `結果を見る ↗`。✗ なら `もう一度診断する`。✓ なら**このリポジトリを監視に足し**（今の `saveWatchedRepos`。もう入っていれば何もしない）、最後に `Done` と `最初の Issue を書く`（`/new?repo=owner/name`）
+- **段の状態は GitHub から毎回求める**（データベースは持たない）。ページを開くたびに、ログインした人のトークンで読む：`GET /repos/{owner}/{repo}`（あるか・持ち主・`template_repository`・`delete_branch_on_merge`）、Variable `PIPELINE_APP_ID`・`PIPELINE_APP_SLUG`、Secret の**名前**の一覧（`GET …/actions/secrets`。値は読まない・読めない）、最後の Doctor の実行（`per_page=1`）、Cookie の「入れた」。判定は純粋関数 `src/lib/setupState.ts` の `computeSetupSteps`（入力：取った事実。出力：各段の 済み／今／まだ と、App の段の中の「作る」「入れる」のどちらか）：上から見て最初の済んでいない段が「今」、それより下は全部「まだ」。済み＝Repository：あって、本人の物で、テンプレートから作られた／Pipeline App：`PIPELINE_APP_ID` と `PIPELINE_APP_PRIVATE_KEY` があり、入れた／Claude：`CLAUDE_CODE_OAUTH_TOKEN` がある／設定：`delete_branch_on_merge` が true／Check：最後の Doctor が `success`
+  - `repo` が無いときは Repository が今の段。あっても本人の物でない・テンプレートから作られていない・見つからないときは、Repository が今の段のまま `このリポジトリは使えません（自分のアカウントにあり、ai-dev-template から作ったリポジトリだけ）` を出す
+- **安全の決まり**：
+  - 使える人は今までどおり許可リストの人だけ（ログインしていなければログインの画面）
+  - 書き込めるのは、ログインした本人のアカウントにあり、`Gaku1205/ai-dev-template` から作られたリポジトリだけ。書く操作のたびにサーバーで `GET /repos/{owner}/{repo}` を読み直し、`owner.login` がログインした人で `template_repository.full_name` がテンプレートのときだけ書く（`src/lib/setupState.ts` の `isSetupTarget`）。違えば何も書かず `このリポジトリは使えません（…）`
+  - 秘密鍵・Claude のトークンは、サーバーの1回の処理の中だけで扱う。保存しない・ログに出さない・クライアントに返さない・エラーの文にも入れない（返すのは決まった日本語の文だけ）
+  - Manifest の `state`：Cookie `agent-desk-setup-state`（`HttpOnly`・`SameSite=Lax`・1時間・パスは `/api/setup`）に、`state`・リポジトリ・作った時刻を `AUTH_SECRET` の HMAC-SHA256 で署名して置く。受け取り口は、署名・`state` の一致（時間の一定な比べ方）・1時間以内を確かめ、違えば何もせず `/setup?error=state`（`もう一度 App を作るところからやり直してください`）。確かめたら Cookie はすぐ消す。`code` の交換は1回だけ（使った `code` はサーバーのメモリに覚え、2回目は交換しない）
+  - Secret の書き込み（`src/lib/github/secrets.ts`）：`GET …/actions/secrets/public-key` で公開鍵を取り、libsodium の sealed box（`crypto_box_seal`）で暗号にして `PUT …/actions/secrets/{name}`（`encrypted_value`・`key_id`）
+  - `repo` の権限が無いときは、書く段の中に `権限を足してログインし直す`（上の「ログインで頼む権限」の例外）
+- 失敗の文（固定）：`リポジトリを作れませんでした`・`App を作れませんでした。もう一度試してください`・`App ID と秘密鍵を確かめてください`・`保存できませんでした`・`診断を始められませんでした`・`監視に足せませんでした：` ＋ 設定の保存の理由。GitHub の権限・回数の上限は、設定の保存と同じ文（`repoSettingErrorMessage`）
+- デモ（`/demo/setup`）：同じ画面。何も書き込まない（GitHub も呼ばない）。押すと次の段へ進むだけ（`作る` → Repository が `demo/my-app ✓` で済み、`GitHub で App を作る` → `このリポジトリに入れる` → 済み、…）。`診断する` は1.2秒 `診断中…` のあと ✓。`最初の Issue を書く` は `/demo/new`
+
 ### デモ（`/demo`）
 
 ログインしなくても、サンプルのデータで画面を見て触れるページ。就活などで、GitHubのアカウントが無い人にも見てもらうため。
 
-- URL：`/demo`（ホーム）、`/demo/repos/{owner}/{repo}`（リポジトリのページ）、`/demo/repos`（すべてのリポジトリ）、`/demo/dashboard`（Dashboard）、`/demo/lanes`（Slots & Queue）、`/demo/settings`（設定）、`/demo/new`（Issueを書く）、`/demo/new/service`（新しいサービスを作る）。ログインしていなくても開ける
+- URL：`/demo`（ホーム）、`/demo/repos/{owner}/{repo}`（リポジトリのページ）、`/demo/repos`（すべてのリポジトリ）、`/demo/dashboard`（Dashboard）、`/demo/lanes`（Slots & Queue）、`/demo/settings`（設定）、`/demo/new`（Issueを書く）、`/demo/new/service`（新しいサービスを作る）、`/demo/setup`（導入）。ログインしていなくても開ける
 - ログイン画面に「ログインせずにデモを見る」のリンクを置く
 - データ：`src/lib/demo/` に置いたサンプル。架空のリポジトリ3つ（`demo/todo-app`・`demo/landing-page`・`demo/notes-api`。最後の1つは公開済みの1件だけで、あなたの番もAIの番も 0・0 ＝左のバーには出ず `/demo/repos` にだけ出る見本）。最初の2つに、全部の段階（企画中・質問（画面案つき。画像は `public/mockups/` の見本）・工場の相談（`新サービス：` のIssue。案の段階から始まり、答えると見た目の方向（画像は `public/factory/` の見本）・画面・最終確認へ進む）・順番待ち・保留・AI作業中・CI中・CI失敗・レビュー中・修正中・修正の確認中・マージ待ち・止まった・やり直し待ち・公開中・公開済み など）と、出来事、順番待ちの理由、並列動作を含める。時刻は「今」からの相対で作る。上端の帯の件数（あなたの番・動いている）は、各リポジトリで、2つの数が同じにならないようにする
 - 進捗ログ：デモの各Issueに、進捗図で記録がある工程（今の位置までで、待ちでない工程）だけの進捗ログのコメント（`<!-- ai-step-log -->` と `<!-- ai-step {JSON} -->` の行。形は `src/lib/stepLog.ts`）を入れる（`src/lib/demo/data.ts` の `addStepLogs`。再生で段階が進んでも、そのときの段階に合わせて作る）。進捗図にはモデル名と所要時間が出る。記録が無い工程は「不明」を出さない。止まった例は「AIが3回直してもCIが通りませんでした」で、修正依頼コメントは `（自動の依頼 n/3）` 付き
@@ -1008,7 +1037,8 @@ PCでは左のバーのユーザーのメニュー、スマホではメニュー
 
 - GitHubのトークンはサーバー側（Auth.jsのセッション）だけで扱い、クライアントのコードやレスポンスに含めない
 - 許可リスト外のユーザーはログインさせない
-- 監視リポジトリ以外への操作は拒否する
+- 監視リポジトリ以外への操作は拒否する。**例外は導入（`/setup`）だけ**（Issue #517）：書き込めるのは、ログインした本人のアカウントにあり、`Gaku1205/ai-dev-template` から作られたリポジトリ（`template_repository`）だけで、書くたびにサーバーで `GET /repos/{owner}/{repo}` を読み直して確かめる。それ以外には何も書かない（下の「導入」）
+- 導入で受け取る秘密（App の秘密鍵・Claude のトークン）は、サーバーの1回の処理の中だけで扱い、Secret に書いたらすぐ捨てる。保存しない・ログに出さない・クライアントに返さない・エラーの文にも入れない
 - Issueに付ける画像は、サーバー側だけで GitHub に上げる（トークンはクライアントに渡さない。種類・大きさ・枚数もサーバーで確かめ直す）
 - OAuthのスコープは、監視リポジトリ（`WATCHED_REPOS`・`SETTINGS_REPO`）が全部公開なら `read:user public_repo`、そうでなければPrivateリポジトリの読み書きのため `read:user repo`（「ログインで頼む権限」の節。後でGitHub Appに置き換えるのが改善候補）
 
