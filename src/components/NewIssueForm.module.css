@@ -18,10 +18,10 @@
   font-size: 12px;
 }
 
-/* 1行のメモ：箱にせず、下に1pxの線だけ（選択欄と同じ） */
+/* メモ：箱にせず、下に1pxの線だけ（選択欄と同じ）。複数行で、打つと高さが伸びる（1行〜8行） */
 .memo {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   width: 100%;
   max-width: 560px;
   border-bottom: 1px solid var(--edge-line);
@@ -41,22 +41,45 @@
 
 .prefix {
   flex: none;
+  align-self: flex-start;
+  padding: 8px 0;
   color: var(--mute);
   font-size: 15px;
-  line-height: 40px;
+  line-height: 24px;
 }
 
+/* 行の高さ24px。高さは中身に合わせて伸ばし（JS）、8行（24×8＋上下8px）で止めて中でスクロールする */
 .input {
   flex: 1;
+  box-sizing: border-box;
   min-width: 0;
-  height: 40px;
-  padding: 0;
+  min-height: 40px;
+  max-height: 208px;
+  padding: 8px 0;
   border: 0;
   background: transparent;
   color: var(--bone);
   font: inherit;
   font-size: 15px;
+  line-height: 24px;
   outline: none;
+  overflow-y: auto;
+  resize: none;
+}
+
+/* 文字数 `3,812 / 4,000`（3600文字から。枠の右下）。上限を超えたら赤系 */
+.counter {
+  flex: none;
+  margin: 0 4px 8px 8px;
+  color: var(--mute);
+  font-size: 11.5px;
+  line-height: 24px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.counter[data-over] {
+  color: var(--fail-soft);
 }
 
 .input::placeholder {
@@ -129,11 +152,11 @@
   min-width: 0;
 }
 
-/* 枠：1pxの線 --hair（フォーカス中は --edge-line）・角丸16px・地 --bg。高さ52px */
+/* 枠：1pxの線 --hair（フォーカス中は --edge-line）・角丸16px・地 --bg。高さは1行で52px、伸びて8行（218px）まで。送るボタンは右下 */
 .barMemo .memo {
   box-sizing: border-box;
-  align-items: center;
-  height: 52px;
+  align-items: flex-end;
+  min-height: 52px;
   max-width: none;
   padding: 0 4px 0 16px;
   border: 1px solid var(--hair);
@@ -149,9 +172,19 @@
 
 .barMemo .input,
 .barMemo .prefix {
-  height: 50px;
-  line-height: 50px;
+  padding-top: 13px;
+  padding-bottom: 13px;
+  line-height: 24px;
   font-size: 16px;
+}
+
+.barMemo .input {
+  min-height: 50px;
+  max-height: 218px;
+}
+
+.barMemo .counter {
+  margin-bottom: 13px;
 }
 
 /* 送るボタン（↵）：枠の中の右端。押せる大きさは44px四方 */
@@ -162,6 +195,7 @@
   justify-content: center;
   width: 44px;
   height: 44px;
+  margin-bottom: 3px;
   border-radius: 8px;
   color: var(--mute);
 }

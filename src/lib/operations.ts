@@ -246,7 +246,7 @@ export async function executeCreateIssue(
   try {
     const isTemplate = await fetchIsTemplate(client, target);
     const issue = composeNewIssue({
-      title: input.title,
+      memo: input.memo,
       isTemplate,
       omakase: input.omakase,
       imageUrls: input.imageUrls,

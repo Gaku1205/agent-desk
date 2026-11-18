@@ -577,7 +577,7 @@ describe("operationErrorMessage", () => {
 });
 
 describe("executeCreateIssue", () => {
-  const base = { owner: "o", repo: "r", title: "天気のページ", omakase: true, imageUrls: [] };
+  const base = { owner: "o", repo: "r", memo: "天気のページ", omakase: true, imageUrls: [] };
   const respond = (isTemplate: boolean) => (call: Call) =>
     call.method === "GET"
       ? Response.json({ is_template: isTemplate })
@@ -593,17 +593,27 @@ describe("executeCreateIssue", () => {
     expect(calls[1]).toEqual({
       method: "POST",
       url: "https://api.github.com/repos/o/r/issues",
-      body: { title: "天気のページ" },
+      body: { title: "天気のページ", body: "天気のページ" },
     });
+  });
+
+  it("複数行のメモ：1行目が題、全文が本文。1行目が長ければ120文字＋…", async () => {
+    const { client, calls } = fakeClient(respond(false));
+    const first = "あ".repeat(121);
+    await executeCreateIssue(client, TARGET, { ...base, memo: `${first}\n二行目` });
+    expect(calls[1].body).toEqual({ title: `${"あ".repeat(120)}…`, body: `${first}\n二行目` });
   });
 
   it("テンプレート：「新サービス：」付き。全部おまかせなら本文にチェックが入る", async () => {
     const { client, calls } = fakeClient(respond(true));
     await executeCreateIssue(client, TARGET, base);
-    expect(calls[1].body).toEqual({ title: "新サービス：天気のページ", body: "- [x] 全部おまかせ" });
+    expect(calls[1].body).toEqual({
+      title: "新サービス：天気のページ",
+      body: "天気のページ\n\n- [x] 全部おまかせ",
+    });
     const second = fakeClient(respond(true));
     await executeCreateIssue(second.client, TARGET, { ...base, omakase: false });
-    expect(second.calls[1].body).toEqual({ title: "新サービス：天気のページ" });
+    expect(second.calls[1].body).toEqual({ title: "新サービス：天気のページ", body: "天気のページ" });
   });
 
   it("GitHubの失敗は理由にして返す", async () => {
@@ -623,7 +633,7 @@ describe("executeCreateIssue", () => {
     await executeCreateIssue(client, TARGET, { ...base, imageUrls });
     expect(calls[1].body).toEqual({
       title: "天気のページ",
-      body: imageUrls.map((url) => `![スクショ](${url})`).join("\n"),
+      body: `天気のページ\n\n${imageUrls.map((url) => `![スクショ](${url})`).join("\n")}`,
     });
   });
 });

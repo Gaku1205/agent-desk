@@ -24,8 +24,14 @@ export function newIssueRepos(
   });
 }
 
-/** メモ（タイトル）の長さの上限 */
+/** メモ全体の長さの上限（コードポイントで数える） */
+export const MAX_NEW_ISSUE_MEMO = 4000;
+
+/** 題（メモの1行目）の長さの上限。超えたら先頭のこれだけ＋`…` */
 export const MAX_NEW_ISSUE_TITLE = 120;
+
+/** 文字数のカウンターを出し始める文字数 */
+export const NEW_ISSUE_COUNTER_FROM = 3600;
 
 /** テンプレートリポジトリで、工場が受け持つIssueの頭（全角コロン） */
 export const FACTORY_TITLE_PREFIX = "新サービス：";
@@ -38,66 +44,89 @@ const FACTORY_PREFIX_PATTERN = /^新サービス[：:]\s*/;
 export type NewIssueInput = {
   owner: string;
   repo: string;
-  /** メモ（1行のタイトル）。頭の `新サービス：` は付けなくてよい */
-  title: string;
+  /** メモの全文（複数行）。頭の `新サービス：` は付けなくてよい */
+  memo: string;
   /** 「全部おまかせ」を選んだか（テンプレートリポジトリのときだけ効く） */
   omakase: boolean;
   /** 本文に並べる画像のURL（先に `uploadNewIssueImage` で専用ブランチに上げたもの。形は確かめ済み） */
   imageUrls: string[];
 };
 
-export type TitleCheck = { ok: true; title: string } | { ok: false; message: string };
+export type MemoCheck = { ok: true; memo: string } | { ok: false; message: string };
 
 export const NEW_ISSUE_MESSAGES = {
   empty: "メモを書いてください",
-  tooLong: `メモは${MAX_NEW_ISSUE_TITLE}文字以内にしてください`,
-  multiline: "メモは1行で書いてください",
+  tooLong: `メモは${MAX_NEW_ISSUE_MEMO.toLocaleString("en-US")}文字以内にしてください`,
 } as const;
 
-/** メモを確かめる：前後の空白を外し、空・改行あり・長すぎるものは受け付けない */
-export function checkNewIssueTitle(value: unknown): TitleCheck {
+/** 文字数（コードポイント） */
+export function memoLength(value: string): number {
+  return [...value].length;
+}
+
+/** メモを確かめる：空（空白だけ）と、4000文字を超えるものは受け付けない。通ったら前後の空白を外す */
+export function checkNewIssueMemo(value: unknown): MemoCheck {
   if (typeof value !== "string") return { ok: false, message: NEW_ISSUE_MESSAGES.empty };
-  const title = value.trim();
-  if (title === "") return { ok: false, message: NEW_ISSUE_MESSAGES.empty };
-  if (/[\r\n]/.test(title)) return { ok: false, message: NEW_ISSUE_MESSAGES.multiline };
-  if ([...title].length > MAX_NEW_ISSUE_TITLE) return { ok: false, message: NEW_ISSUE_MESSAGES.tooLong };
-  return { ok: true, title };
+  if (value.trim() === "") return { ok: false, message: NEW_ISSUE_MESSAGES.empty };
+  if (memoLength(value) > MAX_NEW_ISSUE_MEMO) return { ok: false, message: NEW_ISSUE_MESSAGES.tooLong };
+  return { ok: true, memo: value.trim() };
+}
+
+/** メモの最初の空でない行（前後の空白を外す）。無ければ空 */
+function firstLine(memo: string): string {
+  return (memo.split(/\r\n|\r|\n/).find((line) => line.trim() !== "") ?? "").trim();
+}
+
+/** 120文字を超えれば先頭120文字＋`…` */
+function clipTitle(line: string): string {
+  const chars = [...line];
+  return chars.length > MAX_NEW_ISSUE_TITLE ? `${chars.slice(0, MAX_NEW_ISSUE_TITLE).join("")}…` : line;
+}
+
+/** メモの題：最初の空でない行。長ければ先頭120文字＋`…` */
+export function memoTitle(memo: string): string {
+  return clipTitle(firstLine(memo));
 }
 
 /** ブラウザから来た値を確かめる（Server Actionは誰でも直接呼べるため）。正しくなければ null */
 export function parseNewIssueInput(value: unknown): NewIssueInput | null {
   if (typeof value !== "object" || value === null) return null;
-  const { owner, repo, title, omakase, images } = value as Record<string, unknown>;
+  const { owner, repo, memo, omakase, images } = value as Record<string, unknown>;
   if (typeof owner !== "string" || typeof repo !== "string") return null;
   if (!/^[\w.-]+$/.test(owner) || !/^[\w.-]+$/.test(repo)) return null;
   if (typeof omakase !== "boolean") return null;
-  const checked = checkNewIssueTitle(title);
+  const checked = checkNewIssueMemo(memo);
   if (!checked.ok) return null;
   const imageUrls = parseImageUrls(owner, repo, images);
   if (!imageUrls) return null;
-  return { owner, repo, title: checked.title, omakase, imageUrls };
+  return { owner, repo, memo: checked.memo, omakase, imageUrls };
 }
 
 /**
  * Issueのタイトルと本文を組み立てる。ラベルは付けない（パイプラインの受付が企画に回す）。
- * テンプレートリポジトリでは、タイトルを `新サービス：` 付きにする（すでに付いていれば重ねない）。
+ * タイトルはメモの題（最初の空でない行。120文字を超えれば先頭120文字＋`…`）、本文にはメモの全文を入れる（1行だけのときも）。
+ * テンプレートリポジトリでは、タイトルの頭に `新サービス：` を付ける（すでに付いていれば重ねない）。
  * 「全部おまかせ」のときだけ、本文に `- [x] 全部おまかせ` を入れる（入れなければ工場が相談から始める）。
  * 通常のリポジトリでは「全部おまかせ」は無視する。
- * 画像があれば、本文に `![スクショ](URL)` を1枚1行で並べる（「全部おまかせ」とは空行1つで分ける）
+ * 画像があれば、`![スクショ](URL)` を1枚1行で並べる。メモ・おまかせ・画像は空行1つで分ける
  */
 export function composeNewIssue(input: {
-  title: string;
+  memo: string;
   isTemplate: boolean;
   omakase: boolean;
   /** 上げた画像のURL */
   imageUrls?: string[];
 }): { title: string; body: string } {
+  const memo = input.memo.trim();
   const images = (input.imageUrls ?? []).map((url) => `![スクショ](${url})`).join("\n");
-  if (!input.isTemplate) return { title: input.title, body: images };
-  const memo = input.title.replace(FACTORY_PREFIX_PATTERN, "").trim();
-  const parts = [input.omakase ? OMAKASE_BODY : "", images].filter((part) => part !== "");
+  const title = memoTitle(memo);
+  if (!input.isTemplate) {
+    return { title, body: [memo, images].filter((part) => part !== "").join("\n\n") };
+  }
+  const stripped = clipTitle(firstLine(memo).replace(FACTORY_PREFIX_PATTERN, "").trim());
+  const parts = [memo, input.omakase ? OMAKASE_BODY : "", images].filter((part) => part !== "");
   return {
-    title: `${FACTORY_TITLE_PREFIX}${memo || input.title}`,
+    title: `${FACTORY_TITLE_PREFIX}${stripped || title}`,
     body: parts.join("\n\n"),
   };
 }

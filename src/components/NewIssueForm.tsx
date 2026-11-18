@@ -1,14 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, useTransition, type ClipboardEvent, type DragEvent, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type ClipboardEvent,
+  type DragEvent,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { createNewIssue, uploadNewIssueImage } from "@/app/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
 import { focusAfterRemove, type FocusAfterRemove } from "@/lib/imageFocus";
 import { chooseIssueRepo } from "@/lib/issueRepo";
 import { IMAGE_ACCEPT, IMAGE_FORM_FIELDS, IMAGE_HEAD_BYTES, isFileDrag, pickAddableImages } from "@/lib/issueImages";
 import type { CreateIssueResult, UploadImageResult } from "@/lib/operations";
-import { checkNewIssueTitle, composeNewIssue, MAX_NEW_ISSUE_TITLE } from "@/lib/newIssue";
+import {
+  checkNewIssueMemo,
+  composeNewIssue,
+  MAX_NEW_ISSUE_MEMO,
+  memoLength,
+  NEW_ISSUE_COUNTER_FROM,
+  NEW_ISSUE_MESSAGES,
+} from "@/lib/newIssue";
 import { useDemo } from "./DemoContext";
 import { CrossIcon, EnterIcon, FileIcon, ImageIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
 import { Select } from "./Select";
@@ -93,7 +110,7 @@ export function NewIssueForm({
   const [omakase, setOmakase] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [saving, startSaving] = useTransition();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [images, setImages] = useState<AttachedImage[]>([]);
   const imagesRef = useRef(images);
@@ -113,6 +130,18 @@ export function NewIssueForm({
     if (target.kind === "attach") attachRef.current?.focus();
     else formRef.current?.querySelectorAll<HTMLButtonElement>("[data-remove-image]")[target.index]?.focus();
   }, [images]);
+
+  const count = memoLength(title);
+  const overLimit = count > MAX_NEW_ISSUE_MEMO;
+  const blank = title.trim() === "";
+
+  // 打つと高さが伸びる（1行〜8行。超えたら CSS の max-height で止まり、欄の中でスクロール）
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [title]);
 
   const template = service || repos.find((repo) => repo.name === selected)?.template === true;
 
@@ -203,7 +232,7 @@ export function NewIssueForm({
   function submit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
-    const checked = checkNewIssueTitle(title);
+    const checked = checkNewIssueMemo(title);
     if (!checked.ok) {
       setStatus({ kind: "error", message: checked.message });
       inputRef.current?.focus();
@@ -213,7 +242,7 @@ export function NewIssueForm({
     if (!owner || !repo) return;
     if (demo) {
       // GitHub には送らず、サンプルのデータにIssueを足す
-      demo.createIssue({ owner, repo }, composeNewIssue({ title: checked.title, isTemplate: template, omakase }));
+      demo.createIssue({ owner, repo }, composeNewIssue({ memo: checked.memo, isTemplate: template, omakase }));
       // 画像は見せるだけ（デモのIssueには入れない）
       setStatus({ kind: "created", number: null, url: null });
       setTitle("");
@@ -246,7 +275,7 @@ export function NewIssueForm({
           createNewIssue({
             owner,
             repo,
-            title: checked.title,
+            memo: checked.memo,
             omakase: template && omakase,
             images: imageUrls,
           }),
@@ -262,7 +291,15 @@ export function NewIssueForm({
     });
   }
 
-  const memoLabel = service ? "どんなサービスを作りたいか" : template ? "新サービスのメモ" : "1行のメモ";
+  /** 下の入力欄だけ：Enter で送る（Shift+Enter は改行。日本語の変換中の Enter は変換の確定なので送らない） */
+  function onMemoKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (!bar || event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    if (saving || blank || overLimit) return;
+    formRef.current?.requestSubmit();
+  }
+
+  const memoLabel = service ? "どんなサービスを作りたいか" : template ? "新サービスのメモ" : "メモ";
   const empty = (
     <p className={styles.empty}>
       {service
@@ -322,28 +359,34 @@ export function NewIssueForm({
                   {!bar && <span className={styles.label}>{memoLabel}</span>}
                   <span className={styles.memo}>
                     {template && <span className={styles.prefix}>新サービス：</span>}
-                    <input
+                    <textarea
                       ref={inputRef}
                       className={styles.input}
+                      rows={1}
                       aria-label={bar ? memoLabel : undefined}
                       value={title}
                       onChange={(event) => {
                         setTitle(event.target.value);
                         if (status.kind === "error") setStatus({ kind: "idle" });
                       }}
+                      onKeyDown={onMemoKeyDown}
                       onPaste={onPaste}
-                      maxLength={MAX_NEW_ISSUE_TITLE}
                       autoComplete="off"
                       disabled={saving}
-                      aria-invalid={status.kind === "error" ? true : undefined}
+                      aria-invalid={status.kind === "error" || overLimit ? true : undefined}
                       placeholder={template ? "毎朝の天気と予定のページ" : "お問い合わせに自動で返事を送る"}
                     />
+                    {count >= NEW_ISSUE_COUNTER_FROM && (
+                      <span className={styles.counter} data-over={overLimit ? "" : undefined}>
+                        {count.toLocaleString("en-US")} / {MAX_NEW_ISSUE_MEMO.toLocaleString("en-US")}
+                      </span>
+                    )}
                     {bar && (
                       <button
                         type="submit"
                         className={styles.send}
-                        data-ready={title.trim() !== "" ? "" : undefined}
-                        disabled={saving || title.trim() === ""}
+                        data-ready={!blank && !overLimit ? "" : undefined}
+                        disabled={saving || blank || overLimit}
                         aria-busy={saving}
                         aria-label="Issueを作る"
                         title="Issueを作る"
@@ -353,6 +396,11 @@ export function NewIssueForm({
                     )}
                   </span>
                 </MemoWrap>
+                {overLimit && (
+                  <p className={`${settingsStyles.error} ${styles.imageMessage}`} role="alert">
+                    {NEW_ISSUE_MESSAGES.tooLong}
+                  </p>
+                )}
                 {imageMessage && (
                   <p className={`${settingsStyles.error} ${styles.imageMessage}`} role="alert">
                     {imageMessage}
@@ -425,7 +473,7 @@ export function NewIssueForm({
                 )}
                 <div className={`${settingsStyles.save} ${styles.actions}`}>
                   {!bar && (
-                    <button type="submit" className={settingsStyles.button} disabled={saving} aria-busy={saving}>
+                    <button type="submit" className={settingsStyles.button} disabled={saving || overLimit} aria-busy={saving}>
                       {service ? <PlusIcon /> : <WriteIcon />}
                       {saving ? "作成中…" : service ? "サービスを作る" : "Issueを作る"}
                     </button>
