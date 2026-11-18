@@ -19,14 +19,17 @@ export default async function AppLayout({
   if (!login) return <LoginScreen />;
 
   const { repos } = await loadWatchedRepos();
+  const renderedAt = new Date().toISOString();
 
-  // 全リポジトリの読み込み（件数・自動更新の計画）は待たない。`LayoutStream` が Suspense で後から流す
+  // 全リポジトリの読み込み（件数・自動更新の計画）は待たない。`LayoutStream` が Suspense で後から流す。
+  // 取り直しのたびに境界の key を替える：同じ境界のままだと、トランジションの中では React が
+  // 新しい木がそろうまで前の画面を出し続け、中央が先に入れ替わらないため
   return (
-    <AppShell initialSyncedAt={new Date().toISOString()}>
+    <AppShell initialSyncedAt={renderedAt}>
       <ParallelProvider>
         <NavProvider base={{ repos, counts: NO_COUNTS, runningCounts: NO_COUNTS, login, logout }}>
           <AppTopBar />
-          <Suspense fallback={null}>
+          <Suspense key={renderedAt} fallback={null}>
             <LayoutStream />
           </Suspense>
           {children}

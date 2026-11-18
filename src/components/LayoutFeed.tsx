@@ -11,11 +11,10 @@ import { useSetStreamedNav, type StreamedNav } from "./NavContext";
 export function LayoutFeed({ plan, streamed }: { plan: ShellPlan; streamed: StreamedNav }) {
   const setPlan = useSetShellPlan();
   const setStreamed = useSetStreamedNav();
-  // 取り直しのたびにサーバーが新しい物を渡す。`loadedAt` が替わったときに入れる
+  // 取り直しのたびにサーバーが新しい物を渡す（描き直しのときだけ効果が走る）
   useEffect(() => {
     setPlan?.(plan);
     setStreamed?.(streamed);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- plan.loadedAt が替わったときだけ入れる（同じ物なら中身も同じ）
-  }, [plan.loadedAt, setPlan, setStreamed]);
+  }, [plan, streamed, setPlan, setStreamed]);
   return null;
 }
