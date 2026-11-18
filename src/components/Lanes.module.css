@@ -558,7 +558,7 @@
 
 .row[data-kind="turn"] {
   --line: var(--kind-line);
-  grid-template-columns: minmax(0, 200px) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 200px) minmax(280px, 1fr) auto;
   height: 56px;
   padding-top: 0;
   padding-bottom: 0;
@@ -674,12 +674,23 @@
   background: var(--fail-hover);
 }
 
+.row[data-kind="turn"] .ref {
+  white-space: nowrap;
+}
+
+/* スマホ：「あなたの番」のボタンと同じ44px */
+@media (max-width: 899px) {
+  .turnAct {
+    height: 44px;
+  }
+}
+
 .turnBusy {
   margin-right: 8px;
   color: var(--accent);
 }
 
-@container (max-width: 639px) {
+@container (max-width: 859px) {
   .row[data-kind="turn"] {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
