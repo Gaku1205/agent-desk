@@ -31,6 +31,11 @@ const ISSUE_FIELDS = `number title body state url createdAt updatedAt closedAt
  * Webhook のたびに取り直すと1時間で使い切った（2026年11月18日）。50件にして、足りない分は続きを問い合わせる
  */
 export const REPO_PAGE_SIZE = 50;
+/**
+ * 差分の読みで、更新された PR を1ページで取る数。PR の一覧は更新時刻で絞れない（並べて、古い物が出たら止める）ので、
+ * 1ページが大きいと、変わっていない PR まで毎回読む。変化は数件のことが多いので小さくし、足りなければ続きを読む
+ */
+export const DELTA_PULLS_PAGE_SIZE = 20;
 /** 人間待ちの Issue（ラベルごと）を取る数。ページ送りはしない */
 export const WAITING_PAGE_SIZE = 30;
 
@@ -55,6 +60,37 @@ const WAITING_ISSUES = WAITING_LABELS.map(
 
 /** main のコミットを見る数（`history(first: …)` と `mainDeployedFrom` の `sample` で共通） */
 export const MAIN_COMMITS_SAMPLE = 30;
+
+/** PR 1件で取る物（全部の読みと差分の読みで同じ） */
+const PULL_FIELDS = `number title body state url createdAt updatedAt mergedAt headRefName headRefOid mergeable
+        labels(first: 100) { nodes { name } }
+        files(first: 100) { totalCount nodes { path } }
+        ${COMMENTS}
+        ${LABEL_EVENTS}
+        commits(last: 1) {
+          nodes {
+            commit {
+              statusCheckRollup {
+                contexts(first: 100) {
+                  nodes {
+                    __typename
+                    ... on CheckRun { name status conclusion completedAt checkSuite { app { slug } } }
+                  }
+                }
+              }
+            }
+          }
+        }
+        mergeCommit { oid status { ...Statuses } }`;
+
+/** main の直近のコミットの公開ステータス */
+const MAIN_REF = `ref(qualifiedName: "refs/heads/main") @include(if: $withMain) {
+      target {
+        ... on Commit { history(first: ${MAIN_COMMITS_SAMPLE}) { nodes { oid status { ...Statuses } } } }
+      }
+    }`;
+
+const STATUSES_FRAGMENT = `fragment Statuses on Status { contexts { context state description targetUrl createdAt } }`;
 
 /**
  * 同期の GraphQL の問い合わせ（docs/spec.md の「データの取得」）。1リポジトリ1回で、
@@ -94,37 +130,105 @@ query RepoData(
     ) @include(if: $withPulls) {
       pageInfo { hasNextPage endCursor }
       nodes {
-        number title body state url createdAt updatedAt mergedAt headRefName headRefOid mergeable
-        labels(first: 100) { nodes { name } }
-        files(first: 100) { totalCount nodes { path } }
-        ${COMMENTS}
-        ${LABEL_EVENTS}
-        commits(last: 1) {
-          nodes {
-            commit {
-              statusCheckRollup {
-                contexts(first: 100) {
-                  nodes {
-                    __typename
-                    ... on CheckRun { name status conclusion completedAt checkSuite { app { slug } } }
-                  }
-                }
-              }
-            }
-          }
-        }
-        mergeCommit { oid status { ...Statuses } }
+        ${PULL_FIELDS}
       }
     }
-    ref(qualifiedName: "refs/heads/main") @include(if: $withMain) {
-      target {
-        ... on Commit { history(first: ${MAIN_COMMITS_SAMPLE}) { nodes { oid status { ...Statuses } } } }
-      }
-    }
+    ${MAIN_REF}
   }
 }
-fragment Statuses on Status { contexts { context state description targetUrl createdAt } }
+${STATUSES_FRAGMENT}
 `;
+
+/**
+ * 差分の読み（docs/spec.md の「データの取得」の「差分だけ読む」）の問い合わせ。前に読んだ結果に混ぜる物だけを取る。
+ * - `recentIssues`・`recentPulls`：`$since`（前に読んだ時刻の少し前と、1時間前の早い方）より後に更新された物（状態を問わない）
+ * - `openIssues`・`openPulls`：直近14日の、開いている物の全部（チェック・コンフリクト・作業中のコメントの書き換えは、
+ *   Issue・PR の更新時刻を動かさないため）
+ * 人間待ちの一覧（`waiting*`）は入れない（ラベルの付け外しは更新時刻を動かすので、`recentIssues` に入る）
+ */
+export const DELTA_QUERY = `
+query RepoDelta(
+  $owner: String!
+  $name: String!
+  $since: DateTime!
+  $windowSince: DateTime!
+  $recentIssuesAfter: String
+  $openIssuesAfter: String
+  $recentPullsAfter: String
+  $openPullsAfter: String
+  $withRecentIssues: Boolean!
+  $withOpenIssues: Boolean!
+  $withRecentPulls: Boolean!
+  $withOpenPulls: Boolean!
+  $withMain: Boolean!
+) {
+  rateLimit { cost remaining resetAt }
+  repository(owner: $owner, name: $name) {
+    isTemplate
+    recentIssues: issues(
+      first: ${REPO_PAGE_SIZE}
+      after: $recentIssuesAfter
+      filterBy: { since: $since }
+      orderBy: { field: UPDATED_AT, direction: DESC }
+    ) @include(if: $withRecentIssues) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        ${ISSUE_FIELDS}
+      }
+    }
+    openIssues: issues(
+      first: ${REPO_PAGE_SIZE}
+      after: $openIssuesAfter
+      states: OPEN
+      filterBy: { since: $windowSince }
+      orderBy: { field: UPDATED_AT, direction: DESC }
+    ) @include(if: $withOpenIssues) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        ${ISSUE_FIELDS}
+      }
+    }
+    recentPulls: pullRequests(
+      first: ${DELTA_PULLS_PAGE_SIZE}
+      after: $recentPullsAfter
+      orderBy: { field: UPDATED_AT, direction: DESC }
+    ) @include(if: $withRecentPulls) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        ${PULL_FIELDS}
+      }
+    }
+    openPulls: pullRequests(
+      first: ${REPO_PAGE_SIZE}
+      after: $openPullsAfter
+      states: OPEN
+      orderBy: { field: UPDATED_AT, direction: DESC }
+    ) @include(if: $withOpenPulls) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        ${PULL_FIELDS}
+      }
+    }
+    ${MAIN_REF}
+  }
+}
+${STATUSES_FRAGMENT}
+`;
+
+/** 差分の読みの4つの一覧の名前（別名） */
+export const DELTA_LISTS = ["recentIssues", "openIssues", "recentPulls", "openPulls"] as const;
+export type DeltaList = (typeof DELTA_LISTS)[number];
+
+/** 差分の読みの問い合わせ1回の点数（`repoQueryCost` と同じ数え方。Issue の一覧は1件ごとに3、PR の一覧は6） */
+export function deltaQueryCost(parts: Record<DeltaList, boolean> & { withMain: boolean }): number {
+  let requests = 0;
+  if (parts.recentIssues) requests += 1 + REPO_PAGE_SIZE * 3;
+  if (parts.openIssues) requests += 1 + REPO_PAGE_SIZE * 3;
+  if (parts.recentPulls) requests += 1 + DELTA_PULLS_PAGE_SIZE * 6;
+  if (parts.openPulls) requests += 1 + REPO_PAGE_SIZE * 6;
+  if (parts.withMain) requests += 1;
+  return Math.max(1, Math.round(requests / 100));
+}
 
 /**
  * 同期の問い合わせ1回の点数の見積もり（GitHub の計算式）。つながり（connection）ごとに、親の数だけ「要求」を数え、
@@ -254,6 +358,50 @@ export function readRepoResponse(data: unknown): {
       ? (history.nodes ?? []).map((commit) => convertStatuses(commit?.status ?? null))
       : null,
   };
+}
+
+/** 差分の読みの返事（`data`） */
+type GqlDeltaResponse = {
+  repository?: {
+    isTemplate?: boolean | null;
+    recentIssues?: GqlConnection<GqlIssue>;
+    openIssues?: GqlConnection<GqlIssue>;
+    recentPulls?: GqlConnection<GqlPull>;
+    openPulls?: GqlConnection<GqlPull>;
+    ref?: {
+      target?: { history?: Nodes<{ oid?: string | null; status?: GqlStatus }> } | null;
+    } | null;
+  } | null;
+};
+
+/** 差分の読みの返事1回から、使う物を取り出す。`repository` が無ければ null（見つからない） */
+export function readDeltaResponse(data: unknown): {
+  isTemplate: boolean | undefined;
+  recentIssues: GqlPage<GqlIssue> | null;
+  openIssues: GqlPage<GqlIssue> | null;
+  recentPulls: GqlPage<GqlPull> | null;
+  openPulls: GqlPage<GqlPull> | null;
+  mainCommits: CommitStatusData[][] | null;
+} | null {
+  const repository = (data as GqlDeltaResponse | null)?.repository;
+  if (!repository) return null;
+  const history = repository.ref?.target?.history;
+  return {
+    isTemplate: typeof repository.isTemplate === "boolean" ? repository.isTemplate : undefined,
+    recentIssues: pageOf(repository.recentIssues),
+    openIssues: pageOf(repository.openIssues),
+    recentPulls: pageOf(repository.recentPulls),
+    openPulls: pageOf(repository.openPulls),
+    mainCommits: history ? (history.nodes ?? []).map((commit) => convertStatuses(commit?.status ?? null)) : null,
+  };
+}
+
+function pageOf<T>(connection: GqlConnection<T> | undefined): GqlPage<T> | null {
+  if (!connection) return null;
+  const nodes = (connection.nodes ?? []).filter((node): node is T => node !== null);
+  const info = connection.pageInfo;
+  const next = info?.hasNextPage && typeof info.endCursor === "string" ? info.endCursor : null;
+  return { nodes, next };
 }
 
 function nodesOf<T>(connection: Nodes<T> | undefined): T[] {
@@ -431,9 +579,18 @@ export function mergeMainDeployed(previous: MainDeployed | undefined, found: Mai
 }
 
 /** 人間の判断を待つ、開いている Issue か（更新日で絞らない物） */
-function isWaitingIssue(issue: IssueData): boolean {
+export function isWaitingIssue(issue: IssueData): boolean {
   return issue.state === "open" && issue.labels.some((label) => (WAITING_LABELS as readonly string[]).includes(label));
 }
+
+/** 取ったデータのうち、Issue・PR とそれに付く物（全部の読みと差分の読みで混ぜる単位） */
+export type RepoParts = {
+  issues: IssueData[];
+  pulls: PullData[];
+  comments: CommentData[];
+  pullChecks: Record<number, PullChecks>;
+  events: IssueEventData[];
+};
 
 /**
  * 取った Issue・PR のノードを今の型にして、直近14日（`cutoffMs` 以降）に絞る。
@@ -445,13 +602,7 @@ export function convertRepoNodes(
   pullNodes: GqlPull[],
   cutoffMs: number,
   waitingNodes: GqlIssue[] = [],
-): {
-  issues: IssueData[];
-  pulls: PullData[];
-  comments: CommentData[];
-  pullChecks: Record<number, PullChecks>;
-  events: IssueEventData[];
-} {
+): RepoParts {
   const issues: IssueData[] = [];
   const pulls: PullData[] = [];
   const comments: CommentData[] = [];

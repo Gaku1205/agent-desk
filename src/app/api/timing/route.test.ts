@@ -22,7 +22,10 @@ vi.mock("@/lib/github/fetch", () => ({
     ...repo,
     ok: true,
     readSource: "app",
-    data: { issues: [{ title: "private-title" }] },
+    data: {
+      issues: [{ title: "private-title" }],
+      sync: { mode: repo.repo.endsWith("a") ? "delta" : "full", readAt: "x", fullAt: "x", count: 7 },
+    },
   }),
 }));
 vi.mock("@/lib/github/repoCache", () => ({
@@ -69,12 +72,12 @@ describe("GET /api/timing", () => {
     const body = (await response.json()) as {
       stages: { name: string; ms: number; label: string }[];
       repoCount: number;
-      repos: { n: number; ms: number; ok: boolean; source: string; kb: number }[];
+      repos: { n: number; ms: number; ok: boolean; source: string; kb: number; mode: string; count: number }[];
       calls: Record<string, { count: number; ms: number; maxMs: number }>;
     };
-    expect(body.repos.map((row) => [row.n, row.ok, row.source])).toEqual([
-      [1, true, "app"],
-      [2, true, "app"],
+    expect(body.repos.map((row) => [row.n, row.ok, row.source, row.mode, row.count])).toEqual([
+      [1, true, "app", "delta", 7],
+      [2, true, "app", "full", 7],
     ]);
     expect(Object.keys(body.calls).sort()).toEqual(["graphql", "key", "rest", "write"]);
     expect(body.stages.map((stage) => stage.name)).toEqual(header.split(", ").map((part) => part.split(";")[0]));

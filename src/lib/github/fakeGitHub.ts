@@ -1,4 +1,5 @@
 import {
+  DELTA_PULLS_PAGE_SIZE,
   REPO_PAGE_SIZE,
   WAITING_LABELS,
   WAITING_PAGE_SIZE,
@@ -65,29 +66,78 @@ export type FakeRepo = {
 
 const PAGE = REPO_PAGE_SIZE;
 
-function page<T>(items: T[], after: unknown) {
+function page<T>(items: T[], after: unknown, size: number = PAGE) {
   const start = typeof after === "string" ? Number(after) : 0;
-  const nodes = items.slice(start, start + PAGE);
+  const nodes = items.slice(start, start + size);
   const end = start + nodes.length;
   return { pageInfo: { hasNextPage: end < items.length, endCursor: String(end) }, nodes };
 }
 
-/** GraphQL の返事（`data`）を、問い合わせの変数（ページ送り・含める物）に合わせて作る */
-export function graphqlData(repo: FakeRepo, variables: Record<string, unknown>): unknown {
+/** 更新の新しい順（同じ時刻は渡した順のまま）。GitHub の `orderBy: { field: UPDATED_AT, direction: DESC }` */
+function newestFirst<T extends { updatedAt: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+}
+
+function mainRef(main: GqlStatusContext[][] | null) {
+  return main === null
+    ? null
+    : { target: { history: { nodes: main.map((contexts, i) => ({ oid: `main-${i}`, status: { contexts } })) } } };
+}
+
+/** 差分の読み（`DELTA_QUERY`）の返事。`since`・`windowSince` は更新時刻で絞り、`openIssues`・`openPulls` は開いている物だけ */
+function deltaData(repo: FakeRepo, variables: Record<string, unknown>): unknown {
   const main = repo.main === undefined ? [] : repo.main;
+  const since = Date.parse(String(variables.since));
+  const windowSince = Date.parse(String(variables.windowSince));
+  const issues = newestFirst(repo.issues ?? []);
+  const pulls = newestFirst(repo.pulls ?? []);
   return {
     rateLimit: { cost: 1, remaining: 4999, resetAt: "2026-10-25T01:00:00Z" },
     repository: {
       isTemplate: repo.isTemplate ?? false,
-      ...(variables.withIssues ? { issues: page(repo.issues ?? [], variables.issuesAfter) } : {}),
-      ...(variables.withPulls ? { pullRequests: page(repo.pulls ?? [], variables.pullsAfter) } : {}),
+      ...(variables.withRecentIssues
+        ? { recentIssues: page(issues.filter((i) => Date.parse(i.updatedAt) >= since), variables.recentIssuesAfter) }
+        : {}),
+      ...(variables.withOpenIssues
+        ? {
+            openIssues: page(
+              issues.filter((i) => i.state === "OPEN" && Date.parse(i.updatedAt) >= windowSince),
+              variables.openIssuesAfter,
+            ),
+          }
+        : {}),
+      ...(variables.withRecentPulls
+        ? { recentPulls: page(pulls, variables.recentPullsAfter, DELTA_PULLS_PAGE_SIZE) }
+        : {}),
+      ...(variables.withOpenPulls
+        ? { openPulls: page(pulls.filter((p) => p.state === "OPEN"), variables.openPullsAfter) }
+        : {}),
+      ...(variables.withMain ? { ref: mainRef(main) } : {}),
+    },
+  };
+}
+
+/** GraphQL の返事（`data`）を、問い合わせの変数（ページ送り・含める物）に合わせて作る */
+export function graphqlData(repo: FakeRepo, variables: Record<string, unknown>): unknown {
+  if ("withRecentIssues" in variables) return deltaData(repo, variables);
+  const main = repo.main === undefined ? [] : repo.main;
+  const issues = newestFirst(repo.issues ?? []);
+  const since = typeof variables.since === "string" ? Date.parse(variables.since) : -Infinity;
+  return {
+    rateLimit: { cost: 1, remaining: 4999, resetAt: "2026-10-25T01:00:00Z" },
+    repository: {
+      isTemplate: repo.isTemplate ?? false,
+      ...(variables.withIssues
+        ? { issues: page(issues.filter((i) => Date.parse(i.updatedAt) >= since), variables.issuesAfter) }
+        : {}),
+      ...(variables.withPulls ? { pullRequests: page(newestFirst(repo.pulls ?? []), variables.pullsAfter) } : {}),
       ...(variables.withMain
         ? {
             ...Object.fromEntries(
               WAITING_LABELS.map((label, index) => [
                 `waiting${index}`,
                 {
-                  nodes: (repo.issues ?? [])
+                  nodes: issues
                     .filter(
                       (issue) =>
                         issue.state === "OPEN" && (issue.labels?.nodes ?? []).some((l) => l?.name === label),
