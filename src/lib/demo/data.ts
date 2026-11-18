@@ -708,6 +708,29 @@ function landingPage(base: Date, placer: Placer): RepoData {
   // main の最新コミットの、いちばん新しい成功した公開（上のPRより後、下の公開失敗（38分前）より前）
   ctx.data.mainDeployedAt = ago(ctx, 40);
 
+  // 配布のPR（テンプレート更新の取り込み。Issueに紐づかない。Dashboard の Merged からは外れる）
+  for (const [number, minutesAgo] of [
+    [90, 3 * 60],
+    [91, 5 * 60],
+  ] as const) {
+    const mergedAt = ago(ctx, minutesAgo);
+    ctx.data.pulls.push({
+      number,
+      title: "テンプレートの更新を取り込む",
+      body: "配布のPR",
+      state: "closed",
+      merged: true,
+      labels: [],
+      url: repoPageUrl(ctx),
+      headRef: `pipeline-sync/demo-${number}`,
+      headSha: `sync${number}`,
+      mergeCommitSha: `sync${number}ff`,
+      createdAt: ago(ctx, minutesAgo + 10),
+      updatedAt: mergedAt,
+      mergedAt,
+    });
+  }
+
   // 公開中
   const deploying = addIssue(ctx, 8, "お問い合わせフォームに確認の画面を足す", {
     createdAt: ago(ctx, 90),

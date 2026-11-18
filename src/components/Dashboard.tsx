@@ -474,7 +474,15 @@ export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav, er
           )}
           <p className={styles.sentence}>{summarySentence(summary, periodWord(period))}</p>
           <dl className={styles.table}>
-            <Cell label="Merged" value={count(summary.merged)} note={`prev ${period}: ${count(summary.mergedPrev)}`} />
+            <Cell
+              label="Merged"
+              value={count(summary.merged)}
+              note={`prev ${period}: ${count(summary.mergedPrev)}${
+                summary.merged !== null && summary.mergedSyncExcluded !== null && summary.mergedSyncExcluded > 0
+                  ? ` · 配布 ${summary.mergedSyncExcluded}件除く`
+                  : ""
+              }`}
+            />
             <Cell
               label="Lead time（median）"
               value={span(summary.leadMedianMs)}

@@ -17,6 +17,7 @@ import {
   implementResult,
   isClaudeReviewCheck,
   isImplementWorkingComment,
+  isSyncPull,
   issueGraceEndsAt,
   latestSuccessDeployAt,
   reviewedWithoutIssues,
@@ -758,6 +759,15 @@ describe("紐づくPR", () => {
     expect(findLinkedPull([closed, merged, open], 3)?.number).toBe(14);
     expect(findLinkedPull([closed, merged], 3)?.number).toBe(13);
     expect(findLinkedPull([closed], 3)).toBeNull();
+  });
+});
+
+describe("isSyncPull（配布のPR）", () => {
+  it("ブランチ名が pipeline-sync/ で始まる物だけ", () => {
+    expect(isSyncPull({ headRef: "pipeline-sync/2026-11-18" })).toBe(true);
+    expect(isSyncPull({ headRef: "claude/issue-3-x" })).toBe(false);
+    expect(isSyncPull({ headRef: "feature/pipeline-sync/x" })).toBe(false);
+    expect(isSyncPull({ headRef: "" })).toBe(false);
   });
 });
 

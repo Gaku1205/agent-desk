@@ -113,11 +113,29 @@ describe("30d のまとめ", () => {
     expect(summary.mergedPrev).toBe(3);
     expect(summarySentence(summary, periodWord("30d"))).toBe("この30日で、2件マージして、止まったのは 0回でした。");
   });
+  it("配布のPR（pipeline-sync/）は merged・mergedPrev に入れず、期間内の外した数だけ数える", () => {
+    const day = 24 * HOUR;
+    const sync = (number: number, mergedAgo: number): PullData => ({
+      ...pull(number, number, mergedAgo),
+      body: "",
+      headRef: `pipeline-sync/${number}`,
+    });
+    const data = {
+      pulls: [pull(11, 1, 10 * day), pull(12, 2, 45 * day), sync(21, 5 * day), sync(22, 6 * day), sync(23, 40 * day), sync(24, 70 * day)],
+    };
+    const summary = summarize([result(data)], NOW, "30d");
+    expect(summary.merged).toBe(1);
+    expect(summary.mergedPrev).toBe(1);
+    expect(summary.mergedSyncExcluded).toBe(2);
+    expect(summarize([result({ pulls: [pull(11, 1, 10 * day)] })], NOW, "30d").mergedSyncExcluded).toBe(0);
+    expect(summarize([result(data)], NOW, "24h").mergedSyncExcluded).toBe(0);
+  });
   it("読めたリポジトリが無ければ数字は null（—）", () => {
     const failed: RepoResult = { owner: "o", repo: "r", ok: false, error: { kind: "other", message: "x" } };
     const summary = summarize([failed], NOW, "30d");
     expect(summary.merged).toBeNull();
     expect(summary.mergedPrev).toBeNull();
+    expect(summary.mergedSyncExcluded).toBeNull();
   });
   it("buildLocalBundles は 24h・7d だけ（30d は専用の取得）", () => {
     expect(Object.keys(buildLocalBundles([], NOW))).toEqual(["24h", "7d"]);

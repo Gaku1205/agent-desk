@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CommentData, IssueEventData, PullData, RepoResult } from "../github/types";
+import { summarize } from "./summary";
 import { longestStep, maxP90, throughput, throughputAll } from "./throughput";
 
 const NOW = new Date("2026-11-18T02:00:00Z");
@@ -53,6 +54,14 @@ describe("リポジトリごとのマージ数", () => {
     const r = result("a", { pulls: [pull(1, 24 * HOUR), pull(2, 24 * HOUR + 1), pull(3, 0)] });
     expect(throughput([r], NOW, "24h").repos).toEqual([{ owner: "o", repo: "a", merged: 1 }]);
     expect(throughput([r], NOW, "7d").repos[0].merged).toBe(2);
+  });
+
+  it("配布のPR（pipeline-sync/）は数えない（Merged と同じ数え方）", () => {
+    const sync = { ...pull(9, HOUR), headRef: "pipeline-sync/9" };
+    const rs = [result("a", { pulls: [pull(1, HOUR), sync] }), result("b", { pulls: [{ ...sync, number: 10 }] })];
+    const t = throughput(rs, NOW, "24h");
+    expect(t.repos).toEqual([{ owner: "o", repo: "a", merged: 1 }]);
+    expect(summarize(rs, NOW, "24h").merged).toBe(1);
   });
 
   it("多い順に並べ、同数は名前順。0件は入れない", () => {
