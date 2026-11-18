@@ -17,6 +17,9 @@ export const ADDED_LOG_MAX_ENTRIES = 20;
 const key = (owner: string, repo: string) => `${owner}/${repo}`.toLowerCase();
 const repoKey = (repo: WatchedRepo) => key(repo.owner, repo.repo);
 
+/** 自動で足すか（`on` / `off`。無ければオン）の Variable の名前。画面からも読めるよう、ここに置く */
+export const AUTO_ADD_VARIABLE = "AGENT_DESK_AUTO_ADD";
+
 /** 自動で足すか（Variable `AGENT_DESK_AUTO_ADD`）。無い・`off` 以外は初期のオン */
 export function parseAutoAddEnabled(value: string | null | undefined): boolean {
   return value?.trim().toLowerCase() !== "off";

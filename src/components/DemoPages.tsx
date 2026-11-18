@@ -4,11 +4,10 @@ import { useCallback } from "react";
 import { notFound } from "next/navigation";
 import { demoStepLog } from "@/lib/demo/stepLog";
 import { findWatchedRepo, type WatchedRepo } from "@/lib/config";
-import { DEMO_BASE_PATH, DEMO_REPO_OPTIONS, DEMO_TEMPLATE_REPO } from "@/lib/demo/data";
+import { DEMO_BASE_PATH, DEMO_PARALLEL_SETTINGS, DEMO_REPO_OPTIONS, DEMO_TEMPLATE_REPO } from "@/lib/demo/data";
 import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
 import { parseNotifyEvents } from "@/lib/notifyEvents";
-import { DEFAULT_PARALLEL_SETTINGS } from "@/lib/parallel";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems, filterTurnItems } from "@/lib/turn";
 import { buildBundle, type PeriodBundle } from "@/lib/dashboard/bundle";
@@ -172,8 +171,8 @@ export function DemoNewService() {
 }
 
 /**
- * デモの設定：保存を押しても書き込まない（アニメーションだけは、このブラウザに本当に保存する）。
- * 「新しいサービスを自動で追加」は、サンプルの動き（工場が作ったリポジトリを足すか）だけを変える
+ * デモの設定：変えても書き込まない（テーマ・アニメーションだけは、このブラウザに本当に保存する）。
+ * `Auto-add` は、サンプルの動き（工場が作ったリポジトリを足すか）だけを変える
  */
 export function DemoSettings() {
   const { repos, autoAdd } = useDemoState();
@@ -189,7 +188,7 @@ export function DemoSettings() {
         events: parseNotifyEvents(null),
       }))}
       autoAdd={autoAdd}
-      parallel={DEFAULT_PARALLEL_SETTINGS}
+      parallel={DEMO_PARALLEL_SETTINGS}
     />
   );
 }

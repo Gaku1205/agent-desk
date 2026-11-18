@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { checkPipeline, saveWatchedRepos, type SaveReposResult } from "@/app/(app)/settings/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
-import { broadcastSavedRepos, useApplySavedRepos } from "./NavContext";
+import { planWatchedReposWrite } from "@/lib/settingsSave";
+import { AutoAddSetting } from "./AutoAddSetting";
 import { useDemo } from "./DemoContext";
-import { CrossIcon, PlusIcon, RepoIcon, SaveIcon } from "./icons";
+import { CheckIcon, CrossIcon, PlusIcon, RepoIcon } from "./icons";
+import { broadcastSavedRepos, useApplySavedRepos } from "./NavContext";
 import { Select } from "./Select";
-import settingsStyles from "./SettingsSections.module.css";
-import styles from "./WatchedReposSetting.module.css";
+import styles from "./Settings.module.css";
+import { SettingsPanel, SettingsRow, useMarkSaved } from "./SettingsRow";
 
 export type WatchedRepoRow = {
   /** `owner/repo` */
@@ -16,6 +18,9 @@ export type WatchedRepoRow = {
   /** パイプラインがあるか。まだ調べていなければ null */
   pipeline: boolean | null;
 };
+
+/** 畳んでいる間に出す件数 */
+const SHOWN_ROWS = 5;
 
 type Props = {
   initialRows: WatchedRepoRow[];
@@ -27,53 +32,38 @@ type Props = {
   optionsError?: string | null;
   /** 一覧が変わるたびに、いまのリポジトリ名（`owner/repo`）を知らせる */
   onListChange?: (names: string[]) => void;
+  /** `Auto-add` のオン・オフ。保存先が無いときは null で、行を出さない */
+  autoAdd?: boolean | null;
 };
 
-type Status = { kind: "idle" } | { kind: "saved" } | { kind: "error"; message: string };
-
-/** 設定画面の「監視するリポジトリ」。保存はサーバー側（Server Action）で行う */
+/** 「Repositories」の白い面。「外す」「追加」を押したらすぐ保存する（サーバー側の Server Action） */
 export function WatchedReposSetting({
   initialRows,
   options,
   editable,
   optionsError = null,
   onListChange,
+  autoAdd = null,
 }: Props) {
   const [rows, setRows] = useState(initialRows);
-  // 最後に保存した（または読み込んだ）一覧。未保存かどうかは、これとの差で決める
-  const [savedNames, setSavedNames] = useState(() => initialRows.map((row) => row.name));
+  const [expanded, setExpanded] = useState(false);
   const removeRefs = useRef(new Map<string, HTMLButtonElement>());
   const selectRef = useRef<HTMLButtonElement>(null);
-  const saveRef = useRef<HTMLButtonElement>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
   // 「外す」を押したあとにフォーカスを移す先（行の名前。null は追加の選択欄）。描き直したあとで移す
   const pendingFocus = useRef<{ name: string | null } | null>(null);
   const [selected, setSelected] = useState("");
-  const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [error, setError] = useState<string | null>(null);
   const [saving, startSaving] = useTransition();
   const demo = useDemo();
   const applySavedRepos = useApplySavedRepos();
-
-  useEffect(() => {
-    if (status.kind !== "saved") return;
-    const timer = window.setTimeout(() => setStatus({ kind: "idle" }), 2000);
-    return () => window.clearTimeout(timer);
-  }, [status]);
+  const markSaved = useMarkSaved();
 
   const listed = new Set(rows.map((row) => row.name.toLowerCase()));
   const choices = options.filter((name) => !listed.has(name.toLowerCase()));
   const current = choices.includes(selected) ? selected : (choices[0] ?? "");
-  const savedSet = new Set(savedNames);
-  const dirty = rows.length !== savedSet.size || rows.some((row) => !savedSet.has(row.name));
-
-  // 未保存のままリロード・タブを閉じようとしたら、ブラウザ標準の確認を出す（デモでは出さない）
-  useEffect(() => {
-    if (!dirty || demo) return;
-    function onBeforeUnload(event: BeforeUnloadEvent) {
-      event.preventDefault();
-    }
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [dirty, demo]);
+  const folded = !expanded && rows.length > SHOWN_ROWS;
+  const shown = folded ? rows.slice(0, SHOWN_ROWS) : rows;
 
   useEffect(() => {
     const target = pendingFocus.current;
@@ -81,73 +71,92 @@ export function WatchedReposSetting({
     pendingFocus.current = null;
     const button = target.name === null ? null : removeRefs.current.get(target.name);
     const select = selectRef.current;
-    (button ?? (select && !select.disabled ? select : saveRef.current))?.focus();
+    (button ?? (select && !select.disabled ? select : addRef.current))?.focus();
   }, [rows]);
+
+  /** 新しい一覧をすぐ保存する。0件などで受け付けなければ false（一覧は変えない） */
+  function commit(next: WatchedRepoRow[]): boolean {
+    const names = next.map((row) => row.name);
+    const plan = planWatchedReposWrite(names);
+    if (!plan.ok) {
+      setError(plan.message);
+      return false;
+    }
+    const before = rows;
+    setRows(next);
+    onListChange?.(names);
+    setError(null);
+    if (demo) {
+      demo.notify();
+      return true;
+    }
+    startSaving(async () => {
+      const result = await callAction<SaveReposResult>(
+        () => saveWatchedRepos(plan.write.names),
+        () => ({ ok: false, message: ACTION_UNREACHABLE_MESSAGE }),
+      );
+      if (result.ok) {
+        // 上端の帯・メニューの札は、取り直しを待たずに、保存した一覧にする（別タブにも知らせる）
+        applySavedRepos?.(plan.write.names);
+        broadcastSavedRepos(plan.write.names);
+        markSaved();
+        return;
+      }
+      // 失敗したら押す前の一覧に戻す
+      setRows(before);
+      onListChange?.(before.map((row) => row.name));
+      setError(result.message);
+    });
+    return true;
+  }
 
   function remove(name: string) {
     const index = rows.findIndex((row) => row.name === name);
-    pendingFocus.current = { name: rows[index + 1]?.name ?? null };
-    const next = rows.filter((row) => row.name !== name);
-    setRows(next);
-    onListChange?.(next.map((row) => row.name));
-    setStatus({ kind: "idle" });
+    const nextName = rows[index + 1]?.name ?? null;
+    if (commit(rows.filter((row) => row.name !== name))) pendingFocus.current = { name: nextName };
   }
 
   function add() {
     if (!current) return;
     const name = current;
-    setRows((prev) => [...prev, { name, pipeline: null }]);
-    onListChange?.([...rows.map((row) => row.name), name]);
+    if (!commit([...rows, { name, pipeline: null }])) return;
     setSelected("");
-    setStatus({ kind: "idle" });
     // デモでは GitHub に問い合わせない
     if (demo) return;
     void checkPipeline(name)
       .then((pipeline) => {
         setRows((prev) => prev.map((row) => (row.name === name ? { ...row, pipeline } : row)));
       })
-      // 調べられなかった（呼び出しが届かなかった）ときは、「パイプラインあり／なし」を出さないまま
+      // 調べられなかった（呼び出しが届かなかった）ときは、パイプラインの有無を出さないまま
       .catch(() => undefined);
-  }
-
-  function save() {
-    setStatus({ kind: "idle" });
-    if (demo) {
-      demo.notify();
-      return;
-    }
-    startSaving(async () => {
-      const names = rows.map((row) => row.name);
-      const result = await callAction<SaveReposResult>(
-        () => saveWatchedRepos(names),
-        () => ({ ok: false, message: ACTION_UNREACHABLE_MESSAGE }),
-      );
-      if (result.ok) {
-        setSavedNames(names);
-        // 上端の帯・メニューの札は、取り直しを待たずに、保存した一覧にする（別タブにも知らせる）
-        applySavedRepos?.(names);
-        broadcastSavedRepos(names);
-      }
-      setStatus(result.ok ? { kind: "saved" } : { kind: "error", message: result.message });
-    });
   }
 
   return (
     <div>
-      <ul className={styles.list}>
-        {rows.map((row) => (
-          <li key={row.name} className={styles.row}>
-            <RepoIcon />
-            <span className={styles.name}>{row.name}</span>
-            {row.pipeline !== null && (
-              <span className={styles.pipeline} data-pipeline={row.pipeline ? "yes" : "no"}>
-                {row.pipeline ? "パイプラインあり" : "パイプラインなし"}
+      <SettingsPanel>
+        {shown.map((row) => (
+          <SettingsRow
+            key={row.name}
+            kind="repo"
+            icon={<RepoIcon />}
+            name={
+              <span className={styles.repoName} title={row.name}>
+                {row.name}
+              </span>
+            }
+            busy={saving}
+          >
+            {row.pipeline === true && (
+              <span className={styles.pipeline}>
+                Pipeline
+                <CheckIcon />
               </span>
             )}
+            {row.pipeline === false && <span className={styles.noPipeline}>パイプラインなし</span>}
             {editable && (
               <button
                 type="button"
-                className={styles.remove}
+                className={styles.textButton}
                 aria-label={`${row.name} を外す`}
                 ref={(el) => {
                   if (el) removeRefs.current.set(row.name, el);
@@ -156,17 +165,37 @@ export function WatchedReposSetting({
                 onClick={() => remove(row.name)}
                 disabled={saving}
               >
-                <CrossIcon size={16} />
+                <CrossIcon size={14} />
                 外す
               </button>
             )}
-          </li>
+          </SettingsRow>
         ))}
-      </ul>
 
-      {editable && (
-        <>
-          <div className={styles.add}>
+        {rows.length > SHOWN_ROWS && (
+          <SettingsRow
+            kind="more"
+            name={<span className={`${styles.more} num`}>ほか {rows.length - SHOWN_ROWS}件</span>}
+          >
+            <button
+              type="button"
+              className={styles.textButton}
+              aria-expanded={!folded}
+              onClick={() => setExpanded((open) => !open)}
+            >
+              {folded ? "すべて見る" : "たたむ"}
+            </button>
+          </SettingsRow>
+        )}
+
+        {editable && (
+          <SettingsRow
+            kind="add"
+            icon={<PlusIcon />}
+            name="リポジトリを追加"
+            busy={saving}
+            error={optionsError ? `リポジトリの一覧を取れませんでした：${optionsError}` : null}
+          >
             <Select
               label="追加するリポジトリ"
               options={choices}
@@ -176,49 +205,26 @@ export function WatchedReposSetting({
               buttonRef={selectRef}
               emptyText={optionsError ? "（取得できませんでした）" : undefined}
               icon={<RepoIcon />}
+              className={styles.select}
             />
             <button
               type="button"
-              className={settingsStyles.textButton}
+              className={styles.addButton}
+              ref={addRef}
               onClick={add}
               disabled={saving || !current}
             >
-              <PlusIcon />
               追加
             </button>
-          </div>
+          </SettingsRow>
+        )}
 
-          {optionsError && (
-            <p className={styles.optionsError} role="alert">
-              リポジトリの一覧を取れませんでした：{optionsError}
-            </p>
-          )}
-
-          <div className={settingsStyles.save}>
-            <button
-              type="button"
-              className={settingsStyles.button}
-              ref={saveRef}
-              onClick={save}
-              disabled={saving}
-              aria-busy={saving}
-            >
-              <SaveIcon />
-              {saving ? "保存中…" : "リポジトリを保存"}
-            </button>
-            {dirty && !saving && <span className={settingsStyles.unsaved}>未保存</span>}
-            {status.kind === "saved" && (
-              <span className={settingsStyles.saved} role="status">
-                保存しました
-              </span>
-            )}
-            {status.kind === "error" && (
-              <span className={settingsStyles.error} role="alert">
-                {status.message}
-              </span>
-            )}
-          </div>
-        </>
+        {autoAdd !== null && <AutoAddSetting initialEnabled={autoAdd} />}
+      </SettingsPanel>
+      {error && (
+        <p className={styles.panelError} role="alert">
+          {error}
+        </p>
       )}
     </div>
   );

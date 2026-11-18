@@ -5,6 +5,7 @@ import deskStyles from "./Desk.module.css";
 import lanesStyles from "./Lanes.module.css";
 import { useNav } from "./NavContext";
 import { Sheet } from "./Sheet";
+import pageStyles from "./Settings.module.css";
 import settingsStyles from "./SettingsSections.module.css";
 import styles from "./Skeleton.module.css";
 import { SideRepos } from "./TopBar";
@@ -130,28 +131,31 @@ export function LanesSkeleton() {
   );
 }
 
-/** 設定の骨組み：見出しと、節（線・見出し・行）の位置 */
+/** 設定の骨組み：見出し、左の目次、右に節（見出しと白い面の形）。本物と同じ枠（Settings.module.css） */
 export function SettingsSkeleton() {
   return (
-    <Sheet>
-      <div className={settingsStyles.page} aria-busy="true" aria-hidden="true">
-        <Band width={72} height={36} />
-        <div className={settingsStyles.sections}>
-          {[3, 4, 3].map((rows, s) => (
-            <div className={settingsStyles.section} key={s}>
-              <div className={settingsStyles.title}>
-                <Band width={150} height={15} />
+    <main id="main" className={pageStyles.page} aria-busy="true">
+      <div className={pageStyles.head} aria-hidden="true">
+        <Band width={160} height={36} />
+      </div>
+      <div className={pageStyles.layout} aria-hidden="true">
+        <div className={`${pageStyles.toc} ${styles.settingsToc}`}>
+          {[0, 1, 2, 3].map((i) => (
+            <Band key={i} width="100%" height={40} />
+          ))}
+        </div>
+        <div className={pageStyles.sections}>
+          {[4, 4, 3].map((rows, s) => (
+            <div key={s}>
+              <div className={pageStyles.sectionTitle}>
+                <Band width={180} height={16} />
               </div>
-              <div className={styles.line}>
-                {Array.from({ length: rows }, (_, i) => (
-                  <Band key={i} width={i === 0 ? 420 : 320} height={30} />
-                ))}
-              </div>
+              <span className={styles.panelBand} style={{ height: rows * 56 }} />
             </div>
           ))}
         </div>
       </div>
-    </Sheet>
+    </main>
   );
 }
 

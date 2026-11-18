@@ -1,6 +1,6 @@
 /*
- * 設定画面（docs/design.md の「設定」）。標準のフォーム部品を枠に並べず、中身の幅に寄せて、ランプ（光の点）と字で状態を言う。
- * ランプ・保存の行・ボタンは WatchedReposSetting・NotifySetting・MotionSetting・Select でも使う
+ * 1本の列の見出し・節・ランプ・塗りのボタン。Issueを書く（NewIssueForm）と読み込み中の骨組み（Skeleton）で使う。
+ * 設定の画面そのものは Issue #507 で作り直し、見た目は Settings.module.css にある
  */
 
 .page {
@@ -50,10 +50,6 @@
   font-weight: 500;
 }
 
-.notify {
-  min-width: 0;
-}
-
 .save {
   display: flex;
   flex-wrap: wrap;
@@ -94,49 +90,8 @@
   opacity: 0.7;
 }
 
-/* 文字だけの操作（追加） */
-.textButton {
-  display: inline-flex;
-  gap: 7px;
-  align-items: center;
-  height: 36px;
-  padding: 0 10px;
-  border-radius: 6px;
-  color: var(--bone-2);
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-  transition:
-    transform 0.12s var(--ease),
-    background 0.12s,
-    color 0.12s;
-}
-
-.textButton:hover:not(:disabled) {
-  background: var(--well);
-  color: var(--bone);
-}
-
-.textButton:active:not(:disabled) {
-  transform: scale(0.96);
-}
-
-.textButton:disabled {
-  opacity: 0.4;
-}
-
 .saved {
   color: var(--bone-2);
-  font-size: 12.5px;
-}
-
-.unsaved {
-  color: var(--bone-2);
-  font-size: 12.5px;
-}
-
-.unchanged {
-  color: var(--mute);
   font-size: 12.5px;
 }
 
