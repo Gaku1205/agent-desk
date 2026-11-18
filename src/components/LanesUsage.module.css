@@ -105,7 +105,8 @@
 .peak {
   position: absolute;
   display: flex;
-  gap: 6px;
+  /* 文字の後ろの面が左右に4px出るので、文字までの間は 6px − 4px */
+  gap: 2px;
   align-items: center;
   transform: translate(-5px, -50%);
 }
@@ -125,6 +126,10 @@
 }
 
 .peakText {
+  /* 後ろに地の色の面を敷いて、上限の点線や線が文字の中を横切らないようにする */
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--bg);
   color: var(--wait);
   font-size: 12.5px;
   font-weight: 600;
