@@ -118,10 +118,10 @@ test.describe("デモの画面", () => {
 
   test("札を押した瞬間に、押した札が「今いる」の見た目になり、前にいた札は戻る（次の画面が遅くても）", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name === "mobile", "札はPCの帯・左のバーで確かめる");
-    await page.goto("/demo");
+    await page.goto(REPO_PAGE);
     await page.evaluate(() => document.fonts.ready);
     const nav = page.getByRole("navigation", { name: "リポジトリ" }).first();
-    const home = nav.getByRole("link", { name: /^全部/ });
+    const home = nav.locator('a[aria-current="page"]');
     const target = nav.getByRole("link", { name: /^すべてのリポジトリ/ });
     const bg = (l: typeof home) => l.evaluate((el) => getComputedStyle(el).backgroundColor);
     const currentBg = await bg(home);
