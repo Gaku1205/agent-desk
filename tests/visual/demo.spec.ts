@@ -182,10 +182,12 @@ test.describe("デモの画面", () => {
     // 1番の行だけ主役のボタン（地が付く）。2番目以降は地なしの文字のボタンで、どれも押せる
     const merge = rows.getByRole("button", { name: "マージ…" });
     await expect(merge).toHaveCount(count);
-    const bg = await merge.evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundColor));
+    // 直前に「閉じる」を押したマウスが2番目以降のボタンの上に残ると、ホバーの色が付くので、端へ外してから調べる
+    await page.mouse.move(0, 0);
     const clear = "rgba(0, 0, 0, 0)";
-    expect(bg[0]).not.toBe(clear);
-    expect(bg.slice(1)).toEqual(Array.from({ length: count - 1 }, () => clear));
+    const readBg = () => merge.evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundColor));
+    await expect.poll(async () => (await readBg()).slice(1)).toEqual(Array.from({ length: count - 1 }, () => clear));
+    expect((await readBg())[0]).not.toBe(clear);
     // ボタンはスマホでも押しやすい高さ（44px以上）。行は横にはみ出さない
     const viewport = page.viewportSize();
     for (const row of await rows.all()) {
