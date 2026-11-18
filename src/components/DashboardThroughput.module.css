@@ -1,0 +1,192 @@
+/* Throughput：左にリポジトリごとのマージ数の横棒、右に工程ごとの時間（狭いと1列に落ちる） */
+.section {
+  container-type: inline-size;
+}
+
+.head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 14px;
+  color: var(--bone);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sub {
+  color: var(--mute);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  gap: 24px 40px;
+  align-items: start;
+}
+
+.label {
+  margin: 0;
+  color: var(--mute);
+  font-size: 12.5px;
+}
+
+.none {
+  margin: 8px 0 0;
+  color: var(--mute);
+  font-size: 13.5px;
+}
+
+.repos,
+.steps,
+.legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.repos {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.repoRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: baseline;
+}
+
+.repoName {
+  overflow: hidden;
+  color: var(--bone-2);
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repoName:hover {
+  color: var(--bone);
+}
+
+.repoValue {
+  color: var(--bone);
+  font-size: 13.5px;
+}
+
+.track {
+  grid-column: 1 / -1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--hair-2);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  color: var(--bone-2);
+  font-size: 12.5px;
+}
+
+.legend li {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.swatchMedian {
+  width: 20px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.swatchP90 {
+  width: 20px;
+  height: 2px;
+  background: var(--edge-line);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.stepRow {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 64px;
+  gap: 12px;
+  align-items: center;
+}
+
+.stepName {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+  color: var(--bone-2);
+  font-size: 13px;
+}
+
+.stepBars {
+  position: relative;
+  display: block;
+  height: 14px;
+}
+
+.median,
+.p90 {
+  position: absolute;
+  left: 0;
+  display: block;
+}
+
+.median {
+  top: 3px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.p90 {
+  top: 6px;
+  height: 2px;
+  background: var(--edge-line);
+}
+
+.stepValue {
+  color: var(--bone);
+  font-size: 13.5px;
+  text-align: right;
+}
+
+.longest {
+  margin: 20px 0 0;
+  color: var(--bone);
+  font-size: 13.5px;
+}
+
+.link {
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+@container (max-width: 559px) {
+  .stepRow {
+    grid-template-columns: 82px minmax(0, 1fr) 56px;
+    gap: 8px;
+  }
+}

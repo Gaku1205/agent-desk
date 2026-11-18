@@ -14,6 +14,7 @@ import { countTurnItems, filterTurnItems } from "@/lib/turn";
 import { aiUsageAll } from "@/lib/dashboard/aiUsage";
 import { hourStarts, type GithubLimits } from "@/lib/dashboard/githubLimits";
 import { summarizeAll } from "@/lib/dashboard/summary";
+import { throughputAll } from "@/lib/dashboard/throughput";
 import { buildLanesSource } from "@/lib/lanes/source";
 import { Dashboard } from "./Dashboard";
 import { Lanes } from "./Lanes";
@@ -131,6 +132,7 @@ export function DemoDashboard() {
   return (
     <Dashboard
       summaries={summaries}
+      throughputs={throughputAll(results, now)}
       limits={demoGithubLimits(now, summaries["24h"].runs)}
       aiUsages={aiUsageAll(results, now)}
       now={now.toISOString()}

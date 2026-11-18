@@ -474,7 +474,7 @@ CSSカスタムプロパティとして `globals.css` に定義し、コード�
 
 2026年11月18日、Issue #460（挙動は `docs/spec.md` の「Dashboard」）。`src/components/Dashboard.tsx`。新しい色は使わない。この節が定める英語の言葉は、`CLAUDE.md` の「英語にしてよい言葉は `docs/design.md` に書いた物だけ」の一覧。
 
-- **英語にしてよい言葉**（このページで使う物。後の Issue で増える分は、その Issue がここへ足す）：`Dashboard`・`Merged`・`Lead time`・`Stopped`・`AI time`・`prev`・`median`・`p90`・`runs`・`limit hits`・`ongoing`・`24h`・`7d`・`AI usage`・`Step`・`Sonnet`・`Opus`・`Fable`・`Total`・`Usage limit hits`・`Parallel 3`・`Serial`。説明文・文の続きは日本語（`この24時間で、…`・`人間が直したのは`）
+- **英語にしてよい言葉**（このページで使う物。後の Issue で増える分は、その Issue がここへ足す）：`Dashboard`・`Merged`・`Lead time`・`Stopped`・`AI time`・`prev`・`median`・`p90`・`runs`・`limit hits`・`ongoing`・`24h`・`7d`・`AI usage`・`Step`・`Sonnet`・`Opus`・`Fable`・`Total`・`Usage limit hits`・`Parallel 3`・`Serial`・`Throughput`・`Queue`。説明文・文の続きは日本語（`この24時間で、…`・`人間が直したのは`）
 - **かかった時間の書き方**：`d`・`h`・`m`・`s`。1日以上は `1d 2h`、1時間以上は `1h 52m`・`9h 41m`、1分以上は `38m`（秒は出さない）、1分未満は `20s`。ちょうど（`2h 0m`）の端は出さない（`2h`）。時刻・日付は今のまま `11:52`・`11/18`
 - **構図**：PC（幅900px以上）は `224px minmax(0, 1fr)` の2ペイン（左はホームと同じ左のバー。折り畳みのボタンも同じ）。中央は1本の列（幅 `min(1080px, 100% − 2×--gutter)`、左右中央、上56px・下96px）。スマホ（899px以下）は左のバーを隠して1本の列（上40px・下72px）。上から 見出し → まとめ →（後の Issue の区画）。区画の間は36px、見出しと中身の間は14px。2列の区画は `repeat(auto-fit, minmax(min(100%, 380px), 1fr))`（狭いと1列に落ちる。区画は後の Issue が足す）
 - **見出し**：左に `Dashboard`（`<h1>`、26px / 700、`--bone`、スマホ21px）と、その下4pxに期間 `11/17 11:00 〜 11/18 11:00 · 12リポジトリ`（13px・`--mute`・`num`）。右に期間の切り替え（`role="tablist"`、各 `role="tab"` に `aria-selected`）：高さ36px、角丸8px、縁 `inset 0 0 0 1px var(--hair)`。選んでいる物は地 `--well`・文字 `--bone`・500、ほかは `--bone-2`。13.5px。左右 14px。幅が狭くても折り返さず、見出しの右に残る
@@ -484,6 +484,13 @@ CSSカスタムプロパティとして `globals.css` に定義し、コード�
 - **左のバー・スマホのメニューの項目**：`Dashboard`（棒グラフのアイコン［縦3本の棒と下の線］）。左のバーは `新サービス` のすぐ上（間4px）、同じ高さ36px・同じ見た目。スマホのメニューは `ほか` の `Issueを書く` の下。選択中・押した直後の反応も `新サービス`・`Issueを書く` と同じ
 - デモ（`/demo/dashboard`）も同じ部品
 - 仮に決めた所：期間の切り替えの寸法、表の列の間の余白24px、折り返す幅560px
+- **Throughput**（Issue #462。挙動は `docs/spec.md`）。**英語にしてよい言葉**に `Throughput`・`Queue` を足す（`Merged`・`median`・`p90` は既に有る）。新しい色は使わない。まとめの下、AI usage の上
+  - **見出し**：上向きの矢印のアイコン（16px・線画）→ `Throughput`（16px / 600・`--bone`、間8px）→ 横に `進み具合`（13px・`--mute`・400）。見出しと中身の間14px
+  - **構図**：中身は `repeat(auto-fit, minmax(min(100%, 380px), 1fr))`（間 縦24px・横40px。狭いと1列）。左がマージ数、右が工程の時間
+  - **左**：ラベル `Merged（リポジトリごと）`（12.5px・`--mute`）。行（間12px）は 名前（13.5px・`--bone-2`、押せる。`--bone` に変わる。長ければ省略）と右に数（13.5px・`--bone`・`num`）、その下に棒（高さ8px、地 `--hair-2`、棒 `--accent`、最大の数を100%、最小1%）。無ければ `—`（`--mute`）
+  - **右**：ラベル `工程ごとの時間（1件あたり）`（12.5px・`--mute`）、凡例（12.5px・`--bone-2`。太い帯20×8px＋`median`、細い線20×2px［`--edge-line`］＋`p90`）。行（間12px）は `96px minmax(0,1fr) 64px`（狭い所は82px・56px）：工程のアイコン（17px。Queue は `QueueIcon`）と名前（13px・`--bone-2`）→ 棒の道（高さ14px。太い棒は高さ8px・`--accent`、細い線は高さ2px・`--edge-line`、左から。最小1%）→ median の値（13.5px・`--bone`・`num`・右そろえ）
+  - **下の1行**：上20px、13.5px・`--bone`。Queue のときは砂時計（`QueueIcon` 14px・`--wait`）と `Queue（順番待ち）`、リンクは `--accent`
+  - 仮に決めた所：行の列の幅、リンクの色（`--accent`）、凡例の見本の寸法
 - **AI usage**（Issue #464。挙動は `docs/spec.md` の「Dashboard」）。**英語にしてよい言葉**に `AI usage`・`Step`・`Sonnet`・`Opus`・`Fable`・`Total`・`Usage limit hits`・`Parallel 3`・`Serial` を足す。新しい色は使わない
   - **見出し**：まとめの下（区画の間36px、見出しと中身の間14px）。チップのアイコン（16px・線画）→ `AI usage`（16px / 600・`--bone`、間8px）→ 横に `AIの使用量`（13px・`--mute`・400）
   - **構図**：中身は `repeat(auto-fit, minmax(min(100%, 380px), 1fr))`（間 縦24px・横40px。狭いと1列に落ちて、表の下に右の物が続く）。左が表、右が `Usage limit hits` と横棒

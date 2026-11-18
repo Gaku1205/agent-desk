@@ -21,10 +21,14 @@ import {
 } from "@/lib/dashboard/githubLimits";
 import { ChipIcon, FlowStepIcon, GaugeIcon, PanelLeftIcon } from "./icons";
 import { SideRepos } from "./TopBar";
+import { DashboardThroughput } from "./DashboardThroughput";
+import type { Throughput } from "@/lib/dashboard/throughput";
 
 type Props = {
   /** 期間ごとのまとめ（サーバーで作った小さな値。切り替えても取り直さない） */
   summaries: Record<PeriodKey, Summary>;
+  /** 期間ごとの Throughput（同じく取り直さない） */
+  throughputs: Record<PeriodKey, Throughput>;
   /** 期間ごとの AI usage（同じく取り直さない） */
   aiUsages: Record<PeriodKey, AiUsage>;
   /** GitHub limits（期間の切り替えとは関係なく、直近24時間） */
@@ -270,7 +274,7 @@ function GithubLimitsSection({ limits }: { limits: GithubLimits }) {
 }
 
 /** Dashboard（`/dashboard`、デモは `/demo/dashboard`）：期間で振り返る。見出し・期間の切り替え・まとめ・AI usage・GitHub limits */
-export function Dashboard({ summaries, aiUsages, limits, now, repoCount, nav }: Props) {
+export function Dashboard({ summaries, throughputs, aiUsages, limits, now, repoCount, nav }: Props) {
   const [period, setPeriod] = useState<PeriodKey>("24h");
   const tabsId = useId();
   const summary = summaries[period];
@@ -343,6 +347,7 @@ export function Dashboard({ summaries, aiUsages, limits, now, repoCount, nav }: 
             />
           </dl>
         </section>
+        <DashboardThroughput throughput={throughputs[period]} basePath={nav.basePath} />
         <AiUsageSection usage={aiUsages[period]} />
         <GithubLimitsSection limits={limits} />
       </main>
