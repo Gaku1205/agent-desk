@@ -787,7 +787,7 @@ export function buildDemoResults(base: Date, playback: DemoPlayback, withOlder =
   const landingData = applyDemoOps(landingPage(base), playback.ops, landing.owner, landing.repo);
   const notesData = notesApi(base);
   return [
-    { ...todo, ok: true, data: { ...todoData, runs: demoRuns(todoData, base) } },
+    { ...todo, ok: true, data: { ...todoData, runs: [...demoRuns(todoData, base), ...demoOtherRuns(base)] } },
     { ...landing, ok: true, data: { ...landingData, runs: demoRuns(landingData, base, DEMO_STALLED) } },
     { ...notes, ok: true, data: { ...notesData, runs: demoRuns(notesData, base) } },
   ];
@@ -858,6 +858,24 @@ function demoRuns(data: RepoData, base: Date, stalled: number[] = []): WorkflowR
       name: DEMO_RUN_NAMES[status.stage] ?? "Pipeline",
       startedAt: new Date(base.getTime() - ((issue.number % 5) * 6 + 3) * MINUTE_MS).toISOString(),
     }));
+}
+
+/** Slots & Queue の Other の見本：Issue の席に属さない実行（見張り役・配布）。番号の手がかりを持たない */
+function demoOtherRuns(base: Date): WorkflowRunData[] {
+  const updatedAt = new Date(base.getTime() - MINUTE_MS).toISOString();
+  return [
+    { id: 910_001, name: "Watchdog", displayTitle: "見張り役の見回り", startedMinutes: 1 },
+    { id: 910_002, name: "Sync to apps", displayTitle: "配布の同期", startedMinutes: 4 },
+  ].map(({ id, name, displayTitle, startedMinutes }) => ({
+    id,
+    status: "in_progress",
+    headBranch: "main",
+    displayTitle,
+    pullNumbers: [],
+    updatedAt,
+    name,
+    startedAt: new Date(base.getTime() - startedMinutes * MINUTE_MS).toISOString(),
+  }));
 }
 
 /** デモの実行のワークフローの名前（段階ごと） */

@@ -167,6 +167,10 @@ export function runKind(name: string | undefined): string {
   if (lower === "claude mocks") return "Design";
   if (lower === "ci") return "CI";
   if (lower === "watchdog") return "Watchdog";
+  if (lower === "sync to apps") return "Sync";
+  if (lower === "queue") return "Queue";
+  if (lower === "resume") return "Resume";
+  if (lower === "visual update") return "Visual update";
   if (lower.startsWith("deploy")) return "Deploy";
   return text;
 }

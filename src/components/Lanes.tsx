@@ -147,10 +147,35 @@ function StepLine({ at }: { at: number }) {
   );
 }
 
+/** 席の行の下にぶら下がる、その席の処理の1行 */
+function HangRow({ run, last }: { run: RunEntry; last: boolean }) {
+  return (
+    <li className={styles.hang} data-last={last ? "" : undefined} data-kind="hang">
+      <span className={styles.hangKind}>
+        <span className={styles.spin} aria-hidden="true">
+          <SpinnerIcon size={13} />
+        </span>
+        {run.kind}
+      </span>
+      <span className={styles.hangActivity} title={run.activity ?? undefined}>
+        {run.activity ?? "—"}
+      </span>
+      {run.detail && <span className={styles.hangDetail}>{run.detail}</span>}
+      {run.elapsedMs !== null && <span className={`${styles.time} num`}>{formatSpan(run.elapsedMs)}</span>}
+      {run.logUrl && (
+        <a className={`${styles.log} ${styles.hangLog}`} href={run.logUrl} target="_blank" rel="noreferrer">
+          ログ ↗
+        </a>
+      )}
+    </li>
+  );
+}
+
 function SlotRow({ slot }: { slot: Slot }) {
   if (slot.kind === "running") {
     const { work } = slot;
     return (
+      <>
       <li className={styles.row} data-tone="running" data-kind="slot">
         <div className={styles.left}>
           <span className={styles.slotName} data-tone="running">
@@ -175,6 +200,10 @@ function SlotRow({ slot }: { slot: Slot }) {
           <StepLine at={work.stepAt} />
         </div>
       </li>
+      {slot.runs.map((run, index) => (
+        <HangRow key={run.key} run={run} last={index === slot.runs.length - 1} />
+      ))}
+      </>
     );
   }
   return (
@@ -328,6 +357,7 @@ export function Lanes({ source, usage, items, now, nav }: Props) {
               </dt>
               <dd className={`${styles.countValue} num`} data-tone="running">
                 {lanes.counts.running}
+                <span className={styles.countRuns}>（処理 {lanes.counts.runs}）</span>
               </dd>
             </div>
             {lanes.counts.free !== null && (
@@ -374,12 +404,12 @@ export function Lanes({ source, usage, items, now, nav }: Props) {
         </section>
 
         <section className={styles.section} aria-labelledby={runsId}>
-          <SectionHead id={runsId} icon={<PlayIcon size={16} />} title="Running" sub="いま動いている AI とワークフロー" />
-          {lanes.runs.length === 0 ? (
-            <p className={styles.empty}>いま動いている実行はありません</p>
+          <SectionHead id={runsId} icon={<PlayIcon size={16} />} title="Other" sub="席に座らない処理" />
+          {lanes.other.length === 0 ? (
+            <p className={styles.empty}>席に座らない処理はありません</p>
           ) : (
             <ul className={styles.list}>
-              {lanes.runs.map((run) => (
+              {lanes.other.map((run) => (
                 <RunRow key={run.key} run={run} />
               ))}
             </ul>

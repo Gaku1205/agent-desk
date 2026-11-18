@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ParallelSettings, ParallelState } from "../parallel";
 import { assignSlots, freeSlotReason, lanesHeadline, queueReasonText, type QueueEntry } from "./slots";
-import type { LanesSource, QueueSource, SlotWork } from "./source";
+import type { LanesSource, QueueSource, RunEntry, SlotWork } from "./source";
 
 function work(number: number): SlotWork {
   return {
@@ -46,7 +46,7 @@ describe("assignSlots", () => {
       [2, "running"],
       [3, "free"],
     ]);
-    expect(lanes.counts).toEqual({ running: 2, free: 1, queue: 0 });
+    expect(lanes.counts).toEqual({ running: 2, runs: 0, free: 1, queue: 0 });
   });
 
   it("上限より多く動いていれば、動いている数だけ（空きは0）", () => {
@@ -75,6 +75,30 @@ describe("assignSlots", () => {
   it("空きが無ければ、理由の無い物は「枠が空くのを待っている」", () => {
     const lanes = assignSlots(source([work(1)], [waiting(5)]), 1);
     expect(lanes.queue[0].reason).toBe("枠が空くのを待っている");
+  });
+
+  it("処理を席にぶら下げ、残りを other に。処理の合計は両方の和", () => {
+    const run = (id: string, issueNumber: number | null): RunEntry => ({
+      key: `o/r@${id}`,
+      kind: "Implement",
+      owner: "o",
+      repo: "r",
+      issueNumber,
+      pullNumber: null,
+      activity: null,
+      detail: null,
+      elapsedMs: null,
+      logUrl: null,
+      startedMs: 1,
+    });
+    const lanes = assignSlots({ works: [work(1), work(2)], queue: [], runs: [run("a", 1), run("b", null), run("c", 7)] }, 3);
+    const [first, second, free] = lanes.slots;
+    expect(first.kind === "running" && first.runs.map((r) => r.key)).toEqual(["o/r@a"]);
+    expect(second.kind === "running" && second.runs).toEqual([]);
+    expect(free.kind).toBe("free");
+    expect(lanes.other.map((r) => r.key)).toEqual(["o/r@b", "o/r@c"]);
+    expect(lanes.counts.runs).toBe(3);
+    expect(lanes.counts.running).toBe(2);
   });
 });
 
