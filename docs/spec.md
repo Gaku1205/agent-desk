@@ -705,6 +705,28 @@ CIが失敗したとき、CIの行の下に字下げした枠が開き、中に�
 - 呼ぶ数の目安：監視リポジトリ3つ・直近14日のPRが100件で、1回の同期が GraphQL 6回以内（1リポジトリにつき、1回目とPRの続きの2回）、REST 0回（人間待ちの一覧は同じ問い合わせの中なので増えない。5分ごとの Actions の runs と、5分に1回までの「新しいサービスを自動で足す」の探し方を除く）
 - REST の問い合わせ（Actions の runs など）は、前回の返事の `ETag` を `If-None-Match` に付けて送る。変わっていなければ 304 が返り、GitHubの回数制限に数えられない。304 のときは前回の中身を使う（サーバーのメモリに、トークンとURLごとに覚えておく。トークンそのものはキーにせず、ハッシュにする）。GraphQL（POST）には ETag は無い
 
+### サーバーの各段の時間（`Server-Timing`）
+
+本番（Vercel）でどこが遅いかを確かめるために、サーバーの各段にかかった時間を、返事の `Server-Timing` ヘッダーで返す（2026年11月19日）。ブラウザの開発者ツール（Network → その行 → Timing の「Server Timing」）で見える。純粋関数は `src/lib/serverTiming.ts`（`formatServerTiming`・`startStageTimer`・`timingName`）。
+
+- 入れるのは**段の名前と ms だけ**（`名前;dur=ms`。名前は英小文字・数字・`-`、ms は小数1桁）。トークン・リポジトリの名前・データの中身・エラーの文は入れない
+- `GET /api/timing`（`src/app/api/timing/route.ts`）：ページの表示と同じ順を1回通して、段ごとの時間を `Server-Timing` と本文（JSON。`stages` に `name`・`ms`・日本語の説明 `label`、`repoCount`、Vercel の関数の地域 `region`［`VERCEL_REGION`。手元では `null`］）で返す。ログイン中かつ許可リストのユーザーだけ（そうでなければ 401）。`Cache-Control: no-store`。読み方はページと同じで、覚えた物があれば GitHub を読まない（ページより多くは読まない。自動の追加は動かさない）
+
+| 段 | 測る物 |
+| --- | --- |
+| `auth` | ログインの確認（`getSignedInLogin`。Cookie を読むだけ） |
+| `watched` | 監視するリポジトリの一覧（`loadWatchedRepos`。覚えた物。無ければ GitHub） |
+| `token` | GitHub のトークンを取り出す（`getGitHubToken`。Cookie を読むだけ） |
+| `marks` | 「変わった」印を読む（`getChangeMarks`。キャッシュだけ。Webhook を使う設定のときだけ） |
+| `first-repo` | 全部のリポジトリを同時に読み始めてから、最初の1つを読み終えるまで（`getRepoResult`） |
+| `repos` | 同じく、全部を読み終えるまで |
+| `total` | 上の全部 |
+| `instance` | このサーバー（関数のインスタンス）が立ち上がってからの時間。数秒以下なら、冷えた起動の直後の返事 |
+
+- `GET /api/changes` の返事にも `auth`・`marks` を入れる
+- ページ（HTML・画面の移動の返事）には入れない：ページは読めた所から順に流すので、ヘッダーを返す時点では後ろの段の時間がまだ分からない。ページの最初の1バイトまでに待つのは `auth`・`watched`・`token` に当たる所だけ（「押した瞬間の反応と、読み込み中」）で、その長さは `/api/timing` の同じ段で分かる
+- 見方の目安：`watched`・`first-repo` が数百 ms 以上なら GitHub を読みに行っている（覚えた物が無い・寿命が切れた・立ち上がった直後で App の鍵を取り直している）。`instance` が小さい返事だけ遅いなら、冷えた起動
+
 ### Webhook で取り直す
 
 GitHub から「変わった」と知らせてもらい（パイプラインの GitHub App の Webhook）、そのリポジトリだけを取り直す。画面には数秒で出し、GitHub への問い合わせは変わった時だけにする（パイプラインと共有の App の鍵の枠を使い切らないため）。依存パッケージは足さない。判定の純粋関数は `src/lib/webhook.ts`（サーバー）と `src/lib/changeMarks.ts`（画面）、キャッシュは `src/lib/github/repoCache.ts`。
