@@ -96,6 +96,7 @@ query RepoData(
       nodes {
         number title body state url createdAt updatedAt mergedAt headRefName headRefOid
         labels(first: 100) { nodes { name } }
+        files(first: 100) { totalCount nodes { path } }
         ${COMMENTS}
         ${LABEL_EVENTS}
         commits(last: 1) {
@@ -130,13 +131,13 @@ fragment Statuses on Status { contexts { context state description targetUrl cre
  * 合計を100で割って四捨五入する（最低1点）。返事の `rateLimit.cost` と同じ数え方。
  * - Issue：一覧で1、Issue 1件ごとにラベル・コメント・ラベルの付け外しの3
  * - 人間待ちの Issue：ラベル（4つ）ごとに、一覧で1、Issue 1件ごとに3（1回目の問い合わせ＝`withMain` だけ）
- * - PR：一覧で1、PR 1件ごとにラベル・コメント・ラベルの付け外し・コミットの4と、先頭コミットのチェックの1
+ * - PR：一覧で1、PR 1件ごとにラベル・変更ファイル・コメント・ラベルの付け外し・コミットの5と、先頭コミットのチェックの1
  * - main の直近のコミット：1（1回目の問い合わせだけ）
  */
 export function repoQueryCost(parts: { withIssues: boolean; withPulls: boolean; withMain: boolean }): number {
   let requests = 0;
   if (parts.withIssues) requests += 1 + REPO_PAGE_SIZE * 3;
-  if (parts.withPulls) requests += 1 + REPO_PAGE_SIZE * 5;
+  if (parts.withPulls) requests += 1 + REPO_PAGE_SIZE * 6;
   if (parts.withMain) requests += WAITING_LABELS.length * (1 + WAITING_PAGE_SIZE * 3) + 1;
   return Math.max(1, Math.round(requests / 100));
 }
@@ -197,6 +198,7 @@ export type GqlPull = Omit<GqlIssue, "closedAt"> & {
   mergedAt?: string | null;
   headRefName: string;
   headRefOid: string;
+  files?: { totalCount?: number | null; nodes?: ({ path?: string | null } | null)[] | null } | null;
   commits?: Nodes<{
     commit?: { statusCheckRollup?: { contexts?: Nodes<GqlCheckContext> } | null } | null;
   }>;
@@ -297,7 +299,17 @@ export function convertGqlPull(raw: GqlPull): PullData {
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
     mergedAt: raw.mergedAt ?? null,
+    ...convertGqlFiles(raw),
   };
+}
+
+/** 変更ファイルの名前。取れなかった・100件を超えるときは持たない（重なり無しの扱い） */
+function convertGqlFiles(raw: GqlPull): { files?: string[] } {
+  const files = raw.files;
+  if (!files || !Array.isArray(files.nodes)) return {};
+  if (typeof files.totalCount === "number" && files.totalCount > files.nodes.length) return {};
+  const paths = files.nodes.flatMap((node) => (typeof node?.path === "string" ? [node.path] : []));
+  return { files: paths };
 }
 
 /** Issue・PRのコメント。Bot のログイン名は REST と同じく `[bot]` を付ける。読めない物は捨てる */

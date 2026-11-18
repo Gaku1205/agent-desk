@@ -256,7 +256,110 @@
   color: var(--bone);
 }
 
+/* マージ待ちの一覧の1行（docs/design.md の「マージ待ちの一覧」）。面にも枠にも入れず、行の間は髪の毛の線 */
+.qrow {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  column-gap: 12px;
+  align-items: start;
+  min-height: 40px;
+  padding: 12px 4px;
+}
+
+.qrow + .qrow {
+  box-shadow: inset 0 1px 0 var(--hair-2);
+}
+
+.qrow[data-leaving] {
+  display: none;
+}
+
+.qnum {
+  color: var(--bone);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.qmain {
+  min-width: 0;
+}
+
+.qhead {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  font-size: 12.5px;
+}
+
+.qtitle {
+  overflow: hidden;
+  color: var(--bone-2);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.55;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qtitle a:hover {
+  color: var(--bone);
+}
+
+.qreq {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--mute);
+  font-size: 12.5px;
+  line-height: 1.55;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qsoft {
+  margin-top: 2px;
+  color: var(--fail-soft);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.qacts {
+  margin-top: 0;
+  flex-wrap: nowrap;
+}
+
+/* 2番目以降のボタン：文字だけ（押せる。順番はすすめで、強制しない） */
+.acts .text,
+.text {
+  padding: 0 12px;
+  box-shadow: none;
+  color: var(--bone-2);
+}
+
+.text:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--edge-focus),
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+}
+
 @media (max-width: 899px) {
+  .qrow {
+    grid-template-columns: 24px minmax(0, 1fr);
+    row-gap: 6px;
+    padding: 12px 0;
+  }
+
+  .qacts {
+    grid-column: 2;
+    flex-wrap: wrap;
+  }
+
+  /* 文字だけのボタンは、文字の左端を題名にそろえる */
+  .qacts .text {
+    margin-left: -12px;
+  }
+
   .row {
     padding: 22px 18px;
   }

@@ -123,10 +123,10 @@ describe("問い合わせの点数（GraphQL の回数制限。1時間5,000点�
     expect(repoQueryCost({ withIssues: true, withPulls: true, withMain: true })).toBeLessThanOrEqual(8);
   });
 
-  it("続きの問い合わせは、Issue だけ2点・PR だけ3点・両方4点以内", () => {
+  it("続きの問い合わせは、Issue だけ2点・PR だけ3点・両方5点以内（PR は変更ファイルの名前を足した）", () => {
     expect(repoQueryCost({ withIssues: true, withPulls: false, withMain: false })).toBeLessThanOrEqual(2);
     expect(repoQueryCost({ withIssues: false, withPulls: true, withMain: false })).toBeLessThanOrEqual(3);
-    expect(repoQueryCost({ withIssues: true, withPulls: true, withMain: false })).toBeLessThanOrEqual(4);
+    expect(repoQueryCost({ withIssues: true, withPulls: true, withMain: false })).toBeLessThanOrEqual(5);
   });
 
   it("問い合わせの文に、決めた件数が入っている", async () => {

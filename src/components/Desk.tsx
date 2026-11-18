@@ -21,6 +21,7 @@ import { SideRepos, type TopBarRepo } from "./TopBar";
 import { TurnList } from "./TurnList";
 import { TurnRow } from "./TurnRow";
 import { pickTurn } from "@/lib/turnList";
+import { isMergeQueueItem, MERGE_QUEUE_FROM, orderMergeQueue } from "@/lib/mergeOrder";
 
 export type DeskScope =
   | { kind: "all"; repoCount: number }
@@ -143,7 +144,14 @@ export function Desk({
   const [picked, setPicked] = useState<string | null>(null);
   const current = pickTurn(waiting, picked);
   const currentKey = current ? turnItemKey(current) : null;
-  const others = waiting.filter((item) => turnItemKey(item) !== currentKey);
+  // マージ待ちが2件以上で、大きい1件がマージ待ちの番なら、その1件の代わりに「すすめる順」の一覧を出す（強い色の物が先にある間は出さない）
+  const mergeWaiting = waiting.filter(isMergeQueueItem);
+  const queue =
+    current && isMergeQueueItem(current) && mergeWaiting.length >= MERGE_QUEUE_FROM
+      ? orderMergeQueue(mergeWaiting)
+      : [];
+  const queueKeys = new Set(queue.map(turnItemKey));
+  const others = waiting.filter((item) => turnItemKey(item) !== currentKey && !queueKeys.has(turnItemKey(item)));
   const rest = others.length;
   // 開いたときの1件はフェードしない。替わった1件だけ短くフェードする
   const [firstKey] = useState(currentKey);
@@ -296,18 +304,25 @@ export function Desk({
         {!current && <p className={styles.calm}>あなたが答えることはありません。上で、いまの様子を読めます</p>}
         <TurnList items={others} now={at} showRepo={showRepo} onPick={pick} />
 
+        {queue.length > 0 && (
+          <h2 className={styles.queueHead}>
+            マージ待ち <span className="num">{queue.length}</span>件（この順に押す）
+          </h2>
+        )}
         <div ref={rowsRef}>
-          {items.map((item) => {
+          {[...queue, ...items.filter((item) => !queueKeys.has(turnItemKey(item)))].map((item) => {
             const key = turnItemKey(item);
-            // 出すのは今の1件と、片づけて隠している1件（取り直しで消えるまで、戻せるように残す）だけ
-            if (key !== currentKey && !leaving.has(key)) return null;
+            const queueIndex = queue.findIndex((q) => turnItemKey(q) === key);
+            // 出すのは今の1件（または一覧の行）と、片づけて隠している1件（取り直しで消えるまで、戻せるように残す）だけ
+            if (queueIndex < 0 && key !== currentKey && !leaving.has(key)) return null;
             return (
               <TurnRow
                 key={key}
                 item={item}
                 wait={formatWait(item.waitingSince, at)}
-                fresh={key === currentKey && key !== firstKey}
+                fresh={queueIndex < 0 && key === currentKey && key !== firstKey}
                 onLeave={leave}
+                queue={queueIndex >= 0 ? { num: queueIndex + 1 } : undefined}
               />
             );
           })}
