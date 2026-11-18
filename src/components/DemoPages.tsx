@@ -17,6 +17,7 @@ import { summarizeAll } from "@/lib/dashboard/summary";
 import { stopsAll } from "@/lib/dashboard/stops";
 import { throughputAll } from "@/lib/dashboard/throughput";
 import { buildLanesSource } from "@/lib/lanes/source";
+import { buildUsageSource } from "@/lib/lanes/usage";
 import { Dashboard } from "./Dashboard";
 import { Lanes } from "./Lanes";
 import { useDemoState } from "./DemoContext";
@@ -148,7 +149,14 @@ export function DemoDashboard() {
 export function DemoLanes() {
   const { results, now } = useDemoState();
   const nav = useDemoNav();
-  return <Lanes source={buildLanesSource(results, now)} now={now.toISOString()} nav={nav} />;
+  return (
+    <Lanes
+      source={buildLanesSource(results, now)}
+      usage={buildUsageSource(results, now)}
+      now={now.toISOString()}
+      nav={nav}
+    />
+  );
 }
 
 /** デモのIssueを書く画面：GitHub には送らず、サンプルのデータにIssueが増える（landing-page はテンプレートの見本） */
