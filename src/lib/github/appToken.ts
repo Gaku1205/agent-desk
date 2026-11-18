@@ -224,6 +224,18 @@ async function userCanRead(
 }
 
 /**
+ * ログインした人のトークンで、そのリポジトリを読めるか（覚えた古い結果を見せてよいかの確認に使う。`repoCache.ts`）。
+ * `userCanRead` と同じ確認・同じ記憶（10分）。確かめられなかったときは false
+ */
+export function checkUserCanRead(
+  userToken: string,
+  repo: WatchedRepo,
+  options: { fetcher?: Fetcher; nowMs?: number } = {},
+): Promise<boolean> {
+  return userCanRead(userToken, repo, options.fetcher ?? fetch, options.nowMs ?? Date.now());
+}
+
+/**
  * そのリポジトリのインストールの記憶（`owner/repo` → インストール ID）と、そのインストールの覚えた鍵を消す。
  * App の鍵で「権限なし・見つからない」になったとき（アプリを外した直後など）に呼ぶ。
  * ログインした人の読める確認（readChecks）は消さない
@@ -345,6 +357,13 @@ export async function getAppRateLimit(
   }
   appRateLimitMemo = { at: nowMs, value };
   return value;
+}
+
+/** 覚えている `GET /rate_limit` の結果（5分以内の物）。無ければ不明。GitHub は呼ばない */
+export function getKnownAppRateLimit(nowMs: number = Date.now()): AppRateLimit {
+  return appRateLimitMemo && nowMs - appRateLimitMemo.at < APP_RATE_LIMIT_TTL_MS
+    ? appRateLimitMemo.value
+    : UNKNOWN_APP_RATE_LIMIT;
 }
 
 /** テスト用：`GET /rate_limit` の記憶を消す */
