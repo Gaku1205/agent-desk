@@ -115,6 +115,8 @@
   margin: 0;
   color: var(--mute);
   font-size: 12.5px;
+  /* 補足が無い列も補足1行分の高さを残し、4列の高さをそろえる */
+  min-height: 1.4em;
 }
 
 @container (max-width: 559px) {
@@ -145,6 +147,11 @@
 
   .note {
     grid-column: 1 / -1;
+  }
+
+  /* 補足が無い行は、狭い2段の並びでは詰める */
+  .note[data-empty] {
+    display: none;
   }
 }
 
@@ -219,6 +226,21 @@
 .usageTable td:last-child,
 .usageTable th:last-child {
   width: 20%;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.usageNote {
+  margin: 8px 0 0;
+  color: var(--mute);
+  font-size: 12.5px;
 }
 
 .usageSide {
