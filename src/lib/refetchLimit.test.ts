@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { decideRefetch, REFETCH_MIN_INTERVAL_MS } from "./refetchLimit";
+import {
+  decideRefetch,
+  nextRefetchIntervalMs,
+  REFETCH_MAX_INTERVAL_MS,
+  REFETCH_MIN_INTERVAL_MS,
+  REFETCH_QUIET_RESET_MS,
+} from "./refetchLimit";
 
 describe("decideRefetch", () => {
   it("まだ取っていなければ今取る", () => {
@@ -62,5 +68,52 @@ describe("decideRefetch", () => {
     }
     // 15秒、30秒、45秒、60秒の4回だけ
     expect(fetches).toBe(4);
+  });
+
+  it("あける時間を渡したら、その時間がたつまで待つ", () => {
+    const input = { lastFetchedAt: 0, lastChangedAt: 1000, minIntervalMs: 60_000 };
+    expect(decideRefetch({ ...input, now: 15_000 })).toEqual({ refetch: false, waitSeconds: 45 });
+    expect(decideRefetch({ ...input, now: 59_999 })).toEqual({ refetch: false, waitSeconds: 1 });
+    expect(decideRefetch({ ...input, now: 60_000 })).toEqual({ refetch: true, waitSeconds: 0 });
+  });
+});
+
+describe("nextRefetchIntervalMs", () => {
+  it("2分以上静かだったあとは、最短の15秒", () => {
+    expect(nextRefetchIntervalMs({ previousIntervalMs: 60_000, sinceLastFetchMs: REFETCH_QUIET_RESET_MS })).toBe(
+      REFETCH_MIN_INTERVAL_MS,
+    );
+    expect(nextRefetchIntervalMs({ previousIntervalMs: null, sinceLastFetchMs: 10 * 60_000 })).toBe(15_000);
+  });
+
+  it("2分たたないうちにまた取り直すときは2倍にする（15秒 → 30秒 → 60秒。上限は60秒）", () => {
+    expect(nextRefetchIntervalMs({ previousIntervalMs: 15_000, sinceLastFetchMs: 15_000 })).toBe(30_000);
+    expect(nextRefetchIntervalMs({ previousIntervalMs: 30_000, sinceLastFetchMs: 30_000 })).toBe(60_000);
+    expect(nextRefetchIntervalMs({ previousIntervalMs: 60_000, sinceLastFetchMs: 60_000 })).toBe(REFETCH_MAX_INTERVAL_MS);
+    expect(nextRefetchIntervalMs({ previousIntervalMs: 60_000, sinceLastFetchMs: REFETCH_QUIET_RESET_MS - 1 })).toBe(
+      60_000,
+    );
+  });
+
+  it("前の間隔が分からない・おかしいときは、15秒として数える", () => {
+    expect(nextRefetchIntervalMs({ previousIntervalMs: null, sinceLastFetchMs: 20_000 })).toBe(30_000);
+    expect(nextRefetchIntervalMs({ previousIntervalMs: 0, sinceLastFetchMs: 20_000 })).toBe(30_000);
+    expect(nextRefetchIntervalMs({ previousIntervalMs: Number.NaN, sinceLastFetchMs: 20_000 })).toBe(30_000);
+    expect(nextRefetchIntervalMs({ previousIntervalMs: 15_000, sinceLastFetchMs: Number.NaN })).toBe(15_000);
+  });
+
+  it("変わり続けるリポジトリの取り直しは、1時間に60回ほど（15秒ごとの240回から減る）", () => {
+    let fetches = 0;
+    let lastFetchedAt = 0;
+    let intervalMs = REFETCH_MIN_INTERVAL_MS;
+    for (let now = 5000; now <= 60 * 60_000; now += 5000) {
+      const decision = decideRefetch({ lastFetchedAt, lastChangedAt: now - 1, now, minIntervalMs: intervalMs });
+      if (!decision.refetch) continue;
+      intervalMs = nextRefetchIntervalMs({ previousIntervalMs: intervalMs, sinceLastFetchMs: now - lastFetchedAt });
+      lastFetchedAt = now;
+      fetches += 1;
+    }
+    expect(fetches).toBeLessThanOrEqual(62);
+    expect(fetches).toBeGreaterThanOrEqual(58);
   });
 });

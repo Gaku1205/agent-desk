@@ -22,8 +22,8 @@ import { currentStepFromJobs, stepProbeRunIds } from "../aiActivity";
 
 const WINDOW_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** Issue・PR それぞれ、ページ送りで取る最大のページ数（1ページ100件） */
-const MAX_PAGES = 5;
+/** Issue・PR それぞれ、ページ送りで取る最大のページ数（1ページ50件＝`REPO_PAGE_SIZE`。最大500件は今までどおり） */
+const MAX_PAGES = 10;
 
 /**
  * 1リポジトリぶんのデータ（直近14日）を取る（docs/spec.md の「データの取得」）。

@@ -1,7 +1,7 @@
 import { revalidateTag, unstable_cache, updateTag } from "next/cache";
 import { repoChangeKey, type ChangeMarks } from "../changeMarks";
 import { getSettingsRepo, getWatchedRepos, parseRepoList, type Env, type WatchedRepo } from "../config";
-import { decideRefetch } from "../refetchLimit";
+import { decideRefetch, nextRefetchIntervalMs, REFETCH_MIN_INTERVAL_MS } from "../refetchLimit";
 import { repoTag } from "../webhook";
 import { resolveAppAccess } from "./appToken";
 import { GitHubClient } from "./client";
@@ -38,16 +38,23 @@ function readChangedAt(repo: WatchedRepo): Promise<number> {
   })();
 }
 
-/** 取り直してよい印：取り直しを許した「最後に変わった時刻」と、許した時刻（＝前に取った時刻）。ミリ秒 */
-type Release = { changedAt: number; releasedAt: number };
+/**
+ * 取り直してよい印：取り直しを許した「最後に変わった時刻」と、許した時刻（＝前に取った時刻）、次の取り直しまであける時間。ミリ秒。
+ * `intervalMs` が無い印（前の版が覚えた物）は、最短の15秒として読む
+ */
+type Release = { changedAt: number; releasedAt: number; intervalMs?: number };
 
 /**
- * 取り直してよい印。初めて読むとき（無効にした後も）は、渡した「最後に変わった時刻」と今の時刻になる。
+ * 取り直してよい印。初めて読むとき（無効にした後も）は、渡した「最後に変わった時刻」と今の時刻、渡したあける時間になる。
  * `unstable_cache` の中で別の `unstable_cache` を呼ぶと中はキャッシュされないので、「最後に変わった時刻」は先に読んで渡す
  */
-function readRelease(repo: WatchedRepo, changedAt: number): Promise<Release> {
+function readRelease(
+  repo: WatchedRepo,
+  changedAt: number,
+  intervalMs: number = REFETCH_MIN_INTERVAL_MS,
+): Promise<Release> {
   return unstable_cache(
-    async (): Promise<Release> => ({ changedAt, releasedAt: Date.now() }),
+    async (): Promise<Release> => ({ changedAt, releasedAt: Date.now(), intervalMs }),
     ["repo-release-ms", repoChangeKey(repo)],
     { tags: [releaseTag(repo)] },
   )();
@@ -86,6 +93,8 @@ export function invalidateRepoNow(repo: WatchedRepo): void {
  * 画面に見せる「変わった」印：取り直してよい印の「最後に変わった時刻」。GitHub には問い合わせない。
  * 印の後に変わっていて、前に取ってから15秒たっていれば、印を進める（`decideRefetch`）。
  * 15秒たっていなければ前の印のまま（15秒の間に何回変わっても、たった後の1回にまとまる）。
+ * 変わり続けているリポジトリは、あける時間を15秒 → 30秒 → 60秒と延ばし、2分静かなら15秒に戻す（`nextRefetchIntervalMs`。
+ * あける時間は印と一緒にキャッシュに覚えるので、どのインスタンスでも同じに効く）。
  * タグを無効にするので、Route Handler（`/api/changes`）からだけ呼ぶ
  */
 export async function getChangeMark(repo: WatchedRepo, now: number = Date.now()): Promise<string> {
@@ -96,10 +105,15 @@ export async function getChangeMark(repo: WatchedRepo, now: number = Date.now())
     lastChangedAt: changedAt,
     reflectedChangedAt: release.changedAt,
     now,
+    minIntervalMs: release.intervalMs ?? REFETCH_MIN_INTERVAL_MS,
   });
   if (decision.refetch) {
+    const intervalMs = nextRefetchIntervalMs({
+      previousIntervalMs: release.intervalMs ?? null,
+      sinceLastFetchMs: now - release.releasedAt,
+    });
     revalidateTag(releaseTag(repo), { expire: 0 });
-    release = await readRelease(repo, changedAt);
+    release = await readRelease(repo, changedAt, intervalMs);
   }
   return new Date(release.changedAt).toISOString();
 }

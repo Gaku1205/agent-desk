@@ -82,16 +82,60 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("取り直しの下限（同じリポジトリは最短15秒あける）", () => {
-  it("5秒おきに変わり続けても、取り直しは15秒に1回まで", async () => {
+  it("5秒おきに変わり続けても、最初の取り直しは15秒たってから。そのあとは間隔を30秒・60秒と延ばす", async () => {
     await pageShow(); // 0秒：最初の1回
-    for (let second = 5; second <= 60; second += 5) {
+    const fetchedAt: number[] = [];
+    for (let second = 5; second <= 300; second += 5) {
+      at(second * 1000);
+      webhook();
+      await apiMark();
+      const before = calls;
+      await pageShow();
+      if (calls > before) fetchedAt.push(second);
+    }
+    // 15秒あけて1回、30秒あけて1回、そのあとは60秒ごと
+    expect(fetchedAt).toEqual([15, 45, 105, 165, 225, 285]);
+  });
+
+  it("変わり続けたあと、2分静かなら、次の変化はまた15秒の間隔に戻る", async () => {
+    await pageShow();
+    for (let second = 5; second <= 110; second += 5) {
       at(second * 1000);
       webhook();
       await apiMark();
       await pageShow();
     }
-    // 0秒＋15・30・45・60秒の4回で、合わせて5回
-    expect(calls).toBe(5);
+    // 15・45・105秒に取り直して、あける時間は60秒になっている。105秒から2分以上静かにする
+    const busyCalls = calls;
+    at(230_000);
+    webhook();
+    await apiMark();
+    await pageShow(); // 静かなあとの最初の変化は、すぐ
+    expect(calls).toBe(busyCalls + 1);
+    at(240_000);
+    webhook();
+    await apiMark();
+    await pageShow(); // 10秒後：まだ15秒たっていない
+    expect(calls).toBe(busyCalls + 1);
+    at(245_000);
+    await apiMark();
+    await pageShow(); // 15秒後：取り直す（60秒は待たない）
+    expect(calls).toBe(busyCalls + 2);
+  });
+
+  it("あける時間は、別のインスタンスが印を進めても同じに効く", async () => {
+    await pageShow();
+    const others = [await loadInstance(), await loadInstance(), await loadInstance()];
+    const fetchedAt: number[] = [];
+    for (let second = 5; second <= 120; second += 5) {
+      at(second * 1000);
+      webhook();
+      await others[(second / 5) % others.length].getChangeMarks([repo]);
+      const before = calls;
+      await pageShow();
+      if (calls > before) fetchedAt.push(second);
+    }
+    expect(fetchedAt).toEqual([15, 45, 105]);
   });
 
   it("15秒の間の最後の変化も、15秒たった次の取り直しで出る", async () => {
