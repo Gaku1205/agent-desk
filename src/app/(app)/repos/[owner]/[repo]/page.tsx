@@ -1,18 +1,24 @@
 import { notFound } from "next/navigation";
 import { loadStepLog } from "@/app/actions";
 import { Desk } from "@/components/Desk";
-import { getSignedInLogin } from "@/lib/auth";
+import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
 import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
 import { findWatchedRepo } from "@/lib/config";
-import { loadTurns } from "@/lib/loadTurns";
+import { getRepoResult } from "@/lib/github/fetch";
 import { newIssueRepos } from "@/lib/newIssue";
-import { countRunningPipelineRows } from "@/lib/runningPipeline";
-import { countTurnItems, filterTurnItems } from "@/lib/turn";
+import { buildTurnItems } from "@/lib/turn";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { buildWatchdogNotices } from "@/lib/watchdogState";
 import { logout } from "../../../logout";
 
+const NO_COUNTS = { total: 0, byRepo: {} };
+
+/**
+ * そのリポジトリの中身（あなたの番・いまの様子）は、そのリポジトリの取得だけで描く。
+ * 他のリポジトリの件数・Issueを書く欄の一覧などは、layout が後から流す（`Desk` の `nav.countsPending`）。
+ * 取得は `getRepoResult` で、layout の全リポジトリの取得と同じ結果を使い回す（GitHub の呼び出しは増えない）
+ */
 export default async function RepoPage({
   params,
 }: {
@@ -23,13 +29,17 @@ export default async function RepoPage({
   const watched = findWatchedRepo(owner, repo, repos);
   if (!watched) notFound();
 
-  const { results, items, now, addedNotices } = await loadTurns();
-  const same = (o: string, r: string) =>
-    o.toLowerCase() === watched.owner.toLowerCase() && r.toLowerCase() === watched.repo.toLowerCase();
+  // ログインしていなければ、layout がログインの画面を出す
+  const token = await getGitHubToken();
+  if (!token) return null;
+
+  const result = await getRepoResult(token, watched);
+  const results = [result];
+  const now = new Date();
 
   return (
     <Desk
-      items={filterTurnItems(items, watched.owner, watched.repo)}
+      items={buildTurnItems(results, now)}
       messages={buildConversation(results, buildTrailEvents(results, now, watched), now, watched)}
       now={now.toISOString()}
       scope={{
@@ -38,17 +48,13 @@ export default async function RepoPage({
         repo: watched.repo,
         githubUrl: `https://github.com/${watched.owner}/${watched.repo}`,
       }}
-      errors={results.flatMap((result) =>
-        result.ok || !same(result.owner, result.repo)
-          ? []
-          : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }],
-      )}
-      notices={buildWatchdogNotices(results, now).filter((notice) => same(notice.owner, notice.repo))}
-      addedNotices={addedNotices.filter((notice) => same(notice.owner, notice.repo))}
+      errors={result.ok ? [] : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }]}
+      notices={buildWatchdogNotices(results, now)}
       nav={{
         repos,
-        counts: countTurnItems(items),
-        runningCounts: countRunningPipelineRows(results, now),
+        counts: NO_COUNTS,
+        runningCounts: NO_COUNTS,
+        countsPending: true,
         login: (await getSignedInLogin()) ?? undefined,
         logout,
       }}

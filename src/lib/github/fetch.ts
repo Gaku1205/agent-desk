@@ -379,10 +379,19 @@ export async function fetchAllRepos(
  * React の cache は引数を参照で比べるので、リポジトリは文字列にして渡す。
  * App の鍵で読むリポジトリは、Next.js のキャッシュ（`cachedRepoData`。タグ `repo:<owner>/<repo>`）を通す
  */
-const fetchAllReposOnce = cache((token: string, reposKey: string) =>
-  fetchAllRepos(token, JSON.parse(reposKey) as WatchedRepo[], { readAppData: cachedRepoData }),
-);
+const fetchRepoOnce = cache(async (token: string, repoKey: string): Promise<RepoResult> => {
+  const [result] = await fetchAllRepos(token, [JSON.parse(repoKey) as WatchedRepo], { readAppData: cachedRepoData });
+  return result;
+});
+
+/**
+ * 1リポジトリの取得結果。リポジトリのページが「自分の分だけ先に」取るときに使う。
+ * 同じリクエストの中で `getRepoResults`（全部）と同じ結果を使い回すので、GitHub の呼び出しは増えない
+ */
+export function getRepoResult(token: string, repo: WatchedRepo): Promise<RepoResult> {
+  return fetchRepoOnce(token, JSON.stringify({ owner: repo.owner, repo: repo.repo }));
+}
 
 export function getRepoResults(token: string, repos: WatchedRepo[]): Promise<RepoResult[]> {
-  return fetchAllReposOnce(token, JSON.stringify(repos));
+  return Promise.all(repos.map((repo) => getRepoResult(token, repo)));
 }
