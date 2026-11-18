@@ -63,6 +63,22 @@ export function doneSummary(
 export type HeldRow<T> = { item: T; index: number; done: boolean };
 
 /**
+ * 預かる行の位置を決める。すでに預かっている行は押した時点の位置のまま（`done` が変わっても、
+ * 取り直した並びから行が消えていても動かさない）。初めて預かるときは並びでの位置（無ければ 0）
+ */
+export function heldIndex<T extends Pick<TurnItem, "owner" | "repo" | "issue">>(
+  before: HeldRow<T> | undefined,
+  rows: readonly T[],
+  key: string,
+): number {
+  if (before) return before.index;
+  return Math.max(
+    rows.findIndex((row) => turnItemKey(row) === key),
+    0,
+  );
+}
+
+/**
  * 預かっている行を、取り直した並びに戻す（docs/spec.md の「押したあとの手応え」）。
  * 並びにまだある行は押した時点の中身に置き換え、取り直しで消えた行は押した時点の位置に差し込む
  */

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PullData } from "./github/types";
 import {
   doneSummary,
+  heldIndex,
   OPERATION_COPY,
   startsText,
   withHeldRows,
@@ -148,5 +149,29 @@ describe("withHeldRows", () => {
       ]),
     );
     expect(numbers(rows)).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe("heldIndex", () => {
+  const rows = [item(1), item(2), item(3), item(4), item(5)];
+  const key = (n: number) => turnItemKey(item(n));
+
+  it("初めて預かるときは、並びにある位置", () => {
+    expect(heldIndex(undefined, rows, key(4))).toBe(3);
+  });
+
+  it("初めて預かるときに並びに無ければ 0", () => {
+    expect(heldIndex(undefined, rows, key(9))).toBe(0);
+  });
+
+  it("預かり済みなら、取り直した並びから消えていても前の位置のまま（0 にしない）", () => {
+    const before: HeldRow<TurnItem> = { item: item(5), index: 4, done: false };
+    expect(heldIndex(before, rows.slice(0, 4), key(5))).toBe(4);
+  });
+
+  it("done が変わっても位置は同じ", () => {
+    const before: HeldRow<TurnItem> = { item: item(3), index: 2, done: false };
+    expect(heldIndex(before, rows, key(3))).toBe(2);
+    expect(heldIndex({ ...before, done: true }, rows.slice(0, 2), key(3))).toBe(2);
   });
 });

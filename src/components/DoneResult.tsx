@@ -8,7 +8,9 @@ type Props = {
   summary: DoneSummary;
   /** マージ待ちの一覧の行（小さい文字） */
   compact?: boolean;
-  onClose: () => void;
+  /** 閉じる を出さない形（Slots & Queue。閉じるは行の右の列に別に置く）：1行で折り返さない */
+  noClose?: boolean;
+  onClose?: () => void;
   closeRef?: Ref<HTMLButtonElement>;
 };
 
@@ -16,9 +18,13 @@ type Props = {
  * 押したあとの結果の1行（docs/design.md の「押したあとの結果」）：緑のチェックと `〜しました`、
  * マージなら `PR #番号 ↗` と `#12 が動き出します`、右端に `閉じる`
  */
-export function DoneResult({ summary, compact = false, onClose, closeRef }: Props) {
+export function DoneResult({ summary, compact = false, noClose = false, onClose, closeRef }: Props) {
   return (
-    <div className={styles.done} data-compact={compact ? "" : undefined}>
+    <div
+      className={styles.done}
+      data-compact={compact ? "" : undefined}
+      data-noclose={noClose ? "" : undefined}
+    >
       <p className={styles.head} role="status">
         <span className={styles.mark} aria-hidden="true">
           <CheckIcon size={compact ? 14 : 18} />
@@ -31,9 +37,11 @@ export function DoneResult({ summary, compact = false, onClose, closeRef }: Prop
         </SmartLink>
       )}
       {summary.starts && <span className={styles.starts}>{summary.starts}</span>}
-      <button ref={closeRef} type="button" className={styles.close} data-act="" onClick={onClose}>
-        閉じる
-      </button>
+      {!noClose && (
+        <button ref={closeRef} type="button" className={styles.close} data-act="" onClick={onClose}>
+          閉じる
+        </button>
+      )}
     </div>
   );
 }
