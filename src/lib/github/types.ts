@@ -138,6 +138,20 @@ export type RepoData = {
   runs?: WorkflowRunData[] | null;
   /** 動いている実行の今のステップ（作業中のコメントが無い物だけ取る。調べていなければ無し） */
   runSteps?: RunStepData[];
+  /** どう読んだか（差分か全部か・読んだ時刻。次の差分の読みに使う。調べていなければ無し） */
+  sync?: RepoSyncInfo;
+};
+
+/** そのデータをどう読んだか（docs/spec.md の「データの取得」の「差分だけ読む」） */
+export type RepoSyncInfo = {
+  /** `delta`＝差分だけ読んで前の結果に混ぜた、`full`＝全部を読んだ */
+  mode: "delta" | "full";
+  /** 読み始めた時刻（ISO）。次の差分は、この少し前から読む */
+  readAt: string;
+  /** 最後に全部を読んだ時刻（ISO） */
+  fullAt: string;
+  /** その回に GitHub から読んだ Issue・PR の数（ページをまたいで合わせた数。重なりも数える） */
+  count: number;
 };
 
 export type GitHubErrorKind =
