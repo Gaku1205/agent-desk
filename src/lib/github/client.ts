@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { timedCall } from "./callLog";
 import { classifyError, classifyGraphqlErrors, GitHubError } from "./errors";
 import {
   parseGraphqlRateLimit,
@@ -74,15 +75,17 @@ export class GitHubClient {
     const cached = etagCache.get(key);
     let response: Response;
     try {
-      response = await this.fetcher(url, {
-        headers: {
-          Authorization: `Bearer ${this.token}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-          ...(cached ? { "If-None-Match": cached.etag } : {}),
-        },
-        cache: "no-store",
-      });
+      response = await timedCall("rest", () =>
+        this.fetcher(url, {
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            ...(cached ? { "If-None-Match": cached.etag } : {}),
+          },
+          cache: "no-store",
+        }),
+      );
     } catch {
       // ネットワークエラーの原因にはヘッダー（トークン）が入りうるので捨てる
       throw new GitHubError("other", null, null, this.source);
@@ -121,17 +124,19 @@ export class GitHubClient {
   ): Promise<unknown> {
     let response: Response;
     try {
-      response = await this.fetcher(`${API_BASE}${path}`, {
-        method,
-        headers: {
-          Authorization: `Bearer ${this.token}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-        },
-        body: body === undefined ? undefined : JSON.stringify(body),
-        cache: "no-store",
-      });
+      response = await timedCall("write", () =>
+        this.fetcher(`${API_BASE}${path}`, {
+          method,
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+          },
+          body: body === undefined ? undefined : JSON.stringify(body),
+          cache: "no-store",
+        }),
+      );
     } catch {
       throw new GitHubError("other", null, null, this.source);
     }
@@ -159,15 +164,17 @@ export class GitHubClient {
   async graphql(query: string, variables: Record<string, unknown>): Promise<unknown> {
     let response: Response;
     try {
-      response = await this.fetcher(`${API_BASE}/graphql`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ query, variables }),
-        cache: "no-store",
-      });
+      response = await timedCall("graphql", () =>
+        this.fetcher(`${API_BASE}/graphql`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query, variables }),
+          cache: "no-store",
+        }),
+      );
     } catch {
       throw new GitHubError("other", null, null, this.source);
     }
