@@ -216,6 +216,8 @@ export function AppShell({
       const reached = await callAction(
         async () => {
           await syncNow();
+          // 取り直しは裏で行う（届くまで今の中身を出し続ける）
+          startTransition(() => router.refresh());
           return true;
         },
         () => false,
@@ -225,7 +227,7 @@ export function AppShell({
         setSyncFrom(null);
       }
     });
-  }, []);
+  }, [router]);
 
   // 取り直しが終わったら、取り直しを始めた時刻を同期の時刻にして、終わった回数を数える
   if (!refreshing && requestedAt !== syncedAt) {
