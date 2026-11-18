@@ -310,8 +310,13 @@ export function planParallelToggle(
   };
 }
 
-/** 帯・メニューに出す今の状態：`並列3`（昼）・`夜：1件ずつ`（夜。2以上なら `夜：並列2`） */
+/** スイッチの横に出す今の数：`3件まで`（オン＝昼の数）・`1件ずつ`（オフ＝夜の数が1）・`2件まで`（夜の数が2以上） */
 export function describeParallelBar(state: ParallelState): string {
+  return state.period === "night" && state.limit === 1 ? "1件ずつ" : `${state.limit}件まで`;
+}
+
+/** 読み上げ・title 用の今の状態：`並列3`（昼）・`夜：1件ずつ`（夜。2以上なら `夜：並列2`） */
+function describeParallelStatus(state: ParallelState): string {
   if (state.period === "day") return `並列${state.limit}`;
   return state.limit === 1 ? "夜：1件ずつ" : `夜：並列${state.limit}`;
 }
@@ -339,7 +344,7 @@ export function formatOverrideUntil(until: Date, timeZone: string = DEFAULT_PARA
 
 /** ボタンの読み上げ・title：いまの状態と、押すとどうなるか */
 export function describeParallelButton(state: ParallelState, timeZone: string = DEFAULT_PARALLEL_TZ): string {
-  const now = describeParallelBar(state);
+  const now = describeParallelStatus(state);
   if (state.override) {
     return `${now}（手動で切り替え中。${formatOverrideUntil(state.override.until, timeZone)} まで）。押すと時間帯の決まりに戻す`;
   }
