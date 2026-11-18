@@ -491,6 +491,11 @@
     background 0.15s var(--ease);
 }
 
+/* Dashboard は新サービスのすぐ上（間4px） */
+.sideDash {
+  margin: 12px 0 -8px;
+}
+
 .sideNew:hover {
   background: var(--hair-2);
   color: var(--bone-2);
@@ -666,9 +671,14 @@
   }
 
   /* 押した物は「今いる」の見た目（札と同じ地 --well・文字 --bone）。メニューの項目は普段「今いる」の見た目が無いので、押している間だけ */
-  .lnk:has([data-pending]) {
+  .lnk:has([data-pending]),
+  .lnk[aria-current="page"] {
     background: var(--well);
     color: var(--bone);
+  }
+
+  .lnk[aria-current="page"] > svg {
+    color: var(--accent);
   }
 
   .foot {

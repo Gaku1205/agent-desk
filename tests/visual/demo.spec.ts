@@ -231,7 +231,7 @@ test.describe("デモの画面", () => {
   });
 
   test("横にはみ出さない", async ({ page }) => {
-    for (const path of ["/demo", REPO_PAGE]) {
+    for (const path of ["/demo", REPO_PAGE, "/demo/dashboard"]) {
       await page.goto(path);
       await page.evaluate(() => document.fonts.ready);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

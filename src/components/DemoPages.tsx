@@ -11,6 +11,8 @@ import { parseNotifyEvents } from "@/lib/notifyEvents";
 import { DEFAULT_PARALLEL_SETTINGS } from "@/lib/parallel";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems, filterTurnItems } from "@/lib/turn";
+import { summarizeAll } from "@/lib/dashboard/summary";
+import { Dashboard } from "./Dashboard";
 import { useDemoState } from "./DemoContext";
 import { Desk, type DeskNav } from "./Desk";
 import { buildRepoRows } from "@/lib/repoList";
@@ -96,6 +98,13 @@ export function DemoRepos() {
   const { results, items, now, repos } = useDemoState();
   const nav = useDemoNav();
   return <RepoList rows={buildRepoRows(repos, results, items, now)} now={now.toISOString()} nav={nav} />;
+}
+
+/** デモの Dashboard：デモのデータで、本物と同じ集計を出す */
+export function DemoDashboard() {
+  const { results, now, repos } = useDemoState();
+  const nav = useDemoNav();
+  return <Dashboard summaries={summarizeAll(results, now)} now={now.toISOString()} repoCount={repos.length} nav={nav} />;
 }
 
 /** デモのIssueを書く画面：GitHub には送らず、サンプルのデータにIssueが増える（landing-page はテンプレートの見本） */

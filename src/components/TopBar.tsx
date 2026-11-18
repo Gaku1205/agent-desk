@@ -13,7 +13,7 @@ import { currentRepoFromPath, visibleRepos } from "@/lib/visibleRepos";
 import type { TurnCounts } from "@/lib/turn";
 import { useShell } from "./AppShell";
 import { useDemo } from "./DemoContext";
-import { GridIcon, PlayIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
+import { ChartIcon, GridIcon, PlayIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
 import { ParallelToggle } from "./ParallelToggle";
 import { SideUser } from "./SideUser";
 import styles from "./TopBar.module.css";
@@ -201,6 +201,7 @@ export function SideRepos(
 ) {
   const pathname = usePathname();
   const newServiceHref = `${props.basePath ?? ""}/new/service`;
+  const dashboardHref = `${props.basePath ?? ""}/dashboard`;
   const listRef = useRef<HTMLDivElement>(null);
   const [hiddenBelow, setHiddenBelow] = useState(false);
   // 札が下の段の下に隠れているときだけ、境目に線を出す（スクロール時・大きさが変わったとき）
@@ -229,6 +230,15 @@ export function SideRepos(
         <RepoTabs {...props} />
       </div>
       <div className={styles.sideFoot} data-more={hiddenBelow ? "true" : undefined}>
+        <Link
+          href={dashboardHref}
+          className={`${styles.sideNew} ${styles.sideDash}`}
+          aria-current={pathname.toLowerCase() === dashboardHref ? "page" : undefined}
+        >
+          <ChartIcon />
+          <span>Dashboard</span>
+          <PendingMark />
+        </Link>
         <Link
           href={newServiceHref}
           className={styles.sideNew}
@@ -374,6 +384,7 @@ function MenuSheet(props: Props) {
   const pathname = usePathname();
   const newIssueLink = newIssueHref(props.basePath ?? "", currentRepoFromPath(pathname));
   const newServiceHref = `${props.basePath ?? ""}/new/service`;
+  const dashboardHref = `${props.basePath ?? ""}/dashboard`;
   const paneRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!menuOpen) return;
@@ -414,6 +425,16 @@ function MenuSheet(props: Props) {
         >
           <WriteIcon />
           Issueを書く
+          <PendingMark />
+        </Link>
+        <Link
+          href={dashboardHref}
+          className={styles.lnk}
+          aria-current={pathname.toLowerCase() === dashboardHref ? "page" : undefined}
+          onClick={shouldCloseMenuOnPick(pathname, dashboardHref) ? closeMenu : undefined}
+        >
+          <ChartIcon />
+          Dashboard
           <PendingMark />
         </Link>
         {props.extraLinks}

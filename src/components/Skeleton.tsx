@@ -1,5 +1,6 @@
 "use client";
 
+import dashboardStyles from "./Dashboard.module.css";
 import deskStyles from "./Desk.module.css";
 import { useNav } from "./NavContext";
 import { Sheet } from "./Sheet";
@@ -46,6 +47,33 @@ export function DeskSkeleton() {
         </div>
       </div>
       <div className={deskStyles.flow} />
+    </div>
+  );
+}
+
+/** Dashboard の骨組み：左のバー（本物）、見出しとまとめの文、表の位置 */
+export function DashboardSkeleton() {
+  const nav = useNav();
+  return (
+    <div className={dashboardStyles.panes} data-panes="" aria-busy="true">
+      <div className={dashboardStyles.side} id="side-repos">
+        {nav && <SideRepos {...nav} />}
+      </div>
+      <main id="main" className={dashboardStyles.main}>
+        <div className={dashboardStyles.head} aria-hidden="true">
+          <div className={dashboardStyles.title}>
+            <Band width={150} height={36} />
+            <Band width={260} height={13} />
+          </div>
+          <Band width={110} height={36} />
+        </div>
+        <div className={dashboardStyles.summary} aria-hidden="true">
+          <div className={styles.line}>
+            <Band width="80%" height={42} />
+            <Band width="100%" height={92} />
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
