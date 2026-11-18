@@ -182,8 +182,11 @@ function vercel(
   state: "pending" | "success" | "failure",
   updatedAt: string,
   description = "",
+  targetUrl?: string,
 ): CommitStatusData {
-  return { context: "Vercel", state, description, updatedAt };
+  return targetUrl
+    ? { context: "Vercel", state, description, updatedAt, targetUrl }
+    : { context: "Vercel", state, description, updatedAt };
 }
 
 const DONE_COMMENT = "**Claude finished** 実装してブランチにpushしました";
@@ -286,7 +289,7 @@ function addDeployed(
   pullNumber: number,
   title: string,
   mergedMinutesAgo: number,
-  options: { planned?: boolean; fixed?: boolean; unknown?: boolean } = {},
+  options: { planned?: boolean; fixed?: boolean; unknown?: boolean; url?: string } = {},
 ) {
   const mergedAt = ago(ctx, mergedMinutesAgo);
   const issue = addIssue(ctx, number, title, {
@@ -302,7 +305,7 @@ function addDeployed(
     headSha,
     mergedAt,
     checkRuns: [...ciRuns(4, ago(ctx, mergedMinutesAgo + 20)), run("review", ago(ctx, mergedMinutesAgo + 10))],
-    statuses: options.unknown ? [] : [vercel("success", ago(ctx, mergedMinutesAgo - 2))],
+    statuses: options.unknown ? [] : [vercel("success", ago(ctx, mergedMinutesAgo - 2), "", options.url)],
   });
   if (options.fixed) {
     addComment(ctx, pullNumber, autoFixComment("0ab1", "レビューの指摘"), ago(ctx, mergedMinutesAgo + 40));
@@ -775,7 +778,7 @@ function landingPage(base: Date): RepoData {
 /** notes-api：公開済みの1件だけ（あなたの番もAIの番も 0・0。左のバーには出ず、すべてのリポジトリにだけ出る見本） */
 function notesApi(base: Date): RepoData {
   const ctx = createCtx(DEMO_REPOS[2], base, 4000);
-  addDeployed(ctx, 1, 2, "メモを一覧で返すAPIを足す", 30 * 60, { planned: true });
+  addDeployed(ctx, 1, 2, "メモを一覧で返すAPIを足す", 30 * 60, { planned: true, url: "https://notes-api.example.com" });
   addStepLogs(ctx);
   return ctx.data;
 }

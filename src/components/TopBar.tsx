@@ -64,6 +64,7 @@ export function Counts({
   return (
     <i
       className={`${styles.counts} num`}
+      role="img"
       aria-label={text}
       title={text}
       data-labeled={labeled ? "" : undefined}
@@ -91,9 +92,9 @@ function PendingMark() {
 }
 
 /** メニューの凡例：2つの点が何の数か（点つき） */
-function CountsKey() {
+export function CountsKey({ className }: { className?: string }) {
   return (
-    <span className={styles.key} aria-hidden="true">
+    <span className={className ? `${styles.key} ${className}` : styles.key} aria-hidden="true">
       <span className={styles.keyTurn}>あなたの番</span>
       <span className={styles.keyRunning}>AI</span>
     </span>
