@@ -110,6 +110,11 @@ export function turnItemKey(item: Pick<TurnItem, "owner" | "repo" | "issue">): s
   return `${item.owner}/${item.repo}#${item.issue.number}`;
 }
 
+/** 1件の「段階の印」（段階・ボタン・工場の相談のコメント）。押した時点と同じなら、まだ同じ段階にいる */
+export function turnSig(item: Pick<TurnItem, "status" | "buttons" | "factory">): string {
+  return `${item.status.stage}:${item.buttons.map((b) => b.label).join(",")}:${item.factory?.commentId ?? ""}`;
+}
+
 function operation(kind: OperationKind): TurnButton {
   return { type: "operation", kind, label: OPERATION_LABEL[kind] };
 }

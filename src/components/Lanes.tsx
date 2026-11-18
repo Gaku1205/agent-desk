@@ -1,17 +1,22 @@
 "use client";
 
-import { useCallback, useId, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
 import { assignSlots, lanesHeadline, type QueueEntry, type Slot } from "@/lib/lanes/slots";
 import type { LanesSource, RunEntry } from "@/lib/lanes/source";
+import { lanesTurnRows } from "@/lib/lanes/turnRows";
+import { withHeldRows, type HeldRow } from "@/lib/operationResult";
+import { formatWait, turnItemKey, turnSig, type TurnItem } from "@/lib/turn";
+import { TURN_GROUPS } from "@/lib/turnKind";
 import { getBrowserStorage } from "@/lib/motion";
 import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import dashboardStyles from "./Dashboard.module.css";
 import { getSidebarSnapshot, subscribeSidebar, type DeskNav } from "./Desk";
 import type { UsageSource } from "@/lib/lanes/usage";
-import { ChartIcon, CircleIcon, ColumnsIcon, PanelLeftIcon, PlayIcon, SpinnerIcon } from "./icons";
+import { ChartIcon, CircleIcon, ColumnsIcon, PanelLeftIcon, PersonIcon, PlayIcon, SpinnerIcon } from "./icons";
 import styles from "./Lanes.module.css";
+import { LanesTurn } from "./LanesTurn";
 import { LanesUsage } from "./LanesUsage";
 import { useParallelView } from "./ParallelContext";
 import { QueueIcon } from "./QueueIcon";
@@ -22,10 +27,99 @@ type Props = {
   source: LanesSource;
   /** Last 24h のグラフの材料（取れなければ null） */
   usage: UsageSource | null;
+  /** 「あなたの番」の材料（すでに読んでいる物。Your turn の区画に出す） */
+  items: TurnItem[];
   /** 「今」（ISO文字列） */
   now: string;
   nav: DeskNav;
 };
+
+/** 片づけた1件を隠しておく長さ */
+const TURN_LEAVE_MS = 8000;
+
+/** Your turn：いまの「あなたの番」を1行ずつ並べ、その場で押せる */
+function TurnSection({ id, items, now, basePath }: { id: string; items: TurnItem[]; now: Date; basePath: string }) {
+  const [held, setHeld] = useState<ReadonlyMap<string, HeldRow<TurnItem>>>(() => new Map());
+  const [gone, setGone] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const rows = lanesTurnRows(items);
+  const rowsRef = useRef(rows);
+  useEffect(() => {
+    rowsRef.current = rows;
+  });
+
+  const hold = useCallback(
+    (key: string, value: { item: TurnItem; done: boolean } | null) => {
+      setHeld((prev) => {
+        const before = prev.get(key);
+        if (value === null) {
+          if (!before) return prev;
+          const next = new Map(prev);
+          next.delete(key);
+          return next;
+        }
+        if (before && before.done === value.done) return prev;
+        const index = rowsRef.current.findIndex((row) => turnItemKey(row) === key);
+        const next = new Map(prev);
+        next.set(key, { item: before?.item ?? value.item, index: Math.max(index, 0), done: value.done });
+        return next;
+      });
+    },
+    [],
+  );
+
+  // 片づけた物は、押した時点の段階の印（`turnSig`）と一緒に覚える。段階が変わって同じ番号がまた出たら隠さない
+  const gotAway = useCallback((key: string, sig: string) => {
+    setGone((prev) => new Map(prev).set(key, sig));
+    // 取り直しが古い内容のままでも、1件が隠れたまま残らないようにする（TurnRow と同じ8秒）
+    window.setTimeout(() => {
+      setGone((prev) => {
+        if (prev.get(key) !== sig) return prev;
+        const next = new Map(prev);
+        next.delete(key);
+        return next;
+      });
+    }, TURN_LEAVE_MS);
+    setHeld((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Map(prev);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const shown = withHeldRows(rows, held).filter((item) => gone.get(turnItemKey(item)) !== turnSig(item));
+  const count = shown.filter((item) => held.get(turnItemKey(item))?.done !== true).length;
+
+  return (
+    <section className={styles.section} aria-labelledby={id}>
+      <SectionHead id={id} icon={<PersonIcon size={16} />} title="Your turn" sub={`あなたが押す物 · ${count}件`} />
+      <ul className={styles.legend} aria-label="色の見方">
+        {TURN_GROUPS.map((g) => (
+          <li key={g.group} data-group={g.group}>
+            <span className={styles.swatch} aria-hidden="true" />
+            {g.label}
+          </li>
+        ))}
+      </ul>
+      {shown.length === 0 ? (
+        <p className={styles.empty}>あなたが答えることはありません</p>
+      ) : (
+        <ul className={styles.list}>
+          {shown.map((item) => (
+            <LanesTurn
+              key={turnItemKey(item)}
+              item={item}
+              wait={formatWait(item.waitingSince, now)}
+              basePath={basePath}
+              onHold={hold}
+              onGone={gotAway}
+            />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 /** 区画の見出し：アイコン → 名前 → 横に説明 */
 function SectionHead({ id, icon, title, sub }: { id: string; icon: ReactNode; title: string; sub: string }) {
@@ -183,7 +277,8 @@ function QueueRow({ entry }: { entry: QueueEntry }) {
 }
 
 /** Slots & Queue（`/lanes`、デモは `/demo/lanes`）：見出し・Slots・Running・Queue */
-export function Lanes({ source, usage, now, nav }: Props) {
+export function Lanes({ source, usage, items, now, nav }: Props) {
+  const turnId = useId();
   const parallel = useParallelView();
   const limit = parallel?.state?.limit ?? null;
   const lanes = assignSlots(source, limit);
@@ -257,6 +352,8 @@ export function Lanes({ source, usage, now, nav }: Props) {
             </div>
           </dl>
         </header>
+
+        <TurnSection id={turnId} items={items} now={at} basePath={nav.basePath ?? ""} />
 
         <section className={styles.section} aria-labelledby={slotsId}>
           <SectionHead
