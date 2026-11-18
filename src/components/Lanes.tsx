@@ -12,7 +12,8 @@ import { TURN_GROUPS } from "@/lib/turnKind";
 import { getBrowserStorage } from "@/lib/motion";
 import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import dashboardStyles from "./Dashboard.module.css";
-import { getSidebarSnapshot, subscribeSidebar, type DeskNav } from "./Desk";
+import { getSidebarSnapshot, subscribeSidebar, type DeskError, type DeskNav } from "./Desk";
+import { LoadErrors } from "./LoadErrors";
 import type { UsageSource } from "@/lib/lanes/usage";
 import { ChartIcon, CircleIcon, ColumnsIcon, PanelLeftIcon, PersonIcon, PlayIcon, SpinnerIcon } from "./icons";
 import styles from "./Lanes.module.css";
@@ -32,6 +33,8 @@ type Props = {
   /** 「今」（ISO文字列） */
   now: string;
   nav: DeskNav;
+  /** 読めなかったリポジトリ（あれば、見出しの下に出す。数や一覧には入っていない） */
+  errors?: DeskError[];
 };
 
 /** 片づけた1件を隠しておく長さ */
@@ -308,7 +311,7 @@ function QueueRow({ entry }: { entry: QueueEntry }) {
 }
 
 /** Slots & Queue（`/lanes`、デモは `/demo/lanes`）：見出し・Slots・Running・Queue */
-export function Lanes({ source, usage, items, now, nav }: Props) {
+export function Lanes({ source, usage, items, now, nav, errors }: Props) {
   const turnId = useId();
   const parallel = useParallelView();
   const limit = parallel?.state?.limit ?? null;
@@ -384,6 +387,7 @@ export function Lanes({ source, usage, items, now, nav }: Props) {
             </div>
           </dl>
         </header>
+        <LoadErrors errors={errors ?? []} />
 
         <TurnSection id={turnId} items={items} now={at} basePath={nav.basePath ?? ""} />
 

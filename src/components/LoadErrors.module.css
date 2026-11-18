@@ -1,0 +1,16 @@
+/* 読めなかったリポジトリの知らせ（docs/design.md の「読めなかったリポジトリ」）。ホームの「お知らせ」の取れなかった行と同じ字 */
+.errors {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0 0;
+  padding: 0;
+  color: var(--fail-soft);
+  font-size: 14px;
+  line-height: 1.65;
+  list-style: none;
+}
+
+.note {
+  color: var(--mute);
+  font-size: 13px;
+}

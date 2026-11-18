@@ -5,7 +5,8 @@ import { useCallback, useSyncExternalStore } from "react";
 import { getBrowserStorage } from "@/lib/motion";
 import { formatLastActivity, sortRepoRows, type RepoListRow } from "@/lib/repoList";
 import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
-import { getSidebarSnapshot, subscribeSidebar, type DeskNav } from "./Desk";
+import { getSidebarSnapshot, subscribeSidebar, type DeskError, type DeskNav } from "./Desk";
+import { LoadErrors } from "./LoadErrors";
 import { PanelLeftIcon, PlusIcon } from "./icons";
 import styles from "./RepoList.module.css";
 import { Counts, CountsKey, SideRepos } from "./TopBar";
@@ -15,10 +16,12 @@ type Props = {
   /** 「今」（ISO文字列） */
   now: string;
   nav: DeskNav;
+  /** 読めなかったリポジトリ（あれば、件数の下に出す。その行の数・時刻は入っていない） */
+  errors?: DeskError[];
 };
 
 /** 「すべてのリポジトリ」（`/repos`、デモは `/demo/repos`）：監視中の全部を1行ずつ。左のバーはホームと同じ */
-export function RepoList({ rows, now, nav }: Props) {
+export function RepoList({ rows, now, nav, errors }: Props) {
   const basePath = nav.basePath ?? "";
   const sorted = sortRepoRows(rows);
   const at = new Date(now);
@@ -57,6 +60,7 @@ export function RepoList({ rows, now, nav }: Props) {
           <p className={`${styles.total} num`}>監視中 {rows.length}件</p>
           <CountsKey className={styles.keyMobile} />
         </div>
+        <LoadErrors errors={errors ?? []} />
         <div className={styles.table}>
         <div className={styles.head} aria-hidden="true">
           <span />

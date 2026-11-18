@@ -2,6 +2,7 @@ import { DashboardLive } from "@/components/LivePages";
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
 import { loadGithubLimits } from "@/lib/github/limits";
 import { buildLocalBundles } from "@/lib/dashboard/bundle";
+import { loadErrorsOf } from "@/lib/loadErrors";
 import { loadTurnSteps } from "@/lib/loadTurnSteps";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
@@ -34,6 +35,7 @@ export default async function DashboardPage() {
         loadPeriod: loadExtendedPeriod,
         limits,
         now: now.toISOString(),
+        errors: loadErrorsOf(results),
         repoCount: repos.length,
         nav: {
           repos,
