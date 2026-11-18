@@ -180,6 +180,12 @@ describe("buildConversation（デモのデータ）", () => {
     for (const m of messages.filter((m) => m.deployed)) expect(m.lamp).toEqual({ kind: "none" });
   });
 
+  it("理由の印つきの保留（Paused）は「いまの様子」に出さない（Slots & Queue の Paused だけ。Issue #520）", () => {
+    const keys = new Set(messages.map((m) => m.key));
+    expect(keys.has("demo/todo-app#42")).toBe(false);
+    expect(keys.has("demo/todo-app#43")).toBe(false);
+  });
+
   it("リポジトリを絞ると、そのリポジトリの物だけ", () => {
     const only = buildConversation(results, events, NOW, { owner: "demo", repo: "todo-app" });
     expect(only.length).toBeGreaterThan(0);
