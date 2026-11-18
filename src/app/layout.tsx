@@ -39,12 +39,9 @@ export const metadata: Metadata = {
   description: "AIに開発を任せるときの進行状況と、人間の判断待ちを1画面で",
 };
 
-/** スマホのアドレスバーの色：docs/design.md の `--bg`（白・黒）。CSS変数が使えないので、ここだけ直書き */
+/** スマホのアドレスバーの色：藍（`--accent` のライトの値）の1色。ダークでも同じ。CSS変数が使えないので、ここだけ直書き */
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafafa" },
-    { media: "(prefers-color-scheme: dark)", color: "#121212" },
-  ],
+  themeColor: "#4f46e5",
 };
 
 /** 全ページ共通の骨組み。ログインの確認は (app)/layout.tsx、デモは demo/layout.tsx */
