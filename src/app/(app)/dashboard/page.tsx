@@ -1,5 +1,6 @@
 import { Dashboard } from "@/components/Dashboard";
-import { getSignedInLogin } from "@/lib/auth";
+import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
+import { loadGithubLimits } from "@/lib/github/limits";
 import { aiUsageAll } from "@/lib/dashboard/aiUsage";
 import { summarizeAll } from "@/lib/dashboard/summary";
 import { loadTurns } from "@/lib/loadTurns";
@@ -12,10 +13,19 @@ import { logout } from "../logout";
 export default async function DashboardPage() {
   const { repos } = await loadWatchedRepos();
   const { results, items, now } = await loadTurns();
+  const summaries = summarizeAll(results, now);
+  // GitHub を読むのは、パイプラインの App の鍵の `GET /rate_limit` だけ（5分に1回まで）
+  const limits = await loadGithubLimits({
+    userToken: (await getGitHubToken()) ?? "",
+    repos,
+    runs: summaries["24h"].runs,
+    now,
+  });
 
   return (
     <Dashboard
-      summaries={summarizeAll(results, now)}
+      summaries={summaries}
+      limits={limits}
       aiUsages={aiUsageAll(results, now)}
       now={now.toISOString()}
       repoCount={repos.length}

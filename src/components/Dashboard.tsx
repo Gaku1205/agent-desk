@@ -10,7 +10,16 @@ import { getBrowserStorage } from "@/lib/motion";
 import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import styles from "./Dashboard.module.css";
 import { getSidebarSnapshot, subscribeSidebar, type DeskNav } from "./Desk";
-import { ChipIcon, FlowStepIcon, PanelLeftIcon } from "./icons";
+import {
+  formatResetAt,
+  hourLabel,
+  limitsSummary,
+  RATE_LIMIT,
+  remainingRatio,
+  type GithubLimits,
+  type LimitGauge,
+} from "@/lib/dashboard/githubLimits";
+import { ChipIcon, FlowStepIcon, GaugeIcon, PanelLeftIcon } from "./icons";
 import { SideRepos } from "./TopBar";
 
 type Props = {
@@ -18,6 +27,8 @@ type Props = {
   summaries: Record<PeriodKey, Summary>;
   /** 期間ごとの AI usage（同じく取り直さない） */
   aiUsages: Record<PeriodKey, AiUsage>;
+  /** GitHub limits（期間の切り替えとは関係なく、直近24時間） */
+  limits: GithubLimits;
   /** 「今」（ISO文字列） */
   now: string;
   /** 監視中のリポジトリの数 */
@@ -131,8 +142,135 @@ function AiUsageSection({ usage }: { usage: AiUsage }) {
   );
 }
 
-/** Dashboard（`/dashboard`、デモは `/demo/dashboard`）：期間で振り返る。見出し・期間の切り替え・まとめ・AI usage */
-export function Dashboard({ summaries, aiUsages, now, repoCount, nav }: Props) {
+function num(value: number | null): string {
+  return value === null ? DASH : value.toLocaleString("en-US");
+}
+
+/** 残り1つ分：`今 残り 3,912 / 5,000`・横棒・`resets at 11:52` */
+function Gauge({ name, gauge }: { name: string; gauge: LimitGauge }) {
+  const ratio = remainingRatio(gauge.remaining, gauge.limit);
+  return (
+    <div className={styles.gauge}>
+      <dt className={styles.gaugeName}>{name}</dt>
+      <dd className={`${styles.gaugeNow} num`}>
+        今 残り <span className={styles.gaugeValue}>{num(gauge.remaining)}</span> / {num(gauge.limit)}
+      </dd>
+      <dd className={styles.gaugeTrack}>
+        {ratio !== null && (
+          <span className={styles.gaugeFill} style={{ width: `${Math.max(ratio * 100, 1)}%` }} aria-hidden="true" />
+        )}
+      </dd>
+      <dd className={`${styles.gaugeReset} num`}>resets at {formatResetAt(gauge.resetAt) ?? DASH}</dd>
+    </div>
+  );
+}
+
+const CHART_W = 720;
+const CHART_H = 160;
+const CHART_PAD = 6;
+
+/** 値の列を、null で切った線の path にする。1点だけの所は点（長さ0の線）にする */
+function linePath(series: (number | null)[], yMax: number): string {
+  const step = (CHART_W - 2 * CHART_PAD) / Math.max(series.length - 1, 1);
+  const parts: string[] = [];
+  let run: [number, number][] = [];
+  const flush = () => {
+    if (run.length === 1) parts.push(`M${run[0][0]} ${run[0][1]}h0`);
+    else if (run.length > 1) parts.push(`M${run.map(([x, y]) => `${x} ${y}`).join("L")}`);
+    run = [];
+  };
+  series.forEach((value, i) => {
+    if (value === null) {
+      flush();
+      return;
+    }
+    const x = Number((CHART_PAD + i * step).toFixed(1));
+    const y = Number((CHART_H - CHART_PAD - (Math.min(value, yMax) / yMax) * (CHART_H - 2 * CHART_PAD)).toFixed(1));
+    run.push([x, y]);
+  });
+  flush();
+  return parts.join("");
+}
+
+/** GitHub limits：2つの残りと、1時間ごとに使った量の線グラフ */
+function GithubLimitsSection({ limits }: { limits: GithubLimits }) {
+  const headingId = useId();
+  const yMax = Math.max(RATE_LIMIT * 1.1, ...limits.pipelineUsed.map((v) => v ?? 0), ...limits.readsUsed.map((v) => v ?? 0));
+  const limitY = CHART_H - CHART_PAD - (RATE_LIMIT / yMax) * (CHART_H - 2 * CHART_PAD);
+  const summary = limitsSummary(limits.hourStarts, limits.pipelineUsed, limits.readsUsed);
+  const last = limits.hourStarts.length - 1;
+  return (
+    <section className={styles.limits} aria-labelledby={headingId}>
+      <h2 className={styles.usageHead} id={headingId}>
+        <GaugeIcon size={16} />
+        <span>GitHub limits</span>
+        <span className={styles.usageSub}>残りの回数</span>
+      </h2>
+      <dl className={styles.gauges}>
+        <Gauge name="Pipeline · REST" gauge={limits.pipeline} />
+        <Gauge name="agent-desk reads · GraphQL" gauge={limits.reads} />
+      </dl>
+      <div className={styles.chart}>
+        <p className={styles.label}>1時間ごとに使った量</p>
+        <ul className={styles.legend}>
+          <li>
+            <svg width="26" height="8" aria-hidden="true">
+              <path d="M0 4h26" stroke="var(--accent)" strokeWidth="2" />
+            </svg>
+            <span>Pipeline · REST</span>
+            <span className={`${styles.legendNow} num`}>この1時間 {num(limits.pipelineUsed[last] ?? null)}</span>
+          </li>
+          <li>
+            <svg width="26" height="8" aria-hidden="true">
+              <path d="M0 4h26" stroke="var(--mute)" strokeWidth="2" strokeDasharray="5 3" />
+            </svg>
+            <span>agent-desk reads · GraphQL</span>
+            <span className={`${styles.legendNow} num`}>この1時間 {num(limits.readsUsed[last] ?? null)}</span>
+          </li>
+          <li>
+            <svg width="26" height="8" aria-hidden="true">
+              <path d="M0 4h26" stroke="var(--fail-soft)" strokeWidth="1.5" strokeDasharray="1.5 3" strokeLinecap="round" />
+            </svg>
+            <span className="num">上限 {num(RATE_LIMIT)}</span>
+          </li>
+        </ul>
+        <svg
+          className={styles.plot}
+          viewBox={`0 0 ${CHART_W} ${CHART_H}`}
+          preserveAspectRatio="none"
+          role="img"
+          aria-label={`1時間ごとに使った量の線グラフ。${summary}`}
+        >
+          <path
+            d={`M${CHART_PAD} ${limitY}H${CHART_W - CHART_PAD}`}
+            className={styles.limitLine}
+            vectorEffect="non-scaling-stroke"
+          />
+          <path d={linePath(limits.readsUsed, yMax)} className={styles.readsLine} vectorEffect="non-scaling-stroke" />
+          <path d={linePath(limits.pipelineUsed, yMax)} className={styles.pipelineLine} vectorEffect="non-scaling-stroke" />
+        </svg>
+        <ol className={`${styles.hours} num`} aria-hidden="true">
+          {limits.hourStarts.map((start, i) =>
+            i % 6 === last % 6 ? (
+              <li
+                key={start}
+                data-last={i === last ? "" : undefined}
+                style={{ left: `${((CHART_PAD + (i * (CHART_W - 2 * CHART_PAD)) / last) / CHART_W) * 100}%` }}
+              >
+                {hourLabel(start)}:00
+              </li>
+            ) : null,
+          )}
+        </ol>
+        <p className={styles.chartSummary}>{summary}</p>
+        <p className={`${styles.chartRuns} num`}>Actions の実行：{limits.runs === null ? DASH : `${limits.runs} runs`}（この24時間）</p>
+      </div>
+    </section>
+  );
+}
+
+/** Dashboard（`/dashboard`、デモは `/demo/dashboard`）：期間で振り返る。見出し・期間の切り替え・まとめ・AI usage・GitHub limits */
+export function Dashboard({ summaries, aiUsages, limits, now, repoCount, nav }: Props) {
   const [period, setPeriod] = useState<PeriodKey>("24h");
   const tabsId = useId();
   const summary = summaries[period];
@@ -206,6 +344,7 @@ export function Dashboard({ summaries, aiUsages, now, repoCount, nav }: Props) {
           </dl>
         </section>
         <AiUsageSection usage={aiUsages[period]} />
+        <GithubLimitsSection limits={limits} />
       </main>
     </div>
   );

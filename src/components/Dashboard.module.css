@@ -279,6 +279,154 @@
   }
 }
 
+/* ───── GitHub limits：2つの残り（横に並ぶ。狭いと1列）と、1時間ごとに使った量の線グラフ ───── */
+.limits {
+  container-type: inline-size;
+}
+
+.gauges {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  gap: 20px 40px;
+  margin: 0;
+}
+
+.gauge {
+  min-width: 0;
+}
+
+.gaugeName {
+  color: var(--bone-2);
+  font-size: 13px;
+}
+
+.gaugeNow {
+  margin: 2px 0 0;
+  color: var(--mute);
+  font-size: 13.5px;
+}
+
+.gaugeValue {
+  color: var(--bone);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.gaugeTrack {
+  height: 10px;
+  margin: 8px 0 0;
+}
+
+.gaugeFill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--bone-2);
+}
+
+.gaugeReset {
+  margin: 6px 0 0;
+  color: var(--mute);
+  font-size: 12.5px;
+}
+
+.chart {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--hair);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 8px 0 12px;
+  padding: 0;
+  list-style: none;
+  color: var(--bone-2);
+  font-size: 13px;
+}
+
+.legend li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.legendNow {
+  color: var(--mute);
+}
+
+.plot {
+  display: block;
+  width: 100%;
+  height: 160px;
+  overflow: visible;
+}
+
+.limitLine {
+  fill: none;
+  stroke: var(--fail-soft);
+  stroke-width: 1.5;
+  stroke-dasharray: 1.5 4;
+  stroke-linecap: round;
+}
+
+.pipelineLine,
+.readsLine {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pipelineLine {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.readsLine {
+  stroke: var(--mute);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+
+.hours {
+  position: relative;
+  height: 18px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.hours li {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.hours li:first-child {
+  transform: none;
+}
+
+.hours li[data-last] {
+  transform: translateX(-100%);
+}
+
+.chartSummary {
+  margin: 12px 0 0;
+  color: var(--bone);
+  font-size: 13.5px;
+}
+
+.chartRuns {
+  margin: 4px 0 0;
+  color: var(--mute);
+  font-size: 12.5px;
+}
+
 /* ───── PCの3ペイン（左のバーはホームと同じ。右の進捗図の列は無い） ───── */
 @media (min-width: 900px) {
   .panes {
