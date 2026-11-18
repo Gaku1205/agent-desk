@@ -1,4 +1,5 @@
 import {
+  AUTO_ADD_VARIABLE,
   decideAutoAddCheck,
   factorySignal,
   formatAddedLog,
@@ -18,8 +19,8 @@ import type { RepoResult } from "./types";
 // 工場が作った新しいリポジトリを、監視リストに自動で足す（docs/spec.md の「新しいサービスを自動で足す」）。
 // GitHub はログインした人のトークンで、`fetch` で直接呼ぶ。サーバーだけで使う（トークンは画面に渡さない）。
 
-/** 自動で足すか（`on` / `off`。無ければオン） */
-export const AUTO_ADD_VARIABLE = "AGENT_DESK_AUTO_ADD";
+/** 自動で足すか（`on` / `off`。無ければオン）。名前は `src/lib/autoAdd.ts` に置いた物 */
+export { AUTO_ADD_VARIABLE };
 /** 設定画面で「外す」を押したリポジトリ（`owner/repo` のカンマ区切り）。自動では足し直さない */
 export const REMOVED_REPOS_VARIABLE = "AGENT_DESK_REMOVED_REPOS";
 /** 自動で足したリポジトリと時刻（`owner/repo@ISO時刻` のカンマ区切り）。「いまの様子」のお知らせに使う */

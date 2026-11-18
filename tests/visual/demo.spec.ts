@@ -96,6 +96,12 @@ test.describe("デモの画面", () => {
 
   test("設定", async ({ page }) => {
     await page.goto("/demo/settings");
+    // 左に目次、節ごとの白い面。オン・オフはスイッチ、テーマ・動きは切り替えボタン（Issue #507）
+    await expect(page.getByRole("navigation", { name: "設定の目次" }).getByRole("link")).toHaveCount(4);
+    await expect(page.getByRole("switch", { name: "Stuck" })).toBeVisible();
+    await expect(page.getByRole("radiogroup", { name: "テーマ" })).toBeVisible();
+    await expect(page.getByRole("radiogroup", { name: "アニメーション" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /を保存$/ })).toHaveCount(0);
     await settle(page);
     await expect(page).toHaveScreenshot("settings.png");
   });

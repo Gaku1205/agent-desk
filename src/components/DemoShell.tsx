@@ -7,6 +7,7 @@ import {
   buildDemoResults,
   createDemoIssue,
   DEMO_AUTO_ADD_REPO,
+  DEMO_PARALLEL_SETTINGS,
   DEMO_REPOS,
   demoAutoAdd,
   demoAutoAddResult,
@@ -21,21 +22,13 @@ import {
   startPlayback,
   type PlayButtonState,
 } from "@/lib/demo/playback";
-import {
-  formatParallelOverride,
-  planParallelToggle,
-  resolveParallelState,
-  type ParallelSettings,
-} from "@/lib/parallel";
+import { formatParallelOverride, planParallelToggle, resolveParallelState } from "@/lib/parallel";
 import { buildTurnItems, type OperationKind } from "@/lib/turn";
 import { ShellProvider, useMenuState, type ShellState } from "./AppShell";
 import { DemoProvider, type DemoState } from "./DemoContext";
 import { KeyboardHelp } from "./KeyboardHelp";
 import { ParallelViewProvider, type ParallelView } from "./ParallelContext";
 import styles from "./DemoShell.module.css";
-
-/** デモの並列の設定（昼3・夜1・夜は1時〜8時） */
-const DEMO_PARALLEL_SETTINGS: ParallelSettings = { day: 3, night: 1, nightHours: { start: 1, end: 8 } };
 
 /** 「デモでは実際には動きません」を出しておく長さ */
 const NOTICE_MS = 2000;
