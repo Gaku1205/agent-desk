@@ -103,13 +103,12 @@
     box-shadow: inset 1px 0 0 var(--hair);
   }
 
-  /* 左の一覧：上端の帯の下に付いたまま。多ければこの中だけ縦にスクロール */
+  /* 左の一覧：上端の帯の下に付いたまま。ここはスクロールさせない（札の一覧だけが中でスクロールする） */
   .side {
     position: sticky;
     top: var(--top-h);
     height: calc(100svh - var(--top-h));
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    overflow: hidden;
     box-shadow: inset -1px 0 0 var(--hair);
   }
 

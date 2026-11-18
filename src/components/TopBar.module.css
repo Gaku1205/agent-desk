@@ -451,8 +451,32 @@
 .side {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  height: 100%;
   box-sizing: border-box;
+}
+
+/* 上の段：小見出しと札の一覧。ここだけがスクロールする */
+.sideList {
+  flex: 1;
+  min-height: 0;
+  /* フォーカスの輪が左右で切れないよう、<aside> の余白ぶんをスクロール領域の内側に取る */
+  margin: 0 -12px;
+  padding: 0 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* 下の段：新サービス・並列の状態・ユーザー名。スクロールせず、いつも下端に見える */
+.sideFoot {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+}
+
+/* 隠れた札があるときだけ、境目に1pxの線（高さは変えない） */
+.sideFoot[data-more="true"] {
+  box-shadow: 0 -1px 0 var(--hair);
 }
 
 .sideNew {
