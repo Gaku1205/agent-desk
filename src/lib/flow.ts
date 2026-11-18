@@ -25,14 +25,14 @@ export const FLOW_STATE_LABEL: Record<FlowState, string> = {
   waiting: "待ち",
 };
 
-/** 記録を読むまでのモデル名 */
+/** 記録を読み終えたあと、記録が無い工程のモデル名 */
 export const UNKNOWN_MODEL = "不明";
 
 export type FlowStep = {
   key: FlowStepKey;
   name: string;
-  /** モデル名（記録が無ければ「不明」） */
-  model: string;
+  /** モデル名（記録が無ければ「不明」。null は進捗ログを読み込み中＝まだ読んでいない） */
+  model: string | null;
   /** 所要時間（`3分12秒`。出せなければ null） */
   duration: string | null;
   /** 開始時刻（`16:57`。出せなければ null） */
@@ -119,7 +119,7 @@ export function getFlow(status: IssueStatus): Flow {
   const steps = FLOW_STEPS.map(({ key, name }, index): FlowStep => ({
     key,
     name,
-    model: UNKNOWN_MODEL,
+    model: null,
     duration: null,
     started: null,
     state: index < at ? (unknownBefore(status, index) ? "waiting" : "done") : index === at ? state : "waiting",
@@ -153,9 +153,11 @@ function ciResult(stage: BaseStage): CiResult {
   }
 }
 
-/** 進捗ログの記録を工程に渡す。記録が無い工程・モデルを使わない工程（null）は「不明」、所要時間・開始時刻は出せなければ null */
+/**
+ * 進捗ログを読み終えた扱いにする（読み込み中を外す）。記録が無い工程・モデルを使わない工程（null）は「不明」、
+ * 所要時間・開始時刻は出せなければ null。進捗ログを読まない画面・読めなかったときも、これで「不明」にする
+ */
 export function applyStepLog(flow: Flow, infos: readonly StepInfo[]): Flow {
-  if (infos.length === 0) return flow;
   const byKey = new Map(infos.map((info) => [info.key, info]));
   return {
     ...flow,
@@ -163,7 +165,7 @@ export function applyStepLog(flow: Flow, infos: readonly StepInfo[]): Flow {
       const info = byKey.get(step.key);
       return info
         ? { ...step, model: info.model ?? UNKNOWN_MODEL, duration: info.duration, started: info.started }
-        : step;
+        : { ...step, model: step.model ?? UNKNOWN_MODEL };
     }),
   };
 }
@@ -178,9 +180,10 @@ export function isSolidLink(flow: Pick<Flow, "at">, index: number): boolean {
   return index + 1 <= flow.at;
 }
 
-/** 工程の読み上げの文（`企画　成功　モデル 不明`。開始時刻・所要時間があれば続ける） */
+/** 工程の読み上げの文（`企画　成功　モデル 不明`。開始時刻・所要時間があれば続ける。読み込み中は「モデル」を言わない） */
 export function flowStepLabel(
-  step: Pick<FlowStep, "name" | "state" | "model"> & { duration?: string | null; started?: string | null },
+  step: Pick<FlowStep, "name" | "state"> & {
+    model: string | null; duration?: string | null; started?: string | null },
 ): string {
   const start = step.started ? `　開始 ${step.started}` : "";
   const time = step.duration ? `　所要時間 ${step.duration}` : "";

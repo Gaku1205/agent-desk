@@ -82,13 +82,15 @@ function OpenFlow({
         if (!cancelled) setInfos(result);
       })
       .catch(() => {
-        if (!cancelled) setInfos(null);
+        // 読めなかったときも、読み込み中は外す（記録が無い扱い）
+        if (!cancelled) setInfos([]);
       });
     return () => {
       cancelled = true;
     };
   }, [loadStepLog, message.owner, message.repo, message.number, now]);
-  const logged = infos ? applyStepLog(message.flow, infos) : message.flow;
+  // 読み込み中（帯）にするのは、進捗ログを読む（loadStepLog あり）で、まだ読み終えていないときだけ
+  const logged = infos ? applyStepLog(message.flow, infos) : loadStepLog ? message.flow : applyStepLog(message.flow, []);
   const flow = hideUnknownModel ? hideUnknownModels(logged) : logged;
   return (
     <FlowMap

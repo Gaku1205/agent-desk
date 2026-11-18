@@ -135,6 +135,8 @@ function Step({
   const skipped = step.key === "design" && extras.design === "skipped";
   const shown: FlowStep = step.key === "design" && extras.design === "made" ? { ...step, state: "done" } : step;
   const sub = skipped ? DESIGN_SKIPPED_LABEL : [shown.model, shown.duration].filter(Boolean).join(" · ");
+  // 進捗ログを読み込み中：モデル名・所要時間の位置に、文字なしの帯を出す（「不明」は出さない）
+  const loading = !skipped && shown.model === null;
   const branches = extras.branches.filter((branch) => branch.anchor === step.key);
   return (
     <li
@@ -156,7 +158,9 @@ function Step({
         </span>
         <span className={styles.text} aria-hidden="true">
           <span className={styles.name}>{shown.name}</span>
-          <span className={`${styles.model} num`}>{sub}</span>
+          <span className={`${styles.model} num`}>
+            {loading ? <span className={styles.bone} /> : sub}
+          </span>
         </span>
         {!skipped && (
           <span className={styles.side} aria-hidden="true">

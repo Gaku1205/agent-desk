@@ -31,10 +31,10 @@ function states(s: IssueStatus): FlowState[] {
 }
 
 describe("getFlow", () => {
-  it("7つの工程を、企画・デザイン・実装・CI・レビュー・修正・公開の順に出す。モデル名は「不明」", () => {
+  it("7つの工程を、企画・デザイン・実装・CI・レビュー・修正・公開の順に出す。モデル名は読み込み中（null）", () => {
     const flow = getFlow(status({}));
     expect(flow.steps.map((step) => step.name)).toEqual(["企画", "デザイン", "実装", "CI", "レビュー", "修正", "公開"]);
-    expect(flow.steps.every((step) => step.model === "不明")).toBe(true);
+    expect(flow.steps.every((step) => step.model === null)).toBe(true);
     expect(FLOW_STEPS).toHaveLength(7);
   });
 
@@ -158,6 +158,9 @@ describe("flowStepLabel", () => {
   it("工程名・状態・モデル名を文字で言う", () => {
     expect(flowStepLabel({ name: "企画", state: "done", model: "不明" })).toBe("企画　成功　モデル 不明");
   });
+  it("読み込み中（モデル名が null）は「モデル」を言わない", () => {
+    expect(flowStepLabel({ name: "企画", state: "done", model: null })).toBe("企画　成功");
+  });
   it("所要時間があれば足す", () => {
     expect(flowStepLabel({ name: "実装", state: "done", model: "opus", duration: "3分12秒" })).toBe(
       "実装　成功　モデル opus　所要時間 3分12秒",
@@ -182,9 +185,10 @@ describe("applyStepLog", () => {
     expect(get("ci")).toMatchObject({ model: "不明", duration: "45秒", started: "10:06" });
     expect(get("plan")).toMatchObject({ model: "不明", duration: null, started: null });
   });
-  it("記録が無ければそのまま", () => {
+  it("記録が0件でも、読み込み中が外れて全部「不明」になる", () => {
     const flow = base();
-    expect(applyStepLog(flow, [])).toBe(flow);
-    expect(flow.steps.every((step) => step.model === "不明" && step.duration === null)).toBe(true);
+    expect(flow.steps.every((step) => step.model === null)).toBe(true);
+    const settled = applyStepLog(flow, []);
+    expect(settled.steps.every((step) => step.model === "不明" && step.duration === null)).toBe(true);
   });
 });
