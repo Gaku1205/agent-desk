@@ -13,7 +13,7 @@ import { formatWait, turnItemKey, type TurnCounts, type TurnItem } from "@/lib/t
 import type { WatchdogNotice } from "@/lib/watchdogState";
 import { Conversation, type ConversationNotice } from "./Conversation";
 import { PanelLeftIcon } from "./icons";
-import { useStreamedNav } from "./NavContext";
+import { useNav, useStreamedNav } from "./NavContext";
 import styles from "./Desk.module.css";
 import { FlowMap } from "./FlowMap";
 import { NewIssueForm, type NewIssueRepo } from "./NewIssueForm";
@@ -59,6 +59,8 @@ export type DeskNav = {
   runningCounts: TurnCounts;
   /** 件数がまだ届いていない。true のとき、件数・Issueを書く欄・自動で足したお知らせは layout が後から流す物を使う */
   countsPending?: boolean;
+  /** 全部が届く前に、件数が届いたリポジトリ（`owner/repo` の小文字）。届いた物だけ件数を出し、ほかは「–」 */
+  countsLoaded?: Record<string, true>;
   /** リンクの頭（デモでは `/demo`） */
   basePath?: string;
   /** 左のバーのいちばん下：ログイン中のユーザー名とログアウト（デモでは無し） */
@@ -116,14 +118,17 @@ export function Desk({
   loadStepLog,
   hideUnknownModel = false,
 }: Props) {
-  // リポジトリのページは中央の中身を先に出すので、件数など他のリポジトリを待つ物は layout が後から流す（届くまでは「–」）
+  // リポジトリのページは中央の中身を先に出すので、件数など他のリポジトリを待つ物は layout が後から流す。
+  // 件数は読み終えたリポジトリから順に入る（届くまでは「–」）
   const streamed = useStreamedNav();
+  const live = useNav();
   const deferred = navProp.countsPending === true;
   const nav: DeskNav = {
     ...navProp,
-    counts: deferred && streamed ? streamed.counts : navProp.counts,
-    runningCounts: deferred && streamed ? streamed.runningCounts : navProp.runningCounts,
-    countsPending: deferred && !streamed,
+    counts: deferred && live ? live.counts : navProp.counts,
+    runningCounts: deferred && live ? live.runningCounts : navProp.runningCounts,
+    countsLoaded: deferred && live ? live.countsLoaded : undefined,
+    countsPending: deferred && (live ? live.countsPending : true),
   };
   const newIssueRepos = deferred && streamed ? streamed.newIssueRepos : newIssueReposProp;
   const addedNotices =

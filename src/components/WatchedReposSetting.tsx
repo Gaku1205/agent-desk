@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { checkPipeline, saveWatchedRepos, type SaveReposResult } from "@/app/(app)/settings/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
+import { broadcastSavedRepos, useApplySavedRepos } from "./NavContext";
 import { useDemo } from "./DemoContext";
 import { CrossIcon, PlusIcon, RepoIcon, SaveIcon } from "./icons";
 import { Select } from "./Select";
@@ -50,6 +51,7 @@ export function WatchedReposSetting({
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [saving, startSaving] = useTransition();
   const demo = useDemo();
+  const applySavedRepos = useApplySavedRepos();
 
   useEffect(() => {
     if (status.kind !== "saved") return;
@@ -120,7 +122,12 @@ export function WatchedReposSetting({
         () => saveWatchedRepos(names),
         () => ({ ok: false, message: ACTION_UNREACHABLE_MESSAGE }),
       );
-      if (result.ok) setSavedNames(names);
+      if (result.ok) {
+        setSavedNames(names);
+        // 上端の帯・メニューの札は、取り直しを待たずに、保存した一覧にする（別タブにも知らせる）
+        applySavedRepos?.(names);
+        broadcastSavedRepos(names);
+      }
       setStatus(result.ok ? { kind: "saved" } : { kind: "error", message: result.message });
     });
   }
