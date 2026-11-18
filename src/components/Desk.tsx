@@ -289,7 +289,7 @@ export function Desk({
   // 選んだ行がもう無い（取り直しで消えた）ときは、選んでいない扱い
   const selectedKey = selected !== null && messages.some((message) => message.key === selected) ? selected : null;
   const targetKey = pickedTarget ? `${pickedTarget.owner}/${pickedTarget.repo}#${pickedTarget.number}` : null;
-  // 進捗ログ（モデル名と所要時間）。取れるまで・取れないときは「不明」のまま。データを取り直したら読み直す
+  // 進捗ログ（モデル名と所要時間）。取れるまでは骨組みの帯、取れないときは「不明」。データを取り直したら読み直す
   const [stepLog, setStepLog] = useState<{ key: string; infos: StepInfo[] } | null>(null);
   useEffect(() => {
     if (!loadStepLog || !pickedTarget || targetKey === null) return;
@@ -299,7 +299,8 @@ export function Desk({
         if (!cancelled) setStepLog({ key: targetKey, infos });
       })
       .catch(() => {
-        if (!cancelled) setStepLog(null);
+        // 読めなかったときも、読み込み中は外す（記録が無い扱い）
+        if (!cancelled) setStepLog({ key: targetKey, infos: [] });
       });
     return () => {
       cancelled = true;
@@ -307,10 +308,13 @@ export function Desk({
     // pickedTarget は毎回作り直されるので、中身を表す targetKey と now で見る
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadStepLog, targetKey, now]);
+  // 読み込み中（帯）にするのは、進捗ログを読む画面（loadStepLog あり）で、まだ読み終えていないときだけ
   const loadedTarget =
     pickedTarget && stepLog?.key === targetKey
       ? { ...pickedTarget, flow: applyStepLog(pickedTarget.flow, stepLog.infos), stepLog: stepLog.infos }
-      : pickedTarget;
+      : pickedTarget && !loadStepLog
+        ? { ...pickedTarget, flow: applyStepLog(pickedTarget.flow, []) }
+        : pickedTarget;
   const flowTarget =
     loadedTarget && hideUnknownModel ? { ...loadedTarget, flow: hideUnknownModels(loadedTarget.flow) } : loadedTarget;
 

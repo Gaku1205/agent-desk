@@ -144,6 +144,16 @@
   white-space: nowrap;
 }
 
+/* 進捗ログを読み込み中の帯。モデル名の行（12px × 1.4）の中に縦の真ん中で置く。動かさない */
+.bone {
+  display: inline-block;
+  width: 64px;
+  height: 10px;
+  border-radius: 6px;
+  background: var(--hair-2);
+  vertical-align: middle;
+}
+
 /* 右端：開始時刻と状態の印。時刻が無くても高さは同じ */
 .side {
   display: flex;
