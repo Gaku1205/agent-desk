@@ -4,9 +4,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  startTransition,
   useEffect,
   useState,
-  useSyncExternalStore,
   useTransition,
   type ReactNode,
 } from "react";
@@ -56,13 +56,25 @@ export function useParallelView(): ParallelView | null {
   return useContext(ParallelContext);
 }
 
-/** 1分ごとに変わる「いま」（分）。サーバーでの描画では null */
-function subscribeMinute(onChange: () => void): () => void {
-  const timer = window.setInterval(onChange, 60_000);
-  return () => window.clearInterval(timer);
-}
 function minuteNow(): number {
   return Math.floor(Date.now() / 60_000);
+}
+
+/**
+ * 1分ごとに変わる「いま」（分）。サーバーでの描画と、ブラウザの最初の描画では null。
+ * ブラウザでは、読み込んだ直後と1分ごとに、トランジションで入れる。`useSyncExternalStore` のように同期で入れると、
+ * サーバーが返した HTML を React がまだ引き継ぎ終えていない（ハイドレーションの途中の）ページの本文が、
+ * 骨組みに差し戻されて作り直される（中身 → 骨組み → 中身と点滅する。docs/spec.md の「押した瞬間の反応と、読み込み中」）
+ */
+function useMinute(): number | null {
+  const [minute, setMinute] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => startTransition(() => setMinute(minuteNow()));
+    tick();
+    const timer = window.setInterval(tick, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return minute;
 }
 
 /** 設定を読み直す間隔（手元で切り替えた分は、すぐ画面に反映する） */
@@ -73,7 +85,7 @@ export function ParallelProvider({ children }: { children: ReactNode }) {
   const [snapshot, setSnapshot] = useState<ParallelSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, startBusy] = useTransition();
-  const minute = useSyncExternalStore(subscribeMinute, minuteNow, () => null);
+  const minute = useMinute();
 
   useEffect(() => {
     let alive = true;

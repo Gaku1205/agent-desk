@@ -1,6 +1,6 @@
 /*
  * トグルスイッチ（docs/design.md の「並列の状態のボタン」のスイッチ）。左のバーの並列と設定で同じ物。
- * オン＝地 --accent・つまみが右、オフ＝地 --hair-2・縁・つまみが左
+ * オン＝地 --accent・つまみ --bg が右、オフ＝地 --hair-2・縁 --edge-strong・つまみ --mute が左
  */
 .track {
   position: relative;
@@ -9,7 +9,7 @@
   height: 18px;
   border-radius: 9px;
   background: var(--hair-2);
-  box-shadow: inset 0 0 0 1px var(--hair);
+  box-shadow: inset 0 0 0 1px var(--edge-strong);
   transition:
     background 0.15s var(--ease),
     box-shadow 0.15s var(--ease);
@@ -22,8 +22,10 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--bg);
-  transition: transform 0.15s var(--ease);
+  background: var(--mute);
+  transition:
+    transform 0.15s var(--ease),
+    background 0.15s var(--ease);
 }
 
 .track[data-on] {
@@ -32,6 +34,7 @@
 }
 
 .track[data-on] .thumb {
+  background: var(--bg);
   transform: translateX(14px);
 }
 

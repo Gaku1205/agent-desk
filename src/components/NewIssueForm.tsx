@@ -308,6 +308,7 @@ export function NewIssueForm({
                       label={service ? "送り先のテンプレートリポジトリ" : "Issueを書くリポジトリ"}
                       disabled={saving}
                       icon={<RepoIcon />}
+                      plain={bar}
                     />
                   </div>
                 )}
