@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   activeParallelOverride,
+  applySavedParallelSettings,
   describeParallelBar,
+  describeParallelBarAfterSave,
+  parseSavedParallelMessage,
   describeParallelButton,
   formatParallelOverride,
   nextPeriodSwitch,
@@ -144,5 +147,48 @@ describe("describeParallelBar / describeParallelButton", () => {
     expect(text).toContain("手動で切り替え中");
     expect(text).toContain("11/18 08:00 まで");
     expect(text).toContain("時間帯の決まりに戻す");
+  });
+});
+
+describe("保存した設定を帯に反映する", () => {
+  const saved: ParallelSettings = { day: 5, night: 2, nightHours: { start: 1, end: 8 } };
+
+  it("昼なら昼の数（3→5）", () => {
+    expect(describeParallelBarAfterSave(afternoon, { settings, override: null }, saved)).toBe("5件まで");
+  });
+
+  it("夜なら夜の数（1→2）", () => {
+    expect(describeParallelBarAfterSave(lateNight, { settings, override: null }, saved)).toBe("2件まで");
+  });
+
+  it("夜の時間帯を無しにすると、夜でも昼の数", () => {
+    const noNight: ParallelSettings = { ...saved, nightHours: null };
+    expect(describeParallelBarAfterSave(lateNight, { settings, override: null }, noNight)).toBe("5件まで");
+  });
+
+  it("手の上書きは残り、上書きが勝つ", () => {
+    const override = "night until 2026-11-18T08:00+09:00";
+    expect(applySavedParallelSettings({ settings, override }, saved)).toEqual({ settings: saved, override });
+    expect(describeParallelBarAfterSave(afternoon, { settings, override }, saved)).toBe("2件まで");
+  });
+
+  it("まだ読めていない状態でも作れる", () => {
+    expect(applySavedParallelSettings(null, saved)).toEqual({ settings: saved, override: null });
+  });
+});
+
+describe("parseSavedParallelMessage", () => {
+  it("正しい設定は通す", () => {
+    expect(parseSavedParallelMessage({ day: 5, night: 1, nightHours: null })).toEqual({
+      day: 5,
+      night: 1,
+      nightHours: null,
+    });
+  });
+  it("形が違う物は null", () => {
+    expect(parseSavedParallelMessage(null)).toBeNull();
+    expect(parseSavedParallelMessage("x")).toBeNull();
+    expect(parseSavedParallelMessage({ day: 0, night: 1, nightHours: null })).toBeNull();
+    expect(parseSavedParallelMessage({ day: 3, night: 1, nightHours: { start: 2, end: 2 } })).toBeNull();
   });
 });
