@@ -8,7 +8,7 @@ import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import { getSidebarSnapshot, subscribeSidebar, type DeskNav } from "./Desk";
 import { PanelLeftIcon } from "./icons";
 import styles from "./RepoList.module.css";
-import { Counts, SideRepos } from "./TopBar";
+import { Counts, CountsKey, SideRepos } from "./TopBar";
 
 type Props = {
   rows: RepoListRow[];
@@ -47,7 +47,17 @@ export function RepoList({ rows, now, nav }: Props) {
       </div>
       <main id="main" className={styles.main}>
         <h1 className={styles.h1}>すべてのリポジトリ</h1>
-        <p className={`${styles.total} num`}>監視中 {rows.length}件</p>
+        <div className={styles.totalRow}>
+          <p className={`${styles.total} num`}>監視中 {rows.length}件</p>
+          <CountsKey className={styles.keyMobile} />
+        </div>
+        <div className={styles.table}>
+        <div className={styles.head} aria-hidden="true">
+          <span />
+          <CountsKey className={styles.keyHead} />
+          <span>最後の動き</span>
+          <span />
+        </div>
         <ul className={styles.list}>
           {sorted.map((row) => (
             <li key={`${row.owner}/${row.repo}`} className={styles.row}>
@@ -69,6 +79,7 @@ export function RepoList({ rows, now, nav }: Props) {
             </li>
           ))}
         </ul>
+        </div>
         <Link href={`${basePath}/settings`} className={styles.settings}>
           設定で監視するリポジトリを変える
         </Link>
