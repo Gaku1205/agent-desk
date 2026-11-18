@@ -7,6 +7,7 @@ import {
   shouldReuseInstallationToken,
   type AppCredentials,
 } from "./appAuth";
+import { timedCall } from "./callLog";
 import { GitHubClient, type Fetcher } from "./client";
 import { GitHubError } from "./errors";
 import { shareInFlight } from "../inFlight";
@@ -121,17 +122,19 @@ async function appRequest(
   jsonBody?: unknown,
 ): Promise<unknown | null> {
   try {
-    const response = await fetcher(`${API_BASE}${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        ...(jsonBody === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-      ...(jsonBody === undefined ? {} : { body: JSON.stringify(jsonBody) }),
-      cache: "no-store",
-    });
+    const response = await timedCall("key", () =>
+      fetcher(`${API_BASE}${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          ...(jsonBody === undefined ? {} : { "Content-Type": "application/json" }),
+        },
+        ...(jsonBody === undefined ? {} : { body: JSON.stringify(jsonBody) }),
+        cache: "no-store",
+      }),
+    );
     if (!response.ok) return null;
     return await response.json();
   } catch {

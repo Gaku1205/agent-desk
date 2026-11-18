@@ -18,7 +18,12 @@ vi.mock("@/lib/watchedRepos", () => ({
   loadWatchedRepos: async () => ({ repos: state.repos, source: "env" }),
 }));
 vi.mock("@/lib/github/fetch", () => ({
-  getRepoResult: async (_token: string, repo: { owner: string; repo: string }) => ({ ...repo, ok: true }),
+  getRepoResult: async (_token: string, repo: { owner: string; repo: string }) => ({
+    ...repo,
+    ok: true,
+    readSource: "app",
+    data: { issues: [{ title: "private-title" }] },
+  }),
 }));
 vi.mock("@/lib/github/repoCache", () => ({
   getChangeMarks: async () => ({}),
@@ -53,11 +58,25 @@ describe("GET /api/timing", () => {
       "marks",
       "first-repo",
       "repos",
+      "slowest-repo",
+      "gh-graphql",
+      "gh-rest",
+      "gh-key",
       "total",
       "instance",
     ]);
     for (const part of header.split(", ")) expect(part).toMatch(/^[a-z0-9-]+;dur=\d+(\.\d)?$/);
-    const body = (await response.json()) as { stages: { name: string; ms: number; label: string }[]; repoCount: number };
+    const body = (await response.json()) as {
+      stages: { name: string; ms: number; label: string }[];
+      repoCount: number;
+      repos: { n: number; ms: number; ok: boolean; source: string; kb: number }[];
+      calls: Record<string, { count: number; ms: number; maxMs: number }>;
+    };
+    expect(body.repos.map((row) => [row.n, row.ok, row.source])).toEqual([
+      [1, true, "app"],
+      [2, true, "app"],
+    ]);
+    expect(Object.keys(body.calls).sort()).toEqual(["graphql", "key", "rest", "write"]);
     expect(body.stages.map((stage) => stage.name)).toEqual(header.split(", ").map((part) => part.split(";")[0]));
     expect(body.stages.every((stage) => stage.label !== "" && stage.ms >= 0)).toBe(true);
     expect(body.repoCount).toBe(2);
@@ -69,6 +88,7 @@ describe("GET /api/timing", () => {
     expect(text).not.toContain("secret-token");
     expect(text).not.toContain("private-name");
     expect(text).not.toContain("acme");
+    expect(text).not.toContain("private-title");
   });
 
   it("Webhook を使わない設定では `marks` を測らない", async () => {
