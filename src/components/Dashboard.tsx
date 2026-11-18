@@ -10,7 +10,8 @@ import { nextTabIndex } from "@/lib/dashboard/tabKeys";
 import { getBrowserStorage } from "@/lib/motion";
 import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import styles from "./Dashboard.module.css";
-import { getSidebarSnapshot, subscribeSidebar, type DeskNav } from "./Desk";
+import { getSidebarSnapshot, subscribeSidebar, type DeskError, type DeskNav } from "./Desk";
+import { LoadErrors } from "./LoadErrors";
 import {
   formatResetAt,
   hourLabel,
@@ -40,6 +41,8 @@ type Props = {
   /** 監視中のリポジトリの数 */
   repoCount: number;
   nav: DeskNav;
+  /** 読めなかったリポジトリ（あれば、見出しの下に出す。数には入っていない） */
+  errors?: DeskError[];
 };
 
 const DASH = "—";
@@ -370,7 +373,7 @@ function GithubLimitsSection({ limits }: { limits: GithubLimits }) {
 }
 
 /** Dashboard（`/dashboard`、デモは `/demo/dashboard`）：期間で振り返る。見出し・期間の切り替え・まとめ・AI usage・GitHub limits */
-export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav }: Props) {
+export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav, errors }: Props) {
   const [period, setPeriod] = useState<PeriodKey>("24h");
   // `loadPeriod` で取った期間（5分覚えるのはサーバー側。画面では開いている間だけ持つ）
   const [loaded, setLoaded] = useState<Partial<Record<PeriodKey, PeriodBundle>>>({});
@@ -449,6 +452,7 @@ export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav }: 
             ))}
           </div>
         </header>
+        <LoadErrors errors={errors ?? []} />
         <section
           className={styles.summary}
           role="tabpanel"
