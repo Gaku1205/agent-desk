@@ -407,10 +407,6 @@
   white-space: nowrap;
 }
 
-.hours li:first-child {
-  transform: none;
-}
-
 .hours li[data-last] {
   transform: translateX(-100%);
 }
