@@ -1,12 +1,11 @@
-import { Dashboard } from "@/components/Dashboard";
+import { DashboardLive } from "@/components/LivePages";
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
 import { loadGithubLimits } from "@/lib/github/limits";
 import { buildLocalBundles } from "@/lib/dashboard/bundle";
 import { loadErrorsOf } from "@/lib/loadErrors";
-import { loadTurns } from "@/lib/loadTurns";
+import { loadTurnSteps } from "@/lib/loadTurnSteps";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
-import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { logout } from "../logout";
 import { loadExtendedPeriod } from "./actions";
 
@@ -15,32 +14,38 @@ import { loadExtendedPeriod } from "./actions";
  * `30d` は、選んだときだけ Server Action（`loadExtendedPeriod`）が60日分を専用に取る（5分覚える）
  */
 export default async function DashboardPage() {
-  const { repos } = await loadWatchedRepos();
-  const { results, items, now } = await loadTurns();
-  const bundles = buildLocalBundles(results, now);
-  // GitHub を読むのは、パイプラインの App の鍵の `GET /rate_limit` だけ（5分に1回まで）
-  const limits = await loadGithubLimits({
-    userToken: (await getGitHubToken()) ?? "",
-    repos,
-    runs: bundles["24h"].summary.runs,
-    now,
+  const login = (await getSignedInLogin()) ?? undefined;
+  const userToken = (await getGitHubToken()) ?? "";
+  // 全部がそろうのを待たず、覚えている最後の結果と読めた分を先に出す（`loadTurnSteps`）
+  const first = await loadTurnSteps(async ({ results, items, now, repos, complete }) => {
+    const bundles = buildLocalBundles(results, now);
+    // GitHub を読むのは、パイプラインの App の鍵の `GET /rate_limit` だけ（5分に1回まで）
+    // そろう前の段は、この読み取りを待たない（覚えている残りだけで出す）
+    const limits = await loadGithubLimits({
+      userToken,
+      repos,
+      runs: bundles["24h"].summary.runs,
+      now,
+      knownOnly: !complete,
+    });
+    return {
+      complete,
+      props: {
+        bundles,
+        loadPeriod: loadExtendedPeriod,
+        limits,
+        now: now.toISOString(),
+        errors: loadErrorsOf(results),
+        repoCount: repos.length,
+        nav: {
+          repos,
+          counts: countTurnItems(items),
+          runningCounts: countRunningPipelineRows(results, now),
+          login,
+          logout,
+        },
+      },
+    };
   });
-
-  return (
-    <Dashboard
-      bundles={bundles}
-      loadPeriod={loadExtendedPeriod}
-      limits={limits}
-      now={now.toISOString()}
-      repoCount={repos.length}
-      errors={loadErrorsOf(results)}
-      nav={{
-        repos,
-        counts: countTurnItems(items),
-        runningCounts: countRunningPipelineRows(results, now),
-        login: (await getSignedInLogin()) ?? undefined,
-        logout,
-      }}
-    />
-  );
+  return <DashboardLive first={first} />;
 }

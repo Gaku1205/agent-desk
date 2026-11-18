@@ -1,30 +1,32 @@
-import { RepoList } from "@/components/RepoList";
+import { RepoListLive } from "@/components/LivePages";
 import { getSignedInLogin } from "@/lib/auth";
 import { loadErrorsOf } from "@/lib/loadErrors";
-import { loadTurns } from "@/lib/loadTurns";
+import { loadTurnSteps } from "@/lib/loadTurnSteps";
 import { buildRepoRows } from "@/lib/repoList";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
-import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { logout } from "../logout";
 
-/** すべてのリポジトリ：監視中の全部を一覧する。取得はほかのページと同じ（GitHub を読む回数は増やさない） */
+/**
+ * すべてのリポジトリ：監視中の全部を一覧する。取得はほかのページと同じ（GitHub を読む回数は増やさない）。
+ * 全部がそろうのを待たず、覚えている最後の結果と読めた分を先に出す（`loadTurnSteps`。まだ読めていない行は、数 0・時刻なしで出る）
+ */
 export default async function ReposPage() {
-  const { repos } = await loadWatchedRepos();
-  const { results, items, now } = await loadTurns();
-
-  return (
-    <RepoList
-      rows={buildRepoRows(repos, results, items, now)}
-      now={now.toISOString()}
-      errors={loadErrorsOf(results)}
-      nav={{
+  const login = (await getSignedInLogin()) ?? undefined;
+  const first = await loadTurnSteps(({ results, items, now, repos, complete }) => ({
+    complete,
+    props: {
+      rows: buildRepoRows(repos, results, items, now),
+      now: now.toISOString(),
+      errors: loadErrorsOf(results),
+      nav: {
         repos,
         counts: countTurnItems(items),
         runningCounts: countRunningPipelineRows(results, now),
-        login: (await getSignedInLogin()) ?? undefined,
+        login,
         logout,
-      }}
-    />
-  );
+      },
+    },
+  }));
+  return <RepoListLive first={first} />;
 }

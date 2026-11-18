@@ -5,7 +5,11 @@ import type { RepoData } from "./types";
 // Next.js のキャッシュの代わり：キーごとに覚え、タグを無効にしたら捨てる。全部のインスタンスで共有する（Vercel と同じ）。
 // 保存は取り終わってから行うので、取得の途中の無効化は保存で上書きされる（Next.js と同じ）
 const store = vi.hoisted(() => ({
-  entries: new Map<string, { value: unknown; tags: string[] }>(),
+  entries: new Map<string, { value: unknown; tags: string[]; at?: number }>(),
+  /** 寿命（`revalidate`）を過ぎた物を、すぐ返して裏で作り直す動きも真似るか（Next.js と同じ。寿命を使うテストだけ） */
+  swr: false,
+  /** 裏で作り直している物 */
+  background: [] as Promise<unknown>[],
   /** 返事を返し終えてから動かす物（`after`） */
   afterResponse: [] as Array<() => void>,
 }));
@@ -18,13 +22,20 @@ function invalidate(tag: string) {
 
 vi.mock("next/cache", () => ({
   unstable_cache:
-    <T>(fn: () => Promise<T>, keyParts: string[], options?: { tags?: string[] }) =>
+    <T>(fn: () => Promise<T>, keyParts: string[], options?: { tags?: string[]; revalidate?: number }) =>
     async (): Promise<T> => {
       const key = keyParts.join("|");
       const known = store.entries.get(key);
-      if (known) return known.value as T;
+      const save = (value: T) => store.entries.set(key, { value, tags: options?.tags ?? [], at: Date.now() });
+      if (known) {
+        const stale =
+          store.swr && options?.revalidate !== undefined && Date.now() - (known.at ?? 0) > options.revalidate * 1000;
+        // 寿命を過ぎた物は、すぐ返して裏で作り直す（作り直しが失敗したら、前の物のまま）
+        if (stale) store.background.push(fn().then(save, () => undefined));
+        return known.value as T;
+      }
       const value = await fn();
-      store.entries.set(key, { value, tags: options?.tags ?? [] });
+      save(value);
       return value;
     },
   revalidateTag: invalidate,
@@ -84,6 +95,8 @@ async function pageShow(): Promise<{ label: string; applied: string }> {
 beforeEach(() => {
   store.entries.clear();
   store.afterResponse.length = 0;
+  store.swr = false;
+  store.background.length = 0;
   repo = { owner: "owner", repo: `repo${++counter}` };
   calls = 0;
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -449,5 +462,99 @@ describe("大きいデータも覚えられるように、縮めて覚える", (
     const other = await loadInstance();
     expect((await other.cachedRepoData(repo, loadBig)).data).toEqual(big);
     expect(loads).toBe(1);
+  });
+});
+
+describe("覚えている最後の結果（古くてよい）を、新しい結果が遅いときに先に出す", () => {
+  const app = (label: string, mark: string) => ({ data: data(label), changeMark: mark });
+  /** 外から終わらせられる取得 */
+  function pending<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (error: Error) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  beforeEach(() => {
+    store.swr = true;
+  });
+
+  it("覚えている物が無ければ、新しい結果を待って返し、それを覚える", async () => {
+    expect(await page.snapshotRepoData(repo, Promise.resolve(app("v1", "m1")))).toEqual(app("v1", "m1"));
+  });
+
+  it("覚えている物があれば、新しい結果を待たずにすぐ返し、裏で新しい結果に書き直す（別のインスタンスでも）", async () => {
+    await page.snapshotRepoData(repo, Promise.resolve(app("v1", "m1")));
+    at(5000);
+    const slow = pending<ReturnType<typeof app>>();
+    // 新しい結果（v2）はまだ届いていないが、前の物がすぐ返る
+    expect(await api.snapshotRepoData(repo, slow.promise)).toEqual(app("v1", "m1"));
+    slow.resolve(app("v2", "m2"));
+    await Promise.all(store.background);
+    at(10_000);
+    const other = await loadInstance();
+    expect(await other.snapshotRepoData(repo, pending<ReturnType<typeof app>>().promise)).toEqual(app("v2", "m2"));
+  });
+
+  it("新しい結果が失敗したら、覚えている物はそのまま残る。覚えている物が無ければ null", async () => {
+    const failed = Promise.reject(new Error("failed"));
+    failed.catch(() => undefined);
+    expect(await page.snapshotRepoData(repo, failed)).toBeNull();
+    await page.snapshotRepoData(repo, Promise.resolve(app("v1", "m1")));
+    at(5000);
+    expect(await page.snapshotRepoData(repo, failed)).toEqual(app("v1", "m1"));
+    await Promise.all(store.background);
+    at(10_000);
+    expect(await page.snapshotRepoData(repo, failed)).toEqual(app("v1", "m1"));
+  });
+
+  it("手で押す「同期」（タグの無効化）でも、覚えている物は消えない（取り直している間に出すため）", async () => {
+    await page.snapshotRepoData(repo, Promise.resolve(app("v1", "m1")));
+    page.invalidateRepoNow(repo);
+    webhook({ urgent: true });
+    at(5000);
+    expect(await page.snapshotRepoData(repo, pending<ReturnType<typeof app>>().promise)).toEqual(app("v1", "m1"));
+  });
+});
+
+describe("ログインした人が読めると確かめた結果を、どのインスタンスでも読めるように覚える", () => {
+  beforeEach(() => {
+    store.swr = true;
+  });
+
+  it("10分の間は、別のインスタンスでも確かめ直さない", async () => {
+    const check = vi.fn(async () => true);
+    expect(await page.cachedUserCanRead("token-a", repo, check)).toBe(true);
+    at(9 * 60_000);
+    expect(await api.cachedUserCanRead("token-a", repo, check)).toBe(true);
+    expect(check).toHaveBeenCalledTimes(1);
+  });
+
+  it("10分より古い物は使わず、確かめ直す（読めなくなっていたら、すぐ false）", async () => {
+    let readable = true;
+    const check = vi.fn(async () => readable);
+    await page.cachedUserCanRead("token-a", repo, check);
+    readable = false;
+    at(11 * 60_000);
+    expect(await api.cachedUserCanRead("token-a", repo, check)).toBe(false);
+  });
+
+  it("トークンごと・リポジトリごとに別に覚える（ほかの人が読めた結果を使わない）", async () => {
+    await page.cachedUserCanRead("token-a", repo, async () => true);
+    const other = vi.fn(async () => false);
+    expect(await page.cachedUserCanRead("token-b", repo, other)).toBe(false);
+    expect(other).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify([...store.entries.keys()])).not.toContain("token-a");
+  });
+
+  it("確かめる処理が投げたら false（覚えない）", async () => {
+    const failing = vi.fn(async (): Promise<boolean> => {
+      throw new Error("network");
+    });
+    expect(await page.cachedUserCanRead("token-a", repo, failing)).toBe(false);
+    expect(await page.cachedUserCanRead("token-a", repo, async () => true)).toBe(true);
   });
 });
