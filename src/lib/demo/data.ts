@@ -1,4 +1,5 @@
 import type { WatchedRepo } from "../config";
+import type { ParallelSettings } from "../parallel";
 import type {
   CheckRunData,
   CommitStatusData,
@@ -42,6 +43,9 @@ export const DEMO_TEMPLATE_REPO = "landing-page";
 
 /** 設定画面の「追加」の欄に出す、架空のリポジトリ */
 export const DEMO_REPO_OPTIONS = ["demo/blog", "demo/api-server"];
+
+/** デモの並列の設定（左のバーの並列のスイッチと、設定の Parallel で同じ物）：昼3・夜1・夜は1時〜8時 */
+export const DEMO_PARALLEL_SETTINGS: ParallelSettings = { day: 3, night: 1, nightHours: { start: 1, end: 8 } };
 
 /** 再生で進むIssue（todo-app） */
 export const DEMO_PLAY_ISSUE = { repo: "todo-app", number: 24, pull: 39 } as const;
