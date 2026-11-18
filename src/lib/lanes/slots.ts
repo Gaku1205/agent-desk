@@ -1,5 +1,6 @@
 import { formatEventTime } from "../events";
 import type { ParallelSettings, ParallelState } from "../parallel";
+import { attachRuns } from "./attach";
 import type { LanesSource, QueueCause, QueueSource, RunEntry, SlotWork } from "./source";
 
 /**
@@ -11,7 +12,7 @@ import type { LanesSource, QueueCause, QueueSource, RunEntry, SlotWork } from ".
 export type SlotNext = { owner: string; repo: string; number: number };
 
 export type Slot =
-  | { index: number; kind: "running"; work: SlotWork }
+  | { index: number; kind: "running"; work: SlotWork; runs: RunEntry[] }
   | { index: number; kind: "free"; reason: string; next: SlotNext | null };
 
 /** 最終の待つ理由（枠の数で決まる `full`・`ready` を足した物） */
@@ -27,6 +28,8 @@ export type QueueEntry = QueueSource & {
 
 export type LanesCounts = {
   running: number;
+  /** 動いている処理の合計（席にぶら下がる分＋Other の分） */
+  runs: number;
   /** 空きの枠の数。上限が分からないときは null（出さない） */
   free: number | null;
   queue: number;
@@ -35,7 +38,8 @@ export type LanesCounts = {
 export type Lanes = {
   slots: Slot[];
   queue: QueueEntry[];
-  runs: RunEntry[];
+  /** 席に属さない処理（Other） */
+  other: RunEntry[];
   counts: LanesCounts;
 };
 
@@ -89,15 +93,21 @@ export function assignSlots(source: LanesSource, limit: number | null): Lanes {
   const first = queue[0];
   const next: SlotNext | null = first ? { owner: first.owner, repo: first.repo, number: first.number } : null;
   const reason = freeSlotReason(queue);
-  const slots: Slot[] = source.works.map((work, index) => ({ index: index + 1, kind: "running", work }));
+  const attached = attachRuns(source.works, source.runs);
+  const slots: Slot[] = source.works.map((work, index) => ({
+    index: index + 1,
+    kind: "running",
+    work,
+    runs: attached.bySlot[work.key] ?? [],
+  }));
   for (let i = 0; i < (free ?? 0); i += 1) {
     slots.push({ index: slots.length + 1, kind: "free", reason, next });
   }
   return {
     slots,
     queue,
-    runs: source.runs,
-    counts: { running: source.works.length, free, queue: queue.length },
+    other: attached.other,
+    counts: { running: source.works.length, runs: source.runs.length, free, queue: queue.length },
   };
 }
 

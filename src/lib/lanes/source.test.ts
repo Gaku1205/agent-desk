@@ -210,6 +210,9 @@ describe("runKind・modelLabel", () => {
     expect(runKind("Deploy Vercel")).toBe("Deploy");
     expect(runKind("Watchdog")).toBe("Watchdog");
     expect(runKind("Queue")).toBe("Queue");
+    expect(runKind("Sync to apps")).toBe("Sync");
+    expect(runKind("Resume")).toBe("Resume");
+    expect(runKind("Visual Update")).toBe("Visual update");
     expect(runKind(undefined)).toBe("Actions");
   });
 
