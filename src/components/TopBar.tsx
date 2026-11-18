@@ -65,6 +65,15 @@ export function Counts({ turn, running, labeled }: { turn: number; running: numb
   );
 }
 
+/**
+ * 押した物の印：次の画面が出るまでの間だけ `data-pending` が付く（見えない）。<Link> の子として置く。
+ * CSS の `:has([data-pending])` で、押した物を「今いる」（aria-current と同じ）の見た目にし、押す前にいた物を戻す
+ */
+function PendingMark() {
+  const { pending } = useLinkStatus();
+  return <i className={styles.pendingMark} data-pending={pending ? "" : undefined} aria-hidden="true" />;
+}
+
 /** メニューの凡例：2つの点が何の数か（点つき） */
 function CountsKey() {
   return (
@@ -84,6 +93,7 @@ function SettingsLabel() {
         <GearIcon />
       </span>
       設定
+      <PendingMark />
     </>
   );
 }
@@ -188,6 +198,7 @@ export function RepoTabs({
         <i className={`${styles.total} num`} aria-label={`監視中 ${repos.length}件`}>
           {repos.length}
         </i>
+        <PendingMark />
       </Link>
     </nav>
   );
@@ -233,6 +244,7 @@ export function SideRepos(props: Pick<Props, "repos" | "counts" | "runningCounts
         >
           <PlusIcon />
           <span aria-hidden="true">新サービス</span>
+          <PendingMark />
         </Link>
         <div className={styles.sideBottom}>
           <ParallelToggle variant="side" />
@@ -397,6 +409,7 @@ function MenuSheet(props: Props) {
         >
           <PlusIcon />
           新しいサービスを作る
+          <PendingMark />
         </Link>
         <Link
           href={newIssueHref}
@@ -405,6 +418,7 @@ function MenuSheet(props: Props) {
         >
           <WriteIcon />
           Issueを書く
+          <PendingMark />
         </Link>
         <Link
           href={settingsHref}

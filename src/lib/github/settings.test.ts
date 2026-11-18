@@ -3,6 +3,7 @@ import { etagCacheForTest, GitHubClient, type Fetcher } from "./client";
 import { DEFAULT_PARALLEL_SETTINGS } from "../parallel";
 import {
   hasPipeline,
+  lookupPipeline,
   readParallelOverride,
   readParallelSettings,
   readVariable,
@@ -186,5 +187,18 @@ describe("hasPipeline", () => {
     );
     const no = fakeFetcher(() => json({}, 404));
     expect(await hasPipeline(new GitHubClient("t", no.fetcher), target)).toBe(false);
+  });
+});
+
+describe("lookupPipeline", () => {
+  it("あり→true、404→false、通信失敗・レート制限→null（分からない）", async () => {
+    const yes = fakeFetcher(() => json({ type: "file" }));
+    expect(await lookupPipeline(new GitHubClient("t", yes.fetcher), target)).toBe(true);
+    const no = fakeFetcher(() => json({}, 404));
+    expect(await lookupPipeline(new GitHubClient("t", no.fetcher), target)).toBe(false);
+    const broken = fakeFetcher(() => json({}, 500));
+    expect(await lookupPipeline(new GitHubClient("t", broken.fetcher), target)).toBeNull();
+    const limited = fakeFetcher(() => new Response("{}", { status: 429 }));
+    expect(await lookupPipeline(new GitHubClient("t", limited.fetcher), target)).toBeNull();
   });
 });

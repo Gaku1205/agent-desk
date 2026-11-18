@@ -7,7 +7,8 @@ import { AUTO_ADD_VARIABLE } from "@/lib/github/autoAdd";
 import { getSettingsRepo } from "@/lib/config";
 import { GitHubClient } from "@/lib/github/client";
 import { GitHubError } from "@/lib/github/errors";
-import { hasPipeline, listReadableRepos, readParallelSettings, readVariable } from "@/lib/github/settings";
+import { cachedHasPipeline } from "@/lib/github/pipelineCache";
+import { listReadableRepos, readParallelSettings, readVariable } from "@/lib/github/settings";
 import { DEFAULT_PARALLEL_SETTINGS } from "@/lib/parallel";
 import { NOTIFY_EVENTS_VARIABLE, parseNotifyEvents } from "@/lib/notifyEvents";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
@@ -21,15 +22,12 @@ export default async function SettingsPage() {
   const editable = getSettingsRepo() !== null && client !== null;
 
   const settingsRepo = getSettingsRepo();
-  const [rows, options, notifyRows, autoAdd, parallel] = await Promise.all([
-    Promise.all(
-      repos.map(
-        async (repo): Promise<WatchedRepoRow> => ({
-          name: `${repo.owner}/${repo.repo}`,
-          pipeline: client ? await hasPipeline(client, repo) : null,
-        }),
-      ),
-    ),
+  // リポジトリごとの hasPipeline は1回だけ（一覧と通知で同じ結果を使う。10分は覚えている）。ほかの読み取りと同時に始める
+  const pipelinesPromise = Promise.all(
+    repos.map((repo) => (client && token ? cachedHasPipeline(client, token, repo) : Promise.resolve(null))),
+  );
+  const [pipelines, options, autoAdd, parallel] = await Promise.all([
+    pipelinesPromise,
     editable && client
       ? listReadableRepos(client).then(
           (names) => ({ names, error: null as string | null }),
@@ -40,18 +38,6 @@ export default async function SettingsPage() {
           }),
         )
       : Promise.resolve({ names: [] as string[], error: null as string | null }),
-    Promise.all(
-      repos.map(async (repo): Promise<NotifyRepoRow> => {
-        const name = `${repo.owner}/${repo.repo}`;
-        if (!client) return { name, pipeline: false, events: parseNotifyEvents(null) };
-        const pipeline = await hasPipeline(client, repo);
-        // 読めなければ初期値を出す
-        const value = pipeline
-          ? await readVariable(client, repo, NOTIFY_EVENTS_VARIABLE).catch(() => null)
-          : null;
-        return { name, pipeline, events: parseNotifyEvents(value) };
-      }),
-    ),
     // 「新しいサービスを自動で追加」。読めなければ初期のオンとして出す
     editable && client && settingsRepo
       ? readVariable(client, settingsRepo, AUTO_ADD_VARIABLE).then(parseAutoAddEnabled, () => true)
@@ -61,6 +47,21 @@ export default async function SettingsPage() {
       ? readParallelSettings(client, settingsRepo).catch(() => DEFAULT_PARALLEL_SETTINGS)
       : Promise.resolve(null),
   ]);
+
+  const rows: WatchedRepoRow[] = repos.map((repo, i) => ({
+    name: `${repo.owner}/${repo.repo}`,
+    pipeline: pipelines[i],
+  }));
+  // 通知の初期値は、パイプラインのあるリポジトリだけ読む。読めなければ初期値を出す
+  const notifyRows = await Promise.all(
+    repos.map(async (repo, i): Promise<NotifyRepoRow> => {
+      const name = `${repo.owner}/${repo.repo}`;
+      const pipeline = pipelines[i] === true;
+      const value =
+        client && pipeline ? await readVariable(client, repo, NOTIFY_EVENTS_VARIABLE).catch(() => null) : null;
+      return { name, pipeline, events: parseNotifyEvents(value) };
+    }),
+  );
 
   return (
     <SettingsSections

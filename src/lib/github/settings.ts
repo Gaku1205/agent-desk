@@ -127,12 +127,22 @@ export async function canReadRepo(client: GitHubClient, target: WatchedRepo): Pr
   }
 }
 
-/** リポジトリに全自動パイプライン（`.github/workflows/pipeline.yml`）があるか。確かめられなければ「なし」 */
-export async function hasPipeline(client: GitHubClient, target: WatchedRepo): Promise<boolean> {
+/**
+ * リポジトリに全自動パイプライン（`.github/workflows/pipeline.yml`）があるか。
+ * あり＝true、なし（404）＝false、確かめられなかった（通信失敗・レート制限・権限など）＝null。
+ * 覚えてよいのは true / false だけ（`pipelineCache.ts`）
+ */
+export async function lookupPipeline(client: GitHubClient, target: WatchedRepo): Promise<boolean | null> {
   try {
     await client.get<unknown>(`${repoPath(target)}/contents/${PIPELINE_WORKFLOW_PATH}`);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    if (error instanceof GitHubError && error.kind === "not_found") return false;
+    return null;
   }
+}
+
+/** リポジトリに全自動パイプラインがあるか。確かめられなければ「なし」 */
+export async function hasPipeline(client: GitHubClient, target: WatchedRepo): Promise<boolean> {
+  return (await lookupPipeline(client, target)) === true;
 }

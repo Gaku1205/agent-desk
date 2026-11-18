@@ -1,0 +1,98 @@
+"use client";
+
+import deskStyles from "./Desk.module.css";
+import { useNav } from "./NavContext";
+import { Sheet } from "./Sheet";
+import settingsStyles from "./SettingsSections.module.css";
+import styles from "./Skeleton.module.css";
+import { SideRepos } from "./TopBar";
+
+/** 帯1本。幅・高さだけ変える（色は --hair-2 のみ） */
+function Band({ width, height }: { width: number | string; height: number }) {
+  return <span className={styles.band} style={{ width, height }} aria-hidden="true" />;
+}
+
+/**
+ * ホームとリポジトリのページの骨組み：左のバー（本物。layout が渡した物）、中央に「いまの様子」の行と「あなたの番」の面、
+ * 下に入力欄の位置、右の進捗図の列（空）。PC の3ペインと同じ枠なので、本文が出たときに跳ねない
+ */
+export function DeskSkeleton() {
+  const nav = useNav();
+  return (
+    <div className={deskStyles.panes} data-panes="" aria-busy="true">
+      <div className={deskStyles.side} id="side-repos">
+        {nav && <SideRepos {...nav} />}
+      </div>
+      <div className={deskStyles.center}>
+        <main className={deskStyles.desk} id="main">
+          <div className={styles.past} aria-hidden="true">
+            {[0, 1, 2, 3].map((i) => (
+              <div className={styles.row} key={i}>
+                <Band width={150} height={12} />
+                <Band width="58%" height={15} />
+                <Band width="76%" height={13} />
+              </div>
+            ))}
+          </div>
+          <section className={deskStyles.turn} aria-hidden="true">
+            <div className={deskStyles.head}>
+              <Band width={72} height={13} />
+            </div>
+            <div className={styles.face} />
+          </section>
+        </main>
+        <div className={deskStyles.composer} aria-hidden="true">
+          <div className={styles.composerBar} />
+        </div>
+      </div>
+      <div className={deskStyles.flow} />
+    </div>
+  );
+}
+
+/** 設定の骨組み：見出しと、節（線・見出し・行）の位置 */
+export function SettingsSkeleton() {
+  return (
+    <Sheet>
+      <div className={settingsStyles.page} aria-busy="true" aria-hidden="true">
+        <Band width={72} height={36} />
+        <div className={settingsStyles.sections}>
+          {[3, 4, 3].map((rows, s) => (
+            <div className={settingsStyles.section} key={s}>
+              <div className={settingsStyles.title}>
+                <Band width={150} height={15} />
+              </div>
+              <div className={styles.line}>
+                {Array.from({ length: rows }, (_, i) => (
+                  <Band key={i} width={i === 0 ? 420 : 320} height={30} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Sheet>
+  );
+}
+
+/** 新しいサービスを作る／Issueを書くの骨組み：見出し、節の見出しと一文、入力の行、ボタン */
+export function FormSkeleton() {
+  return (
+    <Sheet>
+      <div className={settingsStyles.page} aria-busy="true" aria-hidden="true">
+        <Band width={220} height={36} />
+        <div className={settingsStyles.section} style={{ paddingTop: 0, borderTop: 0 }}>
+          <div className={settingsStyles.title}>
+            <Band width={140} height={15} />
+          </div>
+          <div className={styles.line}>
+            <Band width="70%" height={13} />
+            <Band width={260} height={36} />
+            <Band width="100%" height={36} />
+            <Band width={160} height={32} />
+          </div>
+        </div>
+      </div>
+    </Sheet>
+  );
+}

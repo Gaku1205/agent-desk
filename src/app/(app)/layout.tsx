@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { LoginScreen } from "@/components/LoginScreen";
+import { NavProvider } from "@/components/NavContext";
 import { ParallelProvider } from "@/components/ParallelContext";
 import { TopBar } from "@/components/TopBar";
 import { getSignedInLogin } from "@/lib/auth";
@@ -45,7 +46,17 @@ export default async function AppLayout({
           login={login}
           logout={logout}
         />
-        {children}
+        <NavProvider
+          value={{
+            repos,
+            counts: countTurnItems(loaded.items),
+            runningCounts: countRunningPipelineRows(loaded.results, loaded.now),
+            login,
+            logout,
+          }}
+        >
+          {children}
+        </NavProvider>
       </ParallelProvider>
     </AppShell>
   );
