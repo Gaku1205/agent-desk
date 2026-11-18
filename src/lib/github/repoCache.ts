@@ -1,4 +1,5 @@
 import { gunzipSync, gzipSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { revalidateTag, unstable_cache, updateTag } from "next/cache";
 import { after } from "next/server";
 import { repoChangeKey, type ChangeMarks } from "../changeMarks";
@@ -187,6 +188,61 @@ export async function cachedRepoData(
     ),
   );
   return { data, changeMark: new Date(mark).toISOString() };
+}
+
+/** 覚えている最後の結果を、書き直してよくなるまでの秒数（読むたびに、その時の新しい結果で書き直す） */
+export const SNAPSHOT_REWRITE_SECONDS = 1;
+
+/**
+ * 覚えている最後の結果（古くてよい。docs/spec.md の「全部のリポジトリを待つページ」）。新しい結果（`fresh`）が遅いときに、先に画面に出す。
+ * キーはリポジトリだけ（印を入れない）なので、印が進んで新しいデータを GitHub から取り直している間も、前のデータが読める。
+ * どのインスタンスでも同じ物が読める。覚えている物があれば、`fresh` を待たずにすぐ返し、裏で `fresh` の結果に書き直す
+ * （`unstable_cache` は、寿命を過ぎた物をすぐ返して裏で作り直す。作り直しは `fresh` を待つだけなので、GitHub の呼び出しは増えない。
+ * タグは付けない：タグを無効にしたリクエストの中で書いた物は捨てられるため）。
+ * 覚えている物が無いときは `fresh` を待って返す。`fresh` が失敗したら、覚えている物はそのまま残る（無ければ null）
+ */
+export async function snapshotRepoData(repo: WatchedRepo, fresh: Promise<AppRepoData>): Promise<AppRepoData | null> {
+  try {
+    // 縮めて覚える（2MB を超えると Next.js が覚えないため。`packCached`）
+    const packed = await unstable_cache(
+      async () => packCached(await fresh),
+      ["repo-snapshot-gz", DEPLOY_KEY, repoChangeKey(repo)],
+      { revalidate: SNAPSHOT_REWRITE_SECONDS },
+    )();
+    return unpackCached<AppRepoData>(packed);
+  } catch {
+    return null;
+  }
+}
+
+/** 「ログインした人が読めると確かめた」結果を覚える長さ（秒。`appToken.ts` のメモリの記憶と同じ10分） */
+export const READ_CHECK_SECONDS = 10 * 60;
+
+/**
+ * ログインした人がそのリポジトリを読めると確かめた結果を、どのインスタンスでも読めるように覚える（10分）。
+ * 覚えた古い結果（`snapshotRepoData`）を、立ち上がった直後のインスタンスでも GitHub を待たずに見せるため。
+ * キーはトークンのハッシュとリポジトリ（トークンそのものは入れない）。10分より古い物は使わず、確かめ直す
+ * （`unstable_cache` は寿命を過ぎた物も一度は返すので、確かめた時刻を一緒に覚えて自分で比べる）。
+ * 読めると確かめられなかったときは false
+ */
+export async function cachedUserCanRead(
+  userToken: string,
+  repo: WatchedRepo,
+  check: () => Promise<boolean>,
+  nowMs: number = Date.now(),
+): Promise<boolean> {
+  const tokenHash = createHash("sha256").update(userToken).digest("hex");
+  try {
+    const known = await unstable_cache(
+      async (): Promise<{ ok: boolean; at: number }> => ({ ok: await check(), at: Date.now() }),
+      ["repo-read-check", tokenHash, repoChangeKey(repo)],
+      { revalidate: READ_CHECK_SECONDS },
+    )();
+    if (nowMs - known.at < READ_CHECK_SECONDS * 1000) return known.ok;
+    return await check();
+  } catch {
+    return false;
+  }
 }
 
 /** 手で押す「同期」・ボタン操作の後：取り直しの持ち分に関係なく、次の表示ですぐ取り直す */
