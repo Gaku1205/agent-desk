@@ -7,6 +7,7 @@ import {
   shouldReuseInstallationToken,
   type AppCredentials,
 } from "./appAuth";
+import { timedCall } from "./callLog";
 import { GitHubClient, type Fetcher } from "./client";
 import { GitHubError } from "./errors";
 import { shareInFlight } from "../inFlight";
@@ -14,9 +15,10 @@ import {
   getGraphqlRateHistory,
   getGraphqlRateLimit,
   getRateHistory,
-  getRateLimits,
+  getRateLimit,
   type RateHistoryPoint,
   type RateLimitInfo,
+  type SourcedRateLimit,
 } from "./rateLimit";
 
 // このファイルはサーバーだけで使う（App の秘密鍵・インストールの鍵を扱う）。
@@ -120,17 +122,19 @@ async function appRequest(
   jsonBody?: unknown,
 ): Promise<unknown | null> {
   try {
-    const response = await fetcher(`${API_BASE}${path}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        ...(jsonBody === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-      ...(jsonBody === undefined ? {} : { body: JSON.stringify(jsonBody) }),
-      cache: "no-store",
-    });
+    const response = await timedCall("key", () =>
+      fetcher(`${API_BASE}${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          ...(jsonBody === undefined ? {} : { "Content-Type": "application/json" }),
+        },
+        ...(jsonBody === undefined ? {} : { body: JSON.stringify(jsonBody) }),
+        cache: "no-store",
+      }),
+    );
     if (!response.ok) return null;
     return await response.json();
   } catch {
@@ -362,10 +366,20 @@ export function getReadsGraphql(userToken: string): { histories: RateHistoryPoin
   };
 }
 
-/** ログインした人のトークンと、使った App の鍵の、REST と GraphQL の残りのうち、いちばん少ない物 */
-export function getReadRateLimit(userToken: string): RateLimitInfo {
-  return lowestRateLimit([
-    ...getRateLimits(userToken),
-    ...[...usedInstallationIds].flatMap((id) => getRateLimits(installationKeyId(id))),
-  ]);
+/**
+ * ログインした人のトークンと、使った App の鍵の、REST と GraphQL の残りのうち、いちばん少ない物と、
+ * それがどの鍵・どの枠の物か（自動更新を止めたとき、画面にどの残りが少ないかを出すため）
+ */
+export function getReadRateLimit(userToken: string, nowMs: number = Date.now()): SourcedRateLimit {
+  const tagged: SourcedRateLimit[] = [
+    { ...getRateLimit(userToken), source: { key: "user", resource: "rest" } },
+    { ...getGraphqlRateLimit(userToken), source: { key: "user", resource: "graphql" } },
+    ...[...usedInstallationIds].flatMap((id): SourcedRateLimit[] => [
+      { ...getRateLimit(installationKeyId(id)), source: { key: "app", resource: "rest" } },
+      { ...getGraphqlRateLimit(installationKeyId(id)), source: { key: "app", resource: "graphql" } },
+    ]),
+  ];
+  const lowest = lowestRateLimit(tagged, nowMs);
+  const found = tagged.find((info) => info.remaining === lowest.remaining && info.resetAt === lowest.resetAt);
+  return { ...lowest, source: lowest.remaining === null ? null : (found?.source ?? null) };
 }

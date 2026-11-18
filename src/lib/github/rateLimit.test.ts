@@ -203,3 +203,24 @@ describe("GitHubError のレート制限の文言", () => {
     );
   });
 });
+
+describe("REST の枠（core）の返事だけを、REST の残りとして覚える", () => {
+  it("`X-RateLimit-Resource` が core・付いていない物は REST。search など別の枠は違う", async () => {
+    const { isCoreRateLimit } = await import("./rateLimit");
+    expect(isCoreRateLimit(new Headers({ "x-ratelimit-resource": "core" }))).toBe(true);
+    expect(isCoreRateLimit(new Headers())).toBe(true);
+    expect(isCoreRateLimit(new Headers({ "x-ratelimit-resource": "search" }))).toBe(false);
+    expect(isCoreRateLimit(new Headers({ "x-ratelimit-resource": "graphql" }))).toBe(false);
+  });
+
+  it("別の枠の残り（数十しか無い）を、REST の残りとして覚えない", async () => {
+    const { getRateLimit, rememberRateLimit } = await import("./rateLimit");
+    const token = "token-for-resource-test";
+    rememberRateLimit(token, new Headers({ "x-ratelimit-remaining": "4000", "x-ratelimit-reset": "99999999999" }));
+    rememberRateLimit(
+      token,
+      new Headers({ "x-ratelimit-remaining": "28", "x-ratelimit-reset": "99999999999", "x-ratelimit-resource": "search" }),
+    );
+    expect(getRateLimit(token).remaining).toBe(4000);
+  });
+});

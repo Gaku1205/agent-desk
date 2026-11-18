@@ -23,6 +23,8 @@ import { buildRepoRows } from "@/lib/repoList";
 import { NewIssueForm } from "./NewIssueForm";
 import { RepoList } from "./RepoList";
 import { SettingsSections } from "./SettingsSections";
+import { Setup } from "./Setup";
+import { EMPTY_FACTS } from "@/lib/setupState";
 
 /** Issueを書く欄のリポジトリ（landing-page はテンプレートの見本） */
 function newIssueRepos(repos: WatchedRepo[]) {
@@ -168,6 +170,21 @@ export function DemoNewIssue({ initialRepo }: { initialRepo?: string }) {
 export function DemoNewService() {
   const { repos } = useDemoState();
   return <NewIssueForm mode="service" repos={newIssueRepos(repos).filter((repo) => repo.template)} />;
+}
+
+/** デモの導入：同じ画面。何も書き込まず、押すと次の段へ進むだけ */
+export function DemoSetup() {
+  return (
+    <Setup
+      login="demo"
+      facts={EMPTY_FACTS}
+      notTarget={false}
+      canWrite
+      templateRepos={[]}
+      notice={null}
+      watched={false}
+    />
+  );
 }
 
 /**
