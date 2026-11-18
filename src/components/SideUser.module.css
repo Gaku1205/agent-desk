@@ -1,18 +1,18 @@
-/* PCの左のバーのいちばん下：ユーザー名のボタンと、その上に開くメニュー（docs/design.md の「左のバーの新サービスとユーザーのメニュー」） */
+/* ユーザーの行（GitHub のアイコン＋ログイン名）と、その上に開くメニュー（docs/design.md の「左のバーの新サービスとユーザーのメニュー」）。PCの左のバーとスマホのメニューで同じ作り */
 .wrap {
   position: relative;
-  margin-top: auto;
 }
 
 .button {
   display: flex;
+  gap: 10px;
   align-items: center;
   width: 100%;
-  height: 36px;
+  height: 44px;
   padding: 0 10px;
   border-radius: 6px;
-  color: var(--mute);
-  font-size: 12px;
+  color: var(--bone-2);
+  font-size: 13px;
   text-align: left;
   transition:
     color 0.15s var(--ease),
@@ -22,7 +22,30 @@
 .button:hover,
 .button[data-open] {
   background: var(--hair-2);
-  color: var(--bone);
+}
+
+/* GitHub のアイコン：丸・24px。読み込む前も24pxの場所を取る */
+.avatar,
+.initial {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.avatar {
+  display: block;
+}
+
+/* 読めなかったときの頭文字 */
+.initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hair-2);
+  color: var(--bone-2);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .name {
@@ -68,6 +91,44 @@
 .item:hover,
 .item:focus-visible {
   background: var(--hair-2);
+  color: var(--bone);
+}
+
+/* 押した直後：押した項目を「選んだ」見た目にし、歯車を脈打たせる（動きを減らすときは色だけ） */
+.item:has([data-pending]) {
+  background: var(--well);
+  color: var(--bone);
+}
+
+.gear {
+  display: inline-flex;
+}
+
+.gear[data-pending] {
+  animation: gear-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes gear-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) .gear[data-pending] {
+    animation: none;
+    color: var(--bone);
+  }
+}
+
+:root[data-motion="reduce"] .gear[data-pending] {
+  animation: none;
   color: var(--bone);
 }
 

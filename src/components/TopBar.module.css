@@ -370,56 +370,6 @@
   white-space: nowrap;
 }
 
-.gearIcon {
-  display: inline-flex;
-}
-
-.gearIcon[data-pending] {
-  animation: sync-pulse 0.8s ease-in-out infinite;
-}
-
-.user {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  min-width: 0;
-}
-
-.login {
-  max-width: 160px;
-  overflow: hidden;
-  color: var(--mute);
-  font-size: 12px;
-  text-overflow: ellipsis;
-}
-
-.logout {
-  display: inline-flex;
-  gap: 7px;
-  align-items: center;
-  height: 30px;
-  padding: 0 6px;
-  border-radius: 6px;
-  color: var(--mute);
-  font-size: 12.5px;
-  white-space: nowrap;
-}
-
-.logout:hover {
-  color: var(--bone);
-}
-
-/* ログアウトの最中：押した直後の220msは不透明度を下げない（design.md の決まり）。乗せても色を変えない */
-.logout:disabled {
-  opacity: 0.7;
-  transition: opacity 0s 0.22s;
-  cursor: default;
-}
-
-.logout:disabled:hover {
-  color: var(--mute);
-}
-
 .menuBtn {
   display: none;
   align-items: center;
@@ -562,9 +512,36 @@
   margin-top: auto;
 }
 
+/* 同期：ユーザーの行のすぐ上（間4px）。見た目は帯の同期のまま、幅いっぱい・高さ36px・左右10px */
+.sideSync {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 4px;
+}
+
+.sideSync .sync {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+}
+
+.sideSync .sync:hover {
+  background: var(--hair-2);
+}
+
+.sideSync .paused {
+  padding: 0 10px 4px;
+}
+
 /* 3ペインのページでは、帯に札を出さない（左の一覧と同じ物を2か所に置かない） */
 @media (min-width: 900px) {
   :global(body:has([data-panes])) .top .repos {
+    display: none;
+  }
+
+  /* 左のバーが開いているあいだは、同期（と自動更新を止めている知らせ）は左のバーに出す。畳んだら帯に戻す */
+  :global(:root:not([data-side="closed"]) body:has([data-panes])) .top .syncTop,
+  :global(:root:not([data-side="closed"]) body:has([data-panes])) .top .pausedTop {
     display: none;
   }
 }
@@ -694,17 +671,6 @@
     color: var(--bone);
   }
 
-  /* 押した札の同期中、動きを減らすときは「設定」の歯車・文字も --bone（押した札の点と同じ決まり） */
-  @media (prefers-reduced-motion: reduce) {
-    :root:not([data-motion="full"]) .lnk:has(.gearIcon[data-pending]) {
-      color: var(--bone);
-    }
-  }
-
-  :root[data-motion="reduce"] .lnk:has(.gearIcon[data-pending]) {
-    color: var(--bone);
-  }
-
   .foot {
     display: grid;
     gap: 10px;
@@ -719,12 +685,4 @@
     padding: 0;
   }
 
-  .foot .user {
-    justify-content: space-between;
-  }
-
-  .foot .logout {
-    height: 44px;
-    padding: 0;
-  }
 }

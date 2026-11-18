@@ -3,7 +3,6 @@
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useFormStatus } from "react-dom";
 import { PLAY_BUTTON_LABEL } from "@/lib/demo/playback";
 import { formatResetTime, formatSyncTime, getDisplayedSyncTime } from "@/lib/refresh";
 import { shouldCloseMenuOnPick, shouldRestoreMenuFocus } from "@/lib/menuFocus";
@@ -13,7 +12,7 @@ import { currentRepoFromPath, visibleRepos } from "@/lib/visibleRepos";
 import type { TurnCounts } from "@/lib/turn";
 import { useShell } from "./AppShell";
 import { useDemo } from "./DemoContext";
-import { GearIcon, GridIcon, LogoutIcon, PlayIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
+import { GridIcon, PlayIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
 import { ParallelToggle } from "./ParallelToggle";
 import { SideUser } from "./SideUser";
 import styles from "./TopBar.module.css";
@@ -81,20 +80,6 @@ function CountsKey() {
       <span className={styles.keyTurn}>あなたの番</span>
       <span className={styles.keyRunning}>AI</span>
     </span>
-  );
-}
-
-/** 「設定」リンクの中身：押したあと次の画面が出るまで、歯車が脈打つ */
-function SettingsLabel() {
-  const { pending } = useLinkStatus();
-  return (
-    <>
-      <span className={styles.gearIcon} data-pending={pending ? "" : undefined}>
-        <GearIcon />
-      </span>
-      設定
-      <PendingMark />
-    </>
   );
 }
 
@@ -248,6 +233,10 @@ export function SideRepos(props: Pick<Props, "repos" | "counts" | "runningCounts
         </Link>
         <div className={styles.sideBottom}>
           <ParallelToggle variant="side" />
+          <div className={styles.sideSync}>
+            <SyncButton />
+            <PausedNote />
+          </div>
           <SideUser login={props.login} logout={props.logout} basePath={props.basePath} />
         </div>
       </div>
@@ -375,7 +364,6 @@ function MenuSheet(props: Props) {
   const { menuOpen, closeMenu } = useShell();
   const demo = useDemo();
   const pathname = usePathname();
-  const settingsHref = `${props.basePath ?? ""}/settings`;
   const newIssueHref = `${props.basePath ?? ""}/new`;
   const newServiceHref = `${props.basePath ?? ""}/new/service`;
   const paneRef = useRef<HTMLDivElement>(null);
@@ -420,38 +408,15 @@ function MenuSheet(props: Props) {
           Issueを書く
           <PendingMark />
         </Link>
-        <Link
-          href={settingsHref}
-          className={styles.lnk}
-          onClick={shouldCloseMenuOnPick(pathname, settingsHref) ? closeMenu : undefined}
-        >
-          <SettingsLabel />
-        </Link>
         {props.extraLinks}
         <ParallelToggle variant="menu" />
         <div className={styles.foot}>
           {demo && <span className={styles.demo}>デモ（サンプルのデータ）</span>}
-          {props.login && props.logout && (
-            <form action={props.logout} className={styles.user}>
-              <span className={`${styles.login} num`}>{props.login}</span>
-              <LogoutButton />
-            </form>
-          )}
           <SyncButton />
           <PausedNote />
+          <SideUser login={props.login} logout={props.logout} basePath={props.basePath} onPick={closeMenu} />
         </div>
       </div>
     </div>
-  );
-}
-
-/** ログアウトのボタン（PCの帯とスマホのメニューで同じ）：送信の最中は文言を変え、押せなくする */
-function LogoutButton() {
-  const { pending } = useFormStatus();
-  return (
-    <button type="submit" className={styles.logout} disabled={pending}>
-      <LogoutIcon />
-      {pending ? "ログアウト中…" : "ログアウト"}
-    </button>
   );
 }
