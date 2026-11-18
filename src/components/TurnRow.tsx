@@ -264,8 +264,14 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
         // 元のボタン（マージは「マージする」）と説明文に戻し、理由を出す
         setOp(null);
         setError(result.message);
-      } else {
+      } else if (result.ok) {
         succeed();
+      } else {
+        // 押した時点で段階が変わっていて何もしなかった：結果は出さず、今までどおりすぐ片づける
+        if (rowRef.current) moveFocusOutOf(rowRef.current);
+        setConfirming(false);
+        setLeavingSig(opSig.current);
+        setOp(null);
       }
     });
   }
