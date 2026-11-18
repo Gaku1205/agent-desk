@@ -47,11 +47,19 @@ function statuses(now: Date = NOW): IssueStatus[] {
 }
 
 describe("デモのサンプル", () => {
-  it("架空のリポジトリ2つで、どちらも取れている", () => {
+  it("架空のリポジトリ3つで、どれも取れている（notes-api は 0・0 の見本）", () => {
     const results = buildDemoResults(NOW, startPlayback(NOW));
-    expect(results.map((r) => `${r.owner}/${r.repo}`)).toEqual(["demo/todo-app", "demo/landing-page"]);
+    expect(results.map((r) => `${r.owner}/${r.repo}`)).toEqual([
+      "demo/todo-app",
+      "demo/landing-page",
+      "demo/notes-api",
+    ]);
     expect(results.every((r) => r.ok)).toBe(true);
-    expect(DEMO_REPOS).toHaveLength(2);
+    expect(DEMO_REPOS).toHaveLength(3);
+    const turn = countTurnItems(buildTurnItems(results, NOW));
+    const running = countRunningPipelineRows(results, NOW);
+    expect(turn.byRepo["demo/notes-api"] ?? 0).toBe(0);
+    expect(running.byRepo["demo/notes-api"] ?? 0).toBe(0);
   });
 
   it("全部の段階が含まれる", () => {
@@ -93,7 +101,8 @@ describe("デモのサンプル", () => {
     const turn = countTurnItems(buildTurnItems(results, NOW));
     const running = countRunningPipelineRows(results, NOW);
     expect(turn.total).not.toBe(running.total);
-    for (const { owner, repo } of DEMO_REPOS) {
+    // notes-api は 0・0 の見本（左のバーに出ない物）なので、数のある2つだけを見る
+    for (const { owner, repo } of DEMO_REPOS.filter((r) => r.repo !== "notes-api")) {
       const key = `${owner}/${repo}`.toLowerCase();
       expect(turn.byRepo[key]).toBeGreaterThan(0);
       expect(running.byRepo[key]).toBeGreaterThan(0);

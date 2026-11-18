@@ -79,6 +79,13 @@
   text-overflow: ellipsis;
 }
 
+/* 「すべてのリポジトリ」の札の右端：監視中の数（札と同じ色・大きさ） */
+.total {
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 500;
+}
+
 .counts {
   display: inline-flex;
   gap: 8px;

@@ -1,0 +1,195 @@
+/* 「すべてのリポジトリ」（/repos）。左のバーはホームと同じ、中央は1本の列（docs/design.md の「すべてのリポジトリ」） */
+
+.main {
+  width: min(var(--col), 100% - 2 * var(--gutter));
+  min-height: calc(100svh - var(--top-h));
+  margin: 0 auto;
+  padding: 56px 0 96px;
+}
+
+.h1 {
+  color: var(--bone);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.total {
+  margin: 4px 0 0;
+  color: var(--mute);
+  font-size: 13px;
+}
+
+.list {
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 1行＝1リポジトリ：名前 / 数 / 時刻 / リンク。上は --hair-2 の線（最初の行は無し） */
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 112px auto;
+  column-gap: 20px;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 10px;
+  margin: 0 -10px;
+  font-size: 13.5px;
+}
+
+.row + .row {
+  box-shadow: 0 -1px 0 var(--hair-2);
+}
+
+.row:hover {
+  background: var(--hair-2);
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--bone);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time {
+  color: var(--mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.links {
+  display: flex;
+  gap: 14px;
+  justify-content: flex-end;
+  color: var(--mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.links a:hover,
+.settings:hover {
+  color: var(--bone);
+}
+
+.settings {
+  display: inline-block;
+  margin-top: 32px;
+  color: var(--bone-2);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ───── PCの3ペイン（左のバーはホームと同じ。右の進捗図の列は無い） ───── */
+@media (min-width: 900px) {
+  .panes {
+    display: grid;
+    grid-template-columns: 224px minmax(0, 1fr);
+    align-items: start;
+    transition: grid-template-columns 150ms var(--ease);
+  }
+
+  .side {
+    position: sticky;
+    top: var(--top-h);
+    height: calc(100svh - var(--top-h));
+    overflow: hidden;
+    box-shadow: inset -1px 0 0 var(--hair);
+  }
+
+  .side > aside {
+    width: 224px;
+    padding-top: 44px;
+  }
+
+  .sideToggle {
+    position: fixed;
+    top: calc(var(--top-h) + 8px);
+    left: 12px;
+    z-index: 6;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    color: var(--mute);
+  }
+
+  .sideToggle:hover {
+    color: var(--bone);
+  }
+
+  :global(:root[data-side="closed"]) .panes {
+    grid-template-columns: 0 minmax(0, 1fr);
+  }
+
+  :global(:root[data-side="closed"]) .side {
+    overflow: hidden;
+    visibility: hidden;
+    box-shadow: none;
+    transition: visibility 0s linear 150ms;
+  }
+}
+
+/* ───── スマホ（幅899px以下）：1本の列。時刻とリンクは名前の下の行 ───── */
+@media (max-width: 899px) {
+  .sideToggle,
+  .side {
+    display: none;
+  }
+
+  .main {
+    padding: 40px 0 72px;
+  }
+
+  .h1 {
+    font-size: 21px;
+  }
+
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name counts"
+      "time links";
+    row-gap: 0;
+    padding: 6px 10px;
+  }
+
+  .row > :nth-child(1) {
+    grid-area: name;
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+  }
+
+  .row > :nth-child(2) {
+    grid-area: counts;
+  }
+
+  .row > :nth-child(3) {
+    grid-area: time;
+  }
+
+  .row > :nth-child(4) {
+    grid-area: links;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .settings {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panes {
+    transition: none;
+  }
+}

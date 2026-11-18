@@ -33,6 +33,8 @@ export const DEMO_APP_REPO_URL = "https://github.com/Gaku1205/agent-desk";
 export const DEMO_REPOS: WatchedRepo[] = [
   { owner: "demo", repo: "todo-app" },
   { owner: "demo", repo: "landing-page" },
+  // あなたの番もAIの番も 0・0 の見本（左のバーには出ない）
+  { owner: "demo", repo: "notes-api" },
 ];
 
 /** Issueを書く画面で、テンプレートリポジトリの見本にするデモのリポジトリ（「新サービス：」「全部おまかせ」を見せる） */
@@ -741,14 +743,24 @@ function landingPage(base: Date): RepoData {
   return ctx.data;
 }
 
+/** notes-api：公開済みの1件だけ（あなたの番もAIの番も 0・0。左のバーには出ず、すべてのリポジトリにだけ出る見本） */
+function notesApi(base: Date): RepoData {
+  const ctx = createCtx(DEMO_REPOS[2], base, 4000);
+  addDeployed(ctx, 1, 2, "メモを一覧で返すAPIを足す", 30 * 60, { planned: true });
+  addStepLogs(ctx);
+  return ctx.data;
+}
+
 /** デモの全リポジトリのデータ。base はサンプルの時刻の基準、playback は再生の状態（押した操作を含む） */
 export function buildDemoResults(base: Date, playback: DemoPlayback): RepoResult[] {
-  const [todo, landing] = DEMO_REPOS;
+  const [todo, landing, notes] = DEMO_REPOS;
   const todoData = applyDemoOps(todoApp(base, playback), playback.ops, todo.owner, todo.repo);
   const landingData = applyDemoOps(landingPage(base), playback.ops, landing.owner, landing.repo);
+  const notesData = notesApi(base);
   return [
     { ...todo, ok: true, data: { ...todoData, runs: demoRuns(todoData, base) } },
     { ...landing, ok: true, data: { ...landingData, runs: demoRuns(landingData, base, DEMO_STALLED) } },
+    { ...notes, ok: true, data: { ...notesData, runs: demoRuns(notesData, base) } },
   ];
 }
 
