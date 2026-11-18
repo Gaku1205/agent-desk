@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { PLAY_BUTTON_LABEL } from "@/lib/demo/playback";
 import { formatResetTime, formatSyncTime, getDisplayedSyncTime } from "@/lib/refresh";
 import { shouldCloseMenuOnPick, shouldRestoreMenuFocus } from "@/lib/menuFocus";
+import { isRepoCountPending } from "@/lib/navCounts";
 import { newIssueHref } from "@/lib/issueRepo";
 import { hasHiddenBelow } from "@/lib/sideScroll";
 import { revealScrollLeft } from "@/lib/tabScroll";
@@ -28,6 +29,8 @@ type Props = {
   runningCounts: TurnCounts;
   /** 件数がまだ届いていない（他のリポジトリの読み込み待ち）。件数は「–」で出す */
   countsPending?: boolean;
+  /** 全部が届く前に、件数が届いたリポジトリ（`owner/repo` の小文字）。届いた物は件数を出す */
+  countsLoaded?: Record<string, true>;
   /** リンクの頭（デモでは `/demo`） */
   basePath?: string;
   /** ログイン中のユーザー名（デモでは無し） */
@@ -127,9 +130,12 @@ export function RepoTabs({
   counts,
   runningCounts,
   countsPending = false,
+  countsLoaded,
   basePath = "",
   onPick,
-}: Pick<Props, "repos" | "counts" | "runningCounts" | "countsPending" | "basePath"> & { onPick?: () => void }) {
+}: Pick<Props, "repos" | "counts" | "runningCounts" | "countsPending" | "countsLoaded" | "basePath"> & {
+  onPick?: () => void;
+}) {
   const pathname = usePathname();
   const isCurrent = (href: string) => pathname.toLowerCase() === href.toLowerCase();
   const allReposHref = `${basePath}/repos`;
@@ -172,7 +178,7 @@ export function RepoTabs({
               turn={counts.byRepo[key] ?? 0}
               running={runningCounts.byRepo[key] ?? 0}
               labeled={isCurrent(href)}
-              pending={countsPending}
+              pending={isRepoCountPending(countsPending, countsLoaded, key)}
             />
           </Link>
         );
@@ -197,7 +203,10 @@ export function RepoTabs({
 
 /** PCの3ペインの左：リポジトリの一覧（上端の帯の札を縦に並べた物。docs/design.md の「PCの3ペイン」） */
 export function SideRepos(
-  props: Pick<Props, "repos" | "counts" | "runningCounts" | "countsPending" | "basePath" | "login" | "logout">,
+  props: Pick<
+    Props,
+    "repos" | "counts" | "runningCounts" | "countsPending" | "countsLoaded" | "basePath" | "login" | "logout"
+  >,
 ) {
   const pathname = usePathname();
   const newServiceHref = `${props.basePath ?? ""}/new/service`;
