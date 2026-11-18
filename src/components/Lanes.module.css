@@ -719,3 +719,61 @@
     min-width: 0;
   }
 }
+
+/* ───── Paused（Issue #520）：Queue の行と同じ形・同じ高さ。人間の番ではないので色の帯も左の線も付けない ───── */
+.row[data-kind="paused"] {
+  box-shadow: none;
+  padding-left: 0;
+}
+
+.pausedReason {
+  overflow: hidden;
+  color: var(--mute);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pausedReason[data-error] {
+  color: var(--fail-soft);
+}
+
+.pausedRight {
+  flex-direction: row;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* 文字だけの小さなボタン（塗りなし・縁なし。下線で押せると分かる） */
+.pausedAct {
+  min-height: 28px;
+  padding: 0 4px;
+  background: none;
+  color: var(--bone-2);
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.pausedAct:hover {
+  color: var(--bone);
+}
+
+.pausedAct:focus-visible {
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+}
+
+.pausedAct[aria-disabled="true"] {
+  opacity: 0.55;
+}
+
+@media (max-width: 899px) {
+  .pausedAct {
+    min-height: 44px;
+  }
+}

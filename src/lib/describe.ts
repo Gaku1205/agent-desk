@@ -80,6 +80,7 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
     case "queued":
       return { long: "前の作業が終わったら自動で始まります", short: "順番待ち" };
     case "skipped":
+      if (status.paused) return { long: `止めてある：${status.paused.reason}`, short: "止めてある" };
       return { long: "保留中です。準備ができたら「始める」を押してください", short: "保留中" };
     case "planning":
       return { long: "企画AIがIssueを清書中", short: "清書中" };

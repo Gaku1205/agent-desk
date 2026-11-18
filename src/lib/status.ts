@@ -6,6 +6,7 @@ import type { PipelineState } from "./pipelineState";
 import { isCountedDeploySuccess, isFailedState, latestCountedPerContext } from "./deployStatus";
 import { isMergeablePull } from "./mergeablePull";
 import { holdRequestText, humanRequestReason } from "./humanRequest";
+import { pausedMark, type PausedMark } from "./paused";
 import { isQuestionAnswered, latestQuestionComment } from "./question";
 import type { CheckRunData, CommentData, CommitStatusData, IssueData, PullChecks, PullData } from "./github/types";
 
@@ -90,6 +91,11 @@ export type IssueStatus = {
    * `intake`＝未着手の10分。猶予でなければ null
    */
   grace: Grace | null;
+  /**
+   * わざと止めた物（`ai:skip` に止めた理由の印がある。段階は `skipped` のまま、誰の番は「なし」）。
+   * 「あなたの番」には出さず、Slots & Queue の Paused に出す。無ければ null か無し
+   */
+  paused?: PausedMark | null;
 };
 
 /** パイプラインが自動で進める間の猶予の種類 */
@@ -749,7 +755,10 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
     const unanswered =
       latestQuestionComment(input.comments, issue.number, input.owner ?? "") !== null &&
       !isQuestionAnswered(input.comments, issue.number, input.owner ?? "");
-    return result(unanswered ? "question" : "skipped");
+    if (unanswered) return result("question");
+    // 止めた理由の印がある保留は、人間の番ではない（Paused に出す）
+    const paused = pausedMark(issue, input.comments, input.owner ?? "");
+    return result("skipped", paused ? { turn: "none", paused } : {});
   }
   const intake =
     graceApplies &&

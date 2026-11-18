@@ -606,6 +606,19 @@ function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean): RepoDa
   addIssue(ctx, 31, "タスクをカレンダーに表示する", { createdAt: ago(ctx, 3 * 60), labels: ["ai:skip"] });
   addLabeled(ctx, 31, "ai:skip", ago(ctx, 3 * 60));
 
+  // わざと止めた物（ai:skip に止めた理由の印がある。Slots & Queue の Paused に出て、あなたの番には出ない）
+  addIssue(ctx, 42, "タスクの共有リンクを作る", { createdAt: ago(ctx, 6 * 60), labels: ["ai:skip"], planned: true });
+  addLabeled(ctx, 42, "ai:skip", ago(ctx, 5 * 60));
+  addComment(ctx, 42, "<!-- paused: PR #510 のマージ待ち -->\n#510 が入ってから始めます。", ago(ctx, 5 * 60));
+  addIssue(ctx, 43, "タスクの並べ替えを速くする", { createdAt: ago(ctx, 30 * 60), labels: ["ai:skip"], planned: true });
+  addLabeled(ctx, 43, "ai:skip", ago(ctx, 26 * 60));
+  addComment(
+    ctx,
+    43,
+    "<!-- paused: 計測中なので、使用量を取り合わないように止めている -->\n計測が終わったら外します。",
+    ago(ctx, 26 * 60),
+  );
+
   // 未着手
   addIssue(ctx, 13, "タスクに色のラベルを付けられるようにする", { createdAt: ago(ctx, 2 * 60 + 15) });
 

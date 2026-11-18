@@ -529,9 +529,9 @@ CSSカスタムプロパティとして `globals.css` に定義し、コード�
 
 2026年11月18日、Issue #461（挙動は `docs/spec.md` の「Slots & Queue」）。`src/components/Lanes.tsx`。新しい色は使わない（GitHub の色＝Issue #459、順番待ちの印＝Issue #454）。この節が定める英語の言葉は、`CLAUDE.md` の「英語にしてよい言葉は `docs/design.md` に書いた物だけ」の一覧。
 
-- **英語にしてよい言葉**（このページで使う物。後の Issue で増える分は、その Issue がここへ足す）：`Slots & Queue`・`Your turn`・`Fix`・`Answer`・`Ship`・`Start`・`Slots`・`Slot`・`Running`・`Free`・`Queue`・`Other`・`Night`・`Last 24h`、処理の種類 `Implement`・`Review`・`Plan`・`Fix`・`Design`・`CI`・`Watchdog`・`Deploy`・`Actions`・`Visual update`・`Sync`・`Resume`、モデル `Sonnet`・`Opus`・`Fable`。説明文・文の続きは日本語（`空いています`・`待つ相手：`・`次に入る順`）。ワークフローの名前・リポジトリ名・題名はデータなので、そのまま出す
+- **英語にしてよい言葉**（このページで使う物。後の Issue で増える分は、その Issue がここへ足す）：`Slots & Queue`・`Your turn`・`Fix`・`Answer`・`Ship`・`Start`・`Slots`・`Slot`・`Running`・`Free`・`Queue`・`Other`・`Paused`・`Night`・`Last 24h`、処理の種類 `Implement`・`Review`・`Plan`・`Fix`・`Design`・`CI`・`Watchdog`・`Deploy`・`Actions`・`Visual update`・`Sync`・`Resume`、モデル `Sonnet`・`Opus`・`Fable`。説明文・文の続きは日本語（`空いています`・`待つ相手：`・`次に入る順`）。ワークフローの名前・リポジトリ名・題名はデータなので、そのまま出す
 - **かかった時間の書き方**：Dashboard と同じ `d`・`h`・`m`・`s`（`src/lib/dashboard/duration.ts`）。時刻は `11:13`
-- **構図**：Dashboard と同じ枠（PC は `224px minmax(0, 1fr)` の2ペイン、左はホームと同じ左のバーと折り畳みのボタン。中央は1本の列 `min(1080px, 100% − 2×--gutter)`、上56px・下96px。スマホ［899px以下］は左のバーを隠して1本の列、上40px・下72px）。上から 見出し → Your turn → Slots → Other → Queue → Last 24h。**区画の間は32px**、区画の見出しと中身の間は12px
+- **構図**：Dashboard と同じ枠（PC は `224px minmax(0, 1fr)` の2ペイン、左はホームと同じ左のバーと折り畳みのボタン。中央は1本の列 `min(1080px, 100% − 2×--gutter)`、上56px・下96px。スマホ［899px以下］は左のバーを隠して1本の列、上40px・下72px）。上から 見出し → Your turn → Slots → Other → Queue → Paused → Last 24h。**区画の間は32px**、区画の見出しと中身の間は12px
 - **見出し**：左に `Slots & Queue`（`<h1>`、26px / 700、`--bone`、スマホ21px）と、その下4pxに `いま 11:13 · 昼（7:00〜23:00）は 3件まで、夜は 1件ずつ`（13px・`--mute`・`num`）。右に3つの数（間20px、折り返してよい）：`Running 2`（緑の再生マーク［`PlayIcon` 14px・`--ok`］→ `Running`［13px・`--bone-2`］→ 数［15px / 600・`--ok`・`num`］→ `（処理 5）`［13px / 400・`--mute`］）・`Free 1`（灰色の丸［`CircleIcon` 14px・`--mute`］→ `Free` → 数［15px / 600・`--bone`］）・`Queue 3`（紫の砂時計［`QueueIcon` 13px］→ `Queue` → 数［15px / 600・`--wait`］）。狭い幅（599px以下）では、数は見出しの下の行に回る
 - **区画の見出し**：Dashboard の AI usage と同じ形（16pxのアイコン → 16px / 600・`--bone`、間8px → 横に説明 13px・`--mute`・400）。Slots＝3列の箱（`ColumnsIcon`）と `3件まで`（夜は `1件まで`）、Other＝再生（`PlayIcon` 16px）と `席に座らない処理`、Queue＝紫の砂時計（`QueueIcon` 15px）と `次に入る順`
 - **行（3つの区画で共通）**：上下を `--hair` の線で区切った一覧（カードにしない。角丸・影・地の色なし）。行の間は `--hair-2` の線。行の左に縦線（幅2px、「あなたの番」の種類の縦線と同じ描き方。行の左端から12px空けて中身）。中は3列の grid：左 `minmax(0, 200px)`・真ん中 `minmax(0, 1fr)`・右 `minmax(0, 220px)`（間20px）。狭い所（コンテナの幅640px未満）は、左と右を1段目に左右に、真ん中を2段目に置く（行は高さが伸びてよい。Slots の行だけ右の幅を190pxにそろえ、工程の線を行をまたいで同じ位置に置く）
@@ -548,6 +548,10 @@ CSSカスタムプロパティとして `globals.css` に定義し、コード�
   - **狭い所**（コンテナの幅860px未満。Slots・Running・Queue の行は640px未満のまま）：左・真ん中・右を縦に3段に並べ（右は待ち時間とボタンを左右に）、行は伸びてよい
   - **0件の文**：`あなたが答えることはありません`（ほかの区画の0件の文と同じ）
   - 仮に決めた所：人のアイコンと凡例の置き方、`答える`／`相談に答える` はそのリポジトリのページへのリンクにしたこと（その Issue を直接選んで開く仕組みは無い）、狭い所の3段
+- **Paused**（Issue #520。挙動は `docs/spec.md`。`src/components/LanesPaused.tsx`）：Queue の下、Last 24h の上。見出しは一時停止のアイコン（`On hold` の札と同じ `TurnKindIcon` の `onHold` 16px）と `Paused`、横に小さく `止めてある物 · 10件`（ほかの区画の見出しと同じ寸法）。0件なら区画ごと出さない。新しい色は使わない
+  - **行**：Queue の行と同じ形（3列の grid・高さ56px［`min-height`］・狭い所の折り方も同じ）。人間の番ではないので、**色の帯・行の左の線は付けない**（左の余白も0）。左は `リポジトリ#番号`（12.5px・`--mute`・`num`）。真ん中は1段目に題名（14px / 500・`--bone`、1行「…」、`title` に全文、新しいタブのリンク）、2段目に理由（12.5px・`--mute`、1行「…」、`title` に全文。失敗のときだけ `--fail-soft`）。右は止めてからの時間（13px・`--bone-2`・`num`。Dashboard と同じ `d`・`h`・`m`・`s`）と、間12pxで文字だけの小さなボタン `今すぐ始める`
+  - **ボタン**：塗りなし・縁なし。文字 12.5px・`--bone-2`、下線（オフセット2px）、乗せたら `--bone`。高さ28px（スマホ［899px以下］は44px）、左右の余白4px。押している間は `開始中…`、通ると `始めました`（理由の所に出す）。押している間・通ったあとは不透明度0.55で `aria-disabled="true"`。フォーカスの輪は「あなたの番」のボタンと同じ2本の輪（地の色 2px＋`--bone` 3.5px）
+  - **仮に決めた所**：ボタンを下線つきの文字にしたこと、高さ28px、行の左の余白を0にしたこと
 - **Last 24h**（Issue #489。挙動は `docs/spec.md`。`src/components/LanesUsage.tsx`。SVG を自前で描く）：区画の見出しは棒グラフ（`ChartIcon` 16px）と `Last 24h`、横に `枠の使われ方`。中身は上に線（`--hair`）、その下にグラフ、凡例、1行のまとめ。新しい色は使わない
   - **グラフ**：左に縦の目盛りの列（幅28px。`0`〜`5`、11.5px・`--mute`・`num`、右寄せ）、右に描く面（高さ180px、スマホ［899px以下］150px。幅は列いっぱい）。横の目盛り線は件数ごとに `--hair-2` の1px、面の下の線は `--hair`。面の下に時刻の列（高さ24px、11.5px・`--mute`・`num`、6時間ごとに `12:00`・`18:00`・`0:00`・`6:00`。その位置を中心に置く）
   - **使っていた枠**：緑の塗りの段。塗りは `--ok` の不透明度0.18、上の縁に `--ok` の1.5pxの段の線。**枠の上限**：`--bone` の点線（1.5px、4・3）の段。**順番待ち**：`--wait` の線（2px）の段。線の太さは面の幅に引き伸ばされない（`vector-effect: non-scaling-stroke`）

@@ -16,11 +16,13 @@ import { getSidebarSnapshot, subscribeSidebar, type DeskNav } from "./Desk";
 import type { UsageSource } from "@/lib/lanes/usage";
 import { ChartIcon, CircleIcon, ColumnsIcon, PanelLeftIcon, PersonIcon, PlayIcon, SpinnerIcon } from "./icons";
 import styles from "./Lanes.module.css";
+import { PausedList } from "./LanesPaused";
 import { LanesTurn } from "./LanesTurn";
 import { LanesUsage } from "./LanesUsage";
 import { useParallelView } from "./ParallelContext";
 import { QueueIcon } from "./QueueIcon";
 import { SideRepos } from "./TopBar";
+import { TurnKindIcon } from "./TurnKindIcon";
 
 type Props = {
   /** サーバーで作った材料（枠を使う作業・順番待ち・動いている実行） */
@@ -318,6 +320,7 @@ export function Lanes({ source, usage, items, now, nav }: Props) {
   const runsId = useId();
   const queueId = useId();
   const usageId = useId();
+  const pausedId = useId();
   const sideCollapsed = useSyncExternalStore(subscribeSidebar, getSidebarSnapshot, () => false);
   const toggleSide = useCallback(() => {
     const next = !getSidebarSnapshot();
@@ -430,6 +433,18 @@ export function Lanes({ source, usage, items, now, nav }: Props) {
             </ol>
           )}
         </section>
+
+        {source.paused.length > 0 && (
+          <section className={styles.section} aria-labelledby={pausedId}>
+            <SectionHead
+              id={pausedId}
+              icon={<TurnKindIcon icon="onHold" size={16} />}
+              title="Paused"
+              sub={`止めてある物 · ${source.paused.length}件`}
+            />
+            <PausedList entries={source.paused} now={at} />
+          </section>
+        )}
 
         <section className={styles.section} aria-labelledby={usageId}>
           <SectionHead id={usageId} icon={<ChartIcon size={16} />} title="Last 24h" sub="枠の使われ方" />

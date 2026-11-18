@@ -74,7 +74,7 @@ describe("buildLanesSource：枠を使う作業", () => {
 
   it("取れなかったリポジトリは飛ばす", () => {
     const failed: RepoResult = { owner: "o", repo: "x", ok: false, error: { kind: "other", message: "x" } };
-    expect(buildLanesSource([failed], NOW)).toEqual({ works: [], queue: [], runs: [] });
+    expect(buildLanesSource([failed], NOW)).toEqual({ works: [], queue: [], runs: [], paused: [] });
   });
 });
 
@@ -187,6 +187,44 @@ describe("buildLanesSource：いま動いている実行", () => {
   it("今していることが無ければ実行の題名。始まった時刻・番号が無ければ出さない", () => {
     const source = buildLanesSource([result(data({ runs: [run({ name: "Watchdog", displayTitle: "見張り" })] }))], NOW);
     expect(source.runs[0]).toMatchObject({ kind: "Watchdog", issueNumber: null, activity: "見張り", elapsedMs: null, logUrl: null, detail: null });
+  });
+});
+
+describe("buildLanesSource：Paused（止めてある物）", () => {
+  const mark = (body: string, author = "o"): CommentData => ({
+    id: 9,
+    issueNumber: 7,
+    author,
+    body,
+    createdAt: "2026-11-18T01:13:00Z",
+  });
+
+  it("印のある ai:skip だけ入り、止めてからの時間の起点は印の時刻", () => {
+    const source = buildLanesSource(
+      [
+        result(
+          data({
+            issues: [issue(7, ["ai:skip"]), issue(8, ["ai:skip"])],
+            comments: [mark("<!-- paused: PR #510 のマージ待ち -->\n説明")],
+          }),
+        ),
+      ],
+      NOW,
+    );
+    expect(source.paused.map((p) => [p.number, p.reason, p.pausedAt])).toEqual([
+      [7, "PR #510 のマージ待ち", Date.parse("2026-11-18T01:13:00Z")],
+    ]);
+  });
+
+  it("ほかの人の印・ai:skip が外れた物は入らない", () => {
+    const source = buildLanesSource(
+      [
+        result(data({ issues: [issue(7, ["ai:skip"])], comments: [mark("<!-- paused: X -->", "stranger")] })),
+        result(data({ issues: [issue(7)], comments: [mark("<!-- paused: X -->")] }), "r2"),
+      ],
+      NOW,
+    );
+    expect(source.paused).toEqual([]);
   });
 });
 
