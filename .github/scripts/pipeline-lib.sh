@@ -21,6 +21,20 @@ AUTO_FIX_MARK="<!-- auto-fix -->"
 RESUME_MARK="<!-- auto-resume -->"
 # shellcheck disable=SC2034  # after-ci.sh など、この下を読み込む側のスクリプトで使う
 VISUAL_MARK="<!-- auto-visual-update -->"
+# 修正AI（claude-code-action）が、何もせずに終わったときの返事：依頼のコメントのあとに PR が更新されている（別の push が先に入った）と、
+# 「PR #N was updated after the trigger (…). Mention Claude again to run on the latest version.」とだけ書いて終わる。
+# その依頼は動いていないので、直す回数に数えず、最新のコミットで出し直す（reissue_stale_fix）。
+# 出し直しは、人間が ai:stuck を外した後で MAX_STALE_FIX 回まで（続くなら、何かが同じブランチを動かし続けている）
+STALE_FIX_RE='was updated after the trigger'
+MAX_STALE_FIX="${MAX_STALE_FIX:-3}"
+# jq の部品：動かなかった依頼のコメントの id の一覧（stale_ids。--arg stale に STALE_FIX_RE を渡す）。
+# 返事に書かれた時刻（依頼のコメントの時刻）で依頼を見つける。見つからなければ、その返事の直前の依頼
+# shellcheck disable=SC2016 # jq の式（$all などは jq の変数）
+STALE_FIX_JQ='def stale_ids: . as $all
+  | [$all[] | select(.user.login == "claude[bot]" and (.body | test($stale))) | . as $r
+      | [$all[] | select((.body | test("<!-- auto-fix(-retry)? -->")) and .created_at <= $r.created_at)] as $reqs
+      | ([$reqs[] | select(.created_at as $t | $r.body | contains($t))] | last // ($reqs | last)) | .id // empty];
+'
 # 他の Issue・PR の完了待ち（ai:blocked）で、待ち先を書くコメントの印（待ち先ごとに1つ：<!-- blocked-by: owner/repo#N -->）
 # shellcheck disable=SC2034  # after-plan.sh・watchdog.sh で使う
 BLOCKED_MARK_RE='<!-- blocked-by: ([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)#([0-9]+) -->'
@@ -391,11 +405,20 @@ stop_issue_for_human() {
   notify stuck "確認が必要です" "#${n} $(issue_title "$n")：${reason}" 4
 }
 
-# 「再開」の記録（人間が ai:stuck を外したとき resume.sh が書く）より後に、AIに自動で直させた回数
+# 「再開」の記録（人間が ai:stuck を外したとき resume.sh が書く）より後に、AIに自動で直させた回数。
+# 修正AIが「PRが更新されたので動かない」と返した依頼（STALE_FIX_RE）は、何も直していないので数えない
 count_auto_fix() {
-  all_comments "$1" | jq --arg mark "$AUTO_FIX_MARK" --arg resume "$RESUME_MARK" '
+  all_comments "$1" | jq --arg mark "$AUTO_FIX_MARK" --arg resume "$RESUME_MARK" --arg stale "$STALE_FIX_RE" "$STALE_FIX_JQ"'
+    stale_ids as $void
+    | (map(select(.body | contains($resume)) | .created_at) | max // "") as $since
+    | [.[] | select((.body | contains($mark)) and .created_at > $since) | select(.id as $i | $void | index($i) | not)] | length'
+}
+
+# 「再開」の記録より後に、修正AIが「PRが更新されたので動かない」と返した回数
+count_stale_fix() {
+  all_comments "$1" | jq --arg resume "$RESUME_MARK" --arg stale "$STALE_FIX_RE" '
     (map(select(.body | contains($resume)) | .created_at) | max // "") as $since
-    | [.[] | select((.body | contains($mark)) and .created_at > $since)] | length'
+    | [.[] | select(.user.login == "claude[bot]" and (.body | test($stale)) and .created_at > $since)] | length'
 }
 
 # PRの説明の中身の目印。AIがコミットを入れず、PRの説明だけを直したかを見分けるのに使う
@@ -405,13 +428,24 @@ pr_body_hash() {
 
 # AIに直させる。上限を超えていたら人間に回す
 request_fix_or_stop() {
-  local pr="$1" sha="$2" message="$3"
+  local pr="$1" sha="$2" message="$3" human_reason="${4:-}"
   local count total model_mark="" note=""
+  # 同じ先頭コミットに、まだ終わっていない依頼があれば、重ねて頼まない（回数にも数えない）。
+  # CI・レビュー・基準の画像の撮り直し（visual-update.yml）・見張り役のどこから呼ばれても、修正AIが同じコミットで2つ同時に動かないように。
+  # 2つ動くと、先に push した方のせいで、後の方は「PRが更新されたので動かない」で終わり、直す回数だけが減る（agent-desk PR #478）
+  # 修正AIが終わったあとの処理（after-mention.sh。FIX_RUN_ENDED=1）からの依頼では確かめない：動いていた修正AIは、もう終わっている
+  if [ -z "${FIX_RUN_ENDED:-}" ] && fix_requested_for "$pr" "$sha"; then
+    echo "PR #$pr：このコミットにはもう直すよう頼んであるので、重ねて頼みません（直した push のあとに、CIとレビューがもう一度動きます）"
+    return 0
+  fi
   count=$(count_auto_fix "$pr")
   # 普通のモデルで MAX_AUTO_FIX 回直しても駄目なら、最後に1回だけ、いちばん強いモデル（opus）で直す
   total=$((MAX_AUTO_FIX + 1))
   if [ "$count" -ge "$total" ]; then
-    stop_for_human "$pr" "AIが${total}回（最後の1回は強いモデル）直しても解決しませんでした（最後の理由：${message}）"
+    # 止めた理由には、AIへの依頼文（message）ではなく、人向けの短い1文を入れる（4番目。改行は空白にして1行にする）
+    human_reason=$(printf '%s' "$human_reason" | tr '\r\n' '  ' | sed 's/  */ /g; s/^ //; s/ $//')
+    [ -n "$human_reason" ] || human_reason="AIが直せませんでした"
+    stop_for_human "$pr" "AIが${total}回（最後の1回は強いモデル）直しても解決しませんでした（最後の理由：${human_reason}）"
     return
   fi
   if [ "$count" -ge "$MAX_AUTO_FIX" ]; then
@@ -440,7 +474,7 @@ request_review() { # PR番号
   local pr="$1" sha
   if [ "$(pr_merge_state "$pr")" = dirty ]; then
     sha=$(gh api "repos/$REPO/pulls/$pr" -q .head.sha)
-    request_fix_or_stop "$pr" "$sha" "$CONFLICT_FIX_MSG"
+    request_fix_or_stop "$pr" "$sha" "$CONFLICT_FIX_MSG" "main とのコンフリクトが解けませんでした"
     echo "PR #$pr：main とコンフリクトしていてレビューが動かないので、先にAIに解消を依頼しました"
     return 0
   fi
@@ -488,7 +522,7 @@ merge_or_handle() {
   state=$(pr_merge_state "$pr")
   if [ "$state" = dirty ]; then
     # 同時に進めた別の PR が先にマージされ、同じファイルを触っていたとき
-    request_fix_or_stop "$pr" "$sha" "レビューのあとに main が進み、コンフリクトでマージできませんでした。\`git fetch origin main\` のあと \`git merge origin/main\` でコンフリクトを解消してください。両方の変更の意図を残し（docs/spec.md・docs/design.md も両方の決まりを残す）、どちらかを捨てるときはPRにコメントで理由を書いてください。解消したら確認コマンド（pipeline.json の checks。無ければ型チェック・リント・テスト・ビルド）を全部通して push してください。"
+    request_fix_or_stop "$pr" "$sha" "レビューのあとに main が進み、コンフリクトでマージできませんでした。\`git fetch origin main\` のあと \`git merge origin/main\` でコンフリクトを解消してください。両方の変更の意図を残し（docs/spec.md・docs/design.md も両方の決まりを残す）、どちらかを捨てるときはPRにコメントで理由を書いてください。解消したら確認コマンド（pipeline.json の checks。無ければ型チェック・リント・テスト・ビルド）を全部通して push してください。" "main とのコンフリクトが解けませんでした"
     echo "PR #$pr：main と衝突してマージできないので、AIに解消を依頼しました"
   else
     # CI 以外のチェック（Vercel など）が落ちていて、GitHub がマージを断ったのかもしれない。落ちているチェックがあれば、名前と理由を書く
@@ -640,8 +674,6 @@ parallel_limit_decide() {
 parallel_limit() { parallel_limit_decide "$1" | cut -d' ' -f1; }
 # 画面は、今の時刻で上限を決める（ここだけが現在時刻を読む）
 current_parallel() { parallel_limit_decide "$(date +%s)"; }
-# 画面のファイル：見た目のテストがあるリポジトリでは、ここを触る物どうしは基準の画像がぶつかるので、1つずつにする
-SCREEN_PATHS_RE='^(src/)?(app|components|styles|pages)/'
 
 # 本文の印から、触るファイルを1行に1つ出す（印が無ければ何も出さない）
 touches_from_body() {
@@ -651,26 +683,51 @@ touches_from_body() {
   printf '%s\n' "$list" | tr ',' '\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's#^\./##' | grep -v '^$' || true
 }
 
+# 本文から触るファイルを推し量る（印が無いときの補い）
+touches_guess_from_body() {
+  # 本文の `src/lib/a.ts` のような、バッククォートで囲んだ / を含むファイル名を集める（URL・空白入りは除く）
+  # shellcheck disable=SC2016
+  printf '%s\n' "$1" | grep -oE '`[A-Za-z0-9_.@()-]+(/[A-Za-z0-9_.@()-]+)+/?`' | tr -d '`' | grep -vE '^(https?:|\.\./)' | awk '!seen[$0]++' | head -n 20 || true
+}
+
+# READY なのに本文に ai-touches の印が無いとき、本文のファイル名から印を作って本文の最後に足す（足せたら 0）
+ensure_touches_mark() {
+  local issue="$1" body guess list
+  body=$(gh api "repos/$REPO/issues/$issue" -q '.body // ""' 2> /dev/null) || return 1
+  [[ "$body" =~ $TOUCHES_MARK_RE ]] && return 1
+  guess=$(touches_guess_from_body "$body")
+  [ -n "$guess" ] || { echo "#$issue：本文に触るファイルの印が無く、ファイル名からも補えませんでした（順番待ちでは待つ扱いになります）"; return 1; }
+  list=$(printf '%s\n' "$guess" | paste -sd, - | sed 's/,/, /g')
+  gh api -X PATCH "repos/$REPO/issues/$issue" -f body="${body}
+
+<!-- ai-touches: ${list} -->" > /dev/null || return 1
+  echo "#$issue：企画AIが触るファイルの印を書かなかったので、本文のファイル名から補いました（${list}）"
+}
+
+# 仕様書（docs/ の下の .md。サブフォルダの中も）か。仕様書は重なりに数えない
+# （後からマージされる方が main を取り込むときのコンフリクトを AI が解く。文書は両方を残せば解ける）
+is_doc_path() {
+  local p="${1,,}"
+  [[ "$p" == docs/*.md ]]
+}
+
 # 2つの一覧（改行区切り）が重なるか。同じファイル・片方のフォルダの中にもう片方がある、を重なりとみなす。
-# 第3引数が 1 なら、画面のファイルどうしも重なりとみなす（見た目のテストの基準の画像がぶつかるため）
+# 仕様書（is_doc_path）は数えない。画面のファイルも、同じファイルだけを重なりにする
+# （見た目のテストの基準の画像のずれは、後からマージされる方の自動の撮り直し visual:update で直る）
 paths_overlap() {
-  local a b screen="${3:-0}"
+  local a b
   while IFS= read -r a; do
     [ -z "$a" ] && continue
+    is_doc_path "$a" && continue
     while IFS= read -r b; do
       [ -z "$b" ] && continue
+      is_doc_path "$b" && continue
       [ "$a" = "$b" ] && return 0
       case "$a" in */) case "$b" in "$a"*) return 0 ;; esac ;; esac
       case "$b" in */) case "$a" in "$b"*) return 0 ;; esac ;; esac
-      if [ "$screen" = 1 ] && [[ "$a" =~ $SCREEN_PATHS_RE ]] && [[ "$b" =~ $SCREEN_PATHS_RE ]]; then return 0; fi
     done <<< "$2"
   done <<< "$1"
   return 1
-}
-
-# 見た目のテスト（tests/visual/）があるリポジトリか
-repo_has_visual_tests() {
-  gh api "repos/$REPO/contents/tests/visual?ref=main" --jq 'type' > /dev/null 2>&1
 }
 
 # ---- 見張り役を間引く（watchdog.sh の 0） ----
@@ -776,7 +833,7 @@ inflight_touches() {
 # 順番待ち（ai:queue）から、次に実装に回す物を選んで始める。
 # - 進行中の物が無ければ、先頭の1つ（priority:high が付いた物を先に、その中は番号の小さい順）
 # - 進行中の物があっても、上限（MAX_PARALLEL）に達しておらず、触るファイルが進行中の物と重ならない物は、並べて始める
-#   （触るファイルが分からない物・進行中の物に分からない物があるときは、今までどおり待つ。見た目のテストがあれば画面どうしも待つ）
+#   （触るファイルが分からない物・進行中の物に分からない物があるときは、今までどおり待つ。仕様書は重なりに数えない。画面は同じファイルだけ待つ）
 # 止まっている物（ai:stuck）は数えない（企画で止まった物はコードに触れていない）
 # 待ちが長くて進行中から外したPRに、外したことを1回だけ書く（印で二重に書かない）
 note_hold_released() {
@@ -812,7 +869,7 @@ sync_hold_blocking() {
 }
 
 start_next_in_queue() {
-  local busy stuck prs inflight queue n body t rc started=0 screen=0 holds pr state files blocks="" startedlist=" " limit_info limit idle=0 nomark_started=0
+  local busy stuck prs inflight queue n body t rc started=0 holds pr state files blocks="" startedlist=" " limit_info limit idle=0 nomark_started=0
   busy=$(count_open_issues_with_label "ai:implement") || return 1
   stuck=$(count_open_issues_with_label "ai:stuck") || return 1
   prs=$(count_open_prs) || return 1
@@ -846,7 +903,6 @@ start_next_in_queue() {
   fi
   # 数える進行中の物が1つも無い（数えないPRしか開いていない）なら、印の無い Issue も1つ始められる
   if [ -z "$(printf '%s\n' "$inflight" | tr -d '[:space:]')" ]; then idle=1; fi
-  if repo_has_visual_tests; then screen=1; fi
   holds=$(hold_prs 2> /dev/null) || holds=""
   for n in $queue; do
     if [ $((busy + started)) -ge "$limit" ]; then
@@ -874,7 +930,7 @@ start_next_in_queue() {
       fi
       continue
     fi
-    if paths_overlap "$t" "$inflight" "$screen"; then
+    if paths_overlap "$t" "$inflight"; then
       echo "#$n：進行中の作業と触るファイルが重なるので、待ちます"
       continue
     fi
@@ -893,7 +949,7 @@ $t"
       while read -r pr state; do
         [ "$state" = expired ] || continue
         files=$(gh api "repos/$REPO/pulls/$pr/files?per_page=100" --paginate -q '.[].filename' 2> /dev/null) || continue
-        if paths_overlap "$t" "$files" "$screen"; then note_hold_released "$pr" "$n"; fi
+        if paths_overlap "$t" "$files"; then note_hold_released "$pr" "$n"; fi
       done <<< "$holds"
     fi
   done
@@ -906,7 +962,7 @@ $t"
     while read -r pr state; do
       [ "$state" = waiting ] || continue
       files=$(gh api "repos/$REPO/pulls/$pr/files?per_page=100" --paginate -q '.[].filename' 2> /dev/null) || continue
-      if paths_overlap "$t" "$files" "$screen"; then blocks="${blocks}${pr} ${n}
+      if paths_overlap "$t" "$files"; then blocks="${blocks}${pr} ${n}
 "; fi
     done <<< "$holds"
   done
@@ -1628,10 +1684,53 @@ cancel_running_review() { # PR番号 先頭コミット
 
 # この先頭コミットに、直すよう頼んであって、まだ終わっていない依頼があるか（CIとレビューの両方が同じコミットに頼んで、修正AIが2つ同時に動かないように）
 # 終わった依頼（その依頼のコメントより後に、修正AIの「Claude finished」の返事がある）は数えない。
-# 修正AIが push せずに終わり、同じコミットをもう一度レビューする流れで、止まらないように
+# 修正AIが push せずに終わり、同じコミットをもう一度レビューする流れで、止まらないように。
+# 修正AIが「PRが更新されたので動かない」と返した依頼（STALE_FIX_RE）と、人間が ai:stuck を外す前の依頼も、もう動いていないので数えない
 fix_requested_for() { # PR番号 先頭コミット
-  all_comments "$1" | jq -e --arg mark "$AUTO_FIX_MARK" --arg sha "<!-- auto-fix-sha: $2 -->" \
-    '. as $all | any($all[] | select((.body | contains($mark)) and (.body | contains($sha))) | .created_at as $t
+  all_comments "$1" | jq -e --arg mark "$AUTO_FIX_MARK" --arg sha "<!-- auto-fix-sha: $2 -->" --arg resume "$RESUME_MARK" --arg stale "$STALE_FIX_RE" "$STALE_FIX_JQ"'
+    . as $all | stale_ids as $void
+    | (map(select(.body | contains($resume)) | .created_at) | max // "") as $since
+    | any($all[] | select((.body | contains($mark)) and (.body | contains($sha)) and .created_at > $since) | select(.id as $i | $void | index($i) | not) | .created_at as $t
       | ([$all[] | select(.user.login == "claude[bot]" and (.body | startswith("## Code review") | not)
           and (.body | contains("Claude finished")) and .created_at >= $t)] | length == 0); .)' > /dev/null
+}
+
+# いまの先頭コミットへの、いちばん新しいレビューの結果（「## Code review」のまとめ）に指摘があるか。
+# レビューは CI と同時に動くので、CIが落ちた時点で、指摘のある結果がもう出ていることがある（直す依頼は、このあと after-review.sh が出す）
+review_has_findings() { # PR番号 先頭コミット
+  local head_date
+  head_date=$(gh api "repos/$REPO/commits/$2" -q .commit.committer.date) || return 1
+  all_comments "$1" | jq -e --arg since "$head_date" '
+    map(select((.user.login == "claude[bot]" or .user.login == "github-actions[bot]") and (.body | startswith("## Code review")) and .created_at >= $since)) | last
+    | . != null and (.body | contains("No issues found") | not)' > /dev/null
+}
+
+# 修正AIが「PRが更新されたので動かない」と返して終わった依頼を、最新のコミットで出し直す（after-mention.sh が呼ぶ）。
+# 動かなかった依頼は直す回数に数えない（count_auto_fix）ので、出し直した依頼が、同じ回（同じ「n/m」・同じモデル）になる。
+# いまの先頭コミットに、別の依頼がもう出ていれば出し直さない（その修正AIに任せる）。MAX_STALE_FIX 回を超えたら人間に回す
+STALE_FIX_NOTE='（前の依頼は、依頼のあとにPRが更新されたため、修正AIが動きませんでした。直す回数には数えず、最新のコミットで出し直しています）'
+reissue_stale_fix() { # PR番号 動かなかった依頼のコメント（JSON）
+  local pr="$1" req="$2" body head stale message
+  body=$(printf '%s' "$req" | jq -r .body)
+  head=$(gh api "repos/$REPO/pulls/$pr" -q .head.sha)
+  stale=$(count_stale_fix "$pr")
+  if [ "$stale" -gt "$MAX_STALE_FIX" ]; then
+    stop_for_human "$pr" "修正AIへの依頼が、${stale}回続けて「依頼のあとにPRが更新された」ため動きませんでした（何かが、このPRのブランチを動かし続けています。Actions の Claude Mention・Visual Update・Pipeline の実行を確かめてください）"
+    return 0
+  fi
+  if fix_requested_for "$pr" "$head"; then
+    echo "PR #$pr：修正AIは「PRが更新された」ため動きませんでしたが、いまの先頭コミットにはもう直すよう頼んであるので、出し直しません"
+    return 0
+  fi
+  if printf '%s' "$body" | grep -q '<!-- auto-fix-retry -->'; then
+    # やり直しの依頼（もともと直す回数に数えない依頼）は、同じ文のまま、先頭コミットとPRの説明の目印だけを今の物にして出し直す
+    comment "$pr" "$(printf '%s\n' "$body" | sed -E -e "s/(auto-fix-sha: )[0-9a-f]+/\\1${head}/" -e "s/(auto-fix-body: )[0-9a-f]+/\\1$(pr_body_hash "$pr")/")"
+    echo "PR #$pr：修正AIは「PRが更新された」ため動かなかったので、やり直しの依頼を最新のコミットで出し直しました"
+    return 0
+  fi
+  # 依頼の文は、コメントの1行目（「@claude 」の後ろ）。前の出し直しの断り書きは付け直す
+  message=$(printf '%s\n' "$body" | sed -n '1{s/^@claude //;p;}')
+  message=${message%%"$STALE_FIX_NOTE"*}
+  request_fix_or_stop "$pr" "$head" "${message}${STALE_FIX_NOTE}"
+  echo "PR #$pr：修正AIは「PRが更新された」ため動かなかったので、直す回数に数えず、最新のコミットで依頼を出し直しました"
 }
