@@ -7,7 +7,7 @@ import { formatLastActivity, sortRepoRows, type RepoListRow } from "@/lib/repoLi
 import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import { getSidebarSnapshot, subscribeSidebar, type DeskError, type DeskNav } from "./Desk";
 import { LoadErrors } from "./LoadErrors";
-import { PanelLeftIcon } from "./icons";
+import { PanelLeftIcon, PlusIcon } from "./icons";
 import styles from "./RepoList.module.css";
 import { Counts, CountsKey, SideRepos } from "./TopBar";
 
@@ -49,7 +49,13 @@ export function RepoList({ rows, now, nav, errors }: Props) {
         <SideRepos {...nav} />
       </div>
       <main id="main" className={styles.main}>
-        <h1 className={styles.h1}>すべてのリポジトリ</h1>
+        <div className={styles.titleRow}>
+          <h1 className={styles.h1}>すべてのリポジトリ</h1>
+          <Link href={`${basePath}/setup`} className={styles.setup}>
+            <PlusIcon />
+            Setup
+          </Link>
+        </div>
         <div className={styles.totalRow}>
           <p className={`${styles.total} num`}>監視中 {rows.length}件</p>
           <CountsKey className={styles.keyMobile} />
