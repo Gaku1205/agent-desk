@@ -11,7 +11,7 @@ import type {
 import { pickAutoAddRepos } from "../autoAdd";
 import { isRunningStage } from "../runningPipeline";
 import { getFlow } from "../flow";
-import { getIssueStatus, shouldShowIssue } from "../status";
+import { getIssueStatus, shouldShowIssue, type Stage } from "../status";
 import type { OperationKind } from "../turn";
 import { FACTORY_BOT } from "../factoryTalk";
 import { demoFactoryBody, demoFactoryState } from "./factory";
@@ -582,12 +582,15 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
     "#17（ドラッグで並べ替え）と同じ一覧の部品を変えるので、#17 が終わってから始めます",
     ago(ctx, 33),
   );
+  // 順番待ちに入った時刻（Slots & Queue の待ち時間）
+  addLabeled(ctx, 15, "ai:queue", ago(ctx, 33));
   addIssue(ctx, 14, "並べ替えた順番を保存する", {
     createdAt: ago(ctx, 34),
     labels: ["ai:queue"],
     planned: true,
   });
   addComment(ctx, 14, "#17 の並べ替えができてから、その順番を保存する作業なので順番待ちにします", ago(ctx, 32));
+  addLabeled(ctx, 14, "ai:queue", ago(ctx, 32));
 
   // 保留（ai:skip）
   addIssue(ctx, 31, "タスクをカレンダーに表示する", { createdAt: ago(ctx, 3 * 60), labels: ["ai:skip"] });
@@ -821,18 +824,33 @@ function demoRuns(data: RepoData, base: Date, stalled: number[] = []): WorkflowR
   const updatedAt = new Date(base.getTime() - MINUTE_MS).toISOString();
   return data.issues
     .filter((issue) => shouldShowIssue(issue, data.pulls) && !stalled.includes(issue.number))
-    .filter((issue) => {
-      const status = getIssueStatus(issue, data, base);
-      return (isRunningStage(status.stage, status.grace) || status.turn === "ai") && status.stage !== "deploying";
-    })
-    .map((issue) => ({
+    .map((issue) => ({ issue, status: getIssueStatus(issue, data, base) }))
+    .filter(
+      ({ status }) =>
+        (isRunningStage(status.stage, status.grace) || status.turn === "ai") && status.stage !== "deploying",
+    )
+    .map(({ issue, status }) => ({
+      // Slots & Queue の Running の見本：実行の番号・ワークフローの名前・始まった時刻（「今」からの相対）
+      id: 900_000 + issue.number,
       status: "in_progress",
       headBranch: `claude/issue-${issue.number}-demo`,
       displayTitle: issue.title,
       pullNumbers: [],
       updatedAt,
+      name: DEMO_RUN_NAMES[status.stage] ?? "Pipeline",
+      startedAt: new Date(base.getTime() - ((issue.number % 5) * 6 + 3) * MINUTE_MS).toISOString(),
     }));
 }
+
+/** デモの実行のワークフローの名前（段階ごと） */
+const DEMO_RUN_NAMES: Partial<Record<Stage, string>> = {
+  planning: "Claude Plan",
+  implementing: "Claude Implement",
+  ciRunning: "CI",
+  ciFailed: "Claude Mention",
+  reviewing: "Claude Review",
+  fixing: "Claude Mention",
+};
 
 /**
  * デモで「あなたの番」のボタンを押した：押した操作を覚える（データには buildDemoResults が当てる）。

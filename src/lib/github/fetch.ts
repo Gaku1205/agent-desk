@@ -256,9 +256,16 @@ export function toWorkflowRun(raw: unknown): WorkflowRunData | null {
     display_title?: unknown;
     pull_requests?: unknown;
     updated_at?: unknown;
+    name?: unknown;
+    run_started_at?: unknown;
+    created_at?: unknown;
   };
   if (typeof run.status !== "string" || typeof run.updated_at !== "string") return null;
   if (Number.isNaN(Date.parse(run.updated_at))) return null;
+  // 始まった時刻（Slots & Queue の経過時間）。読めなければ持たない
+  const started = [run.run_started_at, run.created_at].find(
+    (value): value is string => typeof value === "string" && !Number.isNaN(Date.parse(value)),
+  );
   const pullNumbers = Array.isArray(run.pull_requests)
     ? run.pull_requests
         .map((pull) => (pull as { number?: unknown } | null)?.number)
@@ -271,6 +278,8 @@ export function toWorkflowRun(raw: unknown): WorkflowRunData | null {
     displayTitle: typeof run.display_title === "string" ? run.display_title : "",
     pullNumbers,
     updatedAt: run.updated_at,
+    ...(typeof run.name === "string" && run.name.trim() !== "" ? { name: run.name.trim() } : {}),
+    ...(started ? { startedAt: started } : {}),
   };
 }
 

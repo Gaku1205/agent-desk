@@ -106,6 +106,15 @@ test.describe("デモの画面", () => {
     await expect(page).toHaveScreenshot("dashboard.png");
   });
 
+  test("Slots & Queue", async ({ page }) => {
+    await page.goto("/demo/lanes");
+    await settle(page);
+    await expect(page.getByRole("heading", { level: 1, name: "Slots & Queue" })).toBeVisible();
+    // 左のバー（スマホはメニュー。閉じていて見えない）の項目が「今いる」
+    await expect(page.locator('a[href="/demo/lanes"]').first()).toHaveAttribute("aria-current", "page");
+    await expect(page).toHaveScreenshot("lanes.png");
+  });
+
   test("メニューを開いた状態（スマホ）", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile", "メニューボタンはスマホだけ");
     await page.goto("/demo");
@@ -262,7 +271,7 @@ test.describe("デモの画面", () => {
   });
 
   test("横にはみ出さない", async ({ page }) => {
-    for (const path of ["/demo", REPO_PAGE, "/demo/dashboard"]) {
+    for (const path of ["/demo", REPO_PAGE, "/demo/dashboard", "/demo/lanes"]) {
       await page.goto(path);
       await page.evaluate(() => document.fonts.ready);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

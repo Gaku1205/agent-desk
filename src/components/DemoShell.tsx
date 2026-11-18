@@ -162,6 +162,7 @@ export function DemoShell({
   const parallel = useMemo<ParallelView>(
     () => ({
       state: resolveParallelState(demo.now, DEMO_PARALLEL_SETTINGS, parallelOverride),
+      settings: DEMO_PARALLEL_SETTINGS,
       busy: false,
       error: null,
       toggle: () => {

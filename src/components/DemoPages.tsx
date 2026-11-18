@@ -14,7 +14,9 @@ import { countTurnItems, filterTurnItems } from "@/lib/turn";
 import { aiUsageAll } from "@/lib/dashboard/aiUsage";
 import { hourStarts, type GithubLimits } from "@/lib/dashboard/githubLimits";
 import { summarizeAll } from "@/lib/dashboard/summary";
+import { buildLanesSource } from "@/lib/lanes/source";
 import { Dashboard } from "./Dashboard";
+import { Lanes } from "./Lanes";
 import { useDemoState } from "./DemoContext";
 import { Desk, type DeskNav } from "./Desk";
 import { buildRepoRows } from "@/lib/repoList";
@@ -136,6 +138,13 @@ export function DemoDashboard() {
       nav={nav}
     />
   );
+}
+
+/** デモの Slots & Queue：デモのデータで、本物と同じ部品 */
+export function DemoLanes() {
+  const { results, now } = useDemoState();
+  const nav = useDemoNav();
+  return <Lanes source={buildLanesSource(results, now)} now={now.toISOString()} nav={nav} />;
 }
 
 /** デモのIssueを書く画面：GitHub には送らず、サンプルのデータにIssueが増える（landing-page はテンプレートの見本） */
