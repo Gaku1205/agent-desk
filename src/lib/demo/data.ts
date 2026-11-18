@@ -783,7 +783,7 @@ function landingPage(base: Date, placer: Placer): RepoData {
   addIssue(ctx, 21, "ご利用の流れの図を足す", { createdAt: ago(ctx, 5), labels: ["ai:plan"] });
 
   // 公開済み
-  addDeployed(ctx, 2, 11, "スマホでメニューが開かないのを直す", 4 * 60, { fixed: true });
+  addDeployed(ctx, 2, 11, "スマホでナビが開かないのを直す", 4 * 60, { fixed: true });
   addDeployed(ctx, 1, 10, "ヘッダーのロゴを差し替える", 50 * 60, { planned: true });
 
   addStepLogs(ctx);
