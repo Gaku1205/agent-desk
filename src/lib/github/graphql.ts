@@ -349,12 +349,13 @@ export function convertStatuses(status: GqlStatus): CommitStatusData[] {
 }
 
 /**
- * PRのチェック。開いているPR：先頭コミットのチェックランだけ。
- * マージ済み：先頭コミットのチェックラン（出来事のCI・レビューの足あと用）とマージコミットの公開ステータス。閉じた（未マージ）PRとIssueに紐づかないPRは持たない（null）
+ * PRのチェック。開いているPR（Issueに紐づかないPRも）：先頭コミットのチェックランだけ（「マージしてよいPR」の CI の判定に要る）。
+ * マージ済み：先頭コミットのチェックラン（出来事のCI・レビューの足あと用）とマージコミットの公開ステータス。閉じた（未マージ）PRと、マージ済みのIssueに紐づかないPRは持たない（null）
  */
 export function convertGqlPullChecks(raw: GqlPull, pull: PullData): PullChecks | null {
-  if (!isIssueLinkedPull(pull) || (pull.state === "closed" && !pull.merged)) return null;
+  if (pull.state === "closed" && !pull.merged) return null;
   if (!pull.merged) return { checkRuns: convertGqlCheckRuns(raw), statuses: [] };
+  if (!isIssueLinkedPull(pull)) return null;
   return { checkRuns: convertGqlCheckRuns(raw), statuses: convertStatuses(raw.mergeCommit?.status ?? null) };
 }
 

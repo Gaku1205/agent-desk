@@ -281,10 +281,15 @@ describe("convertGqlPullChecks（チェックを持たせるPR）", () => {
     expect(checks?.statuses.map((s) => s.state)).toEqual(["success"]);
   });
 
-  it("閉じた（未マージ）PRと、Issueに紐づかないPRは持たない", () => {
+  it("閉じた（未マージ）PRと、マージ済みのIssueに紐づかないPRは持たない", () => {
     expect(check(gqlPull(3, { state: "CLOSED", commits: runs }))).toBeNull();
-    expect(check(gqlPull(4, { headRefName: "pipeline-sync/4", commits: runs }))).toBeNull();
+    expect(check(gqlPull(4, { headRefName: "pipeline-sync/4", merged: true, commits: runs }))).toBeNull();
     expect(check(gqlPull(5, { headRefName: "feature/y", body: "Closes #5", commits: runs }))).not.toBeNull();
+  });
+
+  it("開いているIssueに紐づかないPR（マネージャーの ai:hold のPRなど）もチェックランを持つ（マージしてよいPRの判定に要る）", () => {
+    const checks = check(gqlPull(6, { headRefName: "fix/x", body: "説明だけ", commits: runs }));
+    expect(checks?.checkRuns.map((r) => r.name)).toEqual(["test"]);
   });
 });
 

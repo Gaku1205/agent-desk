@@ -151,7 +151,7 @@ describe("人間待ちの Issue は直近14日で絞らない", () => {
 });
 
 describe("チェックを持たせるPR（取る量を減らした時の決まりを引き継ぐ）", () => {
-  it("閉じた（未マージ）PRとIssueに紐づかないPRは持たない。マージ済みは公開ステータスだけ", async () => {
+  it("閉じた（未マージ）PRとマージ済みのIssueに紐づかないPRは持たない。開いているIssueに紐づかないPRは持つ。マージ済みは公開ステータスだけ", async () => {
     const { fetcher } = fakeGitHub({
       "o/r": {
         pulls: [
@@ -159,13 +159,14 @@ describe("チェックを持たせるPR（取る量を減らした時の決ま�
           gqlPull(2, { headRefName: "feature/y", body: "Closes #2" }),
           gqlPull(3, { state: "CLOSED" }),
           gqlPull(4, { headRefName: "pipeline-sync/1" }),
+          gqlPull(5, { headRefName: "pipeline-sync/2", merged: true }),
           gqlPull(7, { merged: true, statuses: [{ context: "Vercel", state: "SUCCESS", createdAt: "2026-10-24T00:05:00Z" }] }),
         ],
       },
     });
     const [result] = await fetchAllRepos(TOKEN, [{ owner: "o", repo: "r" }], { fetcher, now: NOW });
     if (!result.ok) throw new Error("取れるはず");
-    expect(Object.keys(result.data.pullChecks).sort()).toEqual(["1", "2", "7"]);
+    expect(Object.keys(result.data.pullChecks).sort()).toEqual(["1", "2", "4", "7"]);
     expect(result.data.pullChecks[7].checkRuns).toEqual([]);
     expect(result.data.pullChecks[7].statuses[0]?.context).toBe("Vercel");
   });
