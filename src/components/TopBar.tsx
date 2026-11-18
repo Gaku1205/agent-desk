@@ -9,6 +9,7 @@ import { formatResetTime, formatSyncTime, getDisplayedSyncTime } from "@/lib/ref
 import { shouldCloseMenuOnPick, shouldRestoreMenuFocus } from "@/lib/menuFocus";
 import { hasHiddenBelow } from "@/lib/sideScroll";
 import { revealScrollLeft } from "@/lib/tabScroll";
+import { currentRepoFromPath, visibleRepos } from "@/lib/visibleRepos";
 import type { TurnCounts } from "@/lib/turn";
 import { useShell } from "./AppShell";
 import { useDemo } from "./DemoContext";
@@ -40,7 +41,7 @@ type Props = {
  * 数だけが並んで何の数か分からない（同じ数だとバグに見える）ので、誌面の左の凡例と同じ色の点を前に付け、
  * 今いるページの札（labeled）だけは短い名札（あなたの番・AI）も付ける。意味は title と読み上げでも言う
  */
-function Counts({ turn, running, labeled }: { turn: number; running: number; labeled: boolean }) {
+export function Counts({ turn, running, labeled }: { turn: number; running: number; labeled: boolean }) {
   const text = `あなたの番 ${turn}件、AIが動いている ${running}件`;
   // 押した札の点：次の画面が出るまで脈打つ（動きを減らすときは色だけ）。<Link> の子の部品の中で使う
   const { pending } = useLinkStatus();
@@ -122,6 +123,9 @@ export function RepoTabs({
   const pathname = usePathname();
   const isCurrent = (href: string) => pathname.toLowerCase() === href.toLowerCase();
   const home = basePath || "/";
+  const allReposHref = `${basePath}/repos`;
+  // 動きのあるリポジトリ（あなたの番かAIの番が1件以上）と、今開いているリポジトリだけを出す。全部は「すべてのリポジトリ」で見る
+  const shown = visibleRepos(repos, counts, runningCounts, currentRepoFromPath(pathname));
   const navRef = useRef<HTMLElement>(null);
   // 札が増えて横にスクロールするとき、今いる札が見える位置に来る（動きは付けない）
   useEffect(() => {
@@ -150,7 +154,7 @@ export function RepoTabs({
         <span>全部</span>
         <Counts turn={counts.total} running={runningCounts.total} labeled={isCurrent(home)} />
       </Link>
-      {repos.map(({ owner, repo }) => {
+      {shown.map(({ owner, repo }) => {
         const href = `${basePath}/repos/${owner}/${repo}`;
         const key = `${owner}/${repo}`.toLowerCase();
         return (
@@ -172,6 +176,19 @@ export function RepoTabs({
           </Link>
         );
       })}
+      <Link
+        href={allReposHref}
+        className={styles.tab}
+        aria-current={isCurrent(allReposHref) ? "page" : undefined}
+        title={`すべてのリポジトリ（監視中 ${repos.length}件）`}
+        onClick={shouldCloseMenuOnPick(pathname, allReposHref) ? onPick : undefined}
+      >
+        <GridIcon />
+        <span>すべてのリポジトリ</span>
+        <i className={`${styles.total} num`} aria-label={`監視中 ${repos.length}件`}>
+          {repos.length}
+        </i>
+      </Link>
     </nav>
   );
 }
@@ -196,7 +213,7 @@ export function SideRepos(props: Pick<Props, "repos" | "counts" | "runningCounts
       list.removeEventListener("scroll", update);
       observer.disconnect();
     };
-  }, [props.repos.length]);
+  }, [props.repos.length, props.counts, props.runningCounts]);
   return (
     <aside className={styles.side} aria-label="リポジトリの一覧">
       <div className={styles.sideList} ref={listRef}>

@@ -13,7 +13,9 @@ import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems, filterTurnItems } from "@/lib/turn";
 import { useDemoState } from "./DemoContext";
 import { Desk, type DeskNav } from "./Desk";
+import { buildRepoRows } from "@/lib/repoList";
 import { NewIssueForm } from "./NewIssueForm";
+import { RepoList } from "./RepoList";
 import { SettingsSections } from "./SettingsSections";
 
 /** Issueを書く欄のリポジトリ（landing-page はテンプレートの見本） */
@@ -87,6 +89,13 @@ export function DemoRepo({ owner, repo }: { owner: string; repo: string }) {
       hideUnknownModel
     />
   );
+}
+
+/** デモのすべてのリポジトリ：0・0 の物と数のある物の両方が並ぶ */
+export function DemoRepos() {
+  const { results, items, now, repos } = useDemoState();
+  const nav = useDemoNav();
+  return <RepoList rows={buildRepoRows(repos, results, items, now)} now={now.toISOString()} nav={nav} />;
 }
 
 /** デモのIssueを書く画面：GitHub には送らず、サンプルのデータにIssueが増える（landing-page はテンプレートの見本） */

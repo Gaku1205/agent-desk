@@ -61,13 +61,13 @@ export type DeskNav = {
 };
 
 /** 左のバーを畳んだか：<html> の data-side が正（描く前のスクリプトが保存から付ける） */
-function subscribeSidebar(onChange: () => void): () => void {
+export function subscribeSidebar(onChange: () => void): () => void {
   const observer = new MutationObserver(onChange);
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-side"] });
   return () => observer.disconnect();
 }
 
-function getSidebarSnapshot(): boolean {
+export function getSidebarSnapshot(): boolean {
   return document.documentElement.getAttribute("data-side") === "closed";
 }
 
