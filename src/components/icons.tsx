@@ -192,6 +192,16 @@ export function ChipIcon({ size = LABEL }: IconProps) {
   );
 }
 
+/** 上向きの矢印（Dashboard の Throughput） */
+export function ArrowUpIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M12 20V5" />
+      <path d="m5 12 7-7 7 7" />
+    </LineIcon>
+  );
+}
+
 /** メーター（Dashboard の GitHub limits）：半円の目盛りと針 */
 export function GaugeIcon({ size = LABEL }: IconProps) {
   return (

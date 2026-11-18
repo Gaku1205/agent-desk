@@ -45,7 +45,7 @@ export function time(value: string | null): number | null {
 }
 
 /** マージされたPRと、紐づくIssueの作成時刻（紐づくIssueが無ければ null）の組 */
-function mergedPulls(data: RepoData): { mergedAt: number; createdAt: number | null }[] {
+export function mergedPulls(data: RepoData): { mergedAt: number; createdAt: number | null }[] {
   const rows: { mergedAt: number; createdAt: number | null }[] = [];
   for (const pull of data.pulls) {
     if (!pull.merged) continue;
