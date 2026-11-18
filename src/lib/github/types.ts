@@ -31,6 +31,8 @@ export type PullData = {
   createdAt: string;
   updatedAt: string;
   mergedAt: string | null;
+  /** 変更ファイルの名前（GraphQL の `files`。取れなかった・100件を超えるときは無し＝重なり無しの扱い） */
+  files?: string[];
 };
 
 /** IssueとPRのコメント（GitHubではPRのコメントもIssueのコメント） */

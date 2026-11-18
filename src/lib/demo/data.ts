@@ -119,6 +119,8 @@ function addPull(
     statuses?: CommitStatusData[];
     /** `Closes #番号` の後ろに足す本文（審査役の採点など） */
     body?: string;
+    /** 変更ファイルの名前（マージ待ちの一覧の並びに使う） */
+    files?: string[];
   },
 ): PullData {
   const pull: PullData = {
@@ -135,6 +137,7 @@ function addPull(
     createdAt: options.createdAt,
     updatedAt: options.mergedAt ?? options.createdAt,
     mergedAt: options.mergedAt ?? null,
+    ...(options.files ? { files: options.files } : {}),
   };
   ctx.data.pulls.push(pull);
   ctx.data.pullChecks[number] = {
@@ -430,6 +433,7 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
     headSha: "5e6f7a8",
     labels: ["ai:hold", "ai:review"],
     checkRuns: [...ciRuns(4, ago(ctx, 32)), run("review", ago(ctx, 21))],
+    files: ["src/components/TaskList.tsx", "src/lib/tasks.ts"],
   });
   addLabeled(ctx, 37, "ai:review", ago(ctx, 31));
   addComment(ctx, 37, REVIEW_CLEAN, ago(ctx, 21));
@@ -446,6 +450,7 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
     headSha: "7a8b9c0",
     labels: ["ai:hold", "ai:review"],
     checkRuns: [...ciRuns(4, ago(ctx, 5 * 60)), run("review", ago(ctx, 4 * 60))],
+    files: ["src/components/Settings.tsx"],
   });
   addComment(ctx, 72, REVIEW_CLEAN, ago(ctx, 4 * 60));
 
@@ -455,6 +460,7 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
     headSha: "8b9c0d1",
     labels: ["ai:hold"],
     checkRuns: [...ciRuns(4, ago(ctx, 90)), run("review", ago(ctx, 80))],
+    files: ["README.md"],
   });
   unlinked.body = "READMEの手順を、いまの画面に合わせて直しました。";
   unlinked.headRef = "manager/readme-update";
@@ -481,6 +487,8 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
     headSha: "6f7a8b9",
     labels: ["ai:hold"],
     checkRuns: ciRuns(4, ago(ctx, 24 * 60 + 40)),
+    // #37 と src/lib/tasks.ts が重なる
+    files: ["src/lib/export.ts", "src/lib/tasks.ts"],
   });
   // 順番待ち（#15・#14）を止めている印（パイプラインが付ける）
   addComment(ctx, 36, "<!-- hold-blocking: #15,#14 -->", ago(ctx, 20 * 60), "github-actions[bot]");

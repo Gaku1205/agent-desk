@@ -105,6 +105,28 @@ describe("GraphQL の返事 → 今の型（REST からの変換と同じ結果�
     expect(pull.mergeCommitSha).toBeNull();
   });
 
+  it("変更ファイルの名前を持たせる", () => {
+    const pull = convertGqlPull(
+      gqlPull(6, { files: { totalCount: 2, nodes: [{ path: "a.ts" }, { path: "b.ts" }] } }),
+    );
+    expect(pull.files).toEqual(["a.ts", "b.ts"]);
+  });
+
+  it("変更ファイルが100件を超えるときは files を持たない", () => {
+    const pull = convertGqlPull(
+      gqlPull(7, { files: { totalCount: 150, nodes: [{ path: "a.ts" }, { path: "b.ts" }] } }),
+    );
+    expect("files" in pull).toBe(false);
+  });
+
+  it("変更ファイルが取れなかった（無い・null・nodes が null）ときは files を持たない", () => {
+    expect("files" in convertGqlPull(gqlPull(8, {}))).toBe(false);
+    expect("files" in convertGqlPull(gqlPull(9, { files: null }))).toBe(false);
+    expect(
+      "files" in convertGqlPull(gqlPull(10, { files: { totalCount: 0, nodes: null } })),
+    ).toBe(false);
+  });
+
   it("コメント：Bot のログイン名には [bot] を付ける（REST と同じ）", () => {
     const rest = [
       convertComment({
