@@ -5,12 +5,18 @@ import { SIDEBAR_INIT_SCRIPT } from "@/lib/sidebar";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
-/** 和文：IBM Plex Sans JP（docs/design.md の「文字」） */
+/**
+ * 和文：IBM Plex Sans JP（docs/design.md の「文字」）。
+ * 先読み（preload）はしない：日本語のフォントは細かく分かれたファイル（1つの太さで100個以上）で配られ、先読みを有効にすると、
+ * そのページで使わない分まで全部（本番で woff2 247個・2.8MB）を、開くたびに最初の描画の前から読みに行っていた。
+ * 先読みしなければ、ブラウザが画面の文字に要る分だけを読み、読めるまでは代わりの字で先に出す（`display: "swap"`）
+ */
 const plexSansJp = IBM_Plex_Sans_JP({
   weight: ["400", "500", "700"],
   subsets: ["latin"],
   variable: "--font-jp",
   display: "swap",
+  preload: false,
 });
 
 /** 欧文・数字：Geist（可変） */
