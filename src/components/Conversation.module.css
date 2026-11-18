@@ -76,6 +76,13 @@
   cursor: pointer;
 }
 
+/* 順番待ちの印：文字の左、間4px、縦は文字の真ん中 */
+.queueIcon {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
 .queueToggle:hover {
   color: var(--bone);
 }
@@ -148,6 +155,9 @@
 }
 
 .wait {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
   color: var(--wait);
   font-weight: 700;
   white-space: nowrap;

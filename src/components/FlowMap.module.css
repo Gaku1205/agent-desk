@@ -245,6 +245,11 @@
   white-space: nowrap;
 }
 
+/* 順番待ちの印：文字の左、間4px（印の色は --wait のまま） */
+.tryIcon {
+  margin-right: 4px;
+}
+
 .try .time {
   margin-left: auto;
 }
