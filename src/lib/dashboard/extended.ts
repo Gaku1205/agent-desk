@@ -83,8 +83,14 @@ export function convertExtendedNodes(
   }
   for (const raw of pullNodes) {
     const mergedAt = raw.mergedAt ?? null;
-    if (mergedAt === null || Date.parse(mergedAt) < cutoff || seenPulls.has(raw.number)) continue;
+    if (seenPulls.has(raw.number)) continue;
     seenPulls.add(raw.number);
+    // マージ済みで60日前より前の物は数えない。開いたまま・閉じた物は、止まった印（`ai:stuck`）などの出来事だけ残す
+    if (mergedAt !== null && Date.parse(mergedAt) < cutoff) continue;
+    if (mergedAt === null) {
+      collect(raw.number, raw);
+      continue;
+    }
     pulls.push({
       number: raw.number,
       title: "",

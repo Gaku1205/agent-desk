@@ -111,6 +111,7 @@ export function DemoShell({
   const [autoAdd, setAutoAdd] = useState(true);
   const [keptAt, setKeptAt] = useState<string | null>(null);
   const baseResults = useMemo(() => buildDemoResults(base, playback), [base, playback]);
+  const olderResults = useMemo(() => buildDemoResults(base, playback, true), [base, playback]);
   const possible = demoAutoAdd(baseResults, true);
   const addedAt = possible && (autoAdd || keptAt === possible.at) ? possible.at : null;
   if (addedAt && keptAt !== addedAt) setKeptAt(addedAt);
@@ -126,6 +127,7 @@ export function DemoShell({
     );
     return {
       results,
+      dashboardResults: addedAt ? [...olderResults, demoAutoAddResult(addedAt)] : olderResults,
       repos,
       addedNotices,
       autoAdd,
@@ -138,7 +140,7 @@ export function DemoShell({
       operate,
       createIssue,
     };
-  }, [baseResults, addedAt, autoAdd, playback.now, playState, play, notify, operate, createIssue]);
+  }, [baseResults, olderResults, addedAt, autoAdd, playback.now, playState, play, notify, operate, createIssue]);
 
   const shell = useMemo<ShellState>(
     () => ({

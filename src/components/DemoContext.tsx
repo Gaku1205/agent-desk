@@ -10,6 +10,8 @@ import type { OperationKind, TurnItem } from "@/lib/turn";
 export type DemoState = {
   /** サンプルのデータ（本物と同じ形） */
   results: RepoResult[];
+  /** Dashboard のデモ用：`results` に、`30d` のための古い公開済みを足した物 */
+  dashboardResults: RepoResult[];
   /** 監視しているリポジトリ（工場が作ったリポジトリを自動で足したら、それも入る） */
   repos: WatchedRepo[];
   /** 自動で監視に足したリポジトリ（「いまの様子」のお知らせ） */

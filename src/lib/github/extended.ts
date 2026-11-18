@@ -58,7 +58,6 @@ query DashboardExtended(
     pullRequests(
       first: ${EXTENDED_PAGE_SIZE}
       after: $pullsAfter
-      states: MERGED
       orderBy: { field: UPDATED_AT, direction: DESC }
     ) @include(if: $withPulls) {
       pageInfo { hasNextPage endCursor }

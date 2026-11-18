@@ -105,7 +105,8 @@ describe("問い合わせの点数（GraphQL の回数制限）", () => {
 
   it("問い合わせの文に決めた件数が入り、チェック・ファイル・ラベル・題名は取らない", () => {
     expect(EXTENDED_QUERY.match(new RegExp(`first: ${EXTENDED_PAGE_SIZE}\\n`, "g"))).toHaveLength(2);
-    expect(EXTENDED_QUERY).toContain("states: MERGED");
+    // 止まった印（ai:stuck）は開いたままのPRにも付くので、状態では絞らない
+    expect(EXTENDED_QUERY).not.toContain("states:");
     for (const word of ["statusCheckRollup", "files(", "labels(", "title", "mergeCommit", "commits("]) {
       expect(EXTENDED_QUERY).not.toContain(word);
     }

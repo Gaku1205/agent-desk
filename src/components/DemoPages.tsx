@@ -126,10 +126,10 @@ function demoGithubLimits(now: Date, runs: number | null): GithubLimits {
 
 /** デモの Dashboard：デモのデータで、本物と同じ集計を出す */
 export function DemoDashboard() {
-  const { results, now, repos } = useDemoState();
+  const { dashboardResults, now, repos } = useDemoState();
   const nav = useDemoNav();
-  // デモのデータは60日分あるので、`30d` も含めて全部の期間をここで数える（取得は無い）
-  const bundles = Object.fromEntries(PERIOD_KEYS.map((key) => [key, buildBundle(results, now, key)])) as Record<
+  // Dashboard のデモのデータは60日分あるので、`30d` も含めて全部の期間をここで数える（取得は無い）
+  const bundles = Object.fromEntries(PERIOD_KEYS.map((key) => [key, buildBundle(dashboardResults, now, key)])) as Record<
     PeriodKey,
     PeriodBundle
   >;

@@ -388,7 +388,7 @@ function stepIndex(name: PlayStep): number {
 }
 
 /** todo-app：再生の1件、止まった・マージ待ち（ai:hold）・レビュー中・CI中・CI失敗・修正中・AI作業中・順番待ち・未着手・公開済み */
-function todoApp(base: Date, playback: DemoPlayback): RepoData {
+function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean): RepoData {
   const ctx = createCtx(DEMO_REPOS[0], base, 1000);
   addPlayIssue(ctx, playback);
 
@@ -612,8 +612,10 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
 
   addStepLogs(ctx);
 
-  // Dashboard の `30d` 用に、もっと古い公開済み（7〜30日前に3件、その前の30日［31〜60日前］に3件）。
-  // 直近14日の表示には出ない。進捗ログは付けない（AI time を今に寄せないため）
+  // Dashboard の `30d` 用に、もっと古い公開済み（14〜30日前に3件、その前の30日［31〜60日前］に3件）。
+  // Dashboard のデモだけで足す（`withOlder`）。ホーム・リポジトリのページは本物と同じ直近14日なので、渡さない。
+  // 進捗ログは付けない（AI time を今に寄せないため）
+  if (!withOlder) return ctx.data;
   addDeployed(ctx, 6, 51, "タスクを完了にするチェックボックスを足す", 14 * 24 * 60);
   addDeployed(ctx, 5, 52, "タスクの並び順を期限の近い順にする", 21 * 24 * 60, { planned: true });
   addDeployed(ctx, 4, 53, "タスクを削除できるようにする", 26 * 24 * 60);
@@ -775,9 +777,9 @@ function notesApi(base: Date): RepoData {
 }
 
 /** デモの全リポジトリのデータ。base はサンプルの時刻の基準、playback は再生の状態（押した操作を含む） */
-export function buildDemoResults(base: Date, playback: DemoPlayback): RepoResult[] {
+export function buildDemoResults(base: Date, playback: DemoPlayback, withOlder = false): RepoResult[] {
   const [todo, landing, notes] = DEMO_REPOS;
-  const todoData = applyDemoOps(todoApp(base, playback), playback.ops, todo.owner, todo.repo);
+  const todoData = applyDemoOps(todoApp(base, playback, withOlder),playback.ops, todo.owner, todo.repo);
   const landingData = applyDemoOps(landingPage(base), playback.ops, landing.owner, landing.repo);
   const notesData = notesApi(base);
   return [

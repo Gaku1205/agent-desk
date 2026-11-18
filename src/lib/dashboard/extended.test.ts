@@ -95,6 +95,21 @@ describe("30日分の取得結果 → RepoData に近い形", () => {
     expect(bundle.now).toBe(NOW.toISOString());
   });
 
+  it("開いたままのPRに付いた ai:stuck も、止まった回数に数える（PR は merged だけ）", () => {
+    const stuck = { __typename: "LabeledEvent", createdAt: ago(0.1), label: { name: "ai:stuck" } };
+    const data = convertExtendedNodes(
+      "o",
+      [],
+      [pullNode(20, 5, null, { timelineItems: { nodes: [stuck] }, comments: { nodes: [comment(3, "⏸ 自動で進めるのを止めました：CIが落ちました", 0.1)] } })],
+      NOW,
+    );
+    expect(data.pulls).toEqual([]);
+    expect(data.events.map((e) => e.labelName)).toEqual(["ai:stuck"]);
+    expect(data.comments.map((c) => c.id)).toEqual([3]);
+    const bundle = buildExtendedBundle([{ owner: "o", repo: "r", ok: true, data }], NOW);
+    expect(bundle.summary.stopped).toBe(1);
+  });
+
   it("取れなかったリポジトリは数えず、全部取れなければ —（null）", () => {
     const failed = { owner: "o", repo: "r", ok: false as const, error: { kind: "other" as const, message: "x" } };
     expect(buildExtendedBundle([failed], NOW).summary.merged).toBeNull();
