@@ -45,8 +45,9 @@ const EMPTY_ANSWER_MESSAGE = "選ぶか書いてから送ってください";
  */
 function moveFocusOutOf(row: HTMLElement) {
   if (!row.contains(document.activeElement)) return;
+  // 大きい1件（article）も、マージ待ちの一覧の行（listitem）も、同じ並びの中の `data-key` の付いた行
   const rows = Array.from(row.parentElement?.children ?? []).filter(
-    (el): el is HTMLElement => el instanceof HTMLElement && el.tagName === "ARTICLE",
+    (el): el is HTMLElement => el instanceof HTMLElement && el.hasAttribute("data-key"),
   );
   const next = nextRowIndex(
     rows.map((el) => el.hasAttribute("data-leaving")),
@@ -82,7 +83,7 @@ export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
   const mergeRef = useRef<HTMLButtonElement>(null);
   // 確認を閉じたとき「マージ…」へフォーカスを戻す
   const restoreMergeFocus = useRef(false);
-  const rowRef = useRef<HTMLElement>(null);
+  const rowRef = useRef<HTMLElement | null>(null);
   const demo = useDemo();
   // 企画AIの質問：画面で選んだ・書いた答えと、そこから組み立てた送る文
   const asking = status.stage === "question";
@@ -199,10 +200,15 @@ export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
     const refText = item.pullOnly ? `${repo} PR #${issue.number}` : `${repo}#${issue.number}`;
     const first = queue.num === 1;
     return (
-      <article
-        ref={rowRef}
+      // 一覧の1行は article にしない（「あなたの番」の大きい1件ではなく、順番つきの一覧の項目。並びは Desk の role="list"）
+      <div
+        ref={(el) => {
+          rowRef.current = el;
+        }}
+        role="listitem"
         className={styles.qrow}
         data-key={key}
+        data-queue=""
         data-leaving={leaving ? "" : undefined}
         inert={leaving}
         onKeyDown={onKeyDown}
@@ -213,10 +219,11 @@ export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
             <span className={`${styles.id} num`}>{refText}</span>
             <span className={`${styles.wait} num`}>{wait}</span>
           </div>
-          <h2 className={styles.qtitle}>
+          <h3 className={styles.qtitle}>
             <SmartLink href={issue.url}>{issue.title}</SmartLink>
-          </h2>
+          </h3>
           {request && !lines && <p className={styles.qreq}>{request}</p>}
+          {item.note && !lines && <p className={styles.qreq}>{item.note}</p>}
           {merge && merge.review === null && !lines && (
             <p className={styles.qsoft}>AIのレビューなし・中身を見てから</p>
           )}
@@ -284,7 +291,7 @@ export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
             </button>
           )}
         </div>
-      </article>
+      </div>
     );
   }
 

@@ -305,11 +305,16 @@ export function Desk({
         <TurnList items={others} now={at} showRepo={showRepo} onPick={pick} />
 
         {queue.length > 0 && (
-          <h2 className={styles.queueHead}>
+          <h2 className={styles.queueHead} id="merge-queue-title">
             マージ待ち <span className="num">{queue.length}</span>件（この順に押す）
           </h2>
         )}
-        <div ref={rowsRef}>
+        {/* 一覧のときだけ、順番つきの一覧として読ませる（片づけて隠した1件も同じ親に残すので、要素は替えずに役割だけ付ける） */}
+        <div
+          ref={rowsRef}
+          role={queue.length > 0 ? "list" : undefined}
+          aria-labelledby={queue.length > 0 ? "merge-queue-title" : undefined}
+        >
           {[...queue, ...items.filter((item) => !queueKeys.has(turnItemKey(item)))].map((item) => {
             const key = turnItemKey(item);
             const queueIndex = queue.findIndex((q) => turnItemKey(q) === key);
