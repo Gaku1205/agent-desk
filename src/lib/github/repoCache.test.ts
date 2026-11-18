@@ -6,6 +6,8 @@ import type { RepoData } from "./types";
 // 保存は取り終わってから行うので、取得の途中の無効化は保存で上書きされる（Next.js と同じ）
 const store = vi.hoisted(() => ({
   entries: new Map<string, { value: unknown; tags: string[] }>(),
+  /** 返事を返し終えてから動かす物（`after`） */
+  afterResponse: [] as Array<() => void>,
 }));
 
 function invalidate(tag: string) {
@@ -27,6 +29,12 @@ vi.mock("next/cache", () => ({
     },
   revalidateTag: invalidate,
   updateTag: invalidate,
+}));
+
+vi.mock("next/server", () => ({
+  after: (run: () => void) => {
+    store.afterResponse.push(run);
+  },
 }));
 
 type RepoCacheModule = typeof import("./repoCache");
@@ -75,6 +83,7 @@ async function pageShow(): Promise<{ label: string; applied: string }> {
 
 beforeEach(() => {
   store.entries.clear();
+  store.afterResponse.length = 0;
   repo = { owner: "owner", repo: `repo${++counter}` };
   calls = 0;
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -340,5 +349,69 @@ describe("インスタンスと取得の途中をまたいでも、最後の変�
     expect(third.data.mainDeployedAt).toBe("v3");
     expect(third.changeMark).toBe(mark);
     expect(calls).toBe(3);
+  });
+});
+
+describe("画面が使う設定の監視リポジトリ（Variable の値）を覚える", () => {
+  const settingsRepo = { owner: "owner", repo: "settings" };
+  let reads = 0;
+  let value: string | null = "owner/a,owner/b";
+  const read = async () => {
+    reads++;
+    return value;
+  };
+
+  beforeEach(() => {
+    reads = 0;
+    value = "owner/a,owner/b";
+  });
+
+  it("2回目からは GitHub を読まない（別のインスタンスでも）", async () => {
+    expect(await page.cachedWatchedVariable(settingsRepo, "Owner1", read)).toBe("owner/a,owner/b");
+    expect(await page.cachedWatchedVariable(settingsRepo, "owner1", read)).toBe("owner/a,owner/b");
+    expect(await api.cachedWatchedVariable(settingsRepo, "owner1", read)).toBe("owner/a,owner/b");
+    expect(reads).toBe(1);
+  });
+
+  it("Variable が無い（null）ことも覚える", async () => {
+    value = null;
+    expect(await page.cachedWatchedVariable(settingsRepo, "owner1", read)).toBeNull();
+    expect(await page.cachedWatchedVariable(settingsRepo, "owner1", read)).toBeNull();
+    expect(reads).toBe(1);
+  });
+
+  it("ログインした人ごとに別に覚える（ほかの人のトークンで読めた値を使わない）", async () => {
+    await page.cachedWatchedVariable(settingsRepo, "owner1", read);
+    const other = vi.fn(async () => "owner/c");
+    expect(await page.cachedWatchedVariable(settingsRepo, "owner2", other)).toBe("owner/c");
+    expect(other).toHaveBeenCalledTimes(1);
+  });
+
+  it("読めなかったとき（投げたとき）は覚えず、次にまた読む", async () => {
+    const failing = async (): Promise<string | null> => {
+      reads++;
+      throw new Error("forbidden");
+    };
+    await expect(page.cachedWatchedVariable(settingsRepo, "owner1", failing)).rejects.toThrow();
+    expect(await page.cachedWatchedVariable(settingsRepo, "owner1", read)).toBe("owner/a,owner/b");
+    expect(reads).toBe(2);
+  });
+
+  it("設定を保存した（タグを無効にした）ら、次は読み直す", async () => {
+    await page.cachedWatchedVariable(settingsRepo, "owner1", read);
+    value = "owner/a";
+    invalidate(page.WATCHED_REPOS_TAG);
+    expect(await api.cachedWatchedVariable(settingsRepo, "owner1", read)).toBe("owner/a");
+    expect(reads).toBe(2);
+  });
+
+  it("自動で足したあとは、返事を返し終えてから捨てる（その表示の間は覚えた物のまま、次の表示で読み直す）", async () => {
+    await page.cachedWatchedVariable(settingsRepo, "owner1", read);
+    value = "owner/a,owner/b,owner/new";
+    page.forgetWatchedReposAfterResponse();
+    expect(await page.cachedWatchedVariable(settingsRepo, "owner1", read)).toBe("owner/a,owner/b");
+    for (const run of store.afterResponse) run();
+    expect(await api.cachedWatchedVariable(settingsRepo, "owner1", read)).toBe("owner/a,owner/b,owner/new");
+    expect(reads).toBe(2);
   });
 });

@@ -122,6 +122,25 @@
   background: var(--bone);
 }
 
+/* 下線を出さない形（入力欄の下の1行）：乗せたとき・開いているときは地 --hair-2・角丸8px */
+.plain .button {
+  padding: 0 8px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.plain .button:hover,
+.plain .button[aria-expanded="true"] {
+  background: var(--hair-2);
+  box-shadow: none;
+}
+
+.plain .button:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+}
+
 @media (max-width: 899px) {
   .button {
     height: 44px;
