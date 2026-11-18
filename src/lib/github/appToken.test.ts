@@ -398,5 +398,7 @@ describe("回数制限の残り", () => {
     });
     await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: ENV });
     expect(getReadRateLimit(USER_TOKEN).remaining).toBe(321);
+    // どの鍵・どの枠の残りかも分かる（止めたとき、画面に出す）
+    expect(getReadRateLimit(USER_TOKEN).source).not.toBeNull();
   });
 });

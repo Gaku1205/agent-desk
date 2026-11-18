@@ -27,6 +27,7 @@ import {
   isFastRefresh,
   startAutoRefresh,
   startResumeRefresh,
+  type PausedBy,
 } from "@/lib/refresh";
 import { KeyboardHelp } from "./KeyboardHelp";
 
@@ -38,6 +39,8 @@ export type ShellState = {
   fastRefresh: boolean;
   /** 回数制限の残りが少なく、この時刻まで自動更新を止めている。止めていなければ null */
   pausedUntil: Date | null;
+  /** 止めているとき、どの鍵・どの枠の残りが少ないか（分からなければ null） */
+  pausedBy: PausedBy | null;
   refresh: () => void;
   /** 今のページで、取り直しが終わった回数（ページを移ると0に戻る） */
   refreshCountOnPage: number;
@@ -59,6 +62,8 @@ export type ShellPlan = {
   refreshIntervalMs: number | null;
   /** 自動更新を止めているとき、再開する時刻（ISO文字列） */
   resumeAt: string | null;
+  /** 自動更新を止めているとき、どの鍵・どの枠の残りが少ないか（分からなければ null） */
+  pausedBy: PausedBy | null;
   /** Webhook で「変わった」ときだけ取り直すリポジトリ（`owner/repo`） */
   changeRepos: string[];
   /** そのリポジトリの、今のデータに反映済みの「変わった」印 */
@@ -73,6 +78,7 @@ const NO_PLAN: ShellPlan = {
   loadedAt: "",
   refreshIntervalMs: null,
   resumeAt: null,
+  pausedBy: null,
   changeRepos: [],
   appliedChangeMarks: {},
   needsIntervalRefresh: false,
@@ -298,6 +304,7 @@ export function AppShell({
       // 実際に使っている間隔（5分の保険のときは5分）で決める
       fastRefresh: isFastRefresh(intervalMs),
       pausedUntil: refreshIntervalMs === null && resumeAt !== null ? new Date(resumeAt) : null,
+      pausedBy: refreshIntervalMs === null && resumeAt !== null ? plan.pausedBy : null,
       refresh,
       refreshCountOnPage: refreshCount.pathname === pathname ? refreshCount.count : 0,
       menuOpen,
@@ -310,6 +317,7 @@ export function AppShell({
       intervalMs,
       refreshIntervalMs,
       resumeAt,
+      plan.pausedBy,
       refresh,
       refreshCount,
       pathname,
