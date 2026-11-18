@@ -5,9 +5,9 @@ import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
 import { assignSlots, lanesHeadline, type QueueEntry, type Slot } from "@/lib/lanes/slots";
 import type { LanesSource, RunEntry } from "@/lib/lanes/source";
-import { lanesTurnRows } from "@/lib/lanes/turnRows";
+import { lanesTurnRows, mergeOrdinals } from "@/lib/lanes/turnRows";
 import { withHeldRows, type HeldRow } from "@/lib/operationResult";
-import { formatWait, turnItemKey, turnSig, type TurnItem } from "@/lib/turn";
+import { turnItemKey, turnSig, type TurnItem } from "@/lib/turn";
 import { TURN_GROUPS } from "@/lib/turnKind";
 import { getBrowserStorage } from "@/lib/motion";
 import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
@@ -88,6 +88,7 @@ function TurnSection({ id, items, now, basePath }: { id: string; items: TurnItem
   }, []);
 
   const shown = withHeldRows(rows, held).filter((item) => gone.get(turnItemKey(item)) !== turnSig(item));
+  const ordinals = mergeOrdinals(shown);
   const count = shown.filter((item) => held.get(turnItemKey(item))?.done !== true).length;
 
   return (
@@ -105,11 +106,12 @@ function TurnSection({ id, items, now, basePath }: { id: string; items: TurnItem
         <p className={styles.empty}>あなたが答えることはありません</p>
       ) : (
         <ul className={styles.list}>
-          {shown.map((item) => (
+          {shown.map((item, index) => (
             <LanesTurn
               key={turnItemKey(item)}
               item={item}
-              wait={formatWait(item.waitingSince, now)}
+              wait={formatSpan(now.getTime() - Date.parse(item.waitingSince))}
+              mergeOrder={ordinals.get(index) ?? null}
               basePath={basePath}
               onHold={hold}
               onGone={gotAway}
