@@ -1,4 +1,11 @@
-import { WAITING_LABELS, type GqlIssue, type GqlPull, type GqlStatusContext } from "./graphql";
+import {
+  REPO_PAGE_SIZE,
+  WAITING_LABELS,
+  WAITING_PAGE_SIZE,
+  type GqlIssue,
+  type GqlPull,
+  type GqlStatusContext,
+} from "./graphql";
 
 // テスト用：GitHub の GraphQL と REST の偽物。本番のコードからは使わない
 
@@ -56,7 +63,7 @@ export type FakeRepo = {
   main?: GqlStatusContext[][] | null;
 };
 
-const PAGE = 100;
+const PAGE = REPO_PAGE_SIZE;
 
 function page<T>(items: T[], after: unknown) {
   const start = typeof after === "string" ? Number(after) : 0;
@@ -80,10 +87,12 @@ export function graphqlData(repo: FakeRepo, variables: Record<string, unknown>):
               WAITING_LABELS.map((label, index) => [
                 `waiting${index}`,
                 {
-                  nodes: (repo.issues ?? []).filter(
-                    (issue) =>
-                      issue.state === "OPEN" && (issue.labels?.nodes ?? []).some((l) => l?.name === label),
-                  ),
+                  nodes: (repo.issues ?? [])
+                    .filter(
+                      (issue) =>
+                        issue.state === "OPEN" && (issue.labels?.nodes ?? []).some((l) => l?.name === label),
+                    )
+                    .slice(0, WAITING_PAGE_SIZE),
                 },
               ]),
             ),

@@ -2,6 +2,7 @@ import { createHmac, randomBytes } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import {
   decideWebhook,
+  isNoChangeWebhook,
   isUsedWebhookEvent,
   isWatchedRepo,
   repoTag,
@@ -40,13 +41,14 @@ describe("isUsedWebhookEvent", () => {
       "pull_request",
       "pull_request_review_comment",
       "check_run",
-      "check_suite",
       "status",
       "workflow_run",
       "label",
     ]) {
       expect(isUsedWebhookEvent(event)).toBe(true);
     }
+    // チェックの変化は check_run、実行の変化は workflow_run で来るので、check_suite は使わない
+    expect(isUsedWebhookEvent("check_suite")).toBe(false);
     expect(isUsedWebhookEvent("ping")).toBe(false);
     expect(isUsedWebhookEvent("push")).toBe(false);
     expect(isUsedWebhookEvent(null)).toBe(false);
@@ -128,5 +130,40 @@ describe("decideWebhook", () => {
     expect(
       await decideWebhook({ secret: SECRET, signature: sign("{"), event: "issues", body: "{", loadWatched }),
     ).toEqual({ status: 204 });
+  });
+
+  it("画面のデータが変わらない知らせ（作られただけ・飛ばされた実行）は 204。動き出し・飛ばされていない完了は 202", async () => {
+    const run = (action: string, conclusion: string | null) =>
+      JSON.stringify({ action, workflow_run: { conclusion }, repository: { full_name: "Owner/Repo" } });
+    const decide = (body: string) =>
+      decideWebhook({ secret: SECRET, signature: sign(body), event: "workflow_run", body, loadWatched });
+    expect(await decide(run("requested", null))).toEqual({ status: 204 });
+    expect(await decide(run("completed", "skipped"))).toEqual({ status: 204 });
+    expect(await decide(run("in_progress", null))).toMatchObject({ status: 202 });
+    expect(await decide(run("completed", "success"))).toMatchObject({ status: 202 });
+    expect(await decide(run("completed", "failure"))).toMatchObject({ status: 202 });
+    expect(await decide(run("completed", "cancelled"))).toMatchObject({ status: 202 });
+    const suite = JSON.stringify({ action: "completed", repository: { full_name: "Owner/Repo" } });
+    expect(
+      await decideWebhook({ secret: SECRET, signature: sign(suite), event: "check_suite", body: suite, loadWatched }),
+    ).toEqual({ status: 204 });
+  });
+});
+
+describe("isNoChangeWebhook", () => {
+  it("workflow_run の requested と、skipped で終わった completed だけ", () => {
+    expect(isNoChangeWebhook("workflow_run", { action: "requested", workflow_run: {} })).toBe(true);
+    expect(isNoChangeWebhook("workflow_run", { action: "completed", workflow_run: { conclusion: "skipped" } })).toBe(true);
+    expect(isNoChangeWebhook("workflow_run", { action: "completed", workflow_run: { conclusion: "success" } })).toBe(false);
+    expect(isNoChangeWebhook("workflow_run", { action: "in_progress", workflow_run: { conclusion: null } })).toBe(false);
+  });
+
+  it("ほかのイベント・形が違う本文は、変わる物として扱う（取り直す側に倒す）", () => {
+    expect(isNoChangeWebhook("check_run", { action: "completed", check_run: { conclusion: "skipped" } })).toBe(false);
+    expect(isNoChangeWebhook("issues", { action: "requested" })).toBe(false);
+    expect(isNoChangeWebhook("workflow_run", null)).toBe(false);
+    expect(isNoChangeWebhook("workflow_run", { action: "completed" })).toBe(false);
+    expect(isNoChangeWebhook("workflow_run", { action: "completed", workflow_run: null })).toBe(false);
+    expect(isNoChangeWebhook(null, { action: "requested" })).toBe(false);
   });
 });
