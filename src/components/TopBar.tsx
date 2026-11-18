@@ -100,13 +100,13 @@ function CountsKey() {
 function SkipLink() {
   function skip(event: React.MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
-    // 片づけて隠している1件（data-leaving）は飛ばす
+    // 片づけて隠している1件（data-leaving）は飛ばす。大きい1件も、マージ待ちの一覧の行も `data-key` が付いている
     const target =
       document.querySelector<HTMLElement>(
-        '[data-skip-target] article:not([data-leaving]) [data-act]:not([aria-disabled="true"])',
+        '[data-skip-target] [data-key]:not([data-leaving]) [data-act]:not([aria-disabled="true"])',
       ) ??
       document.querySelector<HTMLElement>(
-        "[data-skip-target] article:not([data-leaving]) a, [data-skip-target] article:not([data-leaving]) button",
+        "[data-skip-target] [data-key]:not([data-leaving]) a, [data-skip-target] [data-key]:not([data-leaving]) button",
       ) ??
       document.querySelector<HTMLElement>("main a, main button, main input, main select");
     if (!target) return;

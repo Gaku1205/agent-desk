@@ -87,6 +87,14 @@
   font-weight: 500;
 }
 
+/* マージ待ちの一覧の見出し（docs/design.md の「マージ待ちの一覧」） */
+.queueHead {
+  margin-bottom: 4px;
+  color: var(--bone);
+  font-size: 15px;
+  font-weight: 700;
+}
+
 .calm {
   color: var(--bone-2);
   font-size: 15px;

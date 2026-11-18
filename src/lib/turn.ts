@@ -98,6 +98,8 @@ export type TurnItem = {
   blocking?: number[];
   /** Issueに紐づかない「マージしてよいPR」の行（`issue` に PR の番号・題名・URL が入る。無ければ Issue の行） */
   pullOnly?: boolean;
+  /** マージ待ちのPRの変更ファイルの名前（「マージ待ちの一覧」の並びに使う。無ければ重なり無し） */
+  files?: string[];
 };
 
 /**
@@ -338,6 +340,7 @@ export function repoTurnItems(owner: string, repo: string, repoData: RepoData, n
           ? deployFailureReason(data.pullChecks[status.pull.number]?.statuses ?? [])
           : holdBlockingNote(blocking, data.issues),
       ...(blocking.length > 0 ? { blocking } : {}),
+      ...(canMerge && status.pull?.files ? { files: status.pull.files } : {}),
       logUrl: failureLogUrl(status, `${owner}/${repo}`),
       waitingSince: waitingSince(issue, status, data),
       buttons,
@@ -370,6 +373,7 @@ export function repoTurnItems(owner: string, repo: string, repoData: RepoData, n
       description: describeStatus(status, { repo: `${owner}/${repo}` }).long,
       note: holdBlockingNote(blocking, data.issues),
       ...(blocking.length > 0 ? { blocking } : {}),
+      ...(pull.files ? { files: pull.files } : {}),
       logUrl: null,
       waitingSince:
         latest(

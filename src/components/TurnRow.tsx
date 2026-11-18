@@ -9,7 +9,7 @@ import { isMergeWeak, mergeResultLines } from "@/lib/mergeLines";
 import { getProgress } from "@/lib/progress";
 import { composeAnswer, type AnswerInput } from "@/lib/question";
 import { splitPhrases, turnKind } from "@/lib/turnKind";
-import type { OperationKind, TurnItem } from "@/lib/turn";
+import { OPERATION_LABEL, type OperationKind, type TurnItem } from "@/lib/turn";
 import { useDemo } from "./DemoContext";
 import { emptyAnswer, QuestionForm } from "./QuestionForm";
 import { FactoryForm } from "./FactoryForm";
@@ -30,6 +30,8 @@ type Props = {
   fresh: boolean;
   /** 片づけ始めた・片づけるのをやめた（次の1件に替え、件数を取り直しを待たずに減らす） */
   onLeave: (key: string, leaving: boolean) => void;
+  /** マージ待ちの一覧の1行として描く（順番の数。無ければ大きい1件） */
+  queue?: { num: number };
 };
 
 /** 操作が通っても段階が変わらないまま、片づけておく長さ */
@@ -44,8 +46,9 @@ const EMPTY_ANSWER_MESSAGE = "選ぶか書いてから送ってください";
  */
 function moveFocusOutOf(row: HTMLElement) {
   if (!row.contains(document.activeElement)) return;
+  // 大きい1件（article）も、マージ待ちの一覧の行（listitem）も、同じ並びの中の `data-key` の付いた行
   const rows = Array.from(row.parentElement?.children ?? []).filter(
-    (el): el is HTMLElement => el instanceof HTMLElement && el.tagName === "ARTICLE",
+    (el): el is HTMLElement => el instanceof HTMLElement && el.hasAttribute("data-key"),
   );
   const next = nextRowIndex(
     rows.map((el) => el.hasAttribute("data-leaving")),
@@ -63,7 +66,7 @@ function moveFocusOutOf(row: HTMLElement) {
  * 「あなたの番」の1件（docs/design.md の「あなたの番」）。種類の札 → 題名 → 説明文 → 答える欄 → ボタン。
  * ボタンはサーバー側で操作して、画面を取り直す。「マージ…」はその場で「マージする／やめる」に変わる（確認）
  */
-export function TurnRow({ item, wait, fresh, onLeave }: Props) {
+export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
   const { owner, repo, issue, status, buttons, merge } = item;
   const key = `${owner}/${repo}#${issue.number}`;
   const kind = turnKind(status);
@@ -81,7 +84,7 @@ export function TurnRow({ item, wait, fresh, onLeave }: Props) {
   const mergeRef = useRef<HTMLButtonElement>(null);
   // 確認を閉じたとき「マージ…」へフォーカスを戻す
   const restoreMergeFocus = useRef(false);
-  const rowRef = useRef<HTMLElement>(null);
+  const rowRef = useRef<HTMLElement | null>(null);
   const demo = useDemo();
   // 企画AIの質問：画面で選んだ・書いた答えと、そこから組み立てた送る文
   const asking = status.stage === "question";
@@ -191,6 +194,107 @@ export function TurnRow({ item, wait, fresh, onLeave }: Props) {
   const lines = confirming && merge ? mergeResultLines(merge) : null;
   const weak = merge ? isMergeWeak(merge) : false;
   const phrases = lines ? [] : splitPhrases(item.description);
+
+  if (queue) {
+    // マージ待ちの一覧の1行（docs/design.md の「マージ待ちの一覧」）。マージの操作は大きい1件と同じ
+    const request = status.holdRequest?.split("\n")[0].trim() ?? "";
+    const refText = item.pullOnly ? `${repo} PR #${issue.number}` : `${repo}#${issue.number}`;
+    const first = queue.num === 1;
+    return (
+      // 一覧の1行は article にしない（「あなたの番」の大きい1件ではなく、順番つきの一覧の項目。並びは Desk の role="list"）
+      <div
+        ref={(el) => {
+          rowRef.current = el;
+        }}
+        role="listitem"
+        className={styles.qrow}
+        data-key={key}
+        data-queue=""
+        data-leaving={leaving ? "" : undefined}
+        inert={leaving}
+        onKeyDown={onKeyDown}
+      >
+        <span className={`${styles.qnum} num`}>{queue.num}</span>
+        <div className={styles.qmain}>
+          <div className={styles.qhead}>
+            <span className={`${styles.id} num`}>{refText}</span>
+            <span className={`${styles.wait} num`}>{wait}</span>
+          </div>
+          <h3 className={styles.qtitle}>
+            <SmartLink href={issue.url}>{issue.title}</SmartLink>
+          </h3>
+          {request && !lines && <p className={styles.qreq}>{request}</p>}
+          {item.note && !lines && <p className={styles.qreq}>{item.note}</p>}
+          {merge && merge.review === null && !lines && (
+            <p className={styles.qsoft}>AIのレビューなし・中身を見てから</p>
+          )}
+          {lines && (
+            <ul className={styles.lines} aria-label="マージの前の確認">
+              {lines.map((line) => (
+                <li key={line.name} data-tone={line.tone}>
+                  <span className={styles.mark} aria-hidden="true">
+                    {line.mark}
+                  </span>
+                  <span className={styles.lname}>{line.name}</span>
+                  <span className={styles.lres}>{line.text}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {error && (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+        <div className={`${styles.acts} ${styles.qacts}`}>
+          {confirming && merge ? (
+            <>
+              <button
+                ref={confirmRef}
+                type="button"
+                className={`${styles.act} ${styles.primary}`}
+                data-act=""
+                data-weak={weak ? "" : undefined}
+                aria-disabled={pending ? "true" : undefined}
+                onClick={() => run("merge")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && event.repeat) event.preventDefault();
+                }}
+              >
+                {pending ? "マージ中…" : "マージする"}
+              </button>
+              <button
+                type="button"
+                className={`${styles.act} ${styles.ghost}`}
+                data-act=""
+                aria-disabled={pending ? "true" : undefined}
+                onClick={() => {
+                  if (!pending) closeConfirm();
+                }}
+              >
+                やめる
+              </button>
+            </>
+          ) : (
+            <button
+              ref={mergeRef}
+              type="button"
+              className={`${styles.act} ${first ? styles.primary : styles.text}`}
+              data-act=""
+              data-hit={hit === "merge" ? "" : undefined}
+              aria-disabled={pending ? "true" : undefined}
+              onClick={() => {
+                if (!pending) setConfirming(true);
+              }}
+            >
+              {OPERATION_LABEL.merge}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <article
