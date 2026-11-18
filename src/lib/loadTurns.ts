@@ -6,7 +6,7 @@ import { loadAddedLog, runAutoAdd } from "./github/autoAdd";
 import { getRepoResults } from "./github/fetch";
 import type { RepoResult } from "./github/types";
 import { getReadRateLimit } from "./github/appToken";
-import { isWebhookEnabled } from "./github/repoCache";
+import { forgetWatchedReposAfterResponse, isWebhookEnabled } from "./github/repoCache";
 import {
   getAutoRefreshPlan,
   getChangeWatchPlan,
@@ -57,6 +57,8 @@ export const loadTurns = cache(async (): Promise<LoadedTurns> => {
   const settingsRepo = getSettingsRepo();
   const added = await runAutoAdd({ token, login: await getSignedInLogin(), settingsRepo, results, now });
   if (added.length > 0) {
+    // 覚えた監視リストは古くなったので、返事のあとで捨てる（次の表示で、足した物が消えないように）
+    forgetWatchedReposAfterResponse();
     appendLoadedWatchedRepos(loaded, added);
     results = [...results, ...(await getRepoResults(token, added))];
   }

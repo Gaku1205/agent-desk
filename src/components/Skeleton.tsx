@@ -4,6 +4,7 @@ import dashboardStyles from "./Dashboard.module.css";
 import deskStyles from "./Desk.module.css";
 import lanesStyles from "./Lanes.module.css";
 import { useNav } from "./NavContext";
+import repoListStyles from "./RepoList.module.css";
 import { Sheet } from "./Sheet";
 import pageStyles from "./Settings.module.css";
 import settingsStyles from "./SettingsSections.module.css";
@@ -126,6 +127,33 @@ export function LanesSkeleton() {
             </div>
           </div>
         ))}
+      </main>
+    </div>
+  );
+}
+
+/** すべてのリポジトリの骨組みで出す行の数の上限（監視リポジトリがこれより多くても、帯はここまで） */
+const REPO_LIST_SKELETON_MAX_ROWS = 12;
+
+/** すべてのリポジトリの骨組み：左のバー（本物）、見出しと件数の位置、監視リポジトリの数だけの行 */
+export function RepoListSkeleton() {
+  const nav = useNav();
+  const rows = Math.min(nav?.repos.length ?? 6, REPO_LIST_SKELETON_MAX_ROWS);
+  return (
+    <div className={repoListStyles.panes} data-panes="" aria-busy="true">
+      <div className={repoListStyles.side} id="side-repos">
+        {nav && <SideRepos {...nav} />}
+      </div>
+      <main id="main" className={repoListStyles.main}>
+        <div className={styles.line} aria-hidden="true" style={{ gap: 4 }}>
+          <Band width={230} height={36} />
+          <Band width={90} height={13} />
+        </div>
+        <div className={styles.line} aria-hidden="true" style={{ gap: 2, marginTop: 24 }}>
+          {Array.from({ length: rows }, (_, i) => (
+            <Band key={i} width="100%" height={46} />
+          ))}
+        </div>
       </main>
     </div>
   );
