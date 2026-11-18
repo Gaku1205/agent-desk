@@ -9,6 +9,7 @@ import {
 } from "./appAuth";
 import { GitHubClient, type Fetcher } from "./client";
 import { GitHubError } from "./errors";
+import { shareInFlight } from "../inFlight";
 import {
   getGraphqlRateHistory,
   getGraphqlRateLimit,
@@ -44,6 +45,8 @@ const installationTokens = new Map<number, { token: string; expiresAtMs: number 
 const readChecks = new Map<string, Remembered<boolean>>();
 /** インストールの ID → そのインストールに与えられた権限（`GET /repos/{owner}/{repo}/installation` の permissions） */
 const installationPermissions = new Map<number, Record<string, string>>();
+/** インストールの ID → いま取りに行っている鍵（同時に頼まれた分を1回の `access_tokens` にまとめる） */
+const tokenRequests = new Map<string, Promise<string | null>>();
 /** 鍵を使ったインストール（回数制限の残りを見るため） */
 const usedInstallationIds = new Set<number>();
 
@@ -170,20 +173,23 @@ async function getInstallationToken(
 ): Promise<string | null> {
   const known = installationTokens.get(installationId);
   if (known && shouldReuseInstallationToken(known.expiresAtMs, nowMs)) return known.token;
-  const jwt = buildAppJwt(credentials.appId, credentials.privateKey, nowMs);
-  const body = (await appRequest(
-    fetcher,
-    jwt,
-    "POST",
-    `/app/installations/${installationId}/access_tokens`,
-    { permissions: permissionsFor(installationPermissions.get(installationId)) },
-  )) as { token?: unknown; expires_at?: unknown } | null;
-  if (typeof body?.token !== "string" || body.token === "") return null;
-  const expiresAtMs = typeof body.expires_at === "string" ? Date.parse(body.expires_at) : NaN;
-  if (!Number.isFinite(expiresAtMs)) return null;
-  installationTokens.set(installationId, { token: body.token, expiresAtMs });
-  usedInstallationIds.add(installationId);
-  return body.token;
+  // 立ち上がった直後は、監視リポジトリの数だけ同時に頼まれる。同じインストールの鍵は1回で取る
+  return shareInFlight(tokenRequests, String(installationId), async () => {
+    const jwt = buildAppJwt(credentials.appId, credentials.privateKey, nowMs);
+    const body = (await appRequest(
+      fetcher,
+      jwt,
+      "POST",
+      `/app/installations/${installationId}/access_tokens`,
+      { permissions: permissionsFor(installationPermissions.get(installationId)) },
+    )) as { token?: unknown; expires_at?: unknown } | null;
+    if (typeof body?.token !== "string" || body.token === "") return null;
+    const expiresAtMs = typeof body.expires_at === "string" ? Date.parse(body.expires_at) : NaN;
+    if (!Number.isFinite(expiresAtMs)) return null;
+    installationTokens.set(installationId, { token: body.token, expiresAtMs });
+    usedInstallationIds.add(installationId);
+    return body.token;
+  });
 }
 
 /**
@@ -263,13 +269,14 @@ export async function resolveReadAccess(
   if (!credentials) return null;
   const installationId = await findInstallationId(credentials, repo, fetcher, nowMs);
   if (installationId === null) return null;
-  const token = await getInstallationToken(credentials, installationId, fetcher, nowMs);
+  // 鍵の取得と「読めるか」の確認は、どちらも要るので同時に始める（立ち上がった直後の待ちを1往復分へらす。
+  // 呼ぶ数は同じ。鍵が取れなかったときだけ、使わない確認が1回残る。結果は10分覚える）
+  const [token, canRead] = await Promise.all([
+    getInstallationToken(credentials, installationId, fetcher, nowMs),
+    userCanRead(userToken, repo, fetcher, nowMs),
+  ]);
   if (token === null) return null;
-  const source = chooseReadSource({
-    hasCredentials: true,
-    hasInstallationToken: true,
-    userCanRead: await userCanRead(userToken, repo, fetcher, nowMs),
-  });
+  const source = chooseReadSource({ hasCredentials: true, hasInstallationToken: true, userCanRead: canRead });
   return source === "app" ? { token, keyId: installationKeyId(installationId) } : null;
 }
 

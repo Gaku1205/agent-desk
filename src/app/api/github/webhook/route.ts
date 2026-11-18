@@ -1,6 +1,6 @@
 import { revalidateTag } from "next/cache";
 import { loadWebhookWatchedRepos } from "@/lib/github/repoCache";
-import { decideWebhook, repoTag } from "@/lib/webhook";
+import { decideWebhook, repoTag, urgentTag } from "@/lib/webhook";
 
 /**
  * パイプラインの GitHub App の Webhook を受け取り、そのリポジトリのキャッシュを無効にする（docs/spec.md の「更新」）。
@@ -17,6 +17,8 @@ export async function POST(request: Request): Promise<Response> {
   if (decision.status === 202) {
     // 次にそのリポジトリを読むときは、古い物を出さずに取り直す。「変わった」印も同じタグなので進む
     revalidateTag(repoTag(decision.invalidate), { expire: 0 });
+    // 急ぎの知らせ（段階・誰の番が変わりうる物）は、その印も進める（`/api/changes` が、残してある持ち分ですぐ取り直す）
+    if (decision.urgent) revalidateTag(urgentTag(decision.invalidate), { expire: 0 });
   }
   return new Response(null, { status: decision.status });
 }

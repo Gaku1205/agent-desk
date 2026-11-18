@@ -3,9 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   decideWebhook,
   isNoChangeWebhook,
+  isUrgentWebhook,
   isUsedWebhookEvent,
   isWatchedRepo,
   repoTag,
+  urgentTag,
   verifyWebhookSignature,
   webhookRepo,
 } from "./webhook";
@@ -96,7 +98,7 @@ describe("decideWebhook", () => {
         body: BODY,
         loadWatched,
       }),
-    ).toEqual({ status: 202, invalidate: { owner: "Owner", repo: "Repo" } });
+    ).toEqual({ status: 202, invalidate: { owner: "Owner", repo: "Repo" }, urgent: true });
   });
 
   it("環境変数が無ければ 404（署名も見ない）", async () => {
@@ -139,7 +141,7 @@ describe("decideWebhook", () => {
       decideWebhook({ secret: SECRET, signature: sign(body), event: "workflow_run", body, loadWatched });
     expect(await decide(run("requested", null))).toEqual({ status: 204 });
     expect(await decide(run("completed", "skipped"))).toEqual({ status: 204 });
-    expect(await decide(run("in_progress", null))).toMatchObject({ status: 202 });
+    expect(await decide(run("in_progress", null))).toMatchObject({ status: 202, urgent: false });
     expect(await decide(run("completed", "success"))).toMatchObject({ status: 202 });
     expect(await decide(run("completed", "failure"))).toMatchObject({ status: 202 });
     expect(await decide(run("completed", "cancelled"))).toMatchObject({ status: 202 });
@@ -165,5 +167,64 @@ describe("isNoChangeWebhook", () => {
     expect(isNoChangeWebhook("workflow_run", { action: "completed" })).toBe(false);
     expect(isNoChangeWebhook("workflow_run", { action: "completed", workflow_run: null })).toBe(false);
     expect(isNoChangeWebhook(null, { action: "requested" })).toBe(false);
+  });
+});
+
+describe("isUrgentWebhook", () => {
+  it("issues：題名・本文の書き換え以外は急ぎ", () => {
+    for (const action of ["opened", "closed", "reopened", "labeled", "unlabeled"]) {
+      expect(isUrgentWebhook("issues", { action })).toBe(true);
+    }
+    expect(isUrgentWebhook("issues", { action: "edited" })).toBe(false);
+    expect(isUrgentWebhook("issues", {})).toBe(false);
+  });
+
+  it("pull_request：できた・閉じた・ラベルの付け外しなどは急ぎ。コミットの追加・書き換えは急ぎでない", () => {
+    for (const action of ["opened", "closed", "reopened", "labeled", "unlabeled", "ready_for_review", "converted_to_draft"]) {
+      expect(isUrgentWebhook("pull_request", { action })).toBe(true);
+    }
+    expect(isUrgentWebhook("pull_request", { action: "synchronize" })).toBe(false);
+    expect(isUrgentWebhook("pull_request", { action: "edited" })).toBe(false);
+  });
+
+  it("issue_comment：新しいコメントだけ急ぎ（作業中のコメントの書き換えは急ぎでない）", () => {
+    expect(isUrgentWebhook("issue_comment", { action: "created" })).toBe(true);
+    expect(isUrgentWebhook("issue_comment", { action: "edited" })).toBe(false);
+    expect(isUrgentWebhook("issue_comment", { action: "deleted" })).toBe(false);
+  });
+
+  it("check_run：PR のチェックが終わったときだけ急ぎ（飛ばされた物・PR に付かない物・途中は急ぎでない）", () => {
+    const run = (action: string, conclusion: string | null, pulls: unknown[] = [{ number: 1 }]) => ({
+      action,
+      check_run: { conclusion, pull_requests: pulls },
+    });
+    expect(isUrgentWebhook("check_run", run("completed", "success"))).toBe(true);
+    expect(isUrgentWebhook("check_run", run("completed", "failure"))).toBe(true);
+    expect(isUrgentWebhook("check_run", run("completed", "skipped"))).toBe(false);
+    expect(isUrgentWebhook("check_run", run("completed", "neutral"))).toBe(false);
+    expect(isUrgentWebhook("check_run", run("completed", "success", []))).toBe(false);
+    expect(isUrgentWebhook("check_run", run("created", null))).toBe(false);
+    expect(isUrgentWebhook("check_run", { action: "completed" })).toBe(false);
+  });
+
+  it("status：決まったとき（pending でない）だけ急ぎ", () => {
+    expect(isUrgentWebhook("status", { state: "success" })).toBe(true);
+    expect(isUrgentWebhook("status", { state: "failure" })).toBe(true);
+    expect(isUrgentWebhook("status", { state: "pending" })).toBe(false);
+    expect(isUrgentWebhook("status", {})).toBe(false);
+  });
+
+  it("ほかのイベント・形が読めない本文は急ぎでない", () => {
+    expect(isUrgentWebhook("workflow_run", { action: "completed", workflow_run: { conclusion: "success" } })).toBe(false);
+    expect(isUrgentWebhook("label", { action: "created" })).toBe(false);
+    expect(isUrgentWebhook("pull_request_review_comment", { action: "created" })).toBe(false);
+    expect(isUrgentWebhook("issues", null)).toBe(false);
+    expect(isUrgentWebhook(null, { action: "opened" })).toBe(false);
+  });
+});
+
+describe("urgentTag", () => {
+  it("urgent:<owner>/<repo> を小文字で", () => {
+    expect(urgentTag({ owner: "Owner", repo: "Repo" })).toBe("urgent:owner/repo");
   });
 });

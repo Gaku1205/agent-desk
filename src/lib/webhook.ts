@@ -36,12 +36,67 @@ export function isNoChangeWebhook(event: string | null, payload: unknown): boole
   return action === "completed" && conclusion === "skipped";
 }
 
+/** 本文の中の入れ物（`check_run` など）を読む。形が違えば null */
+function payloadPart(payload: unknown, key: string): Record<string, unknown> | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const part = (payload as Record<string, unknown>)[key];
+  return typeof part === "object" && part !== null ? (part as Record<string, unknown>) : null;
+}
+
+/** 急ぎにする `pull_request` の `action`（PR ができた・閉じた・ラベルが変わったなど。コミットの追加や題名の書き換えは入れない） */
+const URGENT_PULL_ACTIONS: readonly string[] = [
+  "opened",
+  "closed",
+  "reopened",
+  "labeled",
+  "unlabeled",
+  "ready_for_review",
+  "converted_to_draft",
+];
+
+/**
+ * 急ぎの知らせか（段階・誰の番が変わりうる物。取り直しの持ち分が1回分あれば、すぐ取り直す。`src/lib/refetchLimit.ts`）。
+ * - `issues`：題名・本文の書き換え（`edited`）以外（できた・閉じた・ラベルの付け外しなど）
+ * - `pull_request`：できた・閉じた（マージ）・開き直した・ラベルの付け外し・下書きの切り替え
+ * - `issue_comment`：新しいコメント（`created`。質問・答え・進捗の記録）。書き換え・削除は急ぎでない（作業中のコメントは何度も書き換わる）
+ * - `check_run`：PR のチェックが終わった（`completed` で、`pull_requests` があり、結果が `skipped`・`neutral` でない）
+ * - `status`：公開などのステータスが決まった（`state` が `pending` でない）
+ * ほか（`workflow_run`・`label`・`pull_request_review_comment`、形が読めない本文）は急ぎでない（今までどおりの間隔で取り直す）
+ */
+export function isUrgentWebhook(event: string | null, payload: unknown): boolean {
+  if (typeof payload !== "object" || payload === null) return false;
+  const { action, state } = payload as { action?: unknown; state?: unknown };
+  switch (event) {
+    case "issues":
+      return typeof action === "string" && action !== "edited";
+    case "pull_request":
+      return typeof action === "string" && URGENT_PULL_ACTIONS.includes(action);
+    case "issue_comment":
+      return action === "created";
+    case "check_run": {
+      const run = payloadPart(payload, "check_run");
+      if (action !== "completed" || !run) return false;
+      if (run.conclusion === "skipped" || run.conclusion === "neutral") return false;
+      return Array.isArray(run.pull_requests) && run.pull_requests.length > 0;
+    }
+    case "status":
+      return typeof state === "string" && state !== "pending";
+    default:
+      return false;
+  }
+}
+
 /** 1回の `/api/changes` で見るリポジトリの数の上限 */
 export const CHANGES_MAX_REPOS = 50;
 
 /** そのリポジトリのキャッシュのタグ。大文字・小文字の違いで別のタグにならないよう小文字にする */
 export function repoTag({ owner, repo }: WatchedRepo): string {
   return `repo:${owner}/${repo}`.toLowerCase();
+}
+
+/** 急ぎの知らせのタグ。急ぎの知らせが来たときだけ無効にする（`repo:` のタグと一緒に） */
+export function urgentTag({ owner, repo }: WatchedRepo): string {
+  return `urgent:${owner}/${repo}`.toLowerCase();
 }
 
 /**
@@ -87,10 +142,13 @@ export function isWatchedRepo(target: WatchedRepo, watched: WatchedRepo[] | null
   return watched.some((repo) => repoChangeKey(repo) === key);
 }
 
-/** Webhook の受け取りの結果。`invalidate` のときだけ、そのリポジトリのタグを無効にする */
+/**
+ * Webhook の受け取りの結果。`invalidate` のときだけ、そのリポジトリのタグを無効にする。
+ * `urgent` が true なら、急ぎの知らせのタグ（`urgentTag`）も無効にする
+ */
 export type WebhookDecision =
   | { status: 404 | 401 | 204 }
-  | { status: 202; invalidate: WatchedRepo };
+  | { status: 202; invalidate: WatchedRepo; urgent: boolean };
 
 /**
  * Webhook をどう扱うか。環境変数が無ければ 404、署名が合わなければ 401、
@@ -117,5 +175,5 @@ export async function decideWebhook(input: {
   const target = webhookRepo(payload);
   if (!target) return { status: 204 };
   if (!isWatchedRepo(target, await loadWatched())) return { status: 204 };
-  return { status: 202, invalidate: target };
+  return { status: 202, invalidate: target, urgent: isUrgentWebhook(event, payload) };
 }

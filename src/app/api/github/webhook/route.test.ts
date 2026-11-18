@@ -9,13 +9,13 @@ const store = vi.hoisted(() => ({
 
 vi.mock("next/cache", () => ({
   unstable_cache:
-    <T>(fn: () => Promise<T>, keyParts: string[], options: { tags?: string[] }) =>
+    <T>(fn: () => Promise<T>, keyParts: string[], options?: { tags?: string[] }) =>
     async (): Promise<T> => {
       const key = keyParts.join("|");
       const known = store.entries.get(key);
       if (known) return known.value as T;
       const value = await fn();
-      store.entries.set(key, { value, tags: options.tags ?? [] });
+      store.entries.set(key, { value, tags: options?.tags ?? [] });
       return value;
     },
   revalidateTag: (tag: string) => {
@@ -70,22 +70,55 @@ describe("POST /api/github/webhook", () => {
     let calls = 0;
     const load = async () => emptyData(`v${++calls}`);
     vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
     try {
       expect((await cachedRepoData(REPO, load)).data.mainDeployedAt).toBe("v1");
       expect((await cachedRepoData(REPO, load)).data.mainDeployedAt).toBe("v1");
       const markBefore = await getChangeMark(REPO);
 
+      // 静かなあとの最初の知らせは、すぐ印が進み、取り直す
       vi.setSystemTime(Date.now() + 1000);
       const response = await POST(webhookRequest(BODY));
       expect(response.status).toBe(202);
-
-      // 前に取ってから15秒あくまでは取り直さない（下限）。あいたら印が進み、取り直す
-      vi.setSystemTime(Date.now() + 15_000);
       const markAfter = await getChangeMark(REPO);
       expect(markAfter).not.toBe(markBefore);
       const shown = await cachedRepoData(REPO, load);
       expect(shown.data.mainDeployedAt).toBe("v2");
       expect(shown.changeMark).toBe(markAfter);
+
+      // 続く急ぎでない知らせ（コミットの追加）は、次の区切り（60秒）までは取り直さない
+      vi.setSystemTime(Date.now() + 10_000);
+      expect((await POST(webhookRequest(BODY))).status).toBe(202);
+      expect(await getChangeMark(REPO)).toBe(markAfter);
+      expect((await cachedRepoData(REPO, load)).data.mainDeployedAt).toBe("v2");
+      vi.setSystemTime(new Date("2026-01-01T00:01:00Z"));
+      expect(await getChangeMark(REPO)).not.toBe(markAfter);
+      expect((await cachedRepoData(REPO, load)).data.mainDeployedAt).toBe("v3");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("急ぎの知らせ（ラベルが付いた）は、変わり続けている間も、残してある1回分ですぐ印が進む", async () => {
+    let calls = 0;
+    const load = async () => emptyData(`v${++calls}`);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    try {
+      await cachedRepoData(REPO, load);
+      vi.setSystemTime(Date.now() + 1000);
+      await POST(webhookRequest(BODY));
+      const markBefore = await getChangeMark(REPO); // 最初の知らせで1回分を使った
+      await cachedRepoData(REPO, load);
+
+      vi.setSystemTime(Date.now() + 2000);
+      const labeled = JSON.stringify({ action: "labeled", repository: { full_name: "Owner/Repo" } });
+      expect((await POST(webhookRequest(labeled, { event: "issues" }))).status).toBe(202);
+      // 前に取ってから5秒あくまでは、続けて届く知らせをまとめる
+      expect(await getChangeMark(REPO)).toBe(markBefore);
+      vi.setSystemTime(Date.now() + 3000);
+      expect(await getChangeMark(REPO)).not.toBe(markBefore);
+      expect((await cachedRepoData(REPO, load)).data.mainDeployedAt).toBe("v3");
     } finally {
       vi.useRealTimers();
     }

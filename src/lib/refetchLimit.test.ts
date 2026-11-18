@@ -1,119 +1,119 @@
 import { describe, expect, it } from "vitest";
 import {
   decideRefetch,
-  nextRefetchIntervalMs,
-  REFETCH_MAX_INTERVAL_MS,
-  REFETCH_MIN_INTERVAL_MS,
-  REFETCH_QUIET_RESET_MS,
+  isSettledChange,
+  REFETCH_PERIOD_MS,
+  REFETCH_URGENT_MIN_INTERVAL_MS,
+  refetchPeriod,
+  type RefetchRecord,
 } from "./refetchLimit";
 
-describe("decideRefetch", () => {
-  it("まだ取っていなければ今取る", () => {
-    expect(decideRefetch({ lastFetchedAt: null, lastChangedAt: null, now: 1000 })).toEqual({
-      refetch: true,
-      waitSeconds: 0,
-    });
+const P = REFETCH_PERIOD_MS;
+
+describe("refetchPeriod / isSettledChange", () => {
+  it("区切りは60秒ごと", () => {
+    expect(refetchPeriod(0)).toBe(0);
+    expect(refetchPeriod(P - 1)).toBe(0);
+    expect(refetchPeriod(P)).toBe(1);
+    expect(refetchPeriod(10 * P + 5)).toBe(10);
   });
 
-  it("取った後に変わっていなければ取り直さない", () => {
-    expect(decideRefetch({ lastFetchedAt: 1000, lastChangedAt: null, now: 99_000 })).toEqual({
-      refetch: false,
-      waitSeconds: 0,
-    });
-    expect(decideRefetch({ lastFetchedAt: 1000, lastChangedAt: 1000, now: 99_000 }).refetch).toBe(false);
-  });
-
-  it("反映済みの変化の時刻を渡したときは、それと比べる（前に取った時刻より前の変化でも取りこぼさない）", () => {
-    const input = { lastFetchedAt: 1000, lastChangedAt: 900, now: 99_000 };
-    expect(decideRefetch(input).refetch).toBe(false);
-    expect(decideRefetch({ ...input, reflectedChangedAt: 800 }).refetch).toBe(true);
-    expect(decideRefetch({ ...input, reflectedChangedAt: 900 }).refetch).toBe(false);
-  });
-
-  it("静かなあとの最初の変化は、すぐ取り直す", () => {
-    const fetched = 0;
-    const now = 10 * 60_000;
-    expect(decideRefetch({ lastFetchedAt: fetched, lastChangedAt: now - 1, now })).toEqual({
-      refetch: true,
-      waitSeconds: 0,
-    });
-  });
-
-  it("ちょうど15秒なら取り直す。1ミリ秒足りなければ1秒待つ", () => {
-    expect(decideRefetch({ lastFetchedAt: 0, lastChangedAt: 100, now: REFETCH_MIN_INTERVAL_MS }).refetch).toBe(true);
-    expect(decideRefetch({ lastFetchedAt: 0, lastChangedAt: 100, now: REFETCH_MIN_INTERVAL_MS - 1 })).toEqual({
-      refetch: false,
-      waitSeconds: 1,
-    });
-  });
-
-  it("15秒の間に変わったら、残りの秒数を切り上げて返す", () => {
-    expect(decideRefetch({ lastFetchedAt: 0, lastChangedAt: 1000, now: 5000 })).toEqual({
-      refetch: false,
-      waitSeconds: 10,
-    });
-    expect(decideRefetch({ lastFetchedAt: 0, lastChangedAt: 1000, now: 5500 }).waitSeconds).toBe(10);
-  });
-
-  it("15秒の間に何回変わっても、15秒たったら1回だけ取り直す", () => {
-    let fetches = 0;
-    let lastFetchedAt: number | null = 0;
-    let changedAt = 0;
-    for (let now = 5000; now <= 60_000; now += 5000) {
-      changedAt = now - 1; // 5秒おきに変わり続ける
-      if (decideRefetch({ lastFetchedAt, lastChangedAt: changedAt, now }).refetch) {
-        fetches += 1;
-        lastFetchedAt = now;
-      }
-    }
-    // 15秒、30秒、45秒、60秒の4回だけ
-    expect(fetches).toBe(4);
-  });
-
-  it("あける時間を渡したら、その時間がたつまで待つ", () => {
-    const input = { lastFetchedAt: 0, lastChangedAt: 1000, minIntervalMs: 60_000 };
-    expect(decideRefetch({ ...input, now: 15_000 })).toEqual({ refetch: false, waitSeconds: 45 });
-    expect(decideRefetch({ ...input, now: 59_999 })).toEqual({ refetch: false, waitSeconds: 1 });
-    expect(decideRefetch({ ...input, now: 60_000 })).toEqual({ refetch: true, waitSeconds: 0 });
+  it("2つ前の区切りの始まりより前の変化は、片づいている", () => {
+    const now = 10 * P + 30_000; // 区切り10の途中
+    expect(isSettledChange(8 * P - 1, now)).toBe(true);
+    expect(isSettledChange(8 * P, now)).toBe(false);
+    expect(isSettledChange(now, now)).toBe(false);
   });
 });
 
-describe("nextRefetchIntervalMs", () => {
-  it("2分以上静かだったあとは、最短の15秒", () => {
-    expect(nextRefetchIntervalMs({ previousIntervalMs: 60_000, sinceLastFetchMs: REFETCH_QUIET_RESET_MS })).toBe(
-      REFETCH_MIN_INTERVAL_MS,
-    );
-    expect(nextRefetchIntervalMs({ previousIntervalMs: null, sinceLastFetchMs: 10 * 60_000 })).toBe(15_000);
+describe("decideRefetch", () => {
+  const record = (changedAt: number, at: number, urgentAt = 1): RefetchRecord => ({ changedAt, urgentAt, at });
+
+  it("持ち分が2回分とも残っていれば（静かだった）、急ぎでなくてもすぐ取り直す。1つ前の区切りの分から使う", () => {
+    expect(decideRefetch({ now: 5000, changedAt: 4000, urgentAt: 1, current: null, previous: null })).toEqual({
+      spend: "previous",
+      released: null,
+    });
   });
 
-  it("2分たたないうちにまた取り直すときは2倍にする（15秒 → 30秒 → 60秒。上限は60秒）", () => {
-    expect(nextRefetchIntervalMs({ previousIntervalMs: 15_000, sinceLastFetchMs: 15_000 })).toBe(30_000);
-    expect(nextRefetchIntervalMs({ previousIntervalMs: 30_000, sinceLastFetchMs: 30_000 })).toBe(60_000);
-    expect(nextRefetchIntervalMs({ previousIntervalMs: 60_000, sinceLastFetchMs: 60_000 })).toBe(REFETCH_MAX_INTERVAL_MS);
-    expect(nextRefetchIntervalMs({ previousIntervalMs: 60_000, sinceLastFetchMs: REFETCH_QUIET_RESET_MS - 1 })).toBe(
-      60_000,
-    );
+  it("記録にある物より後に変わっていなければ、取り直さない", () => {
+    const previous = record(4000, 5000);
+    expect(decideRefetch({ now: 9000, changedAt: 4000, urgentAt: 1, current: null, previous })).toEqual({
+      spend: null,
+      released: 4000,
+    });
   });
 
-  it("前の間隔が分からない・おかしいときは、15秒として数える", () => {
-    expect(nextRefetchIntervalMs({ previousIntervalMs: null, sinceLastFetchMs: 20_000 })).toBe(30_000);
-    expect(nextRefetchIntervalMs({ previousIntervalMs: 0, sinceLastFetchMs: 20_000 })).toBe(30_000);
-    expect(nextRefetchIntervalMs({ previousIntervalMs: Number.NaN, sinceLastFetchMs: 20_000 })).toBe(30_000);
-    expect(nextRefetchIntervalMs({ previousIntervalMs: 15_000, sinceLastFetchMs: Number.NaN })).toBe(15_000);
+  it("急ぎでない知らせだけなら、1回分残っていても待つ（急ぎの分を残す）", () => {
+    const previous = record(4000, 5000);
+    expect(decideRefetch({ now: 30_000, changedAt: 20_000, urgentAt: 1, current: null, previous })).toEqual({
+      spend: null,
+      released: 4000,
+    });
   });
 
-  it("変わり続けるリポジトリの取り直しは、1時間に60回ほど（15秒ごとの240回から減る）", () => {
-    let fetches = 0;
-    let lastFetchedAt = 0;
-    let intervalMs = REFETCH_MIN_INTERVAL_MS;
-    for (let now = 5000; now <= 60 * 60_000; now += 5000) {
-      const decision = decideRefetch({ lastFetchedAt, lastChangedAt: now - 1, now, minIntervalMs: intervalMs });
-      if (!decision.refetch) continue;
-      intervalMs = nextRefetchIntervalMs({ previousIntervalMs: intervalMs, sinceLastFetchMs: now - lastFetchedAt });
-      lastFetchedAt = now;
-      fetches += 1;
+  it("急ぎの知らせが来ていれば、前に取ってから5秒以上で、残っている1回分を使う", () => {
+    const previous = record(4000, 5000);
+    const input = { changedAt: 6000, urgentAt: 2, current: null, previous };
+    expect(decideRefetch({ ...input, now: 5000 + REFETCH_URGENT_MIN_INTERVAL_MS - 1 }).spend).toBeNull();
+    expect(decideRefetch({ ...input, now: 5000 + REFETCH_URGENT_MIN_INTERVAL_MS })).toEqual({
+      spend: "current",
+      released: 4000,
+    });
+  });
+
+  it("急ぎの知らせでも、2回分とも使っていれば待つ", () => {
+    const previous = record(4000, 5000);
+    const current = record(6000, 10_000, 2);
+    expect(decideRefetch({ now: 40_000, changedAt: 30_000, urgentAt: 3, current, previous })).toEqual({
+      spend: null,
+      released: 6000,
+    });
+  });
+
+  it("急ぎかどうかは、後に使った記録が見た「急ぎの知らせの時刻」と比べる", () => {
+    const previous = record(4000, 5000, 1);
+    const current = record(6000, 10_000, 2);
+    // 今の区切りの分だけ残っている形（1つ前の分は使用済み）で、急ぎの時刻が後の記録と同じなら急ぎでない
+    expect(decideRefetch({ now: 40_000, changedAt: 30_000, urgentAt: 2, current: null, previous: current }).spend).toBeNull();
+    expect(decideRefetch({ now: 40_000, changedAt: 30_000, urgentAt: 3, current: null, previous: current }).spend).toBe("current");
+    expect(decideRefetch({ now: 40_000, changedAt: 30_000, urgentAt: 3, current: null, previous }).spend).toBe("current");
+  });
+
+  it("変わり続けても、1時間の取り直しは最大62回（間隔を15秒 → 30秒 → 60秒と延ばしていたときの上限と同じ）", () => {
+    // 前の決まり：静かなあとの最初の変化を0秒として、0・15・45・105・165…秒に取り直す（1時間で62回）
+    const before = (seconds: number) => (seconds < 15 ? 1 : seconds < 45 ? 2 : 3 + Math.floor((seconds - 45) / 60));
+    expect(before(3599)).toBe(62);
+    // 区切りの中のどこで始まっても上限は同じ（0秒・30秒・59秒から始める）
+    for (const offset of [0, 30_000, 59_000]) {
+      for (const urgent of [true, false]) {
+        const records = new Map<number, RefetchRecord>();
+        let fetched = 0;
+        for (let elapsed = 0; elapsed < 3_600_000; elapsed += 1000) {
+          const now = 100 * P + offset + elapsed;
+          const period = refetchPeriod(now);
+          // 毎秒変わる。急ぎの知らせなら、急ぎの時刻も毎秒変わる
+          const decided = decideRefetch({
+            now,
+            changedAt: now,
+            urgentAt: urgent ? now : 1,
+            current: records.get(period) ?? null,
+            previous: records.get(period - 1) ?? null,
+          });
+          if (decided.spend) {
+            const index = decided.spend === "current" ? period : period - 1;
+            // 1回分は1回しか使わない
+            expect(records.has(index)).toBe(false);
+            records.set(index, { changedAt: now, urgentAt: urgent ? now : 1, at: now });
+            fetched += 1;
+          }
+          // 急ぎでない知らせだけなら、どの時点でも前の決まりの回数以下。
+          // 急ぎの知らせが続くときは、残してある1回分が先に出る分だけ（1回）早いことがある
+          if (elapsed >= 15_000) expect(fetched).toBeLessThanOrEqual(before(elapsed / 1000) + (urgent ? 1 : 0));
+        }
+        expect(fetched).toBeLessThanOrEqual(62);
+        expect(fetched).toBeGreaterThanOrEqual(60);
+      }
     }
-    expect(fetches).toBeLessThanOrEqual(62);
-    expect(fetches).toBeGreaterThanOrEqual(58);
   });
 });

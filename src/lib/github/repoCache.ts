@@ -1,8 +1,9 @@
-import { revalidateTag, unstable_cache, updateTag } from "next/cache";
+import { unstable_cache, updateTag } from "next/cache";
 import { repoChangeKey, type ChangeMarks } from "../changeMarks";
 import { getSettingsRepo, getWatchedRepos, parseRepoList, type Env, type WatchedRepo } from "../config";
-import { decideRefetch, nextRefetchIntervalMs, REFETCH_MIN_INTERVAL_MS } from "../refetchLimit";
-import { repoTag } from "../webhook";
+import { decideRefetch, isSettledChange, refetchPeriod, type RefetchRecord } from "../refetchLimit";
+import { shareInFlight } from "../inFlight";
+import { repoTag, urgentTag } from "../webhook";
 import { resolveAppAccess } from "./appToken";
 import { GitHubClient } from "./client";
 import { readVariable, WATCHED_REPOS_VARIABLE } from "./settings";
@@ -11,7 +12,7 @@ import type { RepoData } from "./types";
 // Next.js のキャッシュ（`unstable_cache`。タグで無効にでき、Vercel では全部のインスタンスに効く）に、
 // App の鍵で読んだリポジトリのデータと「変わった」印を覚える（docs/spec.md の「更新」）。サーバーだけで使う。
 // Cache Components（`use cache`・`cacheTag`）は画面全体の作りが変わるので使わず、同じタグの仕組みの `unstable_cache` を使う。
-// 15秒の下限の判定に使う物も全部キャッシュに置き、サーバーのメモリには覚えない（インスタンスをまたいで同じに効かせるため）。
+// 取り直しの持ち分の判定に使う物も全部キャッシュに置き、サーバーのメモリには覚えない（インスタンスをまたいで同じに効かせるため）。
 
 /** キャッシュの寿命（秒）。Webhook が届かなかったときの保険 */
 export const REPO_CACHE_SECONDS = 5 * 60;
@@ -26,7 +27,7 @@ export function isWebhookEnabled(env: Env = process.env): boolean {
   return Boolean(env.GITHUB_WEBHOOK_SECRET);
 }
 
-/** 「取り直してよい印」のタグ。Webhook では無効にならない（`/api/changes` と手で押す「同期」・ボタン操作の後だけ） */
+/** 手で押す「同期」・ボタン操作の印のタグ。Webhook では無効にならない（手で押す「同期」・ボタン操作の後だけ） */
 function releaseTag(repo: WatchedRepo): string {
   return `release:${repoChangeKey(repo)}`;
 }
@@ -39,26 +40,106 @@ function readChangedAt(repo: WatchedRepo): Promise<number> {
 }
 
 /**
- * 取り直してよい印：取り直しを許した「最後に変わった時刻」と、許した時刻（＝前に取った時刻）、次の取り直しまであける時間。ミリ秒。
- * `intervalMs` が無い印（前の版が覚えた物）は、最短の15秒として読む
+ * 「最後に急ぎの知らせが来た時刻」（ミリ秒）。急ぎの知らせのタグが無効になった後に初めて読んだ時刻。
+ * 持ち分を使った記録に覚えた物と違えば、その後に急ぎの知らせが来ている。まだ許していない変化があるときだけ読む
  */
-type Release = { changedAt: number; releasedAt: number; intervalMs?: number };
+function readUrgentAt(repo: WatchedRepo): Promise<number> {
+  return unstable_cache(async () => Date.now(), ["repo-urgent-at-ms", repoChangeKey(repo)], {
+    tags: [urgentTag(repo)],
+  })();
+}
 
 /**
- * 取り直してよい印。初めて読むとき（無効にした後も）は、渡した「最後に変わった時刻」と今の時刻、渡したあける時間になる。
+ * 手で押す「同期」・ボタン操作の印：そのとき（無効にした後に初めて読んだとき）の「最後に変わった時刻」と、その時刻。ミリ秒。
+ * これ以前の変化は、取り直しの持ち分に関係なく取り直してよい。
+ * 書き直すことは無い（タグを無効にしたリクエストの中で書いた物は、無効にした時刻より古い物として捨てられるため、
+ * 取り直しの持ち分はここに覚えず、キーで分けた記録に覚える。下の `refetchRecord`）
+ */
+type Release = { changedAt: number; releasedAt: number };
+
+/**
+ * 手で押す「同期」・ボタン操作の印。初めて読むとき（無効にした後も）は、渡した「最後に変わった時刻」と今の時刻になる。
  * `unstable_cache` の中で別の `unstable_cache` を呼ぶと中はキャッシュされないので、「最後に変わった時刻」は先に読んで渡す
  */
-function readRelease(
-  repo: WatchedRepo,
-  changedAt: number,
-  intervalMs: number = REFETCH_MIN_INTERVAL_MS,
-): Promise<Release> {
+function readRelease(repo: WatchedRepo, changedAt: number): Promise<Release> {
   return unstable_cache(
-    async (): Promise<Release> => ({ changedAt, releasedAt: Date.now(), intervalMs }),
+    async (): Promise<Release> => ({ changedAt, releasedAt: Date.now() }),
     ["repo-release-ms", repoChangeKey(repo)],
     { tags: [releaseTag(repo)] },
   )();
 }
+
+/** 記録がまだ無いことを、キャッシュに覚えさせずに知らせる印 */
+const NO_RECORD = "refetch-record-missing";
+
+/**
+ * キーで分けた、書き直さない記録。`fill` を渡すと、まだ無ければその中身で作る。もうあれば、ある物を返す。
+ * `fill` が null なら見るだけで、無ければ null（投げた結果はキャッシュに残らない）。
+ * タグは付けない（タグを無効にしたリクエストの中で書いた物は、無効にした時刻より古い物として捨てられるため、
+ * 取り直しの持ち分は、タグで無効にする入れ物ではなく、この記録に覚える）。どのインスタンスでも同じ物が読める
+ */
+async function keyedRecord<T>(keyParts: string[], fill: T | null): Promise<T | null> {
+  try {
+    return await unstable_cache(async (): Promise<T> => {
+      if (fill === null) throw new Error(NO_RECORD);
+      return fill;
+    }, keyParts)();
+  } catch (error) {
+    if (error instanceof Error && error.message === NO_RECORD) return null;
+    throw error;
+  }
+}
+
+/** 取り直しの持ち分を使った記録（区切りの番号ごと。1回分は1回しか使えない。`src/lib/refetchLimit.ts`） */
+function refetchRecord(repo: WatchedRepo, period: number, fill: RefetchRecord | null): Promise<RefetchRecord | null> {
+  return keyedRecord(["repo-refetch-record-v1", repoChangeKey(repo), String(period)], fill);
+}
+
+/** その「最後に変わった時刻」の取り直しを、もう許したか（許したときに作る。区切りが進んでも分かるように、時刻ごとに覚える） */
+function releasedRecord(repo: WatchedRepo, changedAt: number, fill: { at: number } | null): Promise<{ at: number } | null> {
+  return keyedRecord(["repo-released-v1", repoChangeKey(repo), String(changedAt)], fill);
+}
+
+/**
+ * 取り直してよい「最後に変わった時刻」（ミリ秒）。データのキーと、画面に見せる「変わった」印に使う。GitHub には問い合わせない。
+ * - しばらく変わっていない（`isSettledChange`）：「最後に変わった時刻」そのまま（読むのは1つだけ）
+ * - もう取り直しを許した変化・手で押す「同期」やボタン操作より後に変わっていない：そのまま
+ * - まだ許していない変化：持ち分が足りれば使って進める（`decideRefetch`）。足りなければ、前に許した所のまま
+ *   （待つ間に何回変わっても、進めた後の1回にまとまる）
+ * 持ち分の記録はキャッシュに置くので、どのインスタンスでも同じに効く。タグは無効にしないので、ページの表示からも呼べる
+ */
+async function releasedChangedAt(repo: WatchedRepo, now: number): Promise<number> {
+  const changedAt = await readChangedAt(repo);
+  if (isSettledChange(changedAt, now)) return changedAt;
+  if (await releasedRecord(repo, changedAt, null)) return changedAt;
+  const period = refetchPeriod(now);
+  const [release, current, previous] = await Promise.all([
+    readRelease(repo, changedAt),
+    refetchRecord(repo, period, null),
+    refetchRecord(repo, period - 1, null),
+  ]);
+  // 手で押す「同期」・ボタン操作の時点までの変化は、持ち分に関係なく取り直す
+  if (release.changedAt >= changedAt) return changedAt;
+  const urgentAt = await readUrgentAt(repo);
+  const decision = decideRefetch({ now, changedAt, urgentAt, current, previous });
+  if (decision.spend) {
+    const spent = await refetchRecord(repo, decision.spend === "current" ? period : period - 1, {
+      changedAt,
+      urgentAt,
+      at: now,
+    });
+    // 同時に別の所が同じ持ち分を使っていたら、そちらの記録が返る（その印に合わせ、この変化は次に回す）
+    if (spent && spent.changedAt >= changedAt) {
+      await releasedRecord(repo, changedAt, { at: now });
+      return changedAt;
+    }
+    return Math.max(spent?.changedAt ?? 0, decision.released ?? 0, release.changedAt);
+  }
+  return Math.max(decision.released ?? 0, release.changedAt);
+}
+
+/** 同じインスタンスで、同じ印のデータを同時に取りに行っている物（リクエストをまたいで1回にまとめる） */
+const loadingRepoData = new Map<string, Promise<RepoData>>();
 
 /** App の鍵で読んだデータと、そのデータに反映済みの「変わった」印（ISO 文字列） */
 export type AppRepoData = { data: RepoData; changeMark: string };
@@ -68,54 +149,33 @@ export type AppRepoData = { data: RepoData; changeMark: string };
  * キーはリポジトリと取り直してよい印の「最後に変わった時刻」（鍵は1時間で替わるので入れない。App の鍵で読むのは、
  * ログインした人が読めると確かめた物だけ）。変化ごとに別の入れ物になるので、取得の途中に Webhook が来ても、
  * 保存した瞬間にその無効化が消えることは無い（次の印で取り直される）。
- * 印を進める（取り直してよいか決める）のは `/api/changes`（`getChangeMarks`）だけで、ここは今の印のデータを返す
+ * どの印のデータを返すか（取り直してよいか）は `releasedChangedAt` が決める
  */
 export async function cachedRepoData(
   repo: WatchedRepo,
   load: () => Promise<RepoData>,
 ): Promise<AppRepoData> {
-  const release = await readRelease(repo, await readChangedAt(repo));
-  const data = await unstable_cache(
-    () => load(),
-    ["repo-data", DEPLOY_KEY, repoChangeKey(repo), String(release.changedAt)],
-    { revalidate: REPO_CACHE_SECONDS },
-  )();
-  return { data, changeMark: new Date(release.changedAt).toISOString() };
+  const mark = await releasedChangedAt(repo, Date.now());
+  const keyParts = ["repo-data", DEPLOY_KEY, repoChangeKey(repo), String(mark)];
+  // 同時に来た別のリクエスト（取り直しの途中のページ移動・別のタブ）が同じ印を読むときは、取得を1回にまとめる
+  const data = await shareInFlight(loadingRepoData, keyParts.join("|"), () =>
+    unstable_cache(() => load(), keyParts, { revalidate: REPO_CACHE_SECONDS })(),
+  );
+  return { data, changeMark: new Date(mark).toISOString() };
 }
 
-/** 手で押す「同期」・ボタン操作の後：下限を無視して、次の表示ですぐ取り直す */
+/** 手で押す「同期」・ボタン操作の後：取り直しの持ち分に関係なく、次の表示ですぐ取り直す */
 export function invalidateRepoNow(repo: WatchedRepo): void {
   updateTag(repoTag(repo));
   updateTag(releaseTag(repo));
 }
 
 /**
- * 画面に見せる「変わった」印：取り直してよい印の「最後に変わった時刻」。GitHub には問い合わせない。
- * 印の後に変わっていて、前に取ってから15秒たっていれば、印を進める（`decideRefetch`）。
- * 15秒たっていなければ前の印のまま（15秒の間に何回変わっても、たった後の1回にまとまる）。
- * 変わり続けているリポジトリは、あける時間を15秒 → 30秒 → 60秒と延ばし、2分静かなら15秒に戻す（`nextRefetchIntervalMs`。
- * あける時間は印と一緒にキャッシュに覚えるので、どのインスタンスでも同じに効く）。
- * タグを無効にするので、Route Handler（`/api/changes`）からだけ呼ぶ
+ * 画面に見せる「変わった」印：取り直してよい「最後に変わった時刻」（`releasedChangedAt`）。GitHub には問い合わせない。
+ * 画面は、これが反映済みの印より新しいときだけ取り直す
  */
 export async function getChangeMark(repo: WatchedRepo, now: number = Date.now()): Promise<string> {
-  const changedAt = await readChangedAt(repo);
-  let release = await readRelease(repo, changedAt);
-  const decision = decideRefetch({
-    lastFetchedAt: release.releasedAt,
-    lastChangedAt: changedAt,
-    reflectedChangedAt: release.changedAt,
-    now,
-    minIntervalMs: release.intervalMs ?? REFETCH_MIN_INTERVAL_MS,
-  });
-  if (decision.refetch) {
-    const intervalMs = nextRefetchIntervalMs({
-      previousIntervalMs: release.intervalMs ?? null,
-      sinceLastFetchMs: now - release.releasedAt,
-    });
-    revalidateTag(releaseTag(repo), { expire: 0 });
-    release = await readRelease(repo, changedAt, intervalMs);
-  }
-  return new Date(release.changedAt).toISOString();
+  return new Date(await releasedChangedAt(repo, now)).toISOString();
 }
 
 /** 監視リポジトリごとの印（`/api/changes` から呼ぶ） */
