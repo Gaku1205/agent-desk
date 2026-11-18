@@ -34,6 +34,9 @@ type Props = {
   nav: DeskNav;
 };
 
+/** 片づけた1件を隠しておく長さ */
+const TURN_LEAVE_MS = 8000;
+
 /** Your turn：いまの「あなたの番」を1行ずつ並べ、その場で押せる */
 function TurnSection({ id, items, now, basePath }: { id: string; items: TurnItem[]; now: Date; basePath: string }) {
   const [held, setHeld] = useState<ReadonlyMap<string, HeldRow<TurnItem>>>(() => new Map());
@@ -67,6 +70,15 @@ function TurnSection({ id, items, now, basePath }: { id: string; items: TurnItem
   // 片づけた物は、押した時点の段階の印（`turnSig`）と一緒に覚える。段階が変わって同じ番号がまた出たら隠さない
   const gotAway = useCallback((key: string, sig: string) => {
     setGone((prev) => new Map(prev).set(key, sig));
+    // 取り直しが古い内容のままでも、1件が隠れたまま残らないようにする（TurnRow と同じ8秒）
+    window.setTimeout(() => {
+      setGone((prev) => {
+        if (prev.get(key) !== sig) return prev;
+        const next = new Map(prev);
+        next.delete(key);
+        return next;
+      });
+    }, TURN_LEAVE_MS);
     setHeld((prev) => {
       if (!prev.has(key)) return prev;
       const next = new Map(prev);

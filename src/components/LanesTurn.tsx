@@ -29,6 +29,22 @@ type Props = {
   onGone: (key: string, sig: string) => void;
 };
 
+/** フォーカスが片づける行の中にあるときだけ、次の行の最初のボタン（無ければ区画の見出し）へ移す */
+function moveFocusOutOf(row: HTMLElement) {
+  if (!row.contains(document.activeElement)) return;
+  const rows = Array.from(row.parentElement?.children ?? []).filter(
+    (el): el is HTMLElement => el instanceof HTMLElement && el.hasAttribute("data-key") && el !== row,
+  );
+  const after = rows.filter((el) => row.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const next = [...after, ...rows.filter((el) => !after.includes(el))].find((el) => !el.hasAttribute("data-fading"));
+  const target =
+    next?.querySelector<HTMLElement>('[data-act]:not([aria-disabled="true"])') ??
+    next?.querySelector<HTMLElement>("a, button") ??
+    row.closest("section")?.querySelector<HTMLElement>("h2");
+  if (target && !target.matches("a, button")) target.tabIndex = -1;
+  target?.focus();
+}
+
 type Op = { kind: OperationKind; phase: "busy" | "done" | "fading" };
 
 /** Slots & Queue の Your turn の1行（docs/design.md の「Slots & Queue」）。ボタンの動きは「あなたの番」（`TurnRow`）と同じ */
@@ -43,6 +59,12 @@ export function LanesTurn({ item, wait, basePath, onHold, onGone }: Props) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const rowRef = useRef<HTMLLIElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const mergeRef = useRef<HTMLButtonElement>(null);
+  // 確認を閉じたとき「マージ…」へ、結果を出したとき「閉じる」へフォーカスを移す
+  const restoreMergeFocus = useRef(false);
+  const focusClose = useRef(false);
   // 押した時点の段階の印（片づけるときに使う）
   const opSig = useRef(sig);
   const phase = op?.phase ?? null;
@@ -55,10 +77,37 @@ export function LanesTurn({ item, wait, basePath, onHold, onGone }: Props) {
   }, [phase, key, item, onHold]);
   useEffect(() => () => onHold(key, null), [key, onHold]);
 
+  useEffect(() => {
+    if (confirming) confirmRef.current?.focus();
+    else if (restoreMergeFocus.current) {
+      restoreMergeFocus.current = false;
+      mergeRef.current?.focus();
+    }
+  }, [confirming]);
+
+  /** 結果を出す：フォーカスが行の中にあれば「閉じる」へ移す */
+  function succeed() {
+    focusClose.current = rowRef.current?.contains(document.activeElement) ?? false;
+    setConfirming(false);
+    setOp((prev) => (prev ? { ...prev, phase: "done" } : prev));
+  }
+
+  /** 行を片づける：フォーカスを外へ移してから */
+  function leave() {
+    if (rowRef.current) moveFocusOutOf(rowRef.current);
+    onGone(key, opSig.current);
+  }
+
+  function closeConfirm() {
+    restoreMergeFocus.current = true;
+    setConfirming(false);
+  }
+
   // デモ：データに当てるまで（0.42秒）を「〜中…」にし、そのあと結果を出す
   useEffect(() => {
     if (phase !== "busy" || demo === null) return;
     const timer = window.setTimeout(() => {
+      focusClose.current = rowRef.current?.contains(document.activeElement) ?? false;
       setConfirming(false);
       setOp((prev) => (prev ? { ...prev, phase: "done" } : prev));
     }, DEMO_OP_DELAY_MS);
@@ -68,11 +117,18 @@ export function LanesTurn({ item, wait, basePath, onHold, onGone }: Props) {
   // 結果を2.4秒見せたら、0.15秒で消してから片づける
   useEffect(() => {
     if (phase === "done") {
+      if (focusClose.current) {
+        focusClose.current = false;
+        closeRef.current?.focus();
+      }
       const timer = window.setTimeout(() => setOp((prev) => (prev ? { ...prev, phase: "fading" } : prev)), RESULT_SHOW_MS);
       return () => window.clearTimeout(timer);
     }
     if (phase === "fading") {
-      const timer = window.setTimeout(() => onGone(key, opSig.current), RESULT_FADE_MS);
+      const timer = window.setTimeout(() => {
+        if (rowRef.current) moveFocusOutOf(rowRef.current);
+        onGone(key, opSig.current);
+      }, RESULT_FADE_MS);
       return () => window.clearTimeout(timer);
     }
   }, [phase, key, onGone]);
@@ -95,12 +151,11 @@ export function LanesTurn({ item, wait, basePath, onHold, onGone }: Props) {
         setOp(null);
         setError(result.message);
       } else if (result.ok) {
-        setConfirming(false);
-        setOp((prev) => (prev ? { ...prev, phase: "done" } : prev));
+        succeed();
       } else {
         // 押した時点で段階が変わっていて何もしなかった：結果は出さず、すぐ片づける
         setConfirming(false);
-        onGone(key, opSig.current);
+        leave();
       }
     });
   }
@@ -126,6 +181,13 @@ export function LanesTurn({ item, wait, basePath, onHold, onGone }: Props) {
 
   return (
     <li
+      ref={rowRef}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && confirming && !blocked) {
+          event.stopPropagation();
+          closeConfirm();
+        }
+      }}
       className={styles.row}
       data-kind="turn"
       data-group={kind.group}
@@ -144,7 +206,7 @@ export function LanesTurn({ item, wait, basePath, onHold, onGone }: Props) {
           {issue.title}
         </a>
         {done ? (
-          <DoneResult summary={done} compact onClose={() => onGone(key, opSig.current)} closeRef={closeRef} />
+          <DoneResult summary={done} compact onClose={leave} closeRef={closeRef} />
         ) : (
           <span
             className={styles.turnDesc}
@@ -167,6 +229,7 @@ export function LanesTurn({ item, wait, basePath, onHold, onGone }: Props) {
             ) : confirming && merge ? (
               <>
                 <button
+                  ref={confirmRef}
                   type="button"
                   className={`${styles.turnAct} ${styles.turnPrimary}`}
                   data-act=""
@@ -185,7 +248,7 @@ export function LanesTurn({ item, wait, basePath, onHold, onGone }: Props) {
                   data-act=""
                   aria-disabled={blocked ? "true" : undefined}
                   onClick={() => {
-                    if (!blocked) setConfirming(false);
+                    if (!blocked) closeConfirm();
                   }}
                 >
                   やめる
@@ -205,6 +268,7 @@ export function LanesTurn({ item, wait, basePath, onHold, onGone }: Props) {
                 ) : (
                   <button
                     key={button.kind}
+                    ref={button.kind === "merge" ? mergeRef : undefined}
                     type="button"
                     className={`${styles.turnAct} ${styles.turnPrimary}`}
                     data-act=""
