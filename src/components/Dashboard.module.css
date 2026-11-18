@@ -146,6 +146,11 @@
   .note {
     grid-column: 1 / -1;
   }
+
+  /* 補足が無い行は、狭い2段の並びでは詰める */
+  .note[data-empty] {
+    display: none;
+  }
 }
 
 /* ───── AI usage：左に 工程×モデルの表、右に 上限の回数と横棒（狭いと1列に落ちる） ───── */
@@ -219,6 +224,21 @@
 .usageTable td:last-child,
 .usageTable th:last-child {
   width: 20%;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.usageNote {
+  margin: 8px 0 0;
+  color: var(--mute);
+  font-size: 12.5px;
 }
 
 .usageSide {

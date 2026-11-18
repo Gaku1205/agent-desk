@@ -109,7 +109,7 @@ export function DashboardThroughput({ throughput, basePath = "" }: Props) {
           {longest === "queue" ? (
             <>
               <QueueIcon size={14} /> Queue（順番待ち）。触るファイルが重なる物は、並列でも待つ。{" "}
-              <Link href={`${basePath}/settings#settings-parallel`} className={styles.link}>
+              <Link href={`${basePath}/lanes`} className={styles.link}>
                 Slots &amp; Queue を見る →
               </Link>
             </>
