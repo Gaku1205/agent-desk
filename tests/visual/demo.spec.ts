@@ -121,6 +121,29 @@ test.describe("デモの画面", () => {
     await expect(page).toHaveScreenshot("lanes.png");
   });
 
+  test("Slots & Queue：マージした行は、結果の間も押す前と同じ位置・同じ高さに残る", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile", "狭い所は3段で高さが変わるため");
+    await page.goto("/demo/lanes");
+    await settle(page);
+    const rows = page.locator('li[data-kind="turn"]');
+    const target = rows.filter({ hasText: "todo-app#22" });
+    const orderBefore = await rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-key")));
+    const before = await target.boundingBox();
+    const titleBefore = await target.locator("a").first().boundingBox();
+    expect(before).not.toBeNull();
+    await target.getByRole("button", { name: /^マージ/ }).click();
+    await target.getByRole("button", { name: "マージする" }).click();
+    await expect(target.getByText("マージしました")).toBeVisible();
+    const orderAfter = await rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-key")));
+    // マージで動き出す物など、ほかの行の並びは変わってよい。押した行は同じ順番のまま
+    expect(orderAfter.indexOf("demo/todo-app#22")).toBe(orderBefore.indexOf("demo/todo-app#22"));
+    const after = await target.boundingBox();
+    const titleAfter = await target.locator("a").first().boundingBox();
+    expect(after?.y).toBe(before?.y);
+    expect(after?.height).toBe(before?.height);
+    expect(titleAfter?.y).toBe(titleBefore?.y);
+  });
+
   test("メニューを開いた状態（スマホ）", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile", "メニューボタンはスマホだけ");
     await page.goto("/demo");

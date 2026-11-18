@@ -6,7 +6,7 @@ import { FLOW_STEPS } from "@/lib/flow";
 import { assignSlots, lanesHeadline, type QueueEntry, type Slot } from "@/lib/lanes/slots";
 import type { LanesSource, RunEntry } from "@/lib/lanes/source";
 import { lanesTurnRows, mergeOrdinals } from "@/lib/lanes/turnRows";
-import { withHeldRows, type HeldRow } from "@/lib/operationResult";
+import { heldIndex, withHeldRows, type HeldRow } from "@/lib/operationResult";
 import { turnItemKey, turnSig, type TurnItem } from "@/lib/turn";
 import { TURN_GROUPS } from "@/lib/turnKind";
 import { getBrowserStorage } from "@/lib/motion";
@@ -63,9 +63,9 @@ function TurnSection({ id, items, now, basePath }: { id: string; items: TurnItem
           return next;
         }
         if (before && before.done === value.done) return prev;
-        const index = rowsRef.current.findIndex((row) => turnItemKey(row) === key);
+        const index = heldIndex(before, rowsRef.current, key);
         const next = new Map(prev);
-        next.set(key, { item: before?.item ?? value.item, index: Math.max(index, 0), done: value.done });
+        next.set(key, { item: before?.item ?? value.item, index, done: value.done });
         return next;
       });
     },
