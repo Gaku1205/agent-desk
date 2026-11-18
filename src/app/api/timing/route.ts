@@ -57,6 +57,9 @@ export async function GET(): Promise<Response> {
           ok: result.ok,
           source: result.readSource ?? null,
           kb: result.ok ? Math.round(Buffer.byteLength(JSON.stringify(result.data)) / 1024) : null,
+          // そのデータを差分で読んだか全部を読んだかと、その回に GitHub から読んだ Issue・PR の数（覚えた物でも、覚えたときの読み方）
+          mode: result.ok ? (result.data.sync?.mode ?? null) : null,
+          count: result.ok ? (result.data.sync?.count ?? null) : null,
         };
       });
       await Promise.race(reads);
@@ -76,8 +79,16 @@ export async function GET(): Promise<Response> {
   return respond(timer.stages(), repoRows, calls);
 }
 
-/** リポジトリ1つ分：何番目か・読み終えるまでの ms・読めたか・どの鍵で読んだか・データの大きさ（KB） */
-type RepoRow = { n: number; ms: number; ok: boolean; source: "app" | "user" | null; kb: number | null };
+/** リポジトリ1つ分：何番目か・読み終えるまでの ms・読めたか・どの鍵で読んだか・データの大きさ（KB）・差分か全部か・読んだ件数 */
+type RepoRow = {
+  n: number;
+  ms: number;
+  ok: boolean;
+  source: "app" | "user" | null;
+  kb: number | null;
+  mode: "delta" | "full" | null;
+  count: number | null;
+};
 
 function respond(measured: TimingStage[], repos: RepoRow[], calls: CallTotals | null): Response {
   const stages = [...measured, { name: "instance", ms: roundTimingMs(instanceAgeMs()) }];

@@ -3,21 +3,27 @@ import type { Env, WatchedRepo } from "../config";
 import { checkUserCanRead, forgetInstallation, resolveReadAccess } from "./appToken";
 import { GitHubClient, type Fetcher } from "./client";
 import { GitHubError, toErrorInfo } from "./errors";
+import { mergeRepoParts, planRepoRead, shouldReadFullAfterDeltaError, shouldReadMorePulls } from "./delta";
 import {
   convertRepoNodes,
+  DELTA_LISTS,
+  DELTA_QUERY,
   mainDeployedFrom,
   mergeMainDeployed,
+  readDeltaResponse,
   readRepoResponse,
   REPO_QUERY,
+  type DeltaList,
   type GqlIssue,
   type GqlPull,
   type MainDeployed,
+  type RepoParts,
 } from "./graphql";
 import { judgePipelineState, type PipelineProbe, type PipelineState } from "../pipelineState";
 import type { WatchdogLastRun } from "../watchdogState";
 import { cachedRepoData, cachedUserCanRead, snapshotRepoData, type AppRepoData } from "./repoCache";
 import { PIPELINE_WORKFLOW_PATH } from "./settings";
-import type { CommitStatusData, RepoData, RepoResult, RunStepData, WorkflowRunData } from "./types";
+import type { CommitStatusData, RepoData, RepoResult, RepoSyncInfo, RunStepData, WorkflowRunData } from "./types";
 import { currentStepFromJobs, stepProbeRunIds } from "../aiActivity";
 
 const WINDOW_DAYS = 14;
@@ -41,24 +47,191 @@ export async function fetchRepoData(
   // 問い合わせの since は日の始め（UTC の0時）に切り下げ、取ったあとで直近14日に絞り直す
   const since = new Date(Math.floor(cutoffMs / DAY_MS) * DAY_MS).toISOString();
 
-  const [nodes, actions] = await Promise.all([
-    fetchRepoNodes(client, owner, repo, since, cutoffMs),
+  const baseKey = deltaBaseKey(client, base);
+  const [read, actions] = await Promise.all([
+    readRepoParts(client, owner, repo, { since, cutoffMs, now, known: deltaBases.get(baseKey) }),
     fetchActionsState(client, base, now.getTime()),
   ]);
-  const mainDeployed = rememberedMainDeployed(client.memoKey(base), nodes.mainCommits);
+  const mainDeployed = rememberedMainDeployed(client.memoKey(base), read.mainCommits);
 
   const data: RepoData = {
     owner,
-    ...convertRepoNodes(nodes.issues, nodes.pulls, cutoffMs, nodes.waiting),
+    ...read.parts,
     pipeline: actions.pipeline,
     mainDeployedAt: mainDeployed.at,
     mainDeployedByContext: mainDeployed.byContext,
     watchdog: actions.watchdog,
     runs: actions.runs,
-    ...(nodes.isTemplate === undefined ? {} : { isTemplate: nodes.isTemplate }),
+    ...(read.isTemplate === undefined ? {} : { isTemplate: read.isTemplate }),
+    sync: read.sync,
   };
+  rememberDeltaBase(baseKey, data);
   const runSteps = await fetchRunSteps(client, base, stepProbeRunIds(data));
   return runSteps.length > 0 ? { ...data, runSteps } : data;
+}
+
+/** 差分の読みの元（前に読んだ結果）を覚えておく件数の上限（超えたら古い物から捨てる） */
+export const DELTA_BASE_MAX_ENTRIES = 50;
+
+/**
+ * 差分の読みの元：リポジトリごとに、このインスタンスが最後に読んだ（またはキャッシュから受け取った）結果。
+ * サーバーのメモリ。キーは「トークン（App はインストール）のハッシュ＋リポジトリ」（`GitHubClient.memoKey`）。再起動で消えてよい（そのときは全部を読む）
+ */
+const deltaBases = new Map<string, RepoData>();
+
+/** テスト用：覚えている物を空にする */
+export const deltaBaseCacheForTest = { clear: (): void => deltaBases.clear() };
+
+function deltaBaseKey(client: GitHubClient, base: string): string {
+  return client.memoKey(`${base}#delta`);
+}
+
+/** 差分の読みの元として覚える。もっと新しく読んだ物を覚えていれば、そちらを残す */
+function rememberDeltaBase(key: string, data: RepoData): void {
+  if (!data.sync) return;
+  const known = deltaBases.get(key)?.sync;
+  if (known && Date.parse(known.readAt) > Date.parse(data.sync.readAt)) return;
+  deltaBases.delete(key);
+  deltaBases.set(key, data);
+  while (deltaBases.size > DELTA_BASE_MAX_ENTRIES) {
+    const oldest = deltaBases.keys().next();
+    if (oldest.done) break;
+    deltaBases.delete(oldest.value);
+  }
+}
+
+/**
+ * キャッシュ（ほかのインスタンスが読んだ物もある）から受け取った結果を、差分の読みの元として覚える。
+ * 次にそのリポジトリが変わったとき、このインスタンスでも差分だけを読めるようにするため
+ */
+export function rememberRepoData(client: GitHubClient, { owner, repo }: WatchedRepo, data: RepoData): void {
+  rememberDeltaBase(deltaBaseKey(client, `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`), data);
+}
+
+type ReadParts = {
+  parts: RepoParts;
+  isTemplate: boolean | undefined;
+  mainCommits: CommitStatusData[][] | null;
+  sync: RepoSyncInfo;
+};
+
+/**
+ * Issue・PR とそれに付く物を読む。前の結果があれば差分だけを読んで混ぜ（`planRepoRead`）、無い・6時間たった・
+ * 差分の読みが失敗したときは、全部を読む
+ */
+async function readRepoParts(
+  client: GitHubClient,
+  owner: string,
+  name: string,
+  options: { since: string; cutoffMs: number; now: Date; known: RepoData | undefined },
+): Promise<ReadParts> {
+  const { since, cutoffMs, now, known } = options;
+  const readAt = now.toISOString();
+  const plan = planRepoRead(known?.sync, now.getTime(), cutoffMs);
+  if (plan.mode === "delta" && known?.sync) {
+    try {
+      const nodes = await fetchDeltaNodes(client, owner, name, { sinceMs: plan.sinceMs, windowSince: since, cutoffMs });
+      const touched = new Set([...nodes.issues, ...nodes.pulls].map((node) => node.number));
+      const delta = convertRepoNodes(nodes.issues, nodes.pulls, cutoffMs);
+      return {
+        parts: mergeRepoParts(known, delta, touched, cutoffMs),
+        isTemplate: nodes.isTemplate ?? known.isTemplate,
+        mainCommits: nodes.mainCommits,
+        sync: { mode: "delta", readAt, fullAt: known.sync.fullAt, count: nodes.count },
+      };
+    } catch (error) {
+      if (!shouldReadFullAfterDeltaError(error instanceof GitHubError ? error.kind : null)) throw error;
+    }
+  }
+  const nodes = await fetchRepoNodes(client, owner, name, since, cutoffMs);
+  return {
+    parts: convertRepoNodes(nodes.issues, nodes.pulls, cutoffMs, nodes.waiting),
+    isTemplate: nodes.isTemplate,
+    mainCommits: nodes.mainCommits,
+    sync: { mode: "full", readAt, fullAt: readAt, count: nodes.issues.length + nodes.pulls.length + nodes.waiting.length },
+  };
+}
+
+/** 差分の読みで、続きのページが要るのに最大のページ数を超えた（全部を読み直す） */
+class DeltaOverflowError extends Error {}
+
+/** 同じ番号の物は、先に出た物だけを残す */
+function uniqueByNumber<T extends { number: number }>(nodes: T[]): T[] {
+  const seen = new Set<number>();
+  return nodes.filter((node) => (seen.has(node.number) ? false : (seen.add(node.number), true)));
+}
+
+/**
+ * 差分の読み（`DELTA_QUERY`）。`sinceMs` より後に更新された Issue・PR と、直近14日の開いている Issue・PR を取る。
+ * Issue は続きがあれば、PR は続きがあって、そのページのいちばん古い物が境目（更新された物は `sinceMs`、開いている物は直近14日）
+ * 以降なら、続きの要る一覧だけを問い合わせる。どれかが最大のページ数を超えたら失敗にする（全部を読み直す）
+ */
+async function fetchDeltaNodes(
+  client: GitHubClient,
+  owner: string,
+  name: string,
+  { sinceMs, windowSince, cutoffMs }: { sinceMs: number; windowSince: string; cutoffMs: number },
+): Promise<{
+  isTemplate: boolean | undefined;
+  issues: GqlIssue[];
+  pulls: GqlPull[];
+  mainCommits: CommitStatusData[][] | null;
+  count: number;
+}> {
+  const nodes: Record<DeltaList, (GqlIssue | GqlPull)[]> = { recentIssues: [], openIssues: [], recentPulls: [], openPulls: [] };
+  const after: Record<DeltaList, string | null> = { recentIssues: null, openIssues: null, recentPulls: null, openPulls: null };
+  const want: Record<DeltaList, boolean> = { recentIssues: true, openIssues: true, recentPulls: true, openPulls: true };
+  const pages: Record<DeltaList, number> = { recentIssues: 0, openIssues: 0, recentPulls: 0, openPulls: 0 };
+  const pullSince: Record<"recentPulls" | "openPulls", number> = { recentPulls: sinceMs, openPulls: cutoffMs };
+  let isTemplate: boolean | undefined;
+  let mainCommits: CommitStatusData[][] | null = null;
+  for (let first = true; DELTA_LISTS.some((list) => want[list]); first = false) {
+    const read = readDeltaResponse(
+      await client.graphql(DELTA_QUERY, {
+        owner,
+        name,
+        since: new Date(sinceMs).toISOString(),
+        windowSince,
+        recentIssuesAfter: after.recentIssues,
+        openIssuesAfter: after.openIssues,
+        recentPullsAfter: after.recentPulls,
+        openPullsAfter: after.openPulls,
+        withRecentIssues: want.recentIssues,
+        withOpenIssues: want.openIssues,
+        withRecentPulls: want.recentPulls,
+        withOpenPulls: want.openPulls,
+        withMain: first,
+      }),
+    );
+    if (!read) throw new GitHubError("not_found");
+    if (first) {
+      isTemplate = read.isTemplate;
+      mainCommits = read.mainCommits;
+    }
+    for (const list of DELTA_LISTS) {
+      if (!want[list]) continue;
+      pages[list]++;
+      const page = read[list];
+      const pageNodes = page?.nodes ?? [];
+      nodes[list].push(...pageNodes);
+      after[list] = page?.next ?? null;
+      const more =
+        after[list] !== null &&
+        (list === "recentPulls" || list === "openPulls"
+          ? shouldReadMorePulls(pageNodes.at(-1)?.updatedAt, pullSince[list])
+          : true);
+      if (more && pages[list] >= MAX_PAGES) throw new DeltaOverflowError("delta read needs too many pages");
+      want[list] = more;
+    }
+  }
+  const count = DELTA_LISTS.reduce((sum, list) => sum + nodes[list].length, 0);
+  return {
+    isTemplate,
+    issues: uniqueByNumber([...nodes.recentIssues, ...nodes.openIssues] as GqlIssue[]),
+    pulls: uniqueByNumber([...nodes.recentPulls, ...nodes.openPulls] as GqlPull[]),
+    mainCommits,
+    count,
+  };
 }
 
 /**
@@ -365,6 +538,8 @@ export async function fetchAllRepos(
         const load = () => fetchRepoData(client, repo, options.now);
         if (!options.readAppData) return { owner, repo: name, ok: true, data: await load(), readSource };
         const { data, changeMark } = await options.readAppData(repo, load);
+        // キャッシュから受け取った物（ほかのインスタンスが読んだ物もある）も、次の差分の読みの元にする
+        rememberRepoData(client, repo, data);
         return { owner, repo: name, ok: true, data, readSource, changeMark };
       } catch (error) {
         // App の鍵で権限なし・見つからないなら、記憶を消して、ログインした人のトークンで1回だけ読み直す
