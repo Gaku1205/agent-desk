@@ -1,5 +1,6 @@
 import { Dashboard } from "@/components/Dashboard";
 import { getSignedInLogin } from "@/lib/auth";
+import { aiUsageAll } from "@/lib/dashboard/aiUsage";
 import { summarizeAll } from "@/lib/dashboard/summary";
 import { loadTurns } from "@/lib/loadTurns";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
@@ -15,6 +16,7 @@ export default async function DashboardPage() {
   return (
     <Dashboard
       summaries={summarizeAll(results, now)}
+      aiUsages={aiUsageAll(results, now)}
       now={now.toISOString()}
       repoCount={repos.length}
       nav={{
