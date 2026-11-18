@@ -6,11 +6,16 @@ import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
 import type { OperationResult } from "@/lib/operations";
 import { nextRowIndex } from "@/lib/focusAfterLeave";
 import { isMergeWeak, mergeResultLines } from "@/lib/mergeLines";
+import { DEMO_OP_DELAY_MS } from "@/lib/demo/ops";
+import { doneSummary, OPERATION_COPY, RESULT_FADE_MS, RESULT_SHOW_MS } from "@/lib/operationResult";
 import { getProgress } from "@/lib/progress";
 import { composeAnswer, type AnswerInput } from "@/lib/question";
 import { splitPhrases, turnKind } from "@/lib/turnKind";
 import { OPERATION_LABEL, type OperationKind, type TurnItem } from "@/lib/turn";
 import { useDemo } from "./DemoContext";
+import { DoneResult } from "./DoneResult";
+import { SpinnerIcon } from "./icons";
+import flowStyles from "./FlowMap.module.css";
 import { emptyAnswer, QuestionForm } from "./QuestionForm";
 import { FactoryForm } from "./FactoryForm";
 import {
@@ -30,9 +35,26 @@ type Props = {
   fresh: boolean;
   /** 片づけ始めた・片づけるのをやめた（次の1件に替え、件数を取り直しを待たずに減らす） */
   onLeave: (key: string, leaving: boolean) => void;
+  /** 押してから片づけるまで、この1件の中身を預ける（done：結果を出し始めた。件数を減らす）。null で預かりをやめる */
+  onHold: (key: string, hold: { item: TurnItem; done: boolean } | null) => void;
   /** マージ待ちの一覧の1行として描く（順番の数。無ければ大きい1件） */
   queue?: { num: number };
 };
+
+/** 押した操作の段階：押している間（`〜中…`）→ 結果（`〜しました`）→ 消えていく */
+type Op = { kind: OperationKind; phase: "busy" | "done" | "fading" };
+
+/** 押したボタンの `〜中…`：前に進捗図の進行中と同じ回る印（docs/design.md の「押したあとの結果」） */
+function BusyLabel({ kind }: { kind: OperationKind }) {
+  return (
+    <>
+      <span className={`${flowStyles.spin} ${styles.busyMark}`} aria-hidden="true">
+        <SpinnerIcon />
+      </span>
+      {OPERATION_COPY[kind].busy}
+    </>
+  );
+}
 
 /** 操作が通っても段階が変わらないまま、片づけておく長さ */
 const LEAVE_MS = 8000;
@@ -66,7 +88,7 @@ function moveFocusOutOf(row: HTMLElement) {
  * 「あなたの番」の1件（docs/design.md の「あなたの番」）。種類の札 → 題名 → 説明文 → 答える欄 → ボタン。
  * ボタンはサーバー側で操作して、画面を取り直す。「マージ…」はその場で「マージする／やめる」に変わる（確認）
  */
-export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
+export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
   const { owner, repo, issue, status, buttons, merge } = item;
   const key = `${owner}/${repo}#${issue.number}`;
   const kind = turnKind(status);
@@ -86,6 +108,17 @@ export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
   const restoreMergeFocus = useRef(false);
   const rowRef = useRef<HTMLElement | null>(null);
   const demo = useDemo();
+  const isDemo = demo !== null;
+  // 押した操作（押している間・結果・消えていく）。結果を見せ終えたら片づける
+  const [op, setOp] = useState<Op | null>(null);
+  const phase = op?.phase ?? null;
+  const busy = op?.phase === "busy" ? op.kind : null;
+  const blocked = pending || op !== null;
+  // 押した時点の段階とボタン（結果を見せ終えて片づけるときに使う）
+  const opSig = useRef(sig);
+  // 結果を出した時点でフォーカスが1件の中にあった：「閉じる」へ移す
+  const focusClose = useRef(false);
+  const closeRef = useRef<HTMLButtonElement>(null);
   // 企画AIの質問：画面で選んだ・書いた答えと、そこから組み立てた送る文
   const asking = status.stage === "question";
   const [answer, setAnswer] = useState<AnswerInput>(emptyAnswer);
@@ -127,6 +160,49 @@ export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
     return () => window.clearTimeout(timer);
   }, [leavingSig]);
 
+  // デモ：データに当てるまで（0.42秒）を「〜中…」にし、そのあと結果を出す
+  useEffect(() => {
+    if (phase !== "busy" || !isDemo) return;
+    const timer = window.setTimeout(() => {
+      focusClose.current = rowRef.current?.contains(document.activeElement) ?? false;
+      setConfirming(false);
+      setOp((prev) => (prev ? { ...prev, phase: "done" } : prev));
+    }, DEMO_OP_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [phase, isDemo]);
+
+  // 結果を2.4秒見せたら、0.15秒で消してから片づける
+  useEffect(() => {
+    if (phase === "done") {
+      if (focusClose.current) {
+        focusClose.current = false;
+        closeRef.current?.focus();
+      }
+      const timer = window.setTimeout(
+        () => setOp((prev) => (prev ? { ...prev, phase: "fading" } : prev)),
+        RESULT_SHOW_MS,
+      );
+      return () => window.clearTimeout(timer);
+    }
+    if (phase === "fading") {
+      const timer = window.setTimeout(() => {
+        // 結果が消える前に、フォーカスの移し先を決めて移す
+        if (rowRef.current) moveFocusOutOf(rowRef.current);
+        setLeavingSig(opSig.current);
+        setOp(null);
+      }, RESULT_FADE_MS);
+      return () => window.clearTimeout(timer);
+    }
+  }, [phase]);
+
+  // 押してから片づけるまで、この1件の中身を Desk に預ける（取り直しで消えても、結果を見せ終えるまで残す）
+  const holding = phase === null ? null : phase === "busy" ? "busy" : "done";
+  useLayoutEffect(() => {
+    onHold(key, holding === null ? null : { item, done: holding === "done" });
+  }, [holding, key, item, onHold]);
+
+  useEffect(() => () => onHold(key, null), [key, onHold]);
+
   // 片づける：フォーカスが中にあれば外へ移してから、次の1件に替える（件数は取り直しを待たずに減らす）
   useLayoutEffect(() => {
     const row = rowRef.current;
@@ -141,8 +217,22 @@ export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
     setConfirming(false);
   }
 
+  /** 結果を見せ終える前に「閉じる」を押した：フェードせず、すぐ片づける */
+  function closeResult() {
+    if (rowRef.current) moveFocusOutOf(rowRef.current);
+    setLeavingSig(opSig.current);
+    setOp(null);
+  }
+
+  /** 操作が通った：行の中身を結果に置き換える */
+  function succeed() {
+    focusClose.current = rowRef.current?.contains(document.activeElement) ?? false;
+    setConfirming(false);
+    setOp((prev) => (prev ? { ...prev, phase: "done" } : prev));
+  }
+
   function run(kind: OperationKind) {
-    if (pending) return;
+    if (blocked) return;
     if (kind === "answer" && answerText.trim() === "") {
       // 何も選んでいない・書いていない答えは送らない
       setError(EMPTY_ANSWER_MESSAGE);
@@ -150,12 +240,10 @@ export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
     }
     setError(null);
     setHit(kind);
+    opSig.current = sig;
+    setOp({ kind, phase: "busy" });
     if (demo) {
-      // デモ：サンプルのデータの上で本当に段階を進める（少し遅れて）
-      // 確認のボタンが消える前に、フォーカスの移し先を決めて移す
-      if (rowRef.current) moveFocusOutOf(rowRef.current);
-      setConfirming(false);
-      setLeavingSig(sig);
+      // デモ：サンプルのデータの上で本当に段階を進める（0.42秒遅れて。その間は「〜中…」）
       demo.operate({ owner, repo, number: issue.number }, kind, kind === "answer" ? answerBody : undefined);
       return;
     }
@@ -173,27 +261,68 @@ export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
         () => ({ ok: false, changed: false, message: ACTION_UNREACHABLE_MESSAGE }),
       );
       if (!result.ok && !result.changed) {
-        closeConfirm();
+        // 元のボタン（マージは「マージする」）と説明文に戻し、理由を出す
+        setOp(null);
         setError(result.message);
+      } else if (result.ok) {
+        succeed();
       } else {
-        // 確認のボタンが消える前に、フォーカスの移し先を決めて移す
+        // 押した時点で段階が変わっていて何もしなかった：結果は出さず、今までどおりすぐ片づける
         if (rowRef.current) moveFocusOutOf(rowRef.current);
         setConfirming(false);
-        setLeavingSig(sig);
+        setLeavingSig(opSig.current);
+        setOp(null);
       }
     });
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLElement>) {
-    if (event.key === "Escape" && confirming) {
+    if (event.key === "Escape" && confirming && !blocked) {
       event.stopPropagation();
       closeConfirm();
     }
   }
 
-  const lines = confirming && merge ? mergeResultLines(merge) : null;
+  const lines = confirming && merge && !busy ? mergeResultLines(merge) : null;
   const weak = merge ? isMergeWeak(merge) : false;
-  const phrases = lines ? [] : splitPhrases(item.description);
+  // 押している間は、説明文の所に今していること
+  const doing = busy ? OPERATION_COPY[busy].doing : null;
+  const phrases = lines ? [] : splitPhrases(doing ?? item.description);
+  const done = op && op.phase !== "busy" ? doneSummary(op.kind, item) : null;
+  const fading = phase === "fading" ? "" : undefined;
+
+  // マージの確認のボタン（大きい1件も一覧の行も同じ）
+  const confirmButtons = (
+    <>
+      <button
+        ref={confirmRef}
+        type="button"
+        className={`${styles.act} ${styles.primary}`}
+        data-act=""
+        data-weak={weak ? "" : undefined}
+        data-busy={busy === "merge" ? "" : undefined}
+        aria-disabled={blocked ? "true" : undefined}
+        onClick={() => run("merge")}
+        onKeyDown={(event) => {
+          // 押し続けた Enter の繰り返しで、意図せずマージしない
+          if (event.key === "Enter" && event.repeat) event.preventDefault();
+        }}
+      >
+        {busy === "merge" ? <BusyLabel kind="merge" /> : "マージする"}
+      </button>
+      <button
+        type="button"
+        className={`${styles.act} ${styles.ghost}`}
+        data-act=""
+        aria-disabled={blocked ? "true" : undefined}
+        onClick={() => {
+          if (!blocked) closeConfirm();
+        }}
+      >
+        やめる
+      </button>
+    </>
+  );
 
   if (queue) {
     // マージ待ちの一覧の1行（docs/design.md の「マージ待ちの一覧」）。マージの操作は大きい1件と同じ
@@ -211,6 +340,7 @@ export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
         data-key={key}
         data-queue=""
         data-leaving={leaving ? "" : undefined}
+        data-fading={fading}
         inert={leaving}
         onKeyDown={onKeyDown}
       >
@@ -223,9 +353,11 @@ export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
           <h3 className={styles.qtitle}>
             <SmartLink href={issue.url}>{issue.title}</SmartLink>
           </h3>
-          {request && !lines && <p className={styles.qreq}>{request}</p>}
-          {item.note && !lines && <p className={styles.qreq}>{item.note}</p>}
-          {merge && merge.review === null && !lines && (
+          {done && <DoneResult summary={done} compact onClose={closeResult} closeRef={closeRef} />}
+          {doing && <p className={styles.qreq}>{doing}</p>}
+          {request && !lines && !doing && !done && <p className={styles.qreq}>{request}</p>}
+          {item.note && !lines && !doing && !done && <p className={styles.qreq}>{item.note}</p>}
+          {merge && merge.review === null && !lines && !doing && !done && (
             <p className={styles.qsoft}>AIのレビューなし・中身を見てから</p>
           )}
           {lines && (
@@ -247,51 +379,27 @@ export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
             </p>
           )}
         </div>
-        <div className={`${styles.acts} ${styles.qacts}`}>
-          {confirming && merge ? (
-            <>
+        {!done && (
+          <div className={`${styles.acts} ${styles.qacts}`}>
+            {confirming && merge ? (
+              confirmButtons
+            ) : (
               <button
-                ref={confirmRef}
+                ref={mergeRef}
                 type="button"
-                className={`${styles.act} ${styles.primary}`}
+                className={`${styles.act} ${first ? styles.primary : styles.text}`}
                 data-act=""
-                data-weak={weak ? "" : undefined}
-                aria-disabled={pending ? "true" : undefined}
-                onClick={() => run("merge")}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && event.repeat) event.preventDefault();
-                }}
-              >
-                {pending ? "マージ中…" : "マージする"}
-              </button>
-              <button
-                type="button"
-                className={`${styles.act} ${styles.ghost}`}
-                data-act=""
-                aria-disabled={pending ? "true" : undefined}
+                data-hit={hit === "merge" ? "" : undefined}
+                aria-disabled={blocked ? "true" : undefined}
                 onClick={() => {
-                  if (!pending) closeConfirm();
+                  if (!blocked) setConfirming(true);
                 }}
               >
-                やめる
+                {OPERATION_LABEL.merge}
               </button>
-            </>
-          ) : (
-            <button
-              ref={mergeRef}
-              type="button"
-              className={`${styles.act} ${first ? styles.primary : styles.text}`}
-              data-act=""
-              data-hit={hit === "merge" ? "" : undefined}
-              aria-disabled={pending ? "true" : undefined}
-              onClick={() => {
-                if (!pending) setConfirming(true);
-              }}
-            >
-              {OPERATION_LABEL.merge}
-            </button>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -305,6 +413,7 @@ export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
       data-answer={asking || talking ? "" : undefined}
       data-fresh={fresh ? "" : undefined}
       data-leaving={leaving ? "" : undefined}
+      data-fading={fading}
       inert={leaving}
       onKeyDown={onKeyDown}
     >
@@ -323,124 +432,105 @@ export function TurnRow({ item, wait, fresh, onLeave, queue }: Props) {
       <h2 className={styles.title}>
         <SmartLink href={issue.url}>{issue.title}</SmartLink>
       </h2>
-      {lines ? (
-        <ul className={styles.lines} aria-label="マージの前の確認">
-          {lines.map((line) => (
-            <li key={line.name} data-tone={line.tone}>
-              <span className={styles.mark} aria-hidden="true">
-                {line.mark}
-              </span>
-              <span className={styles.lname}>{line.name}</span>
-              <span className={styles.lres}>{line.text}</span>
-            </li>
-          ))}
-        </ul>
+      {done ? (
+        // 通った：説明文・補足・答える欄・ボタンを、その場で結果に置き換える
+        <DoneResult summary={done} onClose={closeResult} closeRef={closeRef} />
       ) : (
-        <p className={styles.desc}>
-          {phrases.map((phrase, i) => (
-            <span className="ph" key={i}>
-              {phrase}
-            </span>
-          ))}
-        </p>
-      )}
-      {item.note && !lines && <p className={styles.note}>{item.note}</p>}
-      {asking && (
-        <div className={styles.form}>
-          <QuestionForm
-            question={item.question}
-            value={answer}
-            onChange={(next) => {
-              setAnswer(next);
-              if (error === EMPTY_ANSWER_MESSAGE) setError(null);
-            }}
-            idPrefix={`turn-${owner}-${repo}-${issue.number}`}
-            preview={answerText}
-          />
-        </div>
-      )}
-      {talking && (
-        <div className={styles.form}>
-          <FactoryForm
-            talk={item.factory}
-            value={factoryInput}
-            onChange={(next) => {
-              setFactoryState({ id: talkId, value: next });
-              if (error === EMPTY_ANSWER_MESSAGE) setError(null);
-            }}
-            idPrefix={`turn-${owner}-${repo}-${issue.number}`}
-            preview={answerText}
-          />
-        </div>
-      )}
-      {error && (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
-      <div className={styles.acts} data-group={kind.group}>
-        {confirming && merge ? (
-          <>
-            <button
-              ref={confirmRef}
-              type="button"
-              className={`${styles.act} ${styles.primary}`}
-              data-act=""
-              data-weak={weak ? "" : undefined}
-              aria-disabled={pending ? "true" : undefined}
-              onClick={() => run("merge")}
-              onKeyDown={(event) => {
-                // 押し続けた Enter の繰り返しで、意図せずマージしない
-                if (event.key === "Enter" && event.repeat) event.preventDefault();
-              }}
-            >
-              {pending ? "マージ中…" : "マージする"}
-            </button>
-            <button
-              type="button"
-              className={`${styles.act} ${styles.ghost}`}
-              data-act=""
-              aria-disabled={pending ? "true" : undefined}
-              onClick={() => {
-                if (!pending) closeConfirm();
-              }}
-            >
-              やめる
-            </button>
-          </>
-        ) : (
-          buttons.map((button, index) => {
-            const role = index === 0 ? styles.primary : "";
-            return button.type === "link" ? (
-              <SmartLink key={button.label} className={`${styles.act} ${role}`} href={button.href} data-act="">
-                {button.label}
-              </SmartLink>
-            ) : (
-              <button
-                key={button.kind}
-                ref={button.kind === "merge" ? mergeRef : undefined}
-                type="button"
-                className={`${styles.act} ${role}`}
-                data-act=""
-                data-hit={hit === button.kind ? "" : undefined}
-                aria-disabled={pending || (button.kind === "answer" && answerText.trim() === "") ? "true" : undefined}
-                onClick={() => {
-                  if (pending) return;
-                  if (button.kind === "merge") setConfirming(true);
-                  else run(button.kind);
+        <>
+          {lines ? (
+            <ul className={styles.lines} aria-label="マージの前の確認">
+              {lines.map((line) => (
+                <li key={line.name} data-tone={line.tone}>
+                  <span className={styles.mark} aria-hidden="true">
+                    {line.mark}
+                  </span>
+                  <span className={styles.lname}>{line.name}</span>
+                  <span className={styles.lres}>{line.text}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className={styles.desc}>
+              {phrases.map((phrase, i) => (
+                <span className="ph" key={i}>
+                  {phrase}
+                </span>
+              ))}
+            </p>
+          )}
+          {item.note && !lines && <p className={styles.note}>{item.note}</p>}
+          {asking && (
+            <div className={styles.form}>
+              <QuestionForm
+                question={item.question}
+                value={answer}
+                onChange={(next) => {
+                  setAnswer(next);
+                  if (error === EMPTY_ANSWER_MESSAGE) setError(null);
                 }}
-              >
-                {pending && button.kind === "answer" ? "送信中…" : button.label}
-              </button>
-            );
-          })
-        )}
-        {item.logUrl && (
-          <a className={styles.link} href={item.logUrl} target="_blank" rel="noreferrer">
-            ログを開く ↗
-          </a>
-        )}
-      </div>
+                idPrefix={`turn-${owner}-${repo}-${issue.number}`}
+                preview={answerText}
+              />
+            </div>
+          )}
+          {talking && (
+            <div className={styles.form}>
+              <FactoryForm
+                talk={item.factory}
+                value={factoryInput}
+                onChange={(next) => {
+                  setFactoryState({ id: talkId, value: next });
+                  if (error === EMPTY_ANSWER_MESSAGE) setError(null);
+                }}
+                idPrefix={`turn-${owner}-${repo}-${issue.number}`}
+                preview={answerText}
+              />
+            </div>
+          )}
+          {error && (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
+          <div className={styles.acts} data-group={kind.group}>
+            {confirming && merge
+              ? confirmButtons
+              : buttons.map((button, index) => {
+                  const role = index === 0 ? styles.primary : "";
+                  return button.type === "link" ? (
+                    <SmartLink key={button.label} className={`${styles.act} ${role}`} href={button.href} data-act="">
+                      {button.label}
+                    </SmartLink>
+                  ) : (
+                    <button
+                      key={button.kind}
+                      ref={button.kind === "merge" ? mergeRef : undefined}
+                      type="button"
+                      className={`${styles.act} ${role}`}
+                      data-act=""
+                      data-hit={hit === button.kind ? "" : undefined}
+                      data-busy={busy === button.kind ? "" : undefined}
+                      aria-disabled={
+                        blocked || (button.kind === "answer" && answerText.trim() === "") ? "true" : undefined
+                      }
+                      onClick={() => {
+                        if (blocked) return;
+                        if (button.kind === "merge") setConfirming(true);
+                        else run(button.kind);
+                      }}
+                    >
+                      {busy === button.kind ? <BusyLabel kind={button.kind} /> : button.label}
+                    </button>
+                  );
+                })}
+            {item.logUrl && (
+              <a className={styles.link} href={item.logUrl} target="_blank" rel="noreferrer">
+                ログを開く ↗
+              </a>
+            )}
+          </div>
+        </>
+      )}
     </article>
   );
 }

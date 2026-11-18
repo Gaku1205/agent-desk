@@ -1,0 +1,93 @@
+/* 押したあとの結果の1行（docs/design.md の「押したあとの結果」） */
+
+.done {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.head {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mark {
+  display: inline-flex;
+  color: var(--ok);
+}
+
+.title {
+  color: var(--bone);
+  font-size: 17.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.pull {
+  color: var(--bone-2);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.pull:hover {
+  color: var(--bone);
+}
+
+.starts {
+  color: var(--bone-2);
+  font-size: 14px;
+}
+
+/* 閉じる：文字のボタン（地なし・縁なし） */
+.close {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  margin-left: auto;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: none;
+  color: var(--bone-2);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.close:hover {
+  background: var(--well);
+  color: var(--bone);
+}
+
+.close:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+}
+
+/* マージ待ちの一覧の行：小さい文字 */
+.done[data-compact] {
+  margin-top: 2px;
+}
+
+.done[data-compact] .title {
+  font-size: 14px;
+}
+
+.done[data-compact] .pull {
+  font-size: 12.5px;
+}
+
+.done[data-compact] .starts {
+  color: var(--mute);
+  font-size: 12.5px;
+}
+
+@media (max-width: 899px) {
+  .close {
+    height: 44px;
+  }
+}

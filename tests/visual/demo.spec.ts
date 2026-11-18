@@ -54,6 +54,13 @@ const queueRows = (page: Page) => queueList(page).getByRole("listitem");
 /** 一覧の見出しに書いてある件数 */
 const queueCount = async (page: Page) =>
   Number((await page.getByRole("heading", { name: /^マージ待ち \d+件/ }).textContent())?.match(/\d+/)?.[0] ?? "0");
+/** 押したあとの結果（`〜しました`）が出るのを待って、`閉じる` ですぐ片づける */
+async function closeResult(page: Page, done: string) {
+  const status = page.getByRole("status").filter({ hasText: done });
+  await expect(status).toHaveCount(1);
+  await page.getByRole("button", { name: "閉じる" }).click();
+  await expect(status).toHaveCount(0);
+}
 /** 「ほかに N件」の N */
 const restCount = async (page: Page) => Number((await page.getByText(/^ほかに/).textContent())?.match(/\d+/)?.[0] ?? "0");
 
@@ -74,6 +81,7 @@ test.describe("デモの画面", () => {
     await page.goto(REPO_PAGE);
     // 先頭の1件（止まった）を片づけると、マージ待ちの番になる。マージ待ちは2件以上あるので、大きい1件の代わりに一覧が出る
     await page.locator(CURRENT).getByRole("button", { name: "再開" }).click();
+    await closeResult(page, "再開しました");
     await expect(page.locator(CURRENT)).toHaveCount(0);
     const first = queueRows(page).first();
     // 確認は押した行だけが開く（1番の行の「マージ…」は1つだけ）
@@ -127,6 +135,13 @@ test.describe("デモの画面", () => {
     // キーボードだけで押す：フォーカスしてから Enter
     await current.getByRole("button", { name: "再開" }).focus();
     await page.keyboard.press("Enter");
+    // 押した瞬間は「再開中…」、通ると同じ1件の中に結果が出て、フォーカスは「閉じる」に移る
+    await expect(current.getByRole("button", { name: "再開中…" })).toBeVisible();
+    await expect(current.getByRole("status")).toHaveText("再開しました");
+    await expect(current.getByRole("button", { name: "閉じる" })).toBeFocused();
+    // 件数は結果を出し始めた時点で減る
+    expect(await rest()).toBe(before - 1);
+    await page.keyboard.press("Enter");
     await expect(page.locator(CURRENT)).toHaveCount(1);
     await expect.poll(async () => page.locator(CURRENT).getAttribute("data-key")).not.toBe(firstKey);
     expect(await rest()).toBe(before - 1);
@@ -146,6 +161,7 @@ test.describe("デモの画面", () => {
     await expect(queueList(page)).toHaveCount(0);
     const before = await restCount(page);
     await page.locator(CURRENT).getByRole("button", { name: "再開" }).click();
+    await closeResult(page, "再開しました");
     // マージ待ちの番になると、大きい1件は出ず（0件）、代わりに一覧が1つだけ出る
     await expect(queueList(page)).toHaveCount(1);
     await expect(page.locator(CURRENT)).toHaveCount(0);
@@ -166,10 +182,12 @@ test.describe("デモの画面", () => {
     // 1番の行だけ主役のボタン（地が付く）。2番目以降は地なしの文字のボタンで、どれも押せる
     const merge = rows.getByRole("button", { name: "マージ…" });
     await expect(merge).toHaveCount(count);
-    const bg = await merge.evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundColor));
+    // 直前に「閉じる」を押したマウスが2番目以降のボタンの上に残ると、ホバーの色が付くので、端へ外してから調べる
+    await page.mouse.move(0, 0);
     const clear = "rgba(0, 0, 0, 0)";
-    expect(bg[0]).not.toBe(clear);
-    expect(bg.slice(1)).toEqual(Array.from({ length: count - 1 }, () => clear));
+    const readBg = () => merge.evaluateAll((els) => els.map((el) => getComputedStyle(el).backgroundColor));
+    await expect.poll(async () => (await readBg()).slice(1)).toEqual(Array.from({ length: count - 1 }, () => clear));
+    expect((await readBg())[0]).not.toBe(clear);
     // ボタンはスマホでも押しやすい高さ（44px以上）。行は横にはみ出さない
     const viewport = page.viewportSize();
     for (const row of await rows.all()) {
@@ -192,6 +210,13 @@ test.describe("デモの画面", () => {
     // マージすると、その行が消え、残りの行の番号が繰り上がる（順番は変わらない）
     await second.getByRole("button", { name: "マージ…" }).click();
     await second.getByRole("button", { name: "マージする" }).click();
+    // その行だけが「マージ中…」→「マージしました」・PR の番号に変わり、ほかの行はそのまま
+    await expect(second.getByRole("button", { name: "マージ中…" })).toBeVisible();
+    await expect(second.getByText("GitHub でマージしています")).toBeVisible();
+    await expect(second.getByRole("status")).toHaveText("マージしました");
+    await expect(second.getByRole("link", { name: /^PR #\d+ ↗$/ })).toBeVisible();
+    await expect(rows).toHaveCount(count);
+    // 閉じなくても、約2.4秒で消えて次の行が繰り上がる
     await expect(rows).toHaveCount(count - 1);
     expect(await keys()).toEqual(order.filter((_, i) => i !== 1));
     expect(await numbers()).toEqual(Array.from({ length: count - 1 }, (_, i) => String(i + 1)));

@@ -211,9 +211,27 @@
     0 0 0 3.5px var(--bone);
 }
 
-/* 操作の最中・まだ押せない「答えを送る」は薄くする。押した直後の220msは薄くしない（押した文字が読める） */
-.act[aria-disabled="true"]:not([data-hit]) {
+/* 操作の最中・まだ押せない「答えを送る」は薄くする。押した直後の220msと、押したボタン（`〜中…`）は薄くしない（押した文字が読める） */
+.act[aria-disabled="true"]:not([data-hit]):not([data-busy]) {
   opacity: 0.55;
+}
+
+/* 押したボタンの `〜中…` の前の回る印（回し方は進捗図の .spin。docs/design.md の「押したあとの結果」） */
+.busyMark {
+  margin-right: 8px;
+  color: var(--accent);
+}
+
+/* 結果を見せ終えた行：不透明度だけで消す（そのあと片づける） */
+.row[data-fading],
+.qrow[data-fading] {
+  animation: row-out 0.15s var(--ease) forwards;
+}
+
+@keyframes row-out {
+  to {
+    opacity: 0;
+  }
 }
 
 /* マージの確認：レビューが未実施・指摘ありのときは「マージする」を弱める */

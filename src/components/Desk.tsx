@@ -22,6 +22,7 @@ import { TurnList } from "./TurnList";
 import { TurnRow } from "./TurnRow";
 import { pickTurn } from "@/lib/turnList";
 import { isMergeQueueItem, MERGE_QUEUE_FROM, orderMergeQueue } from "@/lib/mergeOrder";
+import { withHeldRows, type HeldRow } from "@/lib/operationResult";
 import { TURN_GROUPS } from "@/lib/turnKind";
 
 export type DeskScope =
@@ -81,6 +82,14 @@ function scrollToBottom(): void {
   window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
 }
 
+/** マージ待ちが2件以上で、大きい1件がマージ待ちの番なら、その1件の代わりに出す「すすめる順」の一覧（強い色の物が先にある間は出さない） */
+function mergeQueueOf(waiting: TurnItem[], current: TurnItem | null): TurnItem[] {
+  const mergeWaiting = waiting.filter(isMergeQueueItem);
+  return current && isMergeQueueItem(current) && mergeWaiting.length >= MERGE_QUEUE_FROM
+    ? orderMergeQueue(mergeWaiting)
+    : [];
+}
+
 /** 1件の中の、最初のボタン（無ければ最初のリンク） */
 function firstControl(row: Element | null | undefined): HTMLElement | null {
   return (
@@ -138,21 +147,36 @@ export function Desk({
   const rowsRef = useRef<HTMLDivElement>(null);
   // 操作が通って片づけた1件。取り直しを待たずに次の1件に替え、件数を減らす（取り直しで消えたら自然に数えなくなる）
   const [leaving, setLeaving] = useState<ReadonlySet<string>>(() => new Set());
+  // 押してから片づけるまでの1件（押した時点の中身と位置）。取り直しで消えても、結果を見せ終えるまで同じ場所に残す
+  const [held, setHeld] = useState<ReadonlyMap<string, HeldRow<TurnItem>>>(() => new Map());
+  const itemsRef = useRef(items);
+  useLayoutEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
   // 片づけた1件の中にフォーカスがあった（見出しへ移した）。次の1件が出たら、その最初のボタンへ移す
   const focusNext = useRef(false);
-  const waiting = items.filter((item) => !leaving.has(turnItemKey(item)));
+  const all = withHeldRows(items, held);
+  // 画面に出す物（結果を見せている1件も、見せ終えるまで同じ場所に出す）
+  const shown = all.filter((item) => !leaving.has(turnItemKey(item)));
+  // 数える物（結果を出し始めた1件は、もう数えない）
+  const waiting = shown.filter((item) => held.get(turnItemKey(item))?.done !== true);
   // 一覧で選んだ1件（`owner/repo#番号`）。その画面にいる間だけ覚え、片づいたら並び順の先頭に戻る
   const [picked, setPicked] = useState<string | null>(null);
-  const current = pickTurn(waiting, picked);
+  const current = pickTurn(shown, picked);
   const currentKey = current ? turnItemKey(current) : null;
-  // マージ待ちが2件以上で、大きい1件がマージ待ちの番なら、その1件の代わりに「すすめる順」の一覧を出す（強い色の物が先にある間は出さない）
-  const mergeWaiting = waiting.filter(isMergeQueueItem);
-  const queue =
-    current && isMergeQueueItem(current) && mergeWaiting.length >= MERGE_QUEUE_FROM
-      ? orderMergeQueue(mergeWaiting)
-      : [];
+  const queue = mergeQueueOf(shown, current);
   const queueKeys = new Set(queue.map(turnItemKey));
-  const others = waiting.filter((item) => turnItemKey(item) !== currentKey && !queueKeys.has(turnItemKey(item)));
+  // 残りの一覧と `ほかに N件` は、結果を見せている1件を片づけたあとの形で数える（次の1件は、結果が消えてから出る）
+  const next = pickTurn(waiting, picked);
+  const nextKey = next ? turnItemKey(next) : null;
+  const nextQueueKeys = new Set(mergeQueueOf(waiting, next).map(turnItemKey));
+  const others = waiting.filter(
+    (item) =>
+      turnItemKey(item) !== nextKey &&
+      !nextQueueKeys.has(turnItemKey(item)) &&
+      turnItemKey(item) !== currentKey &&
+      !queueKeys.has(turnItemKey(item)),
+  );
   const rest = others.length;
   // 開いたときの1件はフェードしない。替わった1件だけ短くフェードする
   const [firstKey] = useState(currentKey);
@@ -164,6 +188,24 @@ export function Desk({
       const next = new Set(prev);
       if (on) next.add(key);
       else next.delete(key);
+      return next;
+    });
+  }, []);
+
+  // 押してから片づけるまで、その1件の中身を預かる（位置は押した時点の並び）。done は件数から外す印
+  const hold = useCallback((key: string, value: { item: TurnItem; done: boolean } | null) => {
+    setHeld((prev) => {
+      const before = prev.get(key);
+      if (value === null) {
+        if (!before) return prev;
+        const next = new Map(prev);
+        next.delete(key);
+        return next;
+      }
+      if (before && before.done === value.done) return prev;
+      const index = before?.index ?? itemsRef.current.findIndex((item) => turnItemKey(item) === key);
+      const next = new Map(prev);
+      next.set(key, { item: before?.item ?? value.item, index: Math.max(index, 0), done: value.done });
       return next;
     });
   }, []);
@@ -296,7 +338,7 @@ export function Desk({
           <h1 className={styles.h1} id="turn-title" tabIndex={-1}>
             {current ? "あなたの番" : "今はAIの番です"}
           </h1>
-          {current && waiting.length >= 2 && (
+          {current && shown.length >= 2 && (
             <ul className={styles.legend} aria-label="色の見方">
               {TURN_GROUPS.map((g) => (
                 <li key={g.group} data-group={g.group}>
@@ -326,7 +368,7 @@ export function Desk({
           role={queue.length > 0 ? "list" : undefined}
           aria-labelledby={queue.length > 0 ? "merge-queue-title" : undefined}
         >
-          {[...queue, ...items.filter((item) => !queueKeys.has(turnItemKey(item)))].map((item) => {
+          {[...queue, ...all.filter((item) => !queueKeys.has(turnItemKey(item)))].map((item) => {
             const key = turnItemKey(item);
             const queueIndex = queue.findIndex((q) => turnItemKey(q) === key);
             // 出すのは今の1件（または一覧の行）と、片づけて隠している1件（取り直しで消えるまで、戻せるように残す）だけ
@@ -338,6 +380,7 @@ export function Desk({
                 wait={formatWait(item.waitingSince, at)}
                 fresh={queueIndex < 0 && key === currentKey && key !== firstKey}
                 onLeave={leave}
+                onHold={hold}
                 queue={queueIndex >= 0 ? { num: queueIndex + 1 } : undefined}
               />
             );
