@@ -1,6 +1,7 @@
 import { FIX_MAX } from "./flowBranch";
 import { isFactoryIssue } from "./factoryIssue";
 import { isFactoryAnswered } from "./factoryTalk";
+import { isPipelineMaintenanceIssue } from "./pipelineIssue";
 import type { PipelineState } from "./pipelineState";
 import { isCountedDeploySuccess, isFailedState, latestCountedPerContext } from "./deployStatus";
 import { isMergeablePull } from "./mergeablePull";
@@ -225,8 +226,9 @@ export function findLinkedPull(pulls: PullData[], issueNumber: number): PullData
   );
 }
 
-/** 表示するIssueか：openなら表示。閉じたIssueは紐づくPRがマージ済みのときだけ */
+/** 表示するIssueか：パイプラインの保守のIssueは出さない。openなら表示。閉じたIssueは紐づくPRがマージ済みのときだけ */
 export function shouldShowIssue(issue: IssueData, pulls: PullData[]): boolean {
+  if (isPipelineMaintenanceIssue(issue)) return false;
   if (issue.state === "open") return true;
   return pulls.some((pull) => pull.merged && isLinkedPull(pull, issue.number));
 }

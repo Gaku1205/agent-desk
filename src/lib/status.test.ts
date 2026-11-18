@@ -766,6 +766,14 @@ describe("shouldShowIssue", () => {
     expect(shouldShowIssue(issue(), [])).toBe(true);
   });
 
+  it("パイプラインの保守のIssueは出さない（閉じてマージ済みでも）。普通の保留は出す", () => {
+    expect(shouldShowIssue(issue({ labels: ["ai:skip", "pipeline"] }), [])).toBe(false);
+    expect(shouldShowIssue(issue({ body: "<!-- pipeline-maintenance -->" }), [])).toBe(false);
+    expect(shouldShowIssue(issue({ title: "AIの許可が足りない：x" }), [])).toBe(false);
+    expect(shouldShowIssue(issue({ state: "closed", labels: ["pipeline"] }), [mergedPull()])).toBe(false);
+    expect(shouldShowIssue(issue({ labels: ["ai:skip"] }), [])).toBe(true);
+  });
+
   it("閉じたIssueは紐づくPRがマージ済みのときだけ表示する", () => {
     const closed = issue({ state: "closed" });
     expect(shouldShowIssue(closed, [mergedPull()])).toBe(true);
