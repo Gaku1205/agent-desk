@@ -13,6 +13,7 @@ import {
   hasAiTurnWork,
   IDLE_REFRESH_INTERVAL_MS,
   type ChangeWatchPlan,
+  type PausedBy,
 } from "./refresh";
 import { graceRefreshAt, nextGraceEnd } from "./graceRefresh";
 import { buildTurnItems, type TurnItem } from "./turn";
@@ -25,7 +26,7 @@ export type LoadedTurns = {
   /** 全リポジトリの「あなたの番」（並び順どおり） */
   items: TurnItem[];
   /** 自動更新の間隔（取り直しのたびに決め直す）。止めるときは intervalMs が null で、再開する時刻（ISO文字列）が入る */
-  refreshPlan: { intervalMs: number | null; resumeAt: string | null };
+  refreshPlan: { intervalMs: number | null; resumeAt: string | null; pausedBy: PausedBy | null };
   /** Webhook で「変わった」ときだけ取り直すリポジトリ（`owner/repo`）と反映済みの印、今までどおりの間隔の取り直しが要るか */
   changeWatch: ChangeWatchPlan;
   /** 次に猶予（PR作成待ち15分・未着手10分）が終わる時刻の少し後（ISO文字列）。猶予の中の物が無ければ null */
@@ -45,7 +46,7 @@ export const loadTurns = cache(async (): Promise<LoadedTurns> => {
       results: [],
       addedNotices: [],
       items: [],
-      refreshPlan: { intervalMs: IDLE_REFRESH_INTERVAL_MS, resumeAt: null },
+      refreshPlan: { intervalMs: IDLE_REFRESH_INTERVAL_MS, resumeAt: null, pausedBy: null },
       changeWatch: { changeRepos: [], appliedMarks: {}, needsIntervalRefresh: true },
       graceRefreshAt: null,
       now,
@@ -65,7 +66,7 @@ export const loadTurns = cache(async (): Promise<LoadedTurns> => {
   const addedNotices = buildAddedNotices(await loadAddedLog({ token, settingsRepo, results, now }), loaded.repos, now);
   // 取り直しで受けた返事のあとの残りで決める（トークンは画面に渡さない）
   // 使った鍵（ログインした人のトークンと App の鍵）のうち、いちばん少ない残りで決める
-  const { remaining, resetAt } = getReadRateLimit(token);
+  const { remaining, resetAt, source } = getReadRateLimit(token);
   const plan = getAutoRefreshPlan({
     hasAiWork: hasAiTurnWork(results, now),
     remaining,
@@ -77,7 +78,12 @@ export const loadTurns = cache(async (): Promise<LoadedTurns> => {
     results,
     addedNotices,
     items: buildTurnItems(results, now),
-    refreshPlan: { intervalMs: plan.intervalMs, resumeAt: plan.resumeAt?.toISOString() ?? null },
+    refreshPlan: {
+      intervalMs: plan.intervalMs,
+      resumeAt: plan.resumeAt?.toISOString() ?? null,
+      // 止めたときだけ：どの鍵・どの枠の残りが少ないか（数だけ。トークンは渡さない）
+      pausedBy: plan.intervalMs === null && source && remaining !== null ? { ...source, remaining } : null,
+    },
     changeWatch: getChangeWatchPlan(results, isWebhookEnabled()),
     graceRefreshAt: graceEnd ? graceRefreshAt(graceEnd).toISOString() : null,
     now,

@@ -7,6 +7,21 @@ export type RateLimitInfo = {
   resetAt: number | null;
 };
 
+/** どの鍵の・どの枠の残りか（user＝ログインした人のトークン、app＝パイプラインの App のインストールの鍵） */
+export type RateLimitSource = { key: "user" | "app"; resource: "rest" | "graphql" };
+
+/** 残りと、それがどの鍵・どの枠の物か（不明なら source は null） */
+export type SourcedRateLimit = RateLimitInfo & { source: RateLimitSource | null };
+
+/**
+ * REST の枠（`core`）の返事か。GitHub は返事に `X-RateLimit-Resource` を付ける。別の枠（`search` など）の残りを、
+ * REST の残りとして覚えない（数十しか無い枠の残りで、自動更新を止めてしまわないように）。付いていなければ REST として扱う
+ */
+export function isCoreRateLimit(headers: Headers): boolean {
+  const resource = headers.get("x-ratelimit-resource");
+  return resource === null || resource.trim() === "" || resource.trim().toLowerCase() === "core";
+}
+
 /** サーバーのメモリ。キーはトークンのハッシュ（トークンそのものは入れない） */
 const rateLimits = new Map<string, RateLimitInfo>();
 
@@ -61,7 +76,7 @@ function recordHistory(key: string, info: RateLimitInfo, nowMs: number): void {
 /** 返事のヘッダーに残りがあれば、そのトークンの分として覚える（無ければ前の物のまま） */
 export function rememberRateLimit(token: string, headers: Headers, nowMs: number = Date.now()): void {
   const info = parseRateLimit(headers);
-  if (info.remaining === null) return;
+  if (info.remaining === null || !isCoreRateLimit(headers)) return;
   rateLimits.set(tokenKey(token), info);
   recordHistory(tokenKey(token), info, nowMs);
 }
