@@ -21,8 +21,9 @@
   align-items: baseline;
   width: 100%;
   min-height: 40px;
-  padding: 8px 4px;
+  padding: 8px 4px 8px 12px;
   border-radius: 4px;
+  box-shadow: inset 2px 0 0 var(--kind-line, transparent);
   text-align: left;
 }
 
@@ -34,19 +35,15 @@
   color: var(--bone);
 }
 
+/* 種類の札：記号＋英語の名前。色は大きい1件と同じ（globals.css の [data-group]） */
 .kind {
-  color: var(--bone-2);
+  display: inline-flex;
+  gap: 5px;
+  align-items: baseline;
+  color: var(--kind-text, var(--bone-2));
   font-size: 12.5px;
   font-weight: 700;
   white-space: nowrap;
-}
-
-.row[data-tone="human"] .kind {
-  color: var(--accent);
-}
-
-.row[data-tone="fail"] .kind {
-  color: var(--fail-soft);
 }
 
 .ref {

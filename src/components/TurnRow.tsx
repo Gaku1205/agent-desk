@@ -20,6 +20,7 @@ import {
   type FactoryInput,
 } from "@/lib/factoryTalk";
 import { SmartLink } from "./SmartLink";
+import { TurnKindIcon } from "./TurnKindIcon";
 import styles from "./TurnRow.module.css";
 
 type Props = {
@@ -196,6 +197,7 @@ export function TurnRow({ item, wait, fresh, onLeave }: Props) {
       ref={rowRef}
       className={styles.row}
       data-key={key}
+      data-group={kind.group}
       data-answer={asking || talking ? "" : undefined}
       data-fresh={fresh ? "" : undefined}
       data-leaving={leaving ? "" : undefined}
@@ -203,7 +205,8 @@ export function TurnRow({ item, wait, fresh, onLeave }: Props) {
       onKeyDown={onKeyDown}
     >
       <div className={styles.head}>
-        <span className={styles.kind} data-tone={kind.tone}>
+        <span className={styles.kind}>
+          <TurnKindIcon icon={kind.icon} />
           {kind.label}
         </span>
         <span className={`${styles.id} num`}>
@@ -271,7 +274,7 @@ export function TurnRow({ item, wait, fresh, onLeave }: Props) {
           {error}
         </p>
       )}
-      <div className={styles.acts} data-tone={kind.tone}>
+      <div className={styles.acts} data-group={kind.group}>
         {confirming && merge ? (
           <>
             <button
