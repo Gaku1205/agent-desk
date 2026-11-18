@@ -1,7 +1,7 @@
 /** Dashboard のまとめ：期間内のマージ数・リードタイム・止まった回数・AIが動いた時間（入力は `loadTurns` の `results` だけ） */
 
 import type { RepoData, RepoResult } from "../github/types";
-import { isLinkedPull } from "../status";
+import { isLinkedPull, isSyncPull } from "../status";
 import { isStepLogComment, STEP_LOG_MARKER } from "../stepLog";
 import { inRange, PERIOD_KEYS, periodRange, type PeriodKey } from "./period";
 
@@ -10,6 +10,8 @@ export type Summary = {
   merged: number | null;
   /** その前の同じ長さの期間のマージ数 */
   mergedPrev: number | null;
+  /** 期間内にマージされた配布のPR（`pipeline-sync/`）で、`Merged` から外した数。`prev` の分は出さない */
+  mergedSyncExcluded: number | null;
   /** Issue の作成 → PR のマージ（ミリ秒）の中央値と p90。数える物が無ければ null */
   leadMedianMs: number | null;
   leadP90Ms: number | null;
@@ -44,11 +46,22 @@ export function time(value: string | null): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-/** マージされたPRと、紐づくIssueの作成時刻（紐づくIssueが無ければ null）の組 */
+/** マージされた配布のPR（`pipeline-sync/`）のマージ時刻。`Merged` から外した分を数えるための物 */
+export function mergedSyncTimes(data: RepoData): number[] {
+  const times: number[] = [];
+  for (const pull of data.pulls) {
+    if (!pull.merged || !isSyncPull(pull)) continue;
+    const mergedAt = time(pull.mergedAt);
+    if (mergedAt !== null) times.push(mergedAt);
+  }
+  return times;
+}
+
+/** マージされたPR（配布のPRは除く）と、紐づくIssueの作成時刻（紐づくIssueが無ければ null）の組 */
 export function mergedPulls(data: RepoData): { mergedAt: number; createdAt: number | null }[] {
   const rows: { mergedAt: number; createdAt: number | null }[] = [];
   for (const pull of data.pulls) {
-    if (!pull.merged) continue;
+    if (!pull.merged || isSyncPull(pull)) continue;
     const mergedAt = time(pull.mergedAt);
     if (mergedAt === null) continue;
     const issue = data.issues.find((candidate) => isLinkedPull(pull, candidate.number));
@@ -99,6 +112,7 @@ export function summarize(results: readonly RepoResult[], now: Date, key: Period
     return {
       merged: null,
       mergedPrev: null,
+      mergedSyncExcluded: null,
       leadMedianMs: null,
       leadP90Ms: null,
       stopped: null,
@@ -111,6 +125,7 @@ export function summarize(results: readonly RepoResult[], now: Date, key: Period
 
   let merged = 0;
   let mergedPrev = 0;
+  let mergedSyncExcluded = 0;
   let stopped = 0;
   let aiTimeMs = 0;
   let runs = 0;
@@ -123,6 +138,9 @@ export function summarize(results: readonly RepoResult[], now: Date, key: Period
       } else if (inRange(row.mergedAt, prevStart, start)) {
         mergedPrev += 1;
       }
+    }
+    for (const at of mergedSyncTimes(data)) {
+      if (inRange(at, start, end)) mergedSyncExcluded += 1;
     }
     for (const event of data.events) {
       const at = time(event.createdAt);
@@ -143,6 +161,7 @@ export function summarize(results: readonly RepoResult[], now: Date, key: Period
   return {
     merged,
     mergedPrev,
+    mergedSyncExcluded,
     leadMedianMs: median(leads),
     leadP90Ms: p90(leads),
     stopped,

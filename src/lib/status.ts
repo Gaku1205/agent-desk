@@ -205,6 +205,11 @@ export function isIssueLinkedPull(pull: PullData): boolean {
   return /^claude\/issue-\d+-/.test(pull.headRef) || CLOSES_PATTERN.test(pull.body);
 }
 
+/** テンプレート更新の取り込みPR（配布のPR）か：ブランチ名が `pipeline-sync/` で始まる */
+export function isSyncPull(pull: { headRef: string }): boolean {
+  return pull.headRef.startsWith("pipeline-sync/");
+}
+
 /** 本文の `Closes #<番号>` か、ブランチ名 `claude/issue-<番号>-` でIssueに紐づくか */
 export function isLinkedPull(pull: PullData, issueNumber: number): boolean {
   return (
