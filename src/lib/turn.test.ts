@@ -131,6 +131,39 @@ describe("保留", () => {
     expect(items[0].buttons).toEqual([{ type: "operation", kind: "start", label: "始める" }]);
     expect(items[0].waitingSince).toBe("2026-10-25T09:00:00Z");
   });
+
+  it("止めた理由の印（オーナーかAppが書いた物）があれば、あなたの番に出さない", () => {
+    const comment = (author: string) => ({
+      id: 1,
+      issueNumber: 1,
+      author,
+      body: "<!-- paused: PR #510 のマージ待ち -->",
+      createdAt: "2026-10-25T09:00:00Z",
+    });
+    const paused = data({ issues: [issue(1, { labels: ["ai:skip"] })], comments: [comment("claude[bot]")] });
+    expect(buildTurnItems([ok("o", "r", paused)], NOW)).toHaveLength(0);
+    // ほかの人の印は無視する：今までどおり On hold
+    const other = data({ issues: [issue(1, { labels: ["ai:skip"] })], comments: [comment("stranger")] });
+    expect(buildTurnItems([ok("o", "r", other)], NOW)).toHaveLength(1);
+    // ai:skip が外れたら、印があっても普通の流れ（未着手）
+    const released = data({ issues: [issue(1, {})], comments: [comment("claude[bot]")] });
+    expect(buildTurnItems([ok("o", "r", released)], NOW)[0].status.stage).toBe("notStarted");
+  });
+
+  it("印つきでも、閉じるPRがマージ待ち（ai:hold・CI通過）なら、あなたの番に Merge として出す", () => {
+    const mark = comment(1, "<!-- paused: 計測中 -->", { createdAt: "2026-10-25T09:00:00Z" });
+    const repoData = data({
+      issues: [issue(1, { labels: ["ai:skip"] })],
+      pulls: [pull(15, 1, { labels: ["ai:hold"] })],
+      pullChecks: { 15: { checkRuns: [check()], statuses: [] } },
+      comments: [mark],
+    });
+    const items = buildTurnItems([ok("o", "r", repoData)], NOW);
+    expect(items).toHaveLength(1);
+    expect(items[0].status.stage).toBe("mergeWaiting");
+    expect(items[0].status.paused ?? null).toBeNull();
+    expect(items[0].buttons.some((button) => button.type === "operation" && button.kind === "merge")).toBe(true);
+  });
 });
 
 describe("パイプライン未設定", () => {

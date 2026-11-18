@@ -35,7 +35,7 @@ function waiting(number: number, cause: QueueSource["cause"] = null, file: strin
 }
 
 function source(works: SlotWork[], queue: QueueSource[]): LanesSource {
-  return { works, queue, runs: [] };
+  return { works, queue, runs: [], paused: [] };
 }
 
 describe("assignSlots", () => {
@@ -91,7 +91,7 @@ describe("assignSlots", () => {
       logUrl: null,
       startedMs: 1,
     });
-    const lanes = assignSlots({ works: [work(1), work(2)], queue: [], runs: [run("a", 1), run("b", null), run("c", 7)] }, 3);
+    const lanes = assignSlots({ works: [work(1), work(2)], queue: [], runs: [run("a", 1), run("b", null), run("c", 7)], paused: [] }, 3);
     const [first, second, free] = lanes.slots;
     expect(first.kind === "running" && first.runs.map((r) => r.key)).toEqual(["o/r@a"]);
     expect(second.kind === "running" && second.runs).toEqual([]);

@@ -6,6 +6,7 @@ import { parseRunRows } from "../dashboard/summary";
 import { FLOW_STEPS, getFlow, type FlowStepKey } from "../flow";
 import type { RepoData, RepoResult, WorkflowRunData } from "../github/types";
 import { parseHoldBlocking } from "../holdBlocking";
+import { pausedMark } from "../paused";
 import { buildPipelineRows } from "../pipeline";
 import { findLinkedPull, isLinkedPull, type IssueStatus } from "../status";
 import { isStepLogComment } from "../stepLog";
@@ -80,10 +81,26 @@ export type RunEntry = {
   startedMs: number | null;
 };
 
+/** わざと止めた物（`ai:skip` に止めた理由の印がある。Paused の1行。Issue #520） */
+export type PausedEntry = {
+  key: string;
+  owner: string;
+  repo: string;
+  number: number;
+  title: string;
+  url: string;
+  /** 止めた理由（1行） */
+  reason: string;
+  /** 印のコメントの時刻（止めてからの時間の起点。ミリ秒。読めなければ null） */
+  pausedAt: number | null;
+};
+
 export type LanesSource = {
   works: SlotWork[];
   queue: QueueSource[];
   runs: RunEntry[];
+  /** Paused（止めてある物）。古い順 */
+  paused: PausedEntry[];
 };
 
 const QUEUE_LABEL = "ai:queue";
@@ -291,6 +308,7 @@ export function buildLanesSource(results: readonly RepoResult[], now: Date): Lan
   const works: SlotWork[] = [];
   const queue: { entry: QueueSource; order: number; rank: number }[] = [];
   const runs: RunEntry[] = [];
+  const paused: { entry: PausedEntry; order: number }[] = [];
 
   results.forEach((result, order) => {
     if (!result.ok) return;
@@ -377,10 +395,38 @@ export function buildLanesSource(results: readonly RepoResult[], now: Date): Lan
       });
     }
 
+    for (const row of rows) {
+      if (row.status.stage !== "skipped") continue;
+      const issue = issues.get(row.issue.number);
+      const mark = issue ? pausedMark(issue, data.comments, owner) : null;
+      if (!mark) continue;
+      paused.push({
+        entry: {
+          key: `${owner}/${repo}#${row.issue.number}`,
+          owner,
+          repo,
+          number: row.issue.number,
+          title: row.issue.title,
+          url: row.issue.url,
+          reason: mark.reason,
+          pausedAt: timeOf(mark.at),
+        },
+        order,
+      });
+    }
+
     runs.push(...repoRuns(owner, repo, data, now));
   });
 
   return {
+    paused: paused
+      .sort(
+        (a, b) =>
+          a.order - b.order ||
+          (a.entry.pausedAt ?? Number.MAX_SAFE_INTEGER) - (b.entry.pausedAt ?? Number.MAX_SAFE_INTEGER) ||
+          a.entry.number - b.entry.number,
+      )
+      .map((item) => item.entry),
     works,
     queue: queue
       .sort((a, b) => a.order - b.order || a.rank - b.rank || a.entry.number - b.entry.number)

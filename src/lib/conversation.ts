@@ -198,6 +198,8 @@ export function buildConversation(
       if (!issue) continue;
       // 「あなたの番」に出る物は、ここには出さない
       if (turnRowDescription(issue, row.status, result.data, full) !== null) continue;
+      // 理由の印つきの保留（Paused）は、Slots & Queue の Paused の区画だけに出す（ホーム・リポジトリのページの「いまの様子」には出さない。Issue #520）
+      if (row.status.paused) continue;
       const key = `${full}#${row.issue.number}`;
       const trail = trails.get(key);
       const line = chatLine(row.status, { queueAfter: queueAfterNumber(row.queueReason) });
