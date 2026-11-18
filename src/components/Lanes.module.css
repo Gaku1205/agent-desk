@@ -433,3 +433,181 @@
     margin: 0;
   }
 }
+
+/* ───── Your turn（Issue #490。docs/design.md の「Slots & Queue」） ───── */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: -4px 0 12px;
+  padding: 0;
+  color: var(--bone-2);
+  font-size: 12.5px;
+  list-style: none;
+}
+
+.legend li {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--kind-line);
+}
+
+.row[data-kind="turn"] {
+  --line: var(--kind-line);
+  grid-template-columns: minmax(0, 200px) minmax(0, 1fr) auto;
+  height: 56px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.row[data-fading] {
+  opacity: 0;
+  transition: opacity 0.15s var(--ease);
+}
+
+.turnKind {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--kind-text);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.turnTitle {
+  overflow: hidden;
+  color: var(--bone);
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.turnTitle:hover {
+  text-decoration: underline;
+}
+
+.turnDesc {
+  overflow: hidden;
+  color: var(--bone-2);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.turnDesc[data-error] {
+  color: var(--fail-soft);
+}
+
+.turnRight {
+  flex-direction: row;
+  gap: 16px;
+  align-items: center;
+}
+
+.turnRight .time {
+  min-width: 48px;
+  text-align: right;
+}
+
+/* ボタンの列の幅をそろえ、待ち時間が行をまたいで同じ位置に並ぶようにする（ボタン2つ分） */
+.turnActs {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  min-width: 248px;
+}
+
+.turnAct {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--edge);
+  color: var(--bone);
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.turnAct:hover {
+  background: var(--well);
+}
+
+.turnAct:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--edge-focus),
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+}
+
+.turnAct[aria-disabled="true"]:not([data-busy]) {
+  opacity: 0.55;
+}
+
+/* 塗りは --bone。Fix だけ赤 */
+.turnPrimary {
+  background: var(--bone);
+  box-shadow: none;
+  color: var(--bg);
+}
+
+.turnPrimary:hover {
+  background: var(--bone-hover);
+}
+
+.row[data-group="fix"] .turnPrimary {
+  background: var(--fail);
+  color: var(--fail-ink);
+}
+
+.row[data-group="fix"] .turnPrimary:hover {
+  background: var(--fail-hover);
+}
+
+.turnBusy {
+  margin-right: 8px;
+  color: var(--accent);
+}
+
+@container (max-width: 639px) {
+  .row[data-kind="turn"] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "left"
+      "middle"
+      "right";
+    height: auto;
+    padding: 10px 0 10px 12px;
+  }
+
+  .row[data-kind="turn"] .left {
+    grid-area: left;
+  }
+
+  .row[data-kind="turn"] .turnRight {
+    grid-area: right;
+    flex-direction: row-reverse;
+    justify-content: space-between;
+    width: 100%;
+    text-align: left;
+  }
+
+  .row[data-kind="turn"] .turnActs {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+}

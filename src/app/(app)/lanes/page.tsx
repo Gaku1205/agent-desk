@@ -20,6 +20,7 @@ export default async function LanesPage() {
     <Lanes
       source={buildLanesSource(results, now)}
       usage={buildUsageSource(results, now)}
+      items={items}
       now={now.toISOString()}
       nav={{
         repos,

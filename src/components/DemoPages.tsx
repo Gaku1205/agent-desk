@@ -146,12 +146,13 @@ export function DemoDashboard() {
 
 /** デモの Slots & Queue：デモのデータで、本物と同じ部品 */
 export function DemoLanes() {
-  const { results, now } = useDemoState();
+  const { results, items, now } = useDemoState();
   const nav = useDemoNav();
   return (
     <Lanes
       source={buildLanesSource(results, now)}
       usage={buildUsageSource(results, now)}
+      items={items}
       now={now.toISOString()}
       nav={nav}
     />
