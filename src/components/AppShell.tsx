@@ -15,7 +15,9 @@ import {
 import { syncNow } from "@/app/actions";
 import { callAction } from "@/lib/actionCall";
 import {
+  changesPollIntervalMs,
   parseChangeMarks,
+  shouldRequestRefresh,
   startChangeWatch,
   type ChangeMarks,
   type ChangeMarksResult,
@@ -260,19 +262,32 @@ export function AppShell({
     appliedChangeMarksRef.current = appliedChangeMarks;
   }, [changeReposKey, appliedChangeMarks]);
 
-  // 見えている間、5秒ごとに「変わった」印を見て、反映済みより新しいリポジトリがあるときだけ取り直す。止めている間は見ない。
-  // 作り直すのは見るかどうかが変わるときだけ（間隔が20秒⇔30秒に変わっても作り直さない）
+  // 見えている間、5秒ごと（AIの番の作業がある間は2.5秒ごと）に「変わった」印を見て、反映済みより新しいリポジトリがあるときだけ取り直す。
+  // 止めている間は見ない。作り直すのは見るかどうか・見に行く間隔が変わるときだけ（反映済みの印が新しくなっても作り直さない）
   const watchActive = watching && refreshIntervalMs !== null;
+  // 印を見て頼んだ取り直しの結果（新しい計画）が届くまでは、重ねて頼まない
+  const watchRefreshAtRef = useRef<number | null>(null);
+  useEffect(() => {
+    watchRefreshAtRef.current = null;
+  }, [plan.loadedAt]);
+  const watchRefresh = useCallback(() => {
+    const now = Date.now();
+    if (!shouldRequestRefresh({ requestedAt: watchRefreshAtRef.current, now })) return;
+    watchRefreshAtRef.current = now;
+    autoRefresh();
+  }, [autoRefresh]);
+  const pollMs = changesPollIntervalMs(isFastRefresh(refreshIntervalMs));
   useEffect(() => {
     if (!watchActive) return;
     return startChangeWatch({
       load: () => loadChangeMarks(changeReposRef.current.split(",")),
       getApplied: () => appliedChangeMarksRef.current,
-      refresh: autoRefresh,
+      refresh: watchRefresh,
       onUnavailable: () => setChangesUnavailable(true),
       source: document,
+      intervalMs: pollMs,
     });
-  }, [watchActive, autoRefresh]);
+  }, [watchActive, watchRefresh, pollMs]);
 
   const { menuOpen, openMenu, closeMenu } = useMenuState();
 

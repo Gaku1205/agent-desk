@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  CHANGE_REFRESH_WAIT_MS,
+  CHANGES_POLL_BUSY_INTERVAL_MS,
   CHANGES_POLL_INTERVAL_MS,
+  changesPollIntervalMs,
   isBehindChangeMarks,
   parseChangeMarks,
   repoChangeKey,
+  shouldRequestRefresh,
   startChangeWatch,
   type ChangeMarks,
   type ChangeMarksResult,
@@ -167,5 +171,26 @@ describe("startChangeWatch", () => {
     expect(load).toHaveBeenCalledTimes(4);
     expect(refresh).not.toHaveBeenCalled();
     stop();
+  });
+});
+
+describe("changesPollIntervalMs", () => {
+  it("AIの番の作業がある間は2.5秒、無ければ5秒", () => {
+    expect(changesPollIntervalMs(true)).toBe(CHANGES_POLL_BUSY_INTERVAL_MS);
+    expect(changesPollIntervalMs(false)).toBe(CHANGES_POLL_INTERVAL_MS);
+    expect(CHANGES_POLL_BUSY_INTERVAL_MS).toBe(2500);
+  });
+});
+
+describe("shouldRequestRefresh", () => {
+  it("頼んでいなければ頼む。頼んだ結果を待っている間（10秒以内）は重ねて頼まない", () => {
+    expect(shouldRequestRefresh({ requestedAt: null, now: 1000 })).toBe(true);
+    expect(shouldRequestRefresh({ requestedAt: 1000, now: 3500 })).toBe(false);
+    expect(shouldRequestRefresh({ requestedAt: 1000, now: 1000 + CHANGE_REFRESH_WAIT_MS - 1 })).toBe(false);
+  });
+
+  it("10秒たっても届かなければ、もう一度頼む。時計が戻ったときも頼む", () => {
+    expect(shouldRequestRefresh({ requestedAt: 1000, now: 1000 + CHANGE_REFRESH_WAIT_MS })).toBe(true);
+    expect(shouldRequestRefresh({ requestedAt: 5000, now: 1000 })).toBe(true);
   });
 });

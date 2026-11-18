@@ -118,6 +118,15 @@ describe("同期の読み取りの鍵の選び方", () => {
     expect(second.some((c) => c.auth === `Bearer ${USER_TOKEN}`)).toBe(false);
   });
 
+  it("同時に頼まれても、同じインストールの鍵は1回で取る（立ち上がった直後に、監視リポジトリの数だけ取りに行かない）", async () => {
+    const { fetcher, calls } = fakeGitHub();
+    const results = await Promise.all(
+      [0, 1, 2, 3].map(() => fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: ENV })),
+    );
+    expect(results.every(([result]) => result.ok && result.readSource === "app")).toBe(true);
+    expect(calls.filter((c) => c.path.endsWith("access_tokens"))).toHaveLength(1);
+  });
+
   it("環境変数が無いときは、ログインした人のトークンで読む（App は呼ばない）", async () => {
     const { fetcher, calls } = fakeGitHub();
     const [result] = await fetchAllRepos(USER_TOKEN, REPOS, { fetcher, now: NOW, env: {} });

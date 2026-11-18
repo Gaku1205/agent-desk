@@ -4,6 +4,13 @@ import type { WatchedRepo } from "./config";
 
 /** 画面が「変わった」印を見に行く間隔 */
 export const CHANGES_POLL_INTERVAL_MS = 5_000;
+/** AIの番の作業がある間の、印を見に行く間隔（動いている間は早く出す。GitHub には問い合わせない） */
+export const CHANGES_POLL_BUSY_INTERVAL_MS = 2_500;
+
+/** 印を見に行く間隔：AIの番の作業がある間（速い更新の間）は2.5秒、無ければ5秒 */
+export function changesPollIntervalMs(busy: boolean): number {
+  return busy ? CHANGES_POLL_BUSY_INTERVAL_MS : CHANGES_POLL_INTERVAL_MS;
+}
 
 /** 監視リポジトリごとの「最後に変わった時刻」（キーは `owner/repo` の小文字、値は ISO 文字列） */
 export type ChangeMarks = Record<string, string>;
@@ -39,6 +46,22 @@ export function isBehindChangeMarks(applied: ChangeMarks, marks: ChangeMarks): b
     if (Number.isNaN(markMs) || Number.isNaN(appliedMs)) return false;
     return markMs > appliedMs;
   });
+}
+
+/** 取り直しを頼んでから、その結果（新しい反映済みの印）を待つ上限。過ぎたら、もう一度頼んでよい */
+export const CHANGE_REFRESH_WAIT_MS = 10_000;
+
+/**
+ * 印が新しいと分かったとき、取り直しを頼むか。前に頼んだ取り直しの結果がまだ届いていない間
+ * （頼んでから10秒以内）は、重ねて頼まない（同じ取り直しを何度も始めないため）
+ */
+export function shouldRequestRefresh(input: {
+  /** 前に取り直しを頼んだ時刻（ミリ秒）。頼んでいない・結果が届いたなら null */
+  requestedAt: number | null;
+  now: number;
+}): boolean {
+  const { requestedAt, now } = input;
+  return requestedAt === null || now - requestedAt >= CHANGE_REFRESH_WAIT_MS || now < requestedAt;
 }
 
 /** 「変わった」印を見る方法。`/api/changes` の返事を印にする。404 は "unavailable"（Webhook を使わない設定）、ほかの失敗は null */

@@ -1,76 +1,75 @@
-// Webhook の取り直しの下限の判定（docs/spec.md の「Webhook で取り直す」）。
-// 同じリポジトリは、前に取ってから最短15秒あける。変わり続けている間は、あける時間を60秒まで延ばす。
+// Webhook の取り直しの決め方（docs/spec.md の「Webhook で取り直す」の「取り直しの持ち分」）。
+// 同じリポジトリの取り直しは「持ち分」で数える：60秒の区切りごとに1回分ができ、できた区切りと次の区切りの間だけ使える
+// （ためておけるのは最大2回分）。
+// 急ぎの知らせ（段階・誰の番が変わりうる物）は持ち分が1回分あればすぐ、
+// 急ぎでない知らせ（作業中のコメントの書き換えなど）は持ち分が2回分あるときだけ（急ぎの分を1回残して）取り直す。
+// 取り直しの回数は「2回 ＋ またいだ区切りの数」までで、どの1時間でも最大62回
+// （間隔を15秒 → 30秒 → 60秒と延ばしていたときの上限と同じ）。急ぎでない知らせだけなら、どの時点でも前の決まりの回数以下。
 
-/** 同じリポジトリの取り直しの最短の間隔（ミリ秒）。設定にはしない */
-export const REFETCH_MIN_INTERVAL_MS = 15_000;
-/** 変わり続けているリポジトリの取り直しの間隔の上限（ミリ秒） */
-export const REFETCH_MAX_INTERVAL_MS = 60_000;
-/** 前に取ってからこれだけ静かなら、間隔を最短に戻す（ミリ秒） */
-export const REFETCH_QUIET_RESET_MS = 120_000;
+/** 急ぎの知らせの取り直しの最短の間隔（ミリ秒）。続けて届く知らせ（ラベルの付け替えなど）を1回にまとめる */
+export const REFETCH_URGENT_MIN_INTERVAL_MS = 5_000;
+/** 持ち分が1回分できる区切りの長さ（ミリ秒）。設定にはしない */
+export const REFETCH_PERIOD_MS = 60_000;
+
+/** 持ち分を使った記録：取り直しを許した「最後に変わった時刻」、そのとき見た「最後に急ぎの知らせが来た時刻」、使った時刻。ミリ秒 */
+export type RefetchRecord = { changedAt: number; urgentAt: number; at: number };
+
+/** 今の区切りの番号（この番号の持ち分と、1つ前の番号の持ち分が使える） */
+export function refetchPeriod(now: number): number {
+  return Math.floor(now / REFETCH_PERIOD_MS);
+}
 
 /**
- * 次の取り直しまであける時間（ミリ秒）。取り直すと決めたときに呼ぶ。
- * - 前に取ってから2分以上たっていた（静かだった）：最短の15秒
- * - 2分たたないうちにまた取り直す（変わり続けている）：前の間隔の2倍。上限は60秒（15秒 → 30秒 → 60秒）
- * 作業が続くリポジトリの取り直しを、1時間240回（15秒ごと）から60回ほどに抑える。静かなあとの最初の変化は、今までどおりすぐ出る
+ * その変化は、もう片づいているか（記録を調べなくてよいか）。
+ * 「最後に変わった時刻」が2つ前の区切りの始まりより前なら、片づいている：その後にできた持ち分（次の区切りの分）は、
+ * 画面が見ている間は使われるか（＝その変化が取り直される）、使われないまま期限が切れている（その1回分で取り直した物として数える）
  */
-export function nextRefetchIntervalMs(input: {
-  /** 今回の取り直しまで使っていた間隔（ミリ秒）。分からなければ null */
-  previousIntervalMs: number | null;
-  /** 前に取ってからの時間（ミリ秒） */
-  sinceLastFetchMs: number;
-}): number {
-  const { previousIntervalMs, sinceLastFetchMs } = input;
-  if (!(sinceLastFetchMs < REFETCH_QUIET_RESET_MS)) return REFETCH_MIN_INTERVAL_MS;
-  const previous =
-    previousIntervalMs !== null && Number.isFinite(previousIntervalMs) && previousIntervalMs > 0
-      ? previousIntervalMs
-      : REFETCH_MIN_INTERVAL_MS;
-  return Math.min(Math.max(previous * 2, REFETCH_MIN_INTERVAL_MS), REFETCH_MAX_INTERVAL_MS);
+export function isSettledChange(changedAt: number, now: number): boolean {
+  return changedAt < (refetchPeriod(now) - 2) * REFETCH_PERIOD_MS;
 }
 
 export type RefetchInput = {
-  /** 前に取った時刻（ミリ秒）。まだ取っていなければ null */
-  lastFetchedAt: number | null;
-  /** 最後に変わった時刻（ミリ秒）。変わった知らせが無ければ null */
-  lastChangedAt: number | null;
   /** 今の時刻（ミリ秒） */
   now: number;
-  /**
-   * 前に取ったデータに反映済みの「最後に変わった時刻」（ミリ秒）。渡したときは、変わったかをこれと比べる
-   * （渡さないときは前に取った時刻と比べる）
-   */
-  reflectedChangedAt?: number;
-  /** 前に取ってからあける時間（ミリ秒）。渡さなければ最短の15秒 */
-  minIntervalMs?: number;
+  /** 最後に変わった時刻（ミリ秒） */
+  changedAt: number;
+  /** 最後に急ぎの知らせが来た時刻（ミリ秒）。記録に覚えた物と違えば、その後に急ぎの知らせが来ている */
+  urgentAt: number;
+  /** 今の区切りの持ち分を使った記録。まだ使っていなければ null */
+  current: RefetchRecord | null;
+  /** 1つ前の区切りの持ち分を使った記録。まだ使っていなければ null */
+  previous: RefetchRecord | null;
 };
 
 export type RefetchDecision = {
-  /** 今、取り直してよいか（まだ取っていない・変わっていて、あける時間がたった） */
-  refetch: boolean;
-  /** 変わっているが、あける時間がたっていないとき、取り直せるまでの秒数（切り上げ）。それ以外は 0 */
-  waitSeconds: number;
+  /** 今、取り直してよいなら、使う持ち分（`previous`＝1つ前の区切りの分から先に使う）。取り直さないなら null */
+  spend: "previous" | "current" | null;
+  /** 記録にある、いちばん新しく取り直しを許した「最後に変わった時刻」。記録が無ければ null */
+  released: number | null;
 };
 
+/** 2つの記録のうち、後に使った方 */
+function latestRecord(a: RefetchRecord | null, b: RefetchRecord | null): RefetchRecord | null {
+  if (!a) return b;
+  if (!b) return a;
+  return b.at > a.at ? b : a;
+}
+
 /**
- * 今取り直すか、何秒後か。
- * - まだ取っていない：今
- * - 前に取った後に変わっていない：取り直さない（待ちも無い）
- * - 変わっていて、前に取ってから15秒以上：今（静かなあとの最初の変化はすぐ）
- * - 変わっていて、15秒たっていない：待つ。15秒の間に何回変わっても、たった後の1回にまとまる
- * 「15秒」は、`minIntervalMs` を渡したときはその時間（変わり続けているリポジトリは60秒まで延びる。`nextRefetchIntervalMs`）
+ * 今取り直すか（どの持ち分を使うか）。
+ * - 記録にある物より後に変わっていない：取り直さない
+ * - 持ち分が2回分とも残っている（1分以上静かだった）：すぐ取り直す
+ * - 急ぎの知らせが来ていて、前に取ってから5秒以上：残っている1回分ですぐ取り直す
+ * - それ以外（急ぎでない知らせだけ・持ち分が無い）：待つ。待つ間に何回変わっても、取り直せるようになった後の1回にまとまる
+ * 静かだったリポジトリの最初の変化はすぐ、そのあと変わり続ける間は区切りごと（60秒ごと）。その間も、急ぎの知らせは残してある1回分ですぐ出る
  */
-export function decideRefetch({
-  lastFetchedAt,
-  lastChangedAt,
-  now,
-  reflectedChangedAt,
-  minIntervalMs = REFETCH_MIN_INTERVAL_MS,
-}: RefetchInput): RefetchDecision {
-  if (lastFetchedAt === null) return { refetch: true, waitSeconds: 0 };
-  const reflected = reflectedChangedAt ?? lastFetchedAt;
-  if (lastChangedAt === null || lastChangedAt <= reflected) return { refetch: false, waitSeconds: 0 };
-  const elapsed = now - lastFetchedAt;
-  if (elapsed >= minIntervalMs) return { refetch: true, waitSeconds: 0 };
-  return { refetch: false, waitSeconds: Math.ceil((minIntervalMs - elapsed) / 1000) };
+export function decideRefetch({ now, changedAt, urgentAt, current, previous }: RefetchInput): RefetchDecision {
+  const latest = latestRecord(current, previous);
+  if (!latest) return { spend: "previous", released: null };
+  const released = Math.max(current?.changedAt ?? 0, previous?.changedAt ?? 0);
+  if (released >= changedAt) return { spend: null, released };
+  const free = !previous ? "previous" : !current ? "current" : null;
+  const urgent = urgentAt !== latest.urgentAt;
+  if (free && urgent && now - latest.at >= REFETCH_URGENT_MIN_INTERVAL_MS) return { spend: free, released };
+  return { spend: null, released };
 }
