@@ -11,11 +11,9 @@ import { parseNotifyEvents } from "@/lib/notifyEvents";
 import { DEFAULT_PARALLEL_SETTINGS } from "@/lib/parallel";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems, filterTurnItems } from "@/lib/turn";
-import { aiUsageAll } from "@/lib/dashboard/aiUsage";
+import { buildBundle, type PeriodBundle } from "@/lib/dashboard/bundle";
 import { hourStarts, type GithubLimits } from "@/lib/dashboard/githubLimits";
-import { summarizeAll } from "@/lib/dashboard/summary";
-import { stopsAll } from "@/lib/dashboard/stops";
-import { throughputAll } from "@/lib/dashboard/throughput";
+import { PERIOD_KEYS, type PeriodKey } from "@/lib/dashboard/period";
 import { buildLanesSource } from "@/lib/lanes/source";
 import { buildUsageSource } from "@/lib/lanes/usage";
 import { Dashboard } from "./Dashboard";
@@ -128,16 +126,17 @@ function demoGithubLimits(now: Date, runs: number | null): GithubLimits {
 
 /** デモの Dashboard：デモのデータで、本物と同じ集計を出す */
 export function DemoDashboard() {
-  const { results, now, repos } = useDemoState();
+  const { dashboardResults, now, repos } = useDemoState();
   const nav = useDemoNav();
-  const summaries = summarizeAll(results, now);
+  // Dashboard のデモのデータは60日分あるので、`30d` も含めて全部の期間をここで数える（取得は無い）
+  const bundles = Object.fromEntries(PERIOD_KEYS.map((key) => [key, buildBundle(dashboardResults, now, key)])) as Record<
+    PeriodKey,
+    PeriodBundle
+  >;
   return (
     <Dashboard
-      summaries={summaries}
-      throughputs={throughputAll(results, now)}
-      stops={stopsAll(results, now)}
-      limits={demoGithubLimits(now, summaries["24h"].runs)}
-      aiUsages={aiUsageAll(results, now)}
+      bundles={bundles}
+      limits={demoGithubLimits(now, bundles["24h"].summary.runs)}
       now={now.toISOString()}
       repoCount={repos.length}
       nav={nav}

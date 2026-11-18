@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { IssueData, PullData, RepoResult } from "../github/types";
 import { formatSpan } from "./duration";
-import { formatPeriodLabel, periodRange } from "./period";
+import { buildBundle, buildLocalBundles } from "./bundle";
+import { EXTENDED_DAYS, formatPeriodLabel, needsExtendedData, periodRange, periodWord } from "./period";
 import { median, p90, parseRunRows, summarize, summarizeAll, summarySentence } from "./summary";
 
 const NOW = new Date("2026-11-18T02:00:00Z"); // 日本時間 11/18 11:00
@@ -80,6 +81,47 @@ describe("期間", () => {
   it("見出しの下の期間は日本時間", () => {
     expect(formatPeriodLabel(NOW, "24h", 12)).toBe("11/17 11:00 〜 11/18 11:00 · 12リポジトリ");
     expect(formatPeriodLabel(NOW, "7d", 3)).toBe("11/11 11:00 〜 11/18 11:00 · 3リポジトリ");
+    expect(formatPeriodLabel(NOW, "30d", 12)).toBe("10/19 11:00 〜 11/18 11:00 · 12リポジトリ");
+  });
+  it("30d は30日と、その前の30日（合わせて60日）", () => {
+    const range = periodRange(NOW, "30d");
+    expect(range.start).toBe(NOW.getTime() - 30 * 24 * HOUR);
+    expect(range.prevStart).toBe(NOW.getTime() - EXTENDED_DAYS * 24 * HOUR);
+    expect(periodWord("30d")).toBe("30日");
+    expect(needsExtendedData("30d")).toBe(true);
+    expect(needsExtendedData("24h")).toBe(false);
+    expect(needsExtendedData("7d")).toBe(false);
+  });
+});
+
+describe("30d のまとめ", () => {
+  it("30日と前の30日にマージを振り分ける（境目は始め以上・終わり未満）", () => {
+    const day = 24 * HOUR;
+    const data = {
+      issues: [issue(1, 40 * day), issue(2, 10 * day)],
+      pulls: [
+        pull(11, 1, 10 * day), // 30日の中（Issue 作成から30日）
+        pull(12, 2, 30 * day), // ちょうど始め → 30日の中
+        pull(13, 3, 30 * day + 1), // 前の30日の中
+        pull(14, 4, 60 * day - 1), // 前の30日の中
+        pull(15, 5, 60 * day), // ちょうど前の始め → 前の30日の中
+        pull(16, 6, 60 * day + 1), // 範囲の外
+      ],
+    };
+    const summary = summarize([result(data)], NOW, "30d");
+    expect(summary.merged).toBe(2);
+    expect(summary.mergedPrev).toBe(3);
+    expect(summarySentence(summary, periodWord("30d"))).toBe("この30日で、2件マージして、止まったのは 0回でした。");
+  });
+  it("読めたリポジトリが無ければ数字は null（—）", () => {
+    const failed: RepoResult = { owner: "o", repo: "r", ok: false, error: { kind: "other", message: "x" } };
+    const summary = summarize([failed], NOW, "30d");
+    expect(summary.merged).toBeNull();
+    expect(summary.mergedPrev).toBeNull();
+  });
+  it("buildLocalBundles は 24h・7d だけ（30d は専用の取得）", () => {
+    expect(Object.keys(buildLocalBundles([], NOW))).toEqual(["24h", "7d"]);
+    expect(buildBundle([], NOW, "30d").summary.merged).toBeNull();
   });
 });
 
@@ -169,7 +211,7 @@ describe("summarize", () => {
 
   it("両方の期間をまとめて作る", () => {
     const all = summarizeAll([result({})], NOW);
-    expect(Object.keys(all)).toEqual(["24h", "7d"]);
+    expect(Object.keys(all)).toEqual(["24h", "7d", "30d"]);
   });
 });
 

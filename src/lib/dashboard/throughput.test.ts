@@ -145,6 +145,6 @@ describe("longestStep・maxP90", () => {
   });
 
   it("全部の期間を作る", () => {
-    expect(Object.keys(throughputAll([], NOW))).toEqual(["24h", "7d"]);
+    expect(Object.keys(throughputAll([], NOW))).toEqual(["24h", "7d", "30d"]);
   });
 });

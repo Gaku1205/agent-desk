@@ -11,8 +11,8 @@ import type {
 } from "./types";
 
 /** Issue と PR で同じ取り方をする所（共通のインターフェースが無いので、文字のまま両方に入れる） */
-const COMMENTS = `comments(last: 100) { nodes { databaseId body createdAt updatedAt url author { __typename login } } }`;
-const LABEL_EVENTS = `timelineItems(last: 50, itemTypes: [LABELED_EVENT, UNLABELED_EVENT]) {
+export const COMMENTS = `comments(last: 100) { nodes { databaseId body createdAt updatedAt url author { __typename login } } }`;
+export const LABEL_EVENTS = `timelineItems(last: 50, itemTypes: [LABELED_EVENT, UNLABELED_EVENT]) {
           nodes {
             __typename
             ... on LabeledEvent { createdAt label { name } }
@@ -316,7 +316,7 @@ function convertGqlFiles(raw: GqlPull): { files?: string[] } {
 }
 
 /** Issue・PRのコメント。Bot のログイン名は REST と同じく `[bot]` を付ける。読めない物は捨てる */
-export function convertGqlComments(issueNumber: number, raw: GqlIssue): CommentData[] {
+export function convertGqlComments(issueNumber: number, raw: Pick<GqlIssue, "comments">): CommentData[] {
   const comments: CommentData[] = [];
   for (const comment of nodesOf(raw.comments)) {
     if (typeof comment.databaseId !== "number" || typeof comment.createdAt !== "string") continue;
@@ -337,7 +337,7 @@ export function convertGqlComments(issueNumber: number, raw: GqlIssue): CommentD
 }
 
 /** ラベルの付け外し（`LabeledEvent`・`UnlabeledEvent`）を、REST の `issues/events` と同じ形にする */
-export function convertGqlLabelEvents(issueNumber: number, raw: GqlIssue): IssueEventData[] {
+export function convertGqlLabelEvents(issueNumber: number, raw: Pick<GqlIssue, "timelineItems">): IssueEventData[] {
   const events: IssueEventData[] = [];
   for (const item of nodesOf(raw.timelineItems)) {
     const event =

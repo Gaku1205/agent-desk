@@ -67,6 +67,13 @@
   container-type: inline-size;
 }
 
+/* `30d` を読んでいる間・読めなかったときの1行（文の上） */
+.periodNote {
+  margin: 0 0 8px;
+  color: var(--mute);
+  font-size: 13px;
+}
+
 .sentence {
   margin: 0;
   color: var(--bone);

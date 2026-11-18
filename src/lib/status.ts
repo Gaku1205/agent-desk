@@ -156,7 +156,7 @@ const PLAN_MEMO_MARK = "> 元のメモ：";
 export const RETRY_MARK = "<!-- auto-retry -->";
 export const RETRY_COUNT_PATTERN = /やり直し\s*(\d+)\s*\/\s*(\d+)\s*回/;
 const RETRY_REASON_PATTERN = /^理由：(.*)$/m;
-const STUCK_PREFIX = "⏸ 自動で進めるのを止めました：";
+export const STUCK_PREFIX = "⏸ 自動で進めるのを止めました：";
 export const DEFAULT_STUCK_REASON = "自動で進められず止まりました";
 /** 「通過」とみなすチェックの結果 */
 const PASSED_CONCLUSIONS = new Set(["success", "skipped", "neutral"]);

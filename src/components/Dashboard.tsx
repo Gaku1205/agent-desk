@@ -5,7 +5,7 @@ import { barRatios, USAGE_MODELS, type AiUsage, type UsageModel } from "@/lib/da
 import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
 import { formatPeriodLabel, PERIOD_KEYS, periodWord, type PeriodKey } from "@/lib/dashboard/period";
-import { summarySentence, type Summary } from "@/lib/dashboard/summary";
+import { summarySentence } from "@/lib/dashboard/summary";
 import { getBrowserStorage } from "@/lib/motion";
 import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import styles from "./Dashboard.module.css";
@@ -25,17 +25,13 @@ import { TurnKindIcon } from "./TurnKindIcon";
 import { reasonRatios, STOP_REASONS, type StopReason, type Stops } from "@/lib/dashboard/stops";
 import { SideRepos } from "./TopBar";
 import { DashboardThroughput } from "./DashboardThroughput";
-import type { Throughput } from "@/lib/dashboard/throughput";
+import { buildBundle, type PeriodBundle } from "@/lib/dashboard/bundle";
 
 type Props = {
-  /** 期間ごとのまとめ（サーバーで作った小さな値。切り替えても取り直さない） */
-  summaries: Record<PeriodKey, Summary>;
-  /** 期間ごとの Throughput（同じく取り直さない） */
-  throughputs: Record<PeriodKey, Throughput>;
-  /** 期間ごとの AI usage（同じく取り直さない） */
-  aiUsages: Record<PeriodKey, AiUsage>;
-  /** 期間ごとの Stops（同じく取り直さない） */
-  stops: Record<PeriodKey, Stops>;
+  /** 期間ごとの数字（まとめ・Throughput・AI usage・Stops。サーバーで作った小さな値。切り替えても取り直さない）。無い期間（`30d`）は `loadPeriod` で取る */
+  bundles: Partial<Record<PeriodKey, PeriodBundle>>;
+  /** 無い期間を選んだときに、サーバーで取って数える（Server Action。トークンは画面に渡さない）。無ければ（デモ）取らない */
+  loadPeriod?: (key: PeriodKey) => Promise<PeriodBundle | null>;
   /** GitHub limits（期間の切り替えとは関係なく、直近24時間） */
   limits: GithubLimits;
   /** 「今」（ISO文字列） */
@@ -362,11 +358,31 @@ function GithubLimitsSection({ limits }: { limits: GithubLimits }) {
 }
 
 /** Dashboard（`/dashboard`、デモは `/demo/dashboard`）：期間で振り返る。見出し・期間の切り替え・まとめ・AI usage・GitHub limits */
-export function Dashboard({ summaries, throughputs, aiUsages, stops, limits, now, repoCount, nav }: Props) {
+export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav }: Props) {
   const [period, setPeriod] = useState<PeriodKey>("24h");
+  // `loadPeriod` で取った期間（5分覚えるのはサーバー側。画面では開いている間だけ持つ）
+  const [loaded, setLoaded] = useState<Partial<Record<PeriodKey, PeriodBundle>>>({});
+  const [pending, setPending] = useState<PeriodKey | null>(null);
+  const [failed, setFailed] = useState<PeriodKey | null>(null);
   const tabsId = useId();
-  const summary = summaries[period];
-  const at = new Date(now);
+  // まだ数字が無い期間（読み込み中・失敗）は、数字を全部 `—` にする（作り物の数字を出さない）
+  const bundle = bundles[period] ?? loaded[period] ?? buildBundle([], new Date(now), period);
+  const summary = bundle.summary;
+  const at = new Date(bundle.now);
+
+  const selectPeriod = (key: PeriodKey) => {
+    setPeriod(key);
+    setFailed(null);
+    if (bundles[key] || loaded[key] || !loadPeriod) return;
+    setPending(key);
+    loadPeriod(key)
+      .then((result) => {
+        if (result) setLoaded((current) => ({ ...current, [key]: result }));
+        else setFailed(key);
+      })
+      .catch(() => setFailed(key))
+      .finally(() => setPending((current) => (current === key ? null : current)));
+  };
   const sideCollapsed = useSyncExternalStore(subscribeSidebar, getSidebarSnapshot, () => false);
   const toggleSide = useCallback(() => {
     const next = !getSidebarSnapshot();
@@ -406,7 +422,7 @@ export function Dashboard({ summaries, throughputs, aiUsages, stops, limits, now
                 aria-selected={period === key}
                 aria-controls={`${tabsId}-panel`}
                 className={`${styles.tab} num`}
-                onClick={() => setPeriod(key)}
+                onClick={() => selectPeriod(key)}
               >
                 {key}
               </button>
@@ -419,6 +435,11 @@ export function Dashboard({ summaries, throughputs, aiUsages, stops, limits, now
           id={`${tabsId}-panel`}
           aria-labelledby={`${tabsId}-${period}`}
         >
+          {(pending === period || failed === period) && (
+            <p className={styles.periodNote} role="status">
+              {pending === period ? `${periodWord(period)}分を読んでいます…` : `${periodWord(period)}分を読めませんでした。もう一度押すと読み直します。`}
+            </p>
+          )}
           <p className={styles.sentence}>{summarySentence(summary, periodWord(period))}</p>
           <dl className={styles.table}>
             <Cell label="Merged" value={count(summary.merged)} note={`prev ${period}: ${count(summary.mergedPrev)}`} />
@@ -435,9 +456,9 @@ export function Dashboard({ summaries, throughputs, aiUsages, stops, limits, now
             />
           </dl>
         </section>
-        <DashboardThroughput throughput={throughputs[period]} basePath={nav.basePath} />
-        <AiUsageSection usage={aiUsages[period]} />
-        <StopsSection stops={stops[period]} />
+        <DashboardThroughput throughput={bundle.throughput} basePath={nav.basePath} />
+        <AiUsageSection usage={bundle.aiUsage} />
+        <StopsSection stops={bundle.stops} />
         <GithubLimitsSection limits={limits} />
       </main>
     </div>
