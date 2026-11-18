@@ -21,12 +21,14 @@
 
 .head {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   align-items: baseline;
   margin-bottom: 14px;
 }
 
 .h1 {
+  white-space: nowrap;
   color: var(--accent);
   font-size: 13px;
   font-weight: 700;
@@ -50,6 +52,7 @@
 /* 4つのまとまりの凡例（色の四角＋英語の名前）。2件以上のときだけ */
 .legend {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px 12px;
   margin: 0;
   padding: 0;
