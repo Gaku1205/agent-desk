@@ -72,6 +72,30 @@ describe("buildLanesSource：枠を使う作業", () => {
     expect(source.works[0].elapsedMs).toBe(22 * 60_000);
   });
 
+  const ciRunningPull = pull(20, { body: "Closes #7", labels: ["ai:hold"] });
+  const ciRunningChecks = {
+    20: {
+      checkRuns: [{ name: "check", status: "in_progress", conclusion: null, appSlug: "github-actions", completedAt: null }],
+      statuses: [],
+    },
+  };
+
+  it("`ai:implement` の無い Issue は、開いている PR が CI 中でも席にしない", () => {
+    const source = buildLanesSource(
+      [result(data({ issues: [issue(7, ["ai:skip"])], pulls: [ciRunningPull], pullChecks: ciRunningChecks }))],
+      NOW,
+    );
+    expect(source.works).toEqual([]);
+  });
+
+  it("`ai:implement` がある Issue は、PR が CI 中でも今までどおり席にする", () => {
+    const source = buildLanesSource(
+      [result(data({ issues: [issue(7, ["ai:implement"])], pulls: [ciRunningPull], pullChecks: ciRunningChecks }))],
+      NOW,
+    );
+    expect(source.works.map((work) => [work.number, work.stepName])).toEqual([[7, "CI"]]);
+  });
+
   it("取れなかったリポジトリは飛ばす", () => {
     const failed: RepoResult = { owner: "o", repo: "x", ok: false, error: { kind: "other", message: "x" } };
     expect(buildLanesSource([failed], NOW)).toEqual({ works: [], queue: [], runs: [], paused: [] });

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
-import { assignSlots, lanesHeadline, type QueueEntry, type Slot } from "@/lib/lanes/slots";
+import { assignSlots, lanesHeadline, overLimitNote,type QueueEntry, type Slot } from "@/lib/lanes/slots";
 import type { LanesSource, RunEntry } from "@/lib/lanes/source";
 import { lanesTurnRows, mergeOrdinals } from "@/lib/lanes/turnRows";
 import { heldIndex, withHeldRows, type HeldRow } from "@/lib/operationResult";
@@ -318,6 +318,7 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
   const parallel = useParallelView();
   const limit = parallel?.state?.limit ?? null;
   const lanes = assignSlots(source, limit);
+  const overLimit = overLimitNote(lanes.counts.running, limit);
   const at = new Date(now);
   const slotsId = useId();
   const runsId = useId();
@@ -401,6 +402,7 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
             title="Slots"
             sub={limit === null ? "" : `${limit}件まで`}
           />
+          {overLimit ? <p className={styles.slotsNote}>{overLimit}</p> : null}
           {lanes.slots.length === 0 ? (
             <p className={styles.empty}>動いている作業はありません</p>
           ) : (
