@@ -491,7 +491,7 @@
     background 0.15s var(--ease);
 }
 
-/* Dashboard は新サービスのすぐ上（間4px） */
+/* Dashboard・Slots & Queue は新サービスのすぐ上（それぞれの間4px） */
 .sideDash {
   margin: 12px 0 -8px;
 }

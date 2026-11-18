@@ -203,7 +203,37 @@ export function GaugeIcon({ size = LABEL }: IconProps) {
   );
 }
 
-/** Issueを書く＝ペン付きの四角 */
+/** Slots & Queue＝横線3本 */
+export function LanesIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M4 6h16" />
+      <path d="M4 12h16" />
+      <path d="M4 18h16" />
+    </LineIcon>
+  );
+}
+
+/** Slots の見出し＝3列の箱 */
+export function ColumnsIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M9 3v18" />
+      <path d="M15 3v18" />
+    </LineIcon>
+  );
+}
+
+/** 空きの枠（Free）＝丸 */
+export function CircleIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <circle cx="12" cy="12" r="8" />
+    </LineIcon>
+  );
+}
+
 /** 棒グラフ（Dashboard） */
 export function ChartIcon({ size = LABEL }: IconProps) {
   return (
@@ -216,6 +246,7 @@ export function ChartIcon({ size = LABEL }: IconProps) {
   );
 }
 
+/** Issueを書く＝ペン付きの四角 */
 export function WriteIcon({ size = LABEL }: IconProps) {
   return (
     <LineIcon size={size}>

@@ -109,6 +109,10 @@ export type WorkflowRunData = {
   pullNumbers: number[];
   /** 最後の更新（`updated_at`） */
   updatedAt: string;
+  /** ワークフローの名前（`name`。`Claude Implement` など。無ければ無し） */
+  name?: string;
+  /** 始まった時刻（`run_started_at`、無ければ `created_at`。読めなければ無し） */
+  startedAt?: string;
 };
 
 export type RepoData = {

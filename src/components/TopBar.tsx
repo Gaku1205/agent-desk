@@ -13,7 +13,7 @@ import { currentRepoFromPath, visibleRepos } from "@/lib/visibleRepos";
 import type { TurnCounts } from "@/lib/turn";
 import { useShell } from "./AppShell";
 import { useDemo } from "./DemoContext";
-import { ChartIcon, GridIcon, PlayIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
+import { ChartIcon, GridIcon, LanesIcon, PlayIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
 import { ParallelToggle } from "./ParallelToggle";
 import { SideUser } from "./SideUser";
 import styles from "./TopBar.module.css";
@@ -202,6 +202,7 @@ export function SideRepos(
   const pathname = usePathname();
   const newServiceHref = `${props.basePath ?? ""}/new/service`;
   const dashboardHref = `${props.basePath ?? ""}/dashboard`;
+  const lanesHref = `${props.basePath ?? ""}/lanes`;
   const listRef = useRef<HTMLDivElement>(null);
   const [hiddenBelow, setHiddenBelow] = useState(false);
   // 札が下の段の下に隠れているときだけ、境目に線を出す（スクロール時・大きさが変わったとき）
@@ -237,6 +238,15 @@ export function SideRepos(
         >
           <ChartIcon />
           <span>Dashboard</span>
+          <PendingMark />
+        </Link>
+        <Link
+          href={lanesHref}
+          className={`${styles.sideNew} ${styles.sideDash}`}
+          aria-current={pathname.toLowerCase() === lanesHref ? "page" : undefined}
+        >
+          <LanesIcon />
+          <span>Slots &amp; Queue</span>
           <PendingMark />
         </Link>
         <Link
@@ -385,6 +395,7 @@ function MenuSheet(props: Props) {
   const newIssueLink = newIssueHref(props.basePath ?? "", currentRepoFromPath(pathname));
   const newServiceHref = `${props.basePath ?? ""}/new/service`;
   const dashboardHref = `${props.basePath ?? ""}/dashboard`;
+  const lanesHref = `${props.basePath ?? ""}/lanes`;
   const paneRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!menuOpen) return;
@@ -435,6 +446,16 @@ function MenuSheet(props: Props) {
         >
           <ChartIcon />
           Dashboard
+          <PendingMark />
+        </Link>
+        <Link
+          href={lanesHref}
+          className={styles.lnk}
+          aria-current={pathname.toLowerCase() === lanesHref ? "page" : undefined}
+          onClick={shouldCloseMenuOnPick(pathname, lanesHref) ? closeMenu : undefined}
+        >
+          <LanesIcon />
+          Slots &amp; Queue
           <PendingMark />
         </Link>
         {props.extraLinks}

@@ -2,6 +2,7 @@
 
 import dashboardStyles from "./Dashboard.module.css";
 import deskStyles from "./Desk.module.css";
+import lanesStyles from "./Lanes.module.css";
 import { useNav } from "./NavContext";
 import { Sheet } from "./Sheet";
 import settingsStyles from "./SettingsSections.module.css";
@@ -86,6 +87,38 @@ export function DashboardSkeleton() {
             <Band width="100%" height={160} />
           </div>
         </div>
+      </main>
+    </div>
+  );
+}
+
+/** Slots & Queue の骨組み：左のバー（本物）、見出しと一文、区画ごとの見出しと行の位置 */
+export function LanesSkeleton() {
+  const nav = useNav();
+  return (
+    <div className={dashboardStyles.panes} data-panes="" aria-busy="true">
+      <div className={dashboardStyles.side} id="side-repos">
+        {nav && <SideRepos {...nav} />}
+      </div>
+      <main id="main" className={lanesStyles.main}>
+        <div className={styles.line} aria-hidden="true" style={{ gap: 4 }}>
+          <Band width={200} height={36} />
+          <Band width={320} height={13} />
+        </div>
+        {[
+          { rows: 3, height: 60 },
+          { rows: 2, height: 56 },
+          { rows: 2, height: 56 },
+        ].map((section, s) => (
+          <div className={styles.line} key={s} aria-hidden="true" style={{ gap: 12 }}>
+            <Band width={150} height={15} />
+            <div className={styles.line} style={{ gap: 2 }}>
+              {Array.from({ length: section.rows }, (_, i) => (
+                <Band key={i} width="100%" height={section.height} />
+              ))}
+            </div>
+          </div>
+        ))}
       </main>
     </div>
   );

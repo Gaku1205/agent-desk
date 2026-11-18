@@ -31,6 +31,8 @@ import {
 export type ParallelView = {
   /** いまの状態。まだ読めていない・読めない（ログインしていない・`SETTINGS_REPO` が無い）ときは null（ボタンを出さない） */
   state: ParallelState | null;
+  /** 読んだ設定（昼・夜の数と夜の時間帯）。読めていないときは null。Slots & Queue の見出しが使う（読み直さない） */
+  settings: ParallelSettings | null;
   /** 切り替えを書いている最中 */
   busy: boolean;
   /** 切り替えに失敗した理由（次に押すまで出す） */
@@ -130,7 +132,7 @@ export function ParallelProvider({ children }: { children: ReactNode }) {
 
   return (
     <ParallelSavedContext.Provider value={applySaved}>
-      <ParallelContext.Provider value={{ state, busy, error, toggle }}>{children}</ParallelContext.Provider>
+      <ParallelContext.Provider value={{ state, settings: state ? (snapshot?.settings ?? null) : null, busy, error, toggle }}>{children}</ParallelContext.Provider>
     </ParallelSavedContext.Provider>
   );
 }
