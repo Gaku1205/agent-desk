@@ -1,38 +1,42 @@
 import { loadStepLog } from "@/app/actions";
-import { Desk } from "@/components/Desk";
+import { DeskLive } from "@/components/LivePages";
 import { getSignedInLogin } from "@/lib/auth";
 import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
-import { loadTurns } from "@/lib/loadTurns";
+import { loadTurnSteps } from "@/lib/loadTurnSteps";
 import { newIssueRepos } from "@/lib/newIssue";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
-import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { buildWatchdogNotices } from "@/lib/watchdogState";
 import { logout } from "./logout";
 
-export default async function Home() {
-  const { results, items, now, addedNotices } = await loadTurns();
-  const { repos } = await loadWatchedRepos();
+const NO_COUNTS = { byRepo: {} };
 
-  return (
-    <Desk
-      items={items}
-      messages={buildConversation(results, buildTrailEvents(results, now), now)}
-      now={now.toISOString()}
-      scope={{ kind: "all", repoCount: repos.length }}
-      errors={results.flatMap((result) => (result.ok ? [] : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }]))}
-      notices={buildWatchdogNotices(results, now)}
-      addedNotices={addedNotices}
-      nav={{
-        repos,
-        counts: countTurnItems(items),
-        runningCounts: countRunningPipelineRows(results, now),
-        login: (await getSignedInLogin()) ?? undefined,
-        logout,
-      }}
-      newIssueRepos={newIssueRepos(repos, results)}
-      loadStepLog={loadStepLog}
-    />
-  );
+/**
+ * ホーム：全部のリポジトリの「あなたの番」と「いまの様子」。全部がそろうのを待たず、覚えている最後の結果と読めた分を先に出し、
+ * 読めた所から順に入れ替える（`loadTurnSteps`）。そろう前の段では、件数・Issueを書く欄の一覧・自動で足したお知らせは
+ * layout が後から流す物を使う（`nav.countsPending`。リポジトリのページと同じ）
+ */
+export default async function Home() {
+  const login = (await getSignedInLogin()) ?? undefined;
+  const first = await loadTurnSteps(({ results, items, now, repos, addedNotices, complete }) => ({
+    complete,
+    props: {
+      items,
+      messages: buildConversation(results, buildTrailEvents(results, now), now),
+      now: now.toISOString(),
+      scope: { kind: "all" as const, repoCount: repos.length },
+      errors: results.flatMap((result) =>
+        result.ok ? [] : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }],
+      ),
+      notices: buildWatchdogNotices(results, now),
+      addedNotices,
+      nav: complete
+        ? { repos, counts: countTurnItems(items), runningCounts: countRunningPipelineRows(results, now), login, logout }
+        : { repos, counts: NO_COUNTS, runningCounts: NO_COUNTS, countsPending: true, login, logout },
+      newIssueRepos: newIssueRepos(repos, results),
+      loadStepLog,
+    },
+  }));
+  return <DeskLive first={first} />;
 }
