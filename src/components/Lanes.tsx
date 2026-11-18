@@ -9,8 +9,10 @@ import { getBrowserStorage } from "@/lib/motion";
 import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import dashboardStyles from "./Dashboard.module.css";
 import { getSidebarSnapshot, subscribeSidebar, type DeskNav } from "./Desk";
-import { CircleIcon, ColumnsIcon, PanelLeftIcon, PlayIcon, SpinnerIcon } from "./icons";
+import type { UsageSource } from "@/lib/lanes/usage";
+import { ChartIcon, CircleIcon, ColumnsIcon, PanelLeftIcon, PlayIcon, SpinnerIcon } from "./icons";
 import styles from "./Lanes.module.css";
+import { LanesUsage } from "./LanesUsage";
 import { useParallelView } from "./ParallelContext";
 import { QueueIcon } from "./QueueIcon";
 import { SideRepos } from "./TopBar";
@@ -18,6 +20,8 @@ import { SideRepos } from "./TopBar";
 type Props = {
   /** サーバーで作った材料（枠を使う作業・順番待ち・動いている実行） */
   source: LanesSource;
+  /** Last 24h のグラフの材料（取れなければ null） */
+  usage: UsageSource | null;
   /** 「今」（ISO文字列） */
   now: string;
   nav: DeskNav;
@@ -179,7 +183,7 @@ function QueueRow({ entry }: { entry: QueueEntry }) {
 }
 
 /** Slots & Queue（`/lanes`、デモは `/demo/lanes`）：見出し・Slots・Running・Queue */
-export function Lanes({ source, now, nav }: Props) {
+export function Lanes({ source, usage, now, nav }: Props) {
   const parallel = useParallelView();
   const limit = parallel?.state?.limit ?? null;
   const lanes = assignSlots(source, limit);
@@ -187,6 +191,7 @@ export function Lanes({ source, now, nav }: Props) {
   const slotsId = useId();
   const runsId = useId();
   const queueId = useId();
+  const usageId = useId();
   const sideCollapsed = useSyncExternalStore(subscribeSidebar, getSidebarSnapshot, () => false);
   const toggleSide = useCallback(() => {
     const next = !getSidebarSnapshot();
@@ -295,6 +300,11 @@ export function Lanes({ source, now, nav }: Props) {
               ))}
             </ol>
           )}
+        </section>
+
+        <section className={styles.section} aria-labelledby={usageId}>
+          <SectionHead id={usageId} icon={<ChartIcon size={16} />} title="Last 24h" sub="枠の使われ方" />
+          <LanesUsage usage={usage} settings={parallel?.settings ?? null} headingId={usageId} />
         </section>
       </main>
     </div>

@@ -1,0 +1,205 @@
+/* Slots & Queue の Last 24h（docs/design.md の「Slots & Queue」）。新しい色は使わない */
+
+.figure {
+  margin: 0;
+}
+
+.empty {
+  margin: 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+  color: var(--mute);
+  font-size: 14px;
+}
+
+/* 左に縦の目盛り（28px）、中に描く面、下に時刻 */
+.chart {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-rows: 180px 24px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hair);
+}
+
+.yAxis {
+  position: relative;
+}
+
+.yLabel {
+  position: absolute;
+  right: 8px;
+  color: var(--mute);
+  font-size: 11.5px;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+
+.plot {
+  position: relative;
+  border-bottom: 1px solid var(--hair);
+}
+
+.grid {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--hair-2);
+}
+
+.night {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--well);
+}
+
+.nightLabel {
+  position: absolute;
+  top: 6px;
+  padding-left: 8px;
+  color: var(--mute);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.usedFill {
+  fill: var(--ok);
+  fill-opacity: 0.18;
+}
+
+.usedLine,
+.limitLine,
+.queueLine {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.usedLine {
+  stroke: var(--ok);
+  stroke-width: 1.5;
+}
+
+.limitLine {
+  stroke: var(--bone);
+  stroke-dasharray: 4 3;
+  stroke-width: 1.5;
+}
+
+.queueLine {
+  stroke: var(--wait);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+/* 順番待ちがいちばん多かった所の印 */
+.peak {
+  position: absolute;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  transform: translate(-5px, -50%);
+}
+
+.peak[data-side="left"] {
+  flex-direction: row-reverse;
+  transform: translate(calc(-100% + 5px), -50%);
+}
+
+.peakDot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--wait);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.peakText {
+  color: var(--wait);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.xAxis {
+  position: relative;
+  grid-column: 2;
+}
+
+.xLabel {
+  position: absolute;
+  top: 6px;
+  color: var(--mute);
+  font-size: 11.5px;
+  line-height: 1;
+  transform: translateX(-50%);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--bone-2);
+  font-size: 12.5px;
+}
+
+.legend li {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.legendSub {
+  color: var(--mute);
+}
+
+.keyUsed,
+.keyLimit,
+.keyQueue {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 18px;
+  height: 10px;
+}
+
+.keyUsed {
+  border-top: 1.5px solid var(--ok);
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+}
+
+.keyLimit {
+  height: 0;
+  border-top: 1.5px dashed var(--bone);
+}
+
+.keyQueue {
+  height: 0;
+  border-top: 2px solid var(--wait);
+}
+
+.summary {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--hair-2);
+  color: var(--bone-2);
+  font-size: 13px;
+}
+
+@media (max-width: 899px) {
+  .chart {
+    grid-template-rows: 150px 24px;
+  }
+}
