@@ -181,6 +181,17 @@ export function RepoIcon({ size = LABEL }: IconProps) {
   );
 }
 
+/** チップ（Dashboard の AI usage の見出し） */
+export function ChipIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <rect x="5" y="5" width="14" height="14" rx="2" />
+      <rect x="9" y="9" width="6" height="6" rx="1" />
+      <path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" />
+    </LineIcon>
+  );
+}
+
 /** Issueを書く＝ペン付きの四角 */
 /** 棒グラフ（Dashboard） */
 export function ChartIcon({ size = LABEL }: IconProps) {
