@@ -1,4 +1,5 @@
 import { aiActivity, type AiActivity } from "./aiActivity";
+import { conflictKind, conflictText } from "./conflict";
 import { ciFailureState, ciFixingText } from "./ciFailureState";
 import type { DeployLink } from "./deployStatus";
 import { describeStatus, failureLogUrl } from "./describe";
@@ -29,6 +30,10 @@ export type ChatLineOptions = {
 /** 段階から、話し手と会話の文を決める。人間の番の段階は、ふつう会話には出ない（説明文をそのまま使う） */
 export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): ChatLine {
   const ci = `${status.ci.passed}/${status.ci.total}`;
+  const conflict = conflictKind(status);
+  if (conflict) {
+    return { speaker: conflict === "fixing" ? "AI" : "パイプライン", text: conflictText(conflict) };
+  }
   switch (status.stage) {
     case "planning":
       return { speaker: "企画AI", text: "企画AIがIssueを清書しています" };
