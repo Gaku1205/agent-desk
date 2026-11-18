@@ -3,6 +3,7 @@
 import { describeParallelBar, describeParallelButton } from "@/lib/parallel";
 import { useParallelView } from "./ParallelContext";
 import styles from "./ParallelToggle.module.css";
+import { SwitchTrack } from "./Switch";
 
 /**
  * 並列の今の状態（`並列3`・`夜：1件ずつ`）のボタン。PCの左のバーとスマホのメニューに置く。
@@ -32,9 +33,7 @@ export function ParallelToggle({ variant }: { variant: "side" | "menu" }) {
         <span className={styles.label}>並列</span>
         <span className={`${styles.now} num`}>{describeParallelBar(state)}</span>
         {state.override && <span className={styles.manual}>手動</span>}
-        <span className={styles.track} aria-hidden="true">
-          <span className={styles.thumb} />
-        </span>
+        <SwitchTrack on={state.period === "day"} />
       </button>
       {error && (
         <p className={styles.error} role="alert">

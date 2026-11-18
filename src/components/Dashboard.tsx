@@ -6,6 +6,7 @@ import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
 import { formatPeriodLabel, PERIOD_KEYS, periodWord, type PeriodKey } from "@/lib/dashboard/period";
 import { summarySentence } from "@/lib/dashboard/summary";
+import { nextTabIndex } from "@/lib/dashboard/tabKeys";
 import { getBrowserStorage } from "@/lib/motion";
 import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import styles from "./Dashboard.module.css";
@@ -52,12 +53,15 @@ function span(value: number | null): string {
 }
 
 /** 表の1列：ラベル → 数 → 補足 */
-function Cell({ label, value, note }: { label: string; value: string; note: string }) {
+function Cell({ label, value, note }: { label: string; value: string; note: string | null }) {
   return (
     <div className={styles.cell} role="group" aria-label={label}>
       <dt className={styles.label}>{label}</dt>
       <dd className={`${styles.value} num`}>{value}</dd>
-      <dd className={`${styles.note} num`}>{note}</dd>
+      {/* 補足が無いときも、行の高さは残す（ほかの列とそろえる） */}
+      <dd className={`${styles.note} num`} data-empty={note === null ? "" : undefined} aria-hidden={note === null ? true : undefined}>
+        {note ?? " "}
+      </dd>
     </div>
   );
 }
@@ -68,6 +72,8 @@ const MODEL_LABELS: Record<UsageModel, string> = { sonnet: "Sonnet", opus: "Opus
 function usageCount(value: number): string {
   return value > 0 ? String(value) : DASH;
 }
+
+const USAGE_NOTE = "数字は AI が動いた回数。Total は動いていた時間の合計";
 
 /** 1件あたりの時間の横棒：ラベル → 棒 → 値。数える物が無い方は `—` と棒なし */
 function LeadBar({ label, ms, ratio }: { label: string; ms: number | null; ratio: number | null }) {
@@ -96,7 +102,9 @@ function AiUsageSection({ usage }: { usage: AiUsage }) {
         <span className={styles.usageSub}>AIの使用量</span>
       </h2>
       <div className={styles.usageBody}>
+        <div>
         <table className={styles.usageTable}>
+          <caption className={styles.srOnly}>{USAGE_NOTE}</caption>
           <thead>
             <tr>
               <th scope="col" className={styles.stepCol}>
@@ -129,11 +137,15 @@ function AiUsageSection({ usage }: { usage: AiUsage }) {
             ))}
           </tbody>
         </table>
+        <p className={styles.usageNote}>{USAGE_NOTE}</p>
+        </div>
         <div className={styles.usageSide}>
-          <dl className={styles.limit}>
-            <dt className={styles.label}>Usage limit hits</dt>
-            <dd className={`${styles.value} num`}>{count(usage.limitHits)}</dd>
-          </dl>
+          {usage.limitHits !== null && (
+            <dl className={styles.limit}>
+              <dt className={styles.label}>Usage limit hits</dt>
+              <dd className={`${styles.value} num`}>{count(usage.limitHits)}</dd>
+            </dl>
+          )}
           <div>
             <p className={styles.label}>1件あたりの時間（Issueの作成 → PRのマージ）</p>
             <dl className={styles.bars}>
@@ -413,7 +425,7 @@ export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav }: 
             <p className={`${styles.range} num`}>{formatPeriodLabel(at, period, repoCount)}</p>
           </div>
           <div className={styles.tabs} role="tablist" aria-label="期間">
-            {PERIOD_KEYS.map((key) => (
+            {PERIOD_KEYS.map((key, index) => (
               <button
                 key={key}
                 type="button"
@@ -421,8 +433,16 @@ export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav }: 
                 id={`${tabsId}-${key}`}
                 aria-selected={period === key}
                 aria-controls={`${tabsId}-panel`}
+                tabIndex={period === key ? 0 : -1}
                 className={`${styles.tab} num`}
                 onClick={() => selectPeriod(key)}
+                onKeyDown={(event) => {
+                  const next = nextTabIndex(event.key, index, PERIOD_KEYS.length);
+                  if (next === null) return;
+                  event.preventDefault();
+                  selectPeriod(PERIOD_KEYS[next]);
+                  document.getElementById(`${tabsId}-${PERIOD_KEYS[next]}`)?.focus();
+                }}
               >
                 {key}
               </button>
@@ -448,11 +468,15 @@ export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav }: 
               value={span(summary.leadMedianMs)}
               note={`p90 ${span(summary.leadP90Ms)}`}
             />
-            <Cell label="Stopped" value={count(summary.stopped)} note={`人間が直したのは ${count(summary.fixedByHuman)}`} />
+            <Cell
+              label="Stopped"
+              value={count(summary.stopped)}
+              note={summary.fixedByHuman === null ? null : `人間が直したのは ${summary.fixedByHuman}`}
+            />
             <Cell
               label="AI time"
               value={span(summary.aiTimeMs)}
-              note={`${count(summary.runs)} runs · limit hits ${count(summary.limitHits)}`}
+              note={`${count(summary.runs)} runs${summary.limitHits === null ? "" : ` · limit hits ${summary.limitHits}`}`}
             />
           </dl>
         </section>

@@ -21,6 +21,8 @@ import { TurnKindIcon } from "./TurnKindIcon";
 type Props = {
   item: TurnItem;
   wait: string;
+  /** マージ待ちが2件以上のときの、すすめる順（1から）。それ以外は null */
+  mergeOrder: number | null;
   /** 答える欄が要る物を開くリンクの頭（デモでは `/demo`） */
   basePath: string;
   /** 押してから片づけるまで、この1件の中身を預ける（done：結果を出し始めた）。null で預かりをやめる */
@@ -48,7 +50,7 @@ function moveFocusOutOf(row: HTMLElement) {
 type Op = { kind: OperationKind; phase: "busy" | "done" | "fading" };
 
 /** Slots & Queue の Your turn の1行（docs/design.md の「Slots & Queue」）。ボタンの動きは「あなたの番」（`TurnRow`）と同じ */
-export function LanesTurn({ item, wait, basePath, onHold, onGone }: Props) {
+export function LanesTurn({ item, wait, mergeOrder, basePath, onHold, onGone }: Props) {
   const { owner, repo, issue, status, buttons, merge } = item;
   const key = turnItemKey(item);
   const sig = turnSig(item);
@@ -199,7 +201,10 @@ export function LanesTurn({ item, wait, basePath, onHold, onGone }: Props) {
           <TurnKindIcon icon={kind.icon} size={13} />
           {kind.label}
         </span>
-        <span className={`${styles.ref} num`}>{ref}</span>
+        <span className={`${styles.ref} num`}>
+          {ref}
+          {mergeOrder !== null && ` · ${mergeOrder}番目`}
+        </span>
       </div>
       <div className={styles.middle}>
         <a className={styles.turnTitle} href={issue.url} target="_blank" rel="noreferrer" title={issue.title}>
@@ -255,11 +260,12 @@ export function LanesTurn({ item, wait, basePath, onHold, onGone }: Props) {
                 </button>
               </>
             ) : (
-              buttons.map((button) =>
+              // 最初の1つ（おすすめ）がいちばん右で塗り。左に並べるほかのボタンは縁だけ
+              [...buttons].reverse().map((button, i, all) =>
                 button.type === "link" ? (
                   <SmartLink
                     key={button.label}
-                    className={`${styles.turnAct} ${styles.turnPrimary}`}
+                    className={i === all.length - 1 ? `${styles.turnAct} ${styles.turnPrimary}` : styles.turnAct}
                     href={button.href}
                     data-act=""
                   >
@@ -270,7 +276,7 @@ export function LanesTurn({ item, wait, basePath, onHold, onGone }: Props) {
                     key={button.kind}
                     ref={button.kind === "merge" ? mergeRef : undefined}
                     type="button"
-                    className={`${styles.turnAct} ${styles.turnPrimary}`}
+                    className={i === all.length - 1 ? `${styles.turnAct} ${styles.turnPrimary}` : styles.turnAct}
                     data-act=""
                     data-busy={busy === button.kind ? "" : undefined}
                     aria-disabled={blocked ? "true" : undefined}

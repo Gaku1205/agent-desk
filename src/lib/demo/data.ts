@@ -1,4 +1,5 @@
 import type { WatchedRepo } from "../config";
+import type { ParallelSettings } from "../parallel";
 import type {
   CheckRunData,
   CommitStatusData,
@@ -42,6 +43,9 @@ export const DEMO_TEMPLATE_REPO = "landing-page";
 
 /** 設定画面の「追加」の欄に出す、架空のリポジトリ */
 export const DEMO_REPO_OPTIONS = ["demo/blog", "demo/api-server"];
+
+/** デモの並列の設定（左のバーの並列のスイッチと、設定の Parallel で同じ物）：昼3・夜1・夜は1時〜8時 */
+export const DEMO_PARALLEL_SETTINGS: ParallelSettings = { day: 3, night: 1, nightHours: { start: 1, end: 8 } };
 
 /** 再生で進むIssue（todo-app） */
 export const DEMO_PLAY_ISSUE = { repo: "todo-app", number: 24, pull: 39 } as const;
@@ -178,8 +182,11 @@ function vercel(
   state: "pending" | "success" | "failure",
   updatedAt: string,
   description = "",
+  targetUrl?: string,
 ): CommitStatusData {
-  return { context: "Vercel", state, description, updatedAt };
+  return targetUrl
+    ? { context: "Vercel", state, description, updatedAt, targetUrl }
+    : { context: "Vercel", state, description, updatedAt };
 }
 
 const DONE_COMMENT = "**Claude finished** 実装してブランチにpushしました";
@@ -282,7 +289,7 @@ function addDeployed(
   pullNumber: number,
   title: string,
   mergedMinutesAgo: number,
-  options: { planned?: boolean; fixed?: boolean; unknown?: boolean } = {},
+  options: { planned?: boolean; fixed?: boolean; unknown?: boolean; url?: string } = {},
 ) {
   const mergedAt = ago(ctx, mergedMinutesAgo);
   const issue = addIssue(ctx, number, title, {
@@ -298,7 +305,7 @@ function addDeployed(
     headSha,
     mergedAt,
     checkRuns: [...ciRuns(4, ago(ctx, mergedMinutesAgo + 20)), run("review", ago(ctx, mergedMinutesAgo + 10))],
-    statuses: options.unknown ? [] : [vercel("success", ago(ctx, mergedMinutesAgo - 2))],
+    statuses: options.unknown ? [] : [vercel("success", ago(ctx, mergedMinutesAgo - 2), "", options.url)],
   });
   if (options.fixed) {
     addComment(ctx, pullNumber, autoFixComment("0ab1", "レビューの指摘"), ago(ctx, mergedMinutesAgo + 40));
@@ -771,7 +778,7 @@ function landingPage(base: Date): RepoData {
 /** notes-api：公開済みの1件だけ（あなたの番もAIの番も 0・0。左のバーには出ず、すべてのリポジトリにだけ出る見本） */
 function notesApi(base: Date): RepoData {
   const ctx = createCtx(DEMO_REPOS[2], base, 4000);
-  addDeployed(ctx, 1, 2, "メモを一覧で返すAPIを足す", 30 * 60, { planned: true });
+  addDeployed(ctx, 1, 2, "メモを一覧で返すAPIを足す", 30 * 60, { planned: true, url: "https://notes-api.example.com" });
   addStepLogs(ctx);
   return ctx.data;
 }

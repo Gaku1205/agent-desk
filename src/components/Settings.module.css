@@ -1,0 +1,631 @@
+/*
+ * 設定の画面（docs/design.md の「設定」。Issue #507）：左に目次、右に節ごとの白い面。変えたらすぐ保存。
+ * 幅はコンテナクエリで決める（本文の幅760px以下で1列）
+ */
+
+.page {
+  width: min(1320px, 100% - 2 * var(--gutter));
+  min-height: calc(100svh - var(--top-h));
+  margin: 0 auto;
+  padding: 40px 0 96px;
+  container-type: inline-size;
+  /* 帯の夜・昼の地（既存の紫・インディゴを薄めた物。新しい色ではない） */
+  --night-wash: color-mix(in srgb, var(--wait) 28%, transparent);
+  --day-wash: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* ───── 見出しの行 ───── */
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.h1 {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  color: var(--bone);
+  line-height: 1.3;
+}
+
+.h1 > svg {
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.h1En {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.h1Ja {
+  color: var(--mute);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 4px;
+  align-items: center;
+  color: var(--mute);
+  font-size: 12.5px;
+}
+
+.statusSaved {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--bone-2);
+}
+
+.statusSaved > svg {
+  color: var(--ok);
+}
+
+/* ───── 2列：目次と節 ───── */
+
+.layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+  margin-top: 32px;
+}
+
+.toc {
+  position: sticky;
+  top: calc(var(--top-h) + 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tocItem {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+  align-items: center;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: var(--bone-2);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tocItem > svg {
+  flex-shrink: 0;
+}
+
+.tocItem:hover {
+  background: var(--hair-2);
+  color: var(--bone);
+}
+
+.tocItem[aria-current="true"] {
+  background: var(--well);
+  color: var(--bone);
+}
+
+.tocItem[aria-current="true"] > svg {
+  color: var(--accent);
+}
+
+.sections {
+  display: grid;
+  gap: 48px;
+  min-width: 0;
+  max-width: 1080px;
+}
+
+.section {
+  min-width: 0;
+  scroll-margin-top: calc(var(--top-h) + 24px);
+}
+
+.sectionTitle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  margin: 0 0 12px;
+}
+
+.sectionTitle > svg {
+  align-self: center;
+  flex-shrink: 0;
+  color: var(--bone-2);
+}
+
+.sectionEn {
+  color: var(--bone);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sectionJa {
+  color: var(--mute);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* ───── 白い面と行 ───── */
+
+.panel {
+  border-radius: 12px;
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--hair);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  min-height: 56px;
+  padding: 10px 16px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--hair);
+}
+
+.text {
+  display: flex;
+  flex: 1 1 220px;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.text > svg {
+  flex-shrink: 0;
+  color: var(--mute);
+}
+
+.textBody {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.name {
+  min-width: 0;
+  color: var(--bone);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.desc {
+  color: var(--mute);
+  font-size: 12.5px;
+  line-height: 1.5;
+  word-break: auto-phrase;
+  text-wrap: pretty;
+}
+
+.control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+/* 書いている間：その行の操作を薄くする（押した直後の220msは1のまま） */
+.row[data-busy] .control,
+.row[data-busy] .below {
+  opacity: 0.7;
+  transition: opacity 0s 0.22s;
+}
+
+.below {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.rowError,
+.panelError {
+  flex: 1 1 100%;
+  color: var(--fail-soft);
+  font-size: 12.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: auto-phrase;
+}
+
+.panelError {
+  margin-top: 8px;
+}
+
+.empty {
+  color: var(--mute);
+  font-size: 12.5px;
+  word-break: auto-phrase;
+}
+
+/* ───── 文字だけのボタン（外す・すべて見る・夜なし） ───── */
+
+.textButton {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--mute);
+  font-size: 13px;
+  white-space: nowrap;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+
+.textButton:hover:not(:disabled) {
+  background: var(--well);
+  color: var(--bone);
+}
+
+.textButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ───── Repositories ───── */
+
+.repoName {
+  display: block;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--ok);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.noPipeline {
+  color: var(--mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.more {
+  color: var(--mute);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.row[data-kind="add"] .select {
+  width: 260px;
+}
+
+.addButton {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--bone-2);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    transform 0.12s var(--ease),
+    background 0.12s,
+    color 0.12s;
+}
+
+.addButton:hover:not(:disabled) {
+  background: var(--well);
+  color: var(--bone);
+}
+
+.addButton:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.addButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ───── Parallel ───── */
+
+.summaryHead {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--hair);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge[data-period="night"] {
+  color: var(--wait);
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--edge);
+  color: var(--bone);
+  font-size: 16px;
+  transition:
+    transform 0.12s var(--ease),
+    background 0.12s;
+}
+
+.step:hover:not(:disabled) {
+  background: var(--well);
+}
+
+.step:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.stepValue {
+  width: 40px;
+  color: var(--bone);
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.row[data-kind="hours"] .below {
+  padding-top: 4px;
+}
+
+.band {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 2px;
+}
+
+.cell {
+  height: 28px;
+  min-width: 0;
+  border-radius: 4px;
+  background: var(--day-wash);
+}
+
+.cell[data-night] {
+  background: var(--night-wash);
+}
+
+.cell:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--edge-strong);
+}
+
+.cell[data-anchor] {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.cell:disabled {
+  cursor: default;
+}
+
+.scale {
+  position: relative;
+  height: 18px;
+  margin-top: 4px;
+  color: var(--mute);
+  font-size: 11.5px;
+}
+
+.scale > span {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+}
+
+.scale > span[data-edge="end"] {
+  transform: translateX(-100%);
+}
+
+.bandHint {
+  margin-top: 4px;
+  color: var(--bone-2);
+  font-size: 12.5px;
+}
+
+/* ───── Notifications ───── */
+
+.scope {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--hair);
+  color: var(--bone-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+
+.scope:hover {
+  background: var(--well);
+  color: var(--bone);
+}
+
+.caret {
+  display: inline-block;
+  transition: transform 0.15s;
+}
+
+.scope[aria-expanded="true"] .caret {
+  transform: rotate(180deg);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 2px 0 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--hair);
+  color: var(--mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.chip[aria-pressed="true"] {
+  background: var(--well);
+  box-shadow: none;
+  color: var(--bone);
+}
+
+.chip > svg {
+  color: var(--ok);
+}
+
+.chip:disabled {
+  cursor: default;
+}
+
+/* ───── Appearance：切り替えボタン ───── */
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--well);
+}
+
+.segment {
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 6px;
+  color: var(--bone-2);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.segment:hover {
+  color: var(--bone);
+}
+
+.segment[aria-checked="true"] {
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--hair);
+  color: var(--bone);
+  font-weight: 600;
+}
+
+/* ───── 狭いとき ───── */
+
+@container (max-width: 520px) {
+  .pipeline,
+  .noPipeline {
+    display: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .page {
+    padding: 24px 0 72px;
+  }
+}
+
+@container (max-width: 760px) {
+  .h1En {
+    font-size: 21px;
+  }
+
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    margin-top: 16px;
+  }
+
+  .toc {
+    position: static;
+    flex-direction: row;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .toc::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 名前と説明を狭くしてでも、操作を同じ行の右に残す（入らないときだけ下へ回す） */
+  .text {
+    flex-basis: 120px;
+  }
+
+  .row[data-kind="add"] .control {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+  }
+
+  .row[data-kind="add"] .select {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .row[data-kind="repo"] .text {
+    flex-basis: 0;
+  }
+
+  .row[data-kind="repo"] .control {
+    flex-wrap: nowrap;
+  }
+}
