@@ -415,3 +415,39 @@ describe("画面が使う設定の監視リポジトリ（Variable の値）を�
     expect(reads).toBe(2);
   });
 });
+
+describe("大きいデータも覚えられるように、縮めて覚える", () => {
+  /** Issue が多いリポジトリ：JSON にして 2MB を超える */
+  function bigData(): RepoData {
+    const issues = Array.from({ length: 400 }, (_, number) => ({
+      number,
+      title: `Issue ${number}`,
+      body: `本文 ${number} `.repeat(300),
+      comments: Array.from({ length: 5 }, (_, id) => ({ id, body: `コメント ${number}-${id} `.repeat(120) })),
+    }));
+    return { issues } as unknown as RepoData;
+  }
+
+  it("縮めた物は元に戻る（日本語も）", () => {
+    const value = { title: "計測マーク", nested: [1, null, { ok: true }] };
+    expect(page.unpackCached(page.packCached(value))).toEqual(value);
+  });
+
+  it("JSON にして 2MB を超えるデータも、覚える物は 2MB より小さい文字列になり、次は取り直さない", async () => {
+    const big = bigData();
+    expect(JSON.stringify(big).length).toBeGreaterThan(2 * 1024 * 1024);
+    let loads = 0;
+    const loadBig = async () => {
+      loads++;
+      return big;
+    };
+    expect((await page.cachedRepoData(repo, loadBig)).data).toEqual(big);
+    const stored = [...store.entries.entries()].find(([key]) => key.startsWith("repo-data-gz|"));
+    expect(typeof stored?.[1].value).toBe("string");
+    expect(JSON.stringify(stored?.[1].value).length).toBeLessThan(2 * 1024 * 1024);
+    // 別のインスタンスでも、覚えた物から同じデータが読める
+    const other = await loadInstance();
+    expect((await other.cachedRepoData(repo, loadBig)).data).toEqual(big);
+    expect(loads).toBe(1);
+  });
+});
