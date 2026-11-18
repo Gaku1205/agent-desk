@@ -19,13 +19,15 @@ type Props = {
   icon?: ReactNode;
   /** 外側に足すクラス（幅を変えるとき） */
   className?: string;
+  /** 下線を出さない形（入力欄の下の1行）。乗せたとき・開いているときは地 --hair-2 */
+  plain?: boolean;
 };
 
 /**
  * 選択欄（標準の `<select>` は使わない。docs/design.md の「設定」）。
  * 押す・Enter・Space・↓ で開き、↑↓ で動かし、文字を打てばその文字で始まる候補へ移り、Enter で選ぶ、Esc で閉じる。外を押しても閉じる
  */
-export function Select({ options, value, onChange, disabled, label, emptyText, buttonRef, icon, className }: Props) {
+export function Select({ options, value, onChange, disabled, label, emptyText, buttonRef, icon, className, plain }: Props) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(() => Math.max(0, options.indexOf(value)));
   const rootRef = useRef<HTMLDivElement>(null);
@@ -112,7 +114,10 @@ export function Select({ options, value, onChange, disabled, label, emptyText, b
   }
 
   return (
-    <div className={className ? `${styles.root} ${className}` : styles.root} ref={rootRef}>
+    <div
+      className={[styles.root, plain ? styles.plain : "", className ?? ""].filter(Boolean).join(" ")}
+      ref={rootRef}
+    >
       <button
         type="button"
         ref={buttonRef}
