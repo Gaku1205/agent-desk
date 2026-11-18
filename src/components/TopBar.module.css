@@ -225,7 +225,7 @@
 }
 
 .keyRunning::before {
-  color: var(--bone-2);
+  color: var(--ok);
 }
 
 /* 本文へ移るリンク：フォーカスしたときだけ見える */
