@@ -349,6 +349,26 @@ describe("executeOperation", () => {
     ]);
   });
 
+  it("始める：理由の印つきの保留（Your turn 外）でも ai:skip を外す", async () => {
+    const { client, calls } = fakeClient();
+    const repoData = data({
+      issues: [issue({ labels: ["ai:skip"] })],
+      comments: [
+        {
+          id: 1,
+          issueNumber: 1,
+          author: "o",
+          body: "<!-- paused: PR #510 のマージ待ち -->",
+          createdAt: "2026-10-25T09:30:00Z",
+        },
+      ],
+    });
+    expect(await executeOperation(client, TARGET, input("start"), repoData, NOW)).toEqual({ ok: true });
+    expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual([
+      "DELETE https://api.github.com/repos/o/r/issues/1/labels/ai%3Askip",
+    ]);
+  });
+
   it("始める：保留でなくなっていたら何もせず取り直す", async () => {
     const { client, calls } = fakeClient();
     const repoData = data({ issues: [issue({ labels: ["ai:plan"] })] });
