@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PullData } from "../github/types";
 import { pullOnlyStatus, type TurnItem } from "../turn";
-import { answerLinkLabel, lanesTurnRows, needsAnswerForm } from "./turnRows";
+import { answerLinkLabel, lanesTurnRows, mergeOrdinals, needsAnswerForm } from "./turnRows";
 
 function pull(number: number): PullData {
   return {
@@ -84,6 +84,25 @@ describe("lanesTurnRows", () => {
     const input = [mergeItem(2, "2026-11-18T02:00:00Z"), mergeItem(1, "2026-11-18T01:00:00Z")];
     lanesTurnRows(input);
     expect(numbers(input)).toEqual([2, 1]);
+  });
+});
+
+describe("mergeOrdinals", () => {
+  it("マージ待ちが2件以上なら、マージ待ちの行を上から数える", () => {
+    const rows = [
+      mergeItem(1, "2026-11-18T01:00:00Z"),
+      otherItem(2, "question", "2026-11-18T02:00:00Z"),
+      mergeItem(3, "2026-11-18T03:00:00Z"),
+    ];
+    expect([...mergeOrdinals(rows)]).toEqual([
+      [0, 1],
+      [2, 2],
+    ]);
+  });
+
+  it("マージ待ちが1件なら付けない", () => {
+    const rows = [mergeItem(1, "2026-11-18T01:00:00Z"), otherItem(2, "question", "2026-11-18T02:00:00Z")];
+    expect(mergeOrdinals(rows).size).toBe(0);
   });
 });
 

@@ -15,6 +15,21 @@ export function lanesTurnRows(items: readonly TurnItem[]): TurnItem[] {
   return sorted.map((item) => (isMergeQueueItem(item) ? ordered[next++] : item));
 }
 
+/**
+ * マージ待ちの行に付ける「すすめる順」の数（上から数えて 1, 2, …）。キーは行の位置。
+ * マージ待ちが `MERGE_QUEUE_FROM` 件未満なら、どの行にも付けない（空の Map）
+ */
+export function mergeOrdinals(rows: readonly TurnItem[]): Map<number, number> {
+  const result = new Map<number, number>();
+  const count = rows.filter(isMergeQueueItem).length;
+  if (count < MERGE_QUEUE_FROM) return result;
+  let n = 0;
+  rows.forEach((item, index) => {
+    if (isMergeQueueItem(item)) result.set(index, ++n);
+  });
+  return result;
+}
+
 /** 答える欄が要る物（質問・工場の相談）か。ここでは押せず、その Issue の「あなたの番」を開く */
 export function needsAnswerForm(item: Pick<TurnItem, "status">): boolean {
   return item.status.stage === "question" || item.status.stage === "factoryTalk";
