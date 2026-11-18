@@ -4,7 +4,7 @@ import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { PLAY_BUTTON_LABEL } from "@/lib/demo/playback";
-import { formatResetTime, formatSyncTime, getDisplayedSyncTime } from "@/lib/refresh";
+import { formatPausedNote, formatSyncTime, getDisplayedSyncTime } from "@/lib/refresh";
 import { shouldCloseMenuOnPick, shouldRestoreMenuFocus } from "@/lib/menuFocus";
 import { isRepoCountPending } from "@/lib/navCounts";
 import { newIssueHref } from "@/lib/issueRepo";
@@ -308,11 +308,12 @@ export function SyncButton({ className }: { className?: string }) {
 
 /** 回数制限で自動更新を止めている間だけ出す1行 */
 export function PausedNote({ className }: { className?: string }) {
-  const { pausedUntil } = useShell();
+  const { pausedUntil, pausedBy } = useShell();
   if (!pausedUntil) return null;
+  const note = formatPausedNote(pausedBy, pausedUntil.getTime() / 1000);
   return (
-    <span className={`${styles.paused} ${className ?? ""}`}>
-      回数制限の残りが少ないため、自動更新を止めています（{formatResetTime(pausedUntil.getTime() / 1000)} に再開）
+    <span className={`${styles.paused} ${className ?? ""}`} title={note}>
+      {note}
     </span>
   );
 }

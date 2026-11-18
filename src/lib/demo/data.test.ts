@@ -8,7 +8,17 @@ import { demoStepLog } from "./stepLog";
 import { getIssueStatus, shouldShowIssue, type IssueStatus, type Stage } from "../status";
 import { countRunningPipelineRows } from "../runningPipeline";
 import { buildTurnItems, countTurnItems } from "../turn";
-import { buildDemoResults, DEMO_AUTO_ADD_REPO, DEMO_REPOS, demoAutoAdd, demoAutoAddResult } from "./data";
+import { assignSlots } from "../lanes/slots";
+import { buildLanesSource } from "../lanes/source";
+import { buildUsageChart, buildUsageSource, USAGE_BUCKET_MS, usageSummary } from "../lanes/usage";
+import {
+  buildDemoResults,
+  DEMO_AUTO_ADD_REPO,
+  DEMO_PARALLEL_SETTINGS,
+  DEMO_REPOS,
+  demoAutoAdd,
+  demoAutoAddResult,
+} from "./data";
 import { getDemoNow } from "./now";
 import { advancePlayback, isPlaybackDone, startPlayback } from "./playback";
 
@@ -46,6 +56,24 @@ function statuses(now: Date = NOW): IssueStatus[] {
   );
 }
 
+/** 再生の全部の段階（最初から最後まで）の、各 Issue の段階 */
+function playbackStatuses(): IssueStatus[] {
+  const all: IssueStatus[] = [];
+  let playback = startPlayback(NOW);
+  for (;;) {
+    const now = new Date(playback.now);
+    for (const result of buildDemoResults(NOW, playback)) {
+      if (!result.ok) continue;
+      for (const issue of result.data.issues) {
+        if (shouldShowIssue(issue, result.data.pulls)) all.push(getIssueStatus(issue, result.data, now));
+      }
+    }
+    if (isPlaybackDone(playback)) break;
+    playback = advancePlayback(playback);
+  }
+  return all;
+}
+
 describe("デモのサンプル", () => {
   it("架空のリポジトリ3つで、どれも取れている（notes-api は 0・0 の見本）", () => {
     const results = buildDemoResults(NOW, startPlayback(NOW));
@@ -62,16 +90,48 @@ describe("デモのサンプル", () => {
     expect(running.byRepo["demo/notes-api"] ?? 0).toBe(0);
   });
 
-  it("全部の段階が含まれる", () => {
-    const stages = new Set(statuses().map((status) => status.stage));
+  it("全部の段階が含まれる（枠を使う段階は3件までなので、再生で進む1件の途中の段階を含めて）", () => {
+    const stages = new Set([...statuses(), ...playbackStatuses()].map((status) => status.stage));
     for (const stage of Object.keys(ALL_STAGES) as Stage[]) {
       expect(stages, stage).toContain(stage);
     }
   });
 
+  it("枠を使う段階の Issue は、全部のリポジトリを合わせて昼の上限以内。Slots が埋まり、Queue が3件以上ある", () => {
+    const results = buildDemoResults(NOW, startPlayback(NOW));
+    const lanes = assignSlots(buildLanesSource(results, NOW), DEMO_PARALLEL_SETTINGS.day);
+    expect(lanes.counts.running).toBeLessThanOrEqual(DEMO_PARALLEL_SETTINGS.day);
+    expect(lanes.counts.running).toBe(DEMO_PARALLEL_SETTINGS.day);
+    expect(lanes.counts.free).toBe(0);
+    expect(lanes.slots).toHaveLength(DEMO_PARALLEL_SETTINGS.day);
+    expect(lanes.counts.queue).toBeGreaterThanOrEqual(3);
+  });
+
+  it("Last 24h：どの時刻に開いても、使っていた枠はその時間帯の上限以内で、縦は0〜5に収まり、まとめがグラフと合う", () => {
+    for (const hours of [0, 3, 6, 9, 12, 15, 18, 21]) {
+      const now = new Date(NOW.getTime() + hours * 60 * 60 * 1000);
+      const results = buildDemoResults(now, startPlayback(now));
+      const source = buildUsageSource(results, now);
+      expect(source, `+${hours}h`).not.toBeNull();
+      if (!source) continue;
+      const chart = buildUsageChart(source, DEMO_PARALLEL_SETTINGS);
+      expect(chart.yMax, `+${hours}h`).toBe(5);
+      // いま動いている3件が重なる最後の段は、夜に開くと夜の上限を超える（動いている数だけ出す決まり）ので数えない
+      const settled = chart.buckets.slice(0, -3);
+      for (const bucket of settled) expect(bucket.used ?? 0, `+${hours}h ${bucket.startMs}`).toBeLessThanOrEqual(bucket.limit ?? 0);
+      expect(chart.buckets.filter((bucket) => (bucket.used ?? 0) >= 1).length, `+${hours}h`).toBeGreaterThan(
+        chart.buckets.length / 2,
+      );
+      expect(chart.buckets.some((bucket) => bucket.queued >= 3)).toBe(true);
+      const blocked = chart.buckets.filter((bucket) => bucket.queued > 0 && (bucket.used ?? 0) < (bucket.limit ?? 0));
+      expect(chart.blockedMs).toBe(blocked.length * USAGE_BUCKET_MS);
+      expect(usageSummary(chart, (ms) => `${ms}`)).toContain("空きの枠があるのに入れなかった時間は");
+    }
+  });
+
   it("修正の確認中・マージ待ちの3通り・エラーで終了・公開状況は不明も含まれる", () => {
     const all = statuses();
-    expect(all.some((s) => s.verifyingFix)).toBe(true);
+    expect([...all, ...playbackStatuses()].some((s) => s.verifyingFix)).toBe(true);
     expect(new Set(all.map((s) => s.mergeWait))).toEqual(
       new Set([null, "hold", "needsReview", "autoMerge"]),
     );

@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
 import { loadStepLog } from "@/app/actions";
-import { Desk } from "@/components/Desk";
+import { DeskLive } from "@/components/LivePages";
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
 import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
 import { findWatchedRepo } from "@/lib/config";
-import { getRepoResult } from "@/lib/github/fetch";
+import { loadRepoSteps } from "@/lib/loadTurnSteps";
 import { newIssueRepos } from "@/lib/newIssue";
 import { buildTurnItems } from "@/lib/turn";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
@@ -33,33 +33,30 @@ export default async function RepoPage({
   const token = await getGitHubToken();
   if (!token) return null;
 
-  const result = await getRepoResult(token, watched);
-  const results = [result];
-  const now = new Date();
-
-  return (
-    <Desk
-      items={buildTurnItems(results, now)}
-      messages={buildConversation(results, buildTrailEvents(results, now, watched), now, watched)}
-      now={now.toISOString()}
-      scope={{
-        kind: "repo",
-        owner: watched.owner,
-        repo: watched.repo,
-        githubUrl: `https://github.com/${watched.owner}/${watched.repo}`,
-      }}
-      errors={result.ok ? [] : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }]}
-      notices={buildWatchdogNotices(results, now)}
-      nav={{
-        repos,
-        counts: NO_COUNTS,
-        runningCounts: NO_COUNTS,
-        countsPending: true,
-        login: (await getSignedInLogin()) ?? undefined,
-        logout,
-      }}
-      newIssueRepos={newIssueRepos(repos, results)}
-      loadStepLog={loadStepLog}
-    />
-  );
+  // 新しい結果が遅いときは、覚えている最後の結果を先に出し、届いたら入れ替える（`loadRepoSteps`）
+  const login = (await getSignedInLogin()) ?? undefined;
+  const first = await loadRepoSteps(token, watched, (result, complete) => {
+    const results = [result];
+    const now = new Date();
+    return {
+      complete,
+      props: {
+        items: buildTurnItems(results, now),
+        messages: buildConversation(results, buildTrailEvents(results, now, watched), now, watched),
+        now: now.toISOString(),
+        scope: {
+          kind: "repo" as const,
+          owner: watched.owner,
+          repo: watched.repo,
+          githubUrl: `https://github.com/${watched.owner}/${watched.repo}`,
+        },
+        errors: result.ok ? [] : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }],
+        notices: buildWatchdogNotices(results, now),
+        nav: { repos, counts: NO_COUNTS, runningCounts: NO_COUNTS, countsPending: true, login, logout },
+        newIssueRepos: newIssueRepos(repos, results),
+        loadStepLog,
+      },
+    };
+  });
+  return <DeskLive first={first} />;
 }

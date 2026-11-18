@@ -1,6 +1,6 @@
 import { cache } from "react";
 import type { Env, WatchedRepo } from "../config";
-import { forgetInstallation, resolveReadAccess } from "./appToken";
+import { checkUserCanRead, forgetInstallation, resolveReadAccess } from "./appToken";
 import { GitHubClient, type Fetcher } from "./client";
 import { GitHubError, toErrorInfo } from "./errors";
 import {
@@ -15,7 +15,7 @@ import {
 } from "./graphql";
 import { judgePipelineState, type PipelineProbe, type PipelineState } from "../pipelineState";
 import type { WatchdogLastRun } from "../watchdogState";
-import { cachedRepoData, type AppRepoData } from "./repoCache";
+import { cachedRepoData, cachedUserCanRead, snapshotRepoData, type AppRepoData } from "./repoCache";
 import { PIPELINE_WORKFLOW_PATH } from "./settings";
 import type { CommitStatusData, RepoData, RepoResult, RunStepData, WorkflowRunData } from "./types";
 import { currentStepFromJobs, stepProbeRunIds } from "../aiActivity";
@@ -403,4 +403,29 @@ export function getRepoResult(token: string, repo: WatchedRepo): Promise<RepoRes
 
 export function getRepoResults(token: string, repos: WatchedRepo[]): Promise<RepoResult[]> {
   return Promise.all(repos.map((repo) => getRepoResult(token, repo)));
+}
+
+/**
+ * 覚えている最後の結果（古くてよい）。新しい結果（`getRepoResult`）が遅いときに、先に画面に出す（docs/spec.md の「全部のリポジトリを待つページ」）。
+ * App の鍵で読んだ結果だけを覚える（覚えた物を見せるのは、ログインした人のトークンで読めると確かめたリポジトリだけ。「読み取りの鍵」と同じ決まり）。
+ * 覚えている物が無い・見せてよいか確かめられないときは null。GitHub の呼び出しは増えない（新しい結果は `getRepoResult` を使い回す）
+ */
+const staleRepoOnce = cache(async (token: string, repoKey: string): Promise<RepoResult | null> => {
+  const repo = JSON.parse(repoKey) as WatchedRepo;
+  if (!(await cachedUserCanRead(token, repo, () => checkUserCanRead(token, repo)))) return null;
+  // 新しい結果が App の鍵で読めたときだけ、覚えている物を書き直す（読めなかった・別の鍵で読んだときは、前の物を残す）
+  const fresh = fetchRepoOnce(token, repoKey).then((result): AppRepoData => {
+    if (result.ok && result.readSource === "app" && result.changeMark) {
+      return { data: result.data, changeMark: result.changeMark };
+    }
+    throw new Error("no app data to remember");
+  });
+  fresh.catch(() => undefined);
+  const known = await snapshotRepoData(repo, fresh);
+  if (!known) return null;
+  return { owner: repo.owner, repo: repo.repo, ok: true, data: known.data, readSource: "app", changeMark: known.changeMark };
+});
+
+export function getStaleRepoResult(token: string, repo: WatchedRepo): Promise<RepoResult | null> {
+  return staleRepoOnce(token, JSON.stringify({ owner: repo.owner, repo: repo.repo }));
 }

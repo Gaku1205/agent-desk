@@ -405,3 +405,23 @@ describe("startResumeRefresh", () => {
     expect(source.listenerCount).toBe(0);
   });
 });
+
+describe("自動更新を止めている間の1行（どの残りが少ないか）", () => {
+  // 2026-11-18T16:14:00Z ＝ 日本時間 01:14
+  const resetAt = Date.parse("2026-11-18T16:14:00Z") / 1000;
+
+  it("どの鍵・どの枠かと残りの数を入れる", async () => {
+    const { formatPausedNote, pausedByLabel } = await import("./refresh");
+    expect(formatPausedNote({ key: "user", resource: "rest", remaining: 420 }, resetAt)).toBe(
+      "ログイン REST 残り 420。自動更新を停止中（01:14 再開）",
+    );
+    expect(pausedByLabel({ key: "user", resource: "graphql" })).toBe("ログイン GraphQL");
+    expect(pausedByLabel({ key: "app", resource: "rest" })).toBe("App REST");
+    expect(pausedByLabel({ key: "app", resource: "graphql" })).toBe("App GraphQL");
+  });
+
+  it("分からないときは、今までの文", async () => {
+    const { formatPausedNote } = await import("./refresh");
+    expect(formatPausedNote(null, resetAt)).toBe("回数制限の残りが少ないため、自動更新を止めています（01:14 に再開）");
+  });
+});

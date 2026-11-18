@@ -1,5 +1,6 @@
 import type { WatchedRepo } from "../config";
-import type { ParallelSettings } from "../parallel";
+import { buildUsageSource } from "../lanes/usage";
+import { hourInZone, isNightHour, type ParallelSettings } from "../parallel";
 import type {
   CheckRunData,
   CommitStatusData,
@@ -51,9 +52,13 @@ export const DEMO_PARALLEL_SETTINGS: ParallelSettings = { day: 3, night: 1, nigh
 export const DEMO_PLAY_ISSUE = { repo: "todo-app", number: 24, pull: 39 } as const;
 
 const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
 
 const BOT = "claude[bot]";
 const CI_CHECKS = ["typecheck", "lint", "test", "build"];
+
+/** 動いていない作業の進捗ログを、24時間のどこに置くか数える（全部のリポジトリで共有。Last 24h の同時の数を上限以内に保つ） */
+type Placer = { next: number };
 
 type Ctx = {
   owner: string;
@@ -61,15 +66,22 @@ type Ctx = {
   base: number;
   data: RepoData;
   nextCommentId: number;
+  placer: Placer;
 };
 
-function createCtx({ owner, repo }: WatchedRepo, base: Date, firstCommentId: number): Ctx {
+function createCtx(
+  { owner, repo }: WatchedRepo,
+  base: Date,
+  firstCommentId: number,
+  placer: Placer = { next: 0 },
+): Ctx {
   return {
     owner,
     repo,
     base: base.getTime(),
     data: { owner, issues: [], pulls: [], comments: [], pullChecks: {}, events: [] },
     nextCommentId: firstCommentId,
+    placer,
   };
 }
 
@@ -257,6 +269,12 @@ const DEMO_STEP_MODEL: Record<string, string | null> = {
   deploy: null,
 };
 
+/** 動いていない作業の進捗ログを置く間隔（分）。1件の長さ（最大6工程×4分）より長い。最初の置き場所は「今」から30分前 */
+const USAGE_PLACE_STEP_MIN = 34;
+const USAGE_PLACE_FIRST_MIN = 30;
+/** 置き場所の数（30 + 41×34 + 24 が24時間［1440分］に収まる数） */
+const USAGE_PLACE_COUNT = 41;
+
 /**
  * デモの各Issueに、進捗ログのコメント（`<!-- ai-step-log -->` と `<!-- ai-step {JSON} -->` の行。形は src/lib/stepLog.ts）を足す。
  * 進捗図で記録のある工程（今の位置までで、待ちでない物）だけ、基準の時刻から逆に並べる。記録が無い工程は足さない
@@ -267,14 +285,18 @@ function addStepLogs(ctx: Ctx) {
     const flow = getFlow(getIssueStatus(issue, ctx.data, now));
     const logged = flow.steps.filter((step) => step.state !== "waiting" && Object.hasOwn(DEMO_STEP_MODEL, step.key));
     if (logged.length === 0) continue;
+    // 今動いている作業は「今」の近く。それ以外は、24時間の中に重ならないよう間をあけて置く
+    // （全部が「今」に重なると、Last 24h の最後だけ跳ね上がる）
+    const placed = !logged.some((step) => step.state === "running");
+    const offset = placed ? USAGE_PLACE_FIRST_MIN + (ctx.placer.next++ % USAGE_PLACE_COUNT) * USAGE_PLACE_STEP_MIN : 0;
     const lines = logged.map((step, index) => {
-      const started = ago(ctx, (logged.length - index) * 4);
+      const started = ago(ctx, offset + (logged.length - index) * 4);
       const running = step.state === "running";
       return `<!-- ai-step ${JSON.stringify({
         step: step.key,
         model: DEMO_STEP_MODEL[step.key],
         started,
-        finished: running ? null : ago(ctx, (logged.length - index) * 4 - 1 - (index % 3)),
+        finished: running ? null : ago(ctx, offset + (logged.length - index) * 4 - 1 - (index % 3)),
         result: running ? "running" : step.state === "failed" ? "failure" : "success",
       })} -->`;
     });
@@ -394,9 +416,12 @@ function stepIndex(name: PlayStep): number {
   return PLAY_STEPS.indexOf(name);
 }
 
-/** todo-app：再生の1件、止まった・マージ待ち（ai:hold）・レビュー中・CI中・CI失敗・修正中・AI作業中・順番待ち・未着手・公開済み */
-function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean): RepoData {
-  const ctx = createCtx(DEMO_REPOS[0], base, 1000);
+/**
+ * todo-app：再生の1件、止まった・マージ待ち（ai:hold）・マージ待ち（AI）・CI失敗（3回直した）・修正中・AI作業中・順番待ち・企画中・未着手・公開済み。
+ * 枠を使う段階（AI作業中・修正中）は、landing-page の PR作成中と合わせて3件（デモの昼の上限）
+ */
+function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean, placer: Placer): RepoData {
+  const ctx = createCtx(DEMO_REPOS[0], base, 1000, placer);
   addPlayIssue(ctx, playback);
 
   // 止まった（AIが3回直してもCIが通らない）
@@ -476,15 +501,16 @@ function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean): RepoDa
   unlinked.headRef = "manager/readme-update";
   addComment(ctx, 73, REVIEW_CLEAN, ago(ctx, 80));
 
-  // AI作業中（上端の帯の件数が、あなたの番の数と同じにならないように）
+  // 順番待ち（#74）と企画中（#75）：デモの昼の上限は3件なので、枠を使う段階の作業は全部で3件までにする
+  // （上端の帯の件数が、あなたの番の数と同じにならないように、AIの番を増やす役も兼ねる）
   addIssue(ctx, 74, "ログイン後の画面に今日の予定を出す", {
     createdAt: ago(ctx, 14),
-    labels: ["ai:implement"],
+    labels: ["ai:queue"],
     planned: true,
   });
-  addLabeled(ctx, 74, "ai:implement", ago(ctx, 9));
-  addIssue(ctx, 75, "タスクの並び替えを足す", { createdAt: ago(ctx, 11), labels: ["ai:implement"], planned: true });
-  addLabeled(ctx, 75, "ai:implement", ago(ctx, 5));
+  addComment(ctx, 74, "#16（メモ欄）と同じタスクの型を変えるので、#16 が終わってから始めます", ago(ctx, 8));
+  addLabeled(ctx, 74, "ai:queue", ago(ctx, 8));
+  addIssue(ctx, 75, "タスクの並び替えを足す", { createdAt: ago(ctx, 11), labels: ["ai:plan"] });
 
   // マージ待ち（ai:hold・まだレビューしていない）
   const holdNoReview = addIssue(ctx, 21, "書き出しをCSVにも対応する", {
@@ -503,35 +529,36 @@ function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean): RepoDa
   // 順番待ち（#15・#14）を止めている印（パイプラインが付ける）
   addComment(ctx, 36, "<!-- hold-blocking: #15,#14 -->", ago(ctx, 20 * 60), "github-actions[bot]");
 
-  // レビュー中（審査役の採点が8点未満で、実装に1回戻った）
-  const reviewing = addIssue(ctx, 20, "タスクの検索に絞り込みを足す", {
+  // マージ待ち（AIがマージする直前。審査役の採点が8点未満で、実装に1回戻った）
+  const reviewed = addIssue(ctx, 20, "タスクの検索に絞り込みを足す", {
     createdAt: ago(ctx, 70),
     labels: ["ai:implement"],
     planned: true,
   });
   addLabeled(ctx, 20, "ai:implement", ago(ctx, 65));
-  addPull(ctx, 35, reviewing, {
+  addPull(ctx, 35, reviewed, {
     createdAt: ago(ctx, 30),
     headSha: "7b8c9d0",
     labels: ["ai:review"],
-    checkRuns: [...ciRuns(4, ago(ctx, 4)), run("review", null)],
+    checkRuns: [...ciRuns(4, ago(ctx, 6)), run("review", ago(ctx, 2))],
     body: CRITIQUE_BODY,
   });
   addLabeled(ctx, 35, "ai:review", ago(ctx, 4));
+  addComment(ctx, 35, REVIEW_CLEAN, ago(ctx, 2));
 
-  // CI中
-  const ciRunning = addIssue(ctx, 19, "期限の表示を「あと2日」の形にする", {
+  // マージ待ち（レビューに回す前）
+  const needsReview = addIssue(ctx, 19, "期限の表示を「あと2日」の形にする", {
     createdAt: ago(ctx, 40),
     labels: ["ai:implement"],
   });
   addLabeled(ctx, 19, "ai:implement", ago(ctx, 38));
-  addPull(ctx, 34, ciRunning, {
+  addPull(ctx, 34, needsReview, {
     createdAt: ago(ctx, 3),
     headSha: "8c9d0e1",
-    checkRuns: ciRuns(2, ago(ctx, 1)),
+    checkRuns: ciRuns(4, ago(ctx, 1)),
   });
 
-  // CI失敗（AIが直す前）
+  // CI失敗（自動で3回直したが通らない。止まった印はまだ付いていない：次の見回りで止まる。枠は使っていない）
   const ciFailed = addIssue(ctx, 18, "繰り返しのタスクを作れるようにする", {
     createdAt: ago(ctx, 3 * 60),
     labels: ["ai:implement"],
@@ -539,10 +566,13 @@ function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean): RepoDa
   });
   addLabeled(ctx, 18, "ai:implement", ago(ctx, 2 * 60 + 50));
   addPull(ctx, 33, ciFailed, {
-    createdAt: ago(ctx, 20),
+    createdAt: ago(ctx, 100),
     headSha: "9d0e1f2",
     checkRuns: [run("typecheck", ago(ctx, 8)), run("lint", ago(ctx, 8)), run("test", ago(ctx, 6), "failure"), run("build", ago(ctx, 7))],
   });
+  addComment(ctx, 33, autoFixComment("5a6b7c8", "CIの失敗", 1), ago(ctx, 80));
+  addComment(ctx, 33, autoFixComment("6b7c8d9", "CIの失敗", 2), ago(ctx, 50));
+  addComment(ctx, 33, autoFixComment("7c8d9e0", "CIの失敗", 3), ago(ctx, 20));
 
   // 修正中（レビューの指摘を直している）
   const fixing = addIssue(ctx, 17, "タスクの並べ替えをドラッグでできるようにする", {
@@ -572,13 +602,8 @@ function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean): RepoDa
   addComment(ctx, 16, DEMO_WORKING_COMMENT, ago(ctx, 8));
   // デモのリンクはアプリの中のページへ（架空のリポジトリなので GitHub へは向けない）
   ctx.data.comments[ctx.data.comments.length - 1].url = repoPageUrl(ctx);
-  // もう1件：AIの番の数を「あなたの番」の数とずらす（上端の帯で同じ数が並んでバグに見えないように）
-  addIssue(ctx, 41, "ダークモードに切り替えられるようにする", {
-    createdAt: ago(ctx, 8),
-    labels: ["ai:implement"],
-    planned: true,
-  });
-  addLabeled(ctx, 41, "ai:implement", ago(ctx, 5));
+  // もう1件（企画中）：AIの番の数を「あなたの番」の数とずらす（上端の帯で同じ数が並んでバグに見えないように）
+  addIssue(ctx, 41, "ダークモードに切り替えられるようにする", { createdAt: ago(ctx, 8), labels: ["ai:plan"] });
 
   // 順番待ち（理由つき）
   addIssue(ctx, 15, "タスクの一覧を週ごとに分ける", {
@@ -633,8 +658,8 @@ function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean): RepoDa
 }
 
 /** landing-page：公開失敗・公開中・PR作成待ち（エラーあり）・マージ待ち（AI）・企画中・修正の確認中・公開済み */
-function landingPage(base: Date): RepoData {
-  const ctx = createCtx(DEMO_REPOS[1], base, 2000);
+function landingPage(base: Date, placer: Placer): RepoData {
+  const ctx = createCtx(DEMO_REPOS[1], base, 2000, placer);
 
   // 公開失敗
   const deployFailed = addIssue(ctx, 9, "トップの画像を軽くする", {
@@ -752,23 +777,13 @@ function landingPage(base: Date): RepoData {
   // 企画中（上端の帯の件数が、あなたの番の数と同じにならないように）
   addIssue(ctx, 20, "お問い合わせに自動で返事を送る", { createdAt: ago(ctx, 3), labels: ["ai:plan"] });
 
-  // AI作業中（上端の帯の件数が、あなたの番の数と同じにならないように）
-  addIssue(ctx, 16, "お知らせの帯を足す", { createdAt: ago(ctx, 12), labels: ["ai:implement"], planned: true });
-  addLabeled(ctx, 16, "ai:implement", ago(ctx, 6));
-
-  // 修正の確認中（CIの失敗を直して、CIをやり直している）
-  const verifying = addIssue(ctx, 2, "スマホでメニューが開かないのを直す", {
-    createdAt: ago(ctx, 2 * 60),
-    labels: ["ai:implement"],
-  });
-  addPull(ctx, 11, verifying, {
-    createdAt: ago(ctx, 90),
-    headSha: "6f7a8b9",
-    checkRuns: ciRuns(3, ago(ctx, 2)),
-  });
-  addComment(ctx, 11, autoFixComment("5e6f7a8", "CIの失敗"), ago(ctx, 20));
+  // 企画中だが動いていない（ランプの赤の見本。上端の帯の件数が、あなたの番の数と同じにならないように）。枠は使っていない
+  addIssue(ctx, 16, "お知らせの帯を足す", { createdAt: ago(ctx, 12), labels: ["ai:plan"] });
+  // 企画中（AIの番の数を、あなたの番の数とずらす）
+  addIssue(ctx, 21, "ご利用の流れの図を足す", { createdAt: ago(ctx, 5), labels: ["ai:plan"] });
 
   // 公開済み
+  addDeployed(ctx, 2, 11, "スマホでナビが開かないのを直す", 4 * 60, { fixed: true });
   addDeployed(ctx, 1, 10, "ヘッダーのロゴを差し替える", 50 * 60, { planned: true });
 
   addStepLogs(ctx);
@@ -776,8 +791,8 @@ function landingPage(base: Date): RepoData {
 }
 
 /** notes-api：公開済みの1件だけ（あなたの番もAIの番も 0・0。左のバーには出ず、すべてのリポジトリにだけ出る見本） */
-function notesApi(base: Date): RepoData {
-  const ctx = createCtx(DEMO_REPOS[2], base, 4000);
+function notesApi(base: Date, placer: Placer): RepoData {
+  const ctx = createCtx(DEMO_REPOS[2], base, 4000, placer);
   addDeployed(ctx, 1, 2, "メモを一覧で返すAPIを足す", 30 * 60, { planned: true, url: "https://notes-api.example.com" });
   addStepLogs(ctx);
   return ctx.data;
@@ -786,14 +801,112 @@ function notesApi(base: Date): RepoData {
 /** デモの全リポジトリのデータ。base はサンプルの時刻の基準、playback は再生の状態（押した操作を含む） */
 export function buildDemoResults(base: Date, playback: DemoPlayback, withOlder = false): RepoResult[] {
   const [todo, landing, notes] = DEMO_REPOS;
-  const todoData = applyDemoOps(todoApp(base, playback, withOlder),playback.ops, todo.owner, todo.repo);
-  const landingData = applyDemoOps(landingPage(base), playback.ops, landing.owner, landing.repo);
-  const notesData = notesApi(base);
-  return [
+  const placer: Placer = { next: 0 };
+  const todoData = applyDemoOps(todoApp(base, playback, withOlder, placer), playback.ops, todo.owner, todo.repo);
+  const landingData = applyDemoOps(landingPage(base, placer), playback.ops, landing.owner, landing.repo);
+  const notesData = notesApi(base, placer);
+  const results: RepoResult[] = [
     { ...todo, ok: true, data: { ...todoData, runs: [...demoRuns(todoData, base), ...demoOtherRuns(base)] } },
     { ...landing, ok: true, data: { ...landingData, runs: demoRuns(landingData, base, DEMO_STALLED) } },
     { ...notes, ok: true, data: { ...notesData, runs: demoRuns(notesData, base) } },
   ];
+  addUsageHistory(results, base);
+  return results;
+}
+
+/** 履歴を載せる過去の公開済みの Issue（todo-app）。レーンごとに1つ（同じ Issue の重なりは1件に数えられるため） */
+const HISTORY_CARRIERS = [12, 11, 10, 9];
+const HISTORY_COMMENT_ID = 5000;
+
+/** 夜の時間帯（日本時間 1:00〜8:00）の中身を、時間帯の決まりから読む */
+function historyHour(ms: number): { night: boolean; quarter: number } {
+  const date = new Date(ms);
+  const hour = hourInZone(date);
+  const quarter = hour * 4 + Math.floor((ms % HOUR_MS) / (15 * MINUTE_MS));
+  return { night: isNightHour(hour, DEMO_PARALLEL_SETTINGS.nightHours), quarter };
+}
+
+/** その15分の、使っていた枠の目標：昼は1〜3件が入れ替わり、夜は0〜1件 */
+function targetUsed(ms: number): number {
+  const { night, quarter } = historyHour(ms);
+  if (night) return quarter % 16 < 6 ? 1 : 0;
+  return 1 + ((Math.floor(quarter / 3) * 2) % 3);
+}
+
+/** その15分の、順番待ちの目標：昼に枠が3件埋まっている間は2〜4件、2件の間はたまに1件、夜は0件 */
+function targetQueued(ms: number): number {
+  const { night, quarter } = historyHour(ms);
+  if (night) return 0;
+  const used = targetUsed(ms);
+  if (used === 3) return 2 + (quarter % 3);
+  return used === 2 && quarter % 9 === 0 ? 1 : 0;
+}
+
+/** 段ごとの数の並びを、レーン（下から数えた段）ごとの連続した区間にする */
+function laneRuns(levels: readonly number[], lane: number): { from: number; to: number }[] {
+  const runs: { from: number; to: number }[] = [];
+  levels.forEach((level, index) => {
+    if (level <= lane) return;
+    const last = runs.at(-1);
+    if (last && last.to === index) last.to = index + 1;
+    else runs.push({ from: index, to: index + 1 });
+  });
+  return runs;
+}
+
+/**
+ * Last 24h の材料：進捗ログ（枠を使った時間）とラベルの出来事（順番待ちだった時間）の、過去の履歴を足す。
+ * 動いていない作業の進捗ログ（addStepLogs）だけでは、24時間のほとんどが空になるので、足りない分を、
+ * 時間帯の上限（昼3・夜1）以内の形になるよう、todo-app の過去の公開済みの Issue に載せる。
+ * 段の数は目標（昼は使っていた枠1〜3件・順番待ち0〜4件、夜は0〜1件）まで足す。すでにある分は減らさない
+ */
+function addUsageHistory(results: RepoResult[], now: Date) {
+  const todo = results[0];
+  if (!todo.ok) return;
+  const source = buildUsageSource(results, now);
+  if (!source) return;
+  const nowMs = now.getTime();
+  const count = source.queued.length;
+  const bucketMs = 15 * MINUTE_MS;
+  const bucketStart = (index: number) => source.startMs + index * bucketMs;
+  const missingUsed = Array.from({ length: count }, (_, index) =>
+    Math.max(0, targetUsed(bucketStart(index) + bucketMs / 2) - (source.used?.[index] ?? 0)),
+  );
+  const missingQueued = Array.from({ length: count }, (_, index) =>
+    Math.max(0, targetQueued(bucketStart(index) + bucketMs / 2) - source.queued[index]),
+  );
+  const iso = (ms: number) => new Date(ms).toISOString();
+  /** 区間の終わりが「今」を超えないように（始まりより後ろに） */
+  const end = (from: number, to: number) => Math.max(from + MINUTE_MS, Math.min(to, nowMs));
+
+  HISTORY_CARRIERS.forEach((issueNumber, lane) => {
+    const rows = laneRuns(missingUsed, lane).map(({ from, to }) => {
+      const started = bucketStart(from);
+      return `<!-- ai-step ${JSON.stringify({
+        step: "implement",
+        model: DEMO_STEP_MODEL.implement,
+        started: iso(started),
+        finished: iso(end(started, bucketStart(to))),
+        result: "success",
+      })} -->`;
+    });
+    if (rows.length > 0) {
+      todo.data.comments.push({
+        id: HISTORY_COMMENT_ID + issueNumber,
+        issueNumber,
+        author: BOT,
+        body: `<!-- ai-step-log -->\n### 進捗ログ\n\n${rows.join("\n")}`,
+        createdAt: iso(nowMs - MINUTE_MS),
+      });
+    }
+    for (const { from, to } of laneRuns(missingQueued, lane)) {
+      const started = bucketStart(from);
+      todo.data.events.push(
+        { event: "labeled", labelName: "ai:queue", issueNumber, createdAt: iso(started) },
+        { event: "unlabeled", labelName: "ai:queue", issueNumber, createdAt: iso(end(started, bucketStart(to))) },
+      );
+    }
+  });
 }
 
 /** 工場が作る新しいリポジトリの見本（テンプレート landing-page から作られた。自動で監視に足す） */
