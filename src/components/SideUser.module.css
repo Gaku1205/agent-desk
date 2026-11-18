@@ -24,6 +24,13 @@
   background: var(--hair-2);
 }
 
+/* スマホのメニュー：アイコン（デモは文字）の左端を上の項目のアイコンにそろえる（29px） */
+@media (max-width: 899px) {
+  .button {
+    padding: 0 7px;
+  }
+}
+
 /* GitHub のアイコン：丸・24px。読み込む前も24pxの場所を取る */
 .avatar,
 .initial {
