@@ -459,6 +459,9 @@
 .sideList {
   flex: 1;
   min-height: 0;
+  /* フォーカスの輪が左右で切れないよう、<aside> の余白ぶんをスクロール領域の内側に取る */
+  margin: 0 -12px;
+  padding: 0 12px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
