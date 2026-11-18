@@ -83,7 +83,7 @@
 /* スマホのメニュー：「ほか」のリンクと同じ高さ・左右 */
 .menu .button {
   height: 44px;
-  padding: 0 12px;
+  padding: 0 12px 0 13px;
   font-size: 14px;
 }
 
