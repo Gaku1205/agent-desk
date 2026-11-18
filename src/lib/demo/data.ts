@@ -410,6 +410,9 @@ function todoApp(base: Date, playback: DemoPlayback): RepoData {
   addComment(ctx, 38, autoFixComment("3d4e5f6", "CIの失敗", 3), ago(ctx, 90));
   addComment(ctx, 38, stuckComment("AIが3回直してもCIが通りませんでした（test）"), ago(ctx, 46));
   addLabeled(ctx, 38, "ai:stuck", ago(ctx, 46));
+  // 昨夜に一度止まって、人間が直して外れた物（Dashboard の Stops の `Fixed`）
+  addLabeled(ctx, 23, "ai:stuck", ago(ctx, 20 * 60));
+  ctx.data.events.push({ event: "unlabeled", labelName: "ai:stuck", issueNumber: 23, createdAt: ago(ctx, 19 * 60 + 12) });
 
   // やり直し待ち（使用量の上限でAIが止まり、時間をおいて自動でやり直す）
   addIssue(ctx, 25, "タスクの色分けをカテゴリごとに変えられるようにする", {

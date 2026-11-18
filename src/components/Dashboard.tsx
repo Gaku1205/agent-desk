@@ -19,7 +19,10 @@ import {
   type GithubLimits,
   type LimitGauge,
 } from "@/lib/dashboard/githubLimits";
-import { ChipIcon, FlowStepIcon, GaugeIcon, PanelLeftIcon } from "./icons";
+import { CheckIcon, ChipIcon, CrossIcon, FlowStepIcon, GaugeIcon, KeyIcon, PanelLeftIcon, PersonIcon } from "./icons";
+import { QueueIcon } from "./QueueIcon";
+import { TurnKindIcon } from "./TurnKindIcon";
+import { reasonRatios, STOP_REASONS, type StopReason, type Stops } from "@/lib/dashboard/stops";
 import { SideRepos } from "./TopBar";
 import { DashboardThroughput } from "./DashboardThroughput";
 import type { Throughput } from "@/lib/dashboard/throughput";
@@ -31,6 +34,8 @@ type Props = {
   throughputs: Record<PeriodKey, Throughput>;
   /** 期間ごとの AI usage（同じく取り直さない） */
   aiUsages: Record<PeriodKey, AiUsage>;
+  /** 期間ごとの Stops（同じく取り直さない） */
+  stops: Record<PeriodKey, Stops>;
   /** GitHub limits（期間の切り替えとは関係なく、直近24時間） */
   limits: GithubLimits;
   /** 「今」（ISO文字列） */
@@ -148,6 +153,89 @@ function AiUsageSection({ usage }: { usage: AiUsage }) {
 
 function num(value: number | null): string {
   return value === null ? DASH : value.toLocaleString("en-US");
+}
+
+const STOP_NAMES: Record<StopReason, string> = { ci: "CI", permission: "許可", queue: "順番待ち", human: "人間の確認待ち" };
+
+function StopReasonIcon({ kind }: { kind: StopReason }) {
+  switch (kind) {
+    case "ci":
+      return <FlowStepIcon step="ci" size={17} />;
+    case "permission":
+      return <KeyIcon size={17} />;
+    case "queue":
+      return <QueueIcon size={17} />;
+    case "human":
+      return <PersonIcon size={17} />;
+  }
+}
+
+/** Stops：左に 止まった理由の内訳、右に 最近止まった物 */
+function StopsSection({ stops }: { stops: Stops }) {
+  const headingId = useId();
+  const ratios = stops.counts === null ? null : reasonRatios(stops.counts);
+  return (
+    <section className={styles.stops} aria-labelledby={headingId}>
+      <h2 className={styles.usageHead} id={headingId}>
+        <TurnKindIcon icon="deployFailed" size={16} />
+        <span>Stops</span>
+        <span className={styles.usageSub}>止まり・失敗</span>
+      </h2>
+      <div className={styles.usageBody}>
+        <div>
+          <p className={styles.label}>止まった理由の内訳</p>
+          <ul className={styles.reasons}>
+            {STOP_REASONS.map((kind) => (
+              <li key={kind} className={styles.reason}>
+                <span className={styles.reasonName}>
+                  <StopReasonIcon kind={kind} />
+                  <span>{STOP_NAMES[kind]}</span>
+                </span>
+                <span className={styles.reasonTrack} aria-hidden="true">
+                  {ratios !== null && ratios[kind] > 0 && (
+                    <span className={styles.reasonFill} style={{ width: `${Math.max(ratios[kind] * 100, 1)}%` }} />
+                  )}
+                </span>
+                <span className={`${styles.reasonCount} num`}>{count(stops.counts === null ? null : stops.counts[kind])}</span>
+              </li>
+            ))}
+          </ul>
+          <p className={`${styles.stopsNote} num`}>
+            CIの失敗 {count(stops.ciFailures)}回（うち自動で直った {count(stops.autoFixed)}回）· やり直し {count(stops.retries)}回
+          </p>
+        </div>
+        <div>
+          <p className={styles.label}>最近止まった物</p>
+          {stops.counts === null ? (
+            <p className={styles.stopsEmpty}>{DASH}</p>
+          ) : stops.recent.length === 0 ? (
+            <p className={styles.stopsEmpty}>この期間に止まった物はありません</p>
+          ) : (
+            <ul className={styles.recent}>
+              {stops.recent.map((item) => (
+                <li key={`${item.repo}#${item.number}@${item.startedAt}`} className={styles.stop}>
+                  <span className={`${styles.stopId} num`}>
+                    {item.repo}#{item.number}
+                  </span>
+                  <span className={styles.stopState} data-fixed={item.fixed ? "" : undefined}>
+                    {item.fixed ? <CheckIcon size={14} /> : <CrossIcon size={14} />}
+                    <span>{item.fixed ? "Fixed" : "Stuck"}</span>
+                  </span>
+                  <span className={styles.stopReason} title={item.reason ?? undefined}>
+                    {item.reason ?? STOP_NAMES[item.kind]}
+                  </span>
+                  <span className={`${styles.stopTime} num`}>
+                    {formatSpan(item.durationMs)}
+                    {item.ongoing ? " · ongoing" : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 /** 残り1つ分：`今 残り 3,912 / 5,000`・横棒・`resets at 11:52` */
@@ -274,7 +362,7 @@ function GithubLimitsSection({ limits }: { limits: GithubLimits }) {
 }
 
 /** Dashboard（`/dashboard`、デモは `/demo/dashboard`）：期間で振り返る。見出し・期間の切り替え・まとめ・AI usage・GitHub limits */
-export function Dashboard({ summaries, throughputs, aiUsages, limits, now, repoCount, nav }: Props) {
+export function Dashboard({ summaries, throughputs, aiUsages, stops, limits, now, repoCount, nav }: Props) {
   const [period, setPeriod] = useState<PeriodKey>("24h");
   const tabsId = useId();
   const summary = summaries[period];
@@ -349,6 +437,7 @@ export function Dashboard({ summaries, throughputs, aiUsages, limits, now, repoC
         </section>
         <DashboardThroughput throughput={throughputs[period]} basePath={nav.basePath} />
         <AiUsageSection usage={aiUsages[period]} />
+        <StopsSection stops={stops[period]} />
         <GithubLimitsSection limits={limits} />
       </main>
     </div>
