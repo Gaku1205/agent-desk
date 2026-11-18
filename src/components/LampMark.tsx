@@ -1,5 +1,6 @@
 import { lampLabel, type Lamp } from "@/lib/lamp";
 import styles from "./Conversation.module.css";
+import { QueueIcon } from "./QueueIcon";
 
 /**
  * 「いまの様子」のランプ（docs/design.md の「ランプ」）。線そのものは `<article>` の左に CSS で引く（飾り）。
@@ -20,7 +21,8 @@ export function LampWait({ lamp }: { lamp: Lamp }) {
         ·
       </span>
       <span className={`${styles.wait} num`} aria-hidden="true">
-        {lamp.position}番目
+        <QueueIcon size={12} />
+        <span>{lamp.position}番目</span>
       </span>
     </>
   );
