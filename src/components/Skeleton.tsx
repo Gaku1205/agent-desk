@@ -73,6 +73,12 @@ export function DashboardSkeleton() {
             <Band width="100%" height={92} />
           </div>
         </div>
+        <div className={dashboardStyles.usage} aria-hidden="true">
+          <div className={styles.line}>
+            <Band width={140} height={16} />
+            <Band width="100%" height={220} />
+          </div>
+        </div>
       </main>
     </div>
   );

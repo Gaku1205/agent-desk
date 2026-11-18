@@ -141,6 +141,144 @@
   }
 }
 
+/* ───── AI usage：左に 工程×モデルの表、右に 上限の回数と横棒（狭いと1列に落ちる） ───── */
+.usage {
+  container-type: inline-size;
+}
+
+.usageHead {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 14px;
+  color: var(--bone);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.usageSub {
+  color: var(--mute);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.usageBody {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  gap: 24px 40px;
+  align-items: start;
+}
+
+.usageTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+  font-size: 13.5px;
+}
+
+.usageTable th,
+.usageTable td {
+  padding: 8px 0;
+  color: var(--bone);
+  font-weight: 400;
+  text-align: right;
+}
+
+.usageTable thead th {
+  color: var(--mute);
+  font-size: 12.5px;
+}
+
+.usageTable tbody tr + tr {
+  box-shadow: 0 -1px 0 var(--hair-2);
+}
+
+.usageTable .stepCol,
+.usageTable .stepTh {
+  width: 34%;
+  text-align: left;
+}
+
+.stepCell {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+  color: var(--bone-2);
+}
+
+.usageTable td:last-child,
+.usageTable th:last-child {
+  width: 20%;
+}
+
+.usageSide {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.limit {
+  margin: 0;
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0 0;
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 64px;
+  gap: 12px;
+  align-items: center;
+}
+
+.barLabel {
+  color: var(--bone-2);
+  font-size: 13px;
+}
+
+.barTrack {
+  height: 10px;
+  margin: 0;
+}
+
+.barFill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--bone-2);
+}
+
+.barValue {
+  margin: 0;
+  color: var(--bone);
+  font-size: 13.5px;
+  text-align: right;
+}
+
+@container (max-width: 559px) {
+  .usageTable {
+    font-size: 13px;
+  }
+
+  .usageTable .stepCol,
+  .usageTable .stepTh {
+    width: 30%;
+  }
+
+  .bar {
+    grid-template-columns: 70px minmax(0, 1fr) 56px;
+    gap: 8px;
+  }
+}
+
 /* ───── PCの3ペイン（左のバーはホームと同じ。右の進捗図の列は無い） ───── */
 @media (min-width: 900px) {
   .panes {

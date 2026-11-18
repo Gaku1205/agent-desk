@@ -38,7 +38,7 @@ export function p90(sorted: readonly number[]): number | null {
   return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.9) - 1)];
 }
 
-function time(value: string | null): number | null {
+export function time(value: string | null): number | null {
   if (value === null) return null;
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? null : parsed;
@@ -58,8 +58,17 @@ function mergedPulls(data: RepoData): { mergedAt: number; createdAt: number | nu
 }
 
 /** 進捗ログの1行ぶん（始まった時刻と所要時間）。壊れた行は読み飛ばす */
-export function parseRunRows(body: string, now: Date): { started: number; durationMs: number }[] {
-  const rows: { started: number; durationMs: number }[] = [];
+export type RunRow = {
+  /** 進捗ログの `step`（`mocks` など。知らない名前もそのまま） */
+  step: string;
+  /** 使ったモデル（`sonnet` など）。記録が無い・空なら null */
+  model: string | null;
+  started: number;
+  durationMs: number;
+};
+
+export function parseRunRows(body: string, now: Date): RunRow[] {
+  const rows: RunRow[] = [];
   for (const line of body.split(/\r?\n/)) {
     const match = /^\s*<!--\s*ai-step\s+(\{.*\})\s*-->\s*$/.exec(line);
     if (!match) continue;
@@ -76,7 +85,8 @@ export function parseRunRows(body: string, now: Date): { started: number; durati
     if (started === null || !("finished" in row)) continue;
     const end = row.finished === null ? now.getTime() : typeof row.finished === "string" ? time(row.finished) : null;
     if (end === null || end < started) continue;
-    rows.push({ started, durationMs: end - started });
+    const model = typeof row.model === "string" && row.model.trim() !== "" ? row.model.trim().toLowerCase() : null;
+    rows.push({ step: row.step, model, started, durationMs: end - started });
   }
   return rows;
 }
