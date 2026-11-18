@@ -1,4 +1,5 @@
-import { unstable_cache, updateTag } from "next/cache";
+import { revalidateTag, unstable_cache, updateTag } from "next/cache";
+import { after } from "next/server";
 import { repoChangeKey, type ChangeMarks } from "../changeMarks";
 import { getSettingsRepo, getWatchedRepos, parseRepoList, type Env, type WatchedRepo } from "../config";
 import { decideRefetch, isSettledChange, refetchPeriod, type RefetchRecord } from "../refetchLimit";
@@ -16,8 +17,13 @@ import type { RepoData } from "./types";
 
 /** キャッシュの寿命（秒）。Webhook が届かなかったときの保険 */
 export const REPO_CACHE_SECONDS = 5 * 60;
-/** Webhook が見る「設定の監視リポジトリ」のタグ。設定を保存したら無効にする */
+/** 「設定の監視リポジトリ」を覚えた物のタグ（画面が使う物・Webhook が見る物）。設定を保存した・自動で足したら無効にする */
 export const WATCHED_REPOS_TAG = "watched-repos";
+/**
+ * 画面が使う「設定の監視リポジトリ」（Variable の値）を覚える長さ（秒）。過ぎた物は、覚えた値をすぐ返して裏で読み直す
+ * （GitHub の画面などで外から書き換えた分が、次の次の表示で出る）
+ */
+export const WATCHED_VARIABLE_CACHE_SECONDS = 60;
 
 /** データの形が変わった公開の後に、前の公開で覚えた物を使わないため */
 const DEPLOY_KEY = process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "local";
@@ -184,6 +190,35 @@ export async function getChangeMarks(repos: WatchedRepo[]): Promise<ChangeMarks>
     repos.map(async (repo) => [repoChangeKey(repo), await getChangeMark(repo)] as const),
   );
   return Object.fromEntries(entries);
+}
+
+/**
+ * 画面が使う「設定の監視リポジトリ」（`AGENT_DESK_WATCHED_REPOS` の値。無ければ null）を、Next.js のキャッシュに覚える
+ * （docs/spec.md の「監視するリポジトリ」）。layout・ページ・操作のたびに GitHub を読みに行かないため
+ * （読むのを待つ間は、画面に何も返せない）。キーは保存先とログインした人（その人のトークンで読めた値だけを、その人に使う）。
+ * `read` が投げたとき（権限なし・通信失敗）は覚えない。寿命を過ぎた物の読み直しが失敗したら、覚えた値のまま
+ */
+export async function cachedWatchedVariable(
+  settingsRepo: WatchedRepo,
+  login: string,
+  read: () => Promise<string | null>,
+): Promise<string | null> {
+  const known = await unstable_cache(
+    async (): Promise<{ value: string | null }> => ({ value: await read() }),
+    ["watched-repos-variable", repoChangeKey(settingsRepo), login.toLowerCase()],
+    { tags: [WATCHED_REPOS_TAG], revalidate: WATCHED_VARIABLE_CACHE_SECONDS },
+  )();
+  return known.value;
+}
+
+/**
+ * 表示の途中（同期の中）で監視リポジトリを書き換えた（自動で足した）あと：覚えた一覧を、返事を返し終えてから捨てる。
+ * 描画の途中ではタグを無効にできないので、`after` の中で行う。次の表示は GitHub から読み直す
+ */
+export function forgetWatchedReposAfterResponse(): void {
+  after(() => {
+    revalidateTag(WATCHED_REPOS_TAG, { expire: 0 });
+  });
 }
 
 /** 設定の Variable を App の鍵で読んだ結果。`known` が false のときは読めなかった（分からない） */
