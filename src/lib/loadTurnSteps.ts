@@ -1,6 +1,7 @@
 import { getGitHubToken } from "./auth";
 import type { WatchedRepo } from "./config";
 import { getRepoResult, getStaleRepoResult } from "./github/fetch";
+import { syncRateHistory } from "./github/rateHistoryStore";
 import type { RepoResult } from "./github/types";
 import { loadTurns } from "./loadTurns";
 import { appendStep, DEFAULT_GATHER, gatherSteps, mapSteps, type Step } from "./steps";
@@ -32,6 +33,8 @@ export async function loadTurnSteps<T>(build: (turns: TurnsSoFar) => T | Promise
   const { repos } = await loadWatchedRepos();
   const last = async (): Promise<TurnsSoFar> => {
     const loaded = await loadTurns();
+    // GitHub limits の履歴を残す（前に確かめてから10分以上たっているときだけ。書けなくても続ける）
+    if (token) await syncRateHistory({ userToken: token, nowMs: loaded.now.getTime(), needStore: false });
     return {
       results: loaded.results,
       items: loaded.items,

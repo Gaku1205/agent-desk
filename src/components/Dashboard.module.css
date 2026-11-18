@@ -553,6 +553,22 @@
   stroke-dasharray: 6 4;
 }
 
+/* 前後が足りなくて孤立した1つの値：線と同じ色の小さな丸（直径4px。破線にしない） */
+.pipelineDot,
+.readsDot {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.pipelineDot {
+  stroke: var(--accent);
+}
+
+.readsDot {
+  stroke: var(--mute);
+}
+
 .hours {
   position: relative;
   height: 18px;

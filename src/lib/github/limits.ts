@@ -1,12 +1,8 @@
 import type { WatchedRepo } from "../config";
-import {
-  hourlyUsed,
-  hourStarts,
-  RATE_LIMIT,
-  sumSeries,
-  type GithubLimits,
-} from "../dashboard/githubLimits";
-import { getAppRateLimit, getAppRestHistories, getKnownAppRateLimit, getReadsGraphql } from "./appToken";
+import { hourStarts, RATE_LIMIT, type GithubLimits } from "../dashboard/githubLimits";
+import { storeUsed } from "../dashboard/rateHistoryStore";
+import { getAppRateLimit, getKnownAppRateLimit, getReadsGraphql } from "./appToken";
+import { syncRateHistory } from "./rateHistoryStore";
 
 /**
  * Dashboard の GitHub limits を作る。ここで GitHub を読むのは、パイプラインの App の鍵の `GET /rate_limit` だけ
@@ -24,12 +20,14 @@ export async function loadGithubLimits(input: {
   const nowMs = input.now.getTime();
   const app = input.knownOnly ? getKnownAppRateLimit(nowMs) : await getAppRateLimit(input.repos[0], { nowMs });
   const reads = getReadsGraphql(input.userToken);
+  // 保存した履歴（入れ替わりで消えない）にメモリの点を合わせる。読めなければメモリだけ（`syncRateHistory`）
+  const store = await syncRateHistory({ userToken: input.userToken, nowMs, needStore: true });
   return {
     pipeline: { remaining: app.remaining, limit: app.limit ?? RATE_LIMIT, resetAt: app.resetAt },
     reads: { remaining: reads.current.remaining, limit: RATE_LIMIT, resetAt: reads.current.resetAt },
     hourStarts: hourStarts(nowMs),
-    pipelineUsed: sumSeries(getAppRestHistories().map((points) => hourlyUsed(points, nowMs))),
-    readsUsed: sumSeries(reads.histories.map((points) => hourlyUsed(points, nowMs))),
+    pipelineUsed: storeUsed(store, "rest", nowMs),
+    readsUsed: storeUsed(store, "graphql", nowMs),
     runs: input.runs,
   };
 }
