@@ -15,9 +15,10 @@ import {
   getGraphqlRateHistory,
   getGraphqlRateLimit,
   getRateHistory,
-  getRateLimits,
+  getRateLimit,
   type RateHistoryPoint,
   type RateLimitInfo,
+  type SourcedRateLimit,
 } from "./rateLimit";
 
 // このファイルはサーバーだけで使う（App の秘密鍵・インストールの鍵を扱う）。
@@ -384,10 +385,20 @@ export function getReadsGraphql(userToken: string): { histories: RateHistoryPoin
   };
 }
 
-/** ログインした人のトークンと、使った App の鍵の、REST と GraphQL の残りのうち、いちばん少ない物 */
-export function getReadRateLimit(userToken: string): RateLimitInfo {
-  return lowestRateLimit([
-    ...getRateLimits(userToken),
-    ...[...usedInstallationIds].flatMap((id) => getRateLimits(installationKeyId(id))),
-  ]);
+/**
+ * ログインした人のトークンと、使った App の鍵の、REST と GraphQL の残りのうち、いちばん少ない物と、
+ * それがどの鍵・どの枠の物か（自動更新を止めたとき、画面にどの残りが少ないかを出すため）
+ */
+export function getReadRateLimit(userToken: string, nowMs: number = Date.now()): SourcedRateLimit {
+  const tagged: SourcedRateLimit[] = [
+    { ...getRateLimit(userToken), source: { key: "user", resource: "rest" } },
+    { ...getGraphqlRateLimit(userToken), source: { key: "user", resource: "graphql" } },
+    ...[...usedInstallationIds].flatMap((id): SourcedRateLimit[] => [
+      { ...getRateLimit(installationKeyId(id)), source: { key: "app", resource: "rest" } },
+      { ...getGraphqlRateLimit(installationKeyId(id)), source: { key: "app", resource: "graphql" } },
+    ]),
+  ];
+  const lowest = lowestRateLimit(tagged, nowMs);
+  const found = tagged.find((info) => info.remaining === lowest.remaining && info.resetAt === lowest.resetAt);
+  return { ...lowest, source: lowest.remaining === null ? null : (found?.source ?? null) };
 }

@@ -127,6 +127,24 @@ export function formatResetTime(resetAt: number): string {
   return new Date(resetAt * 1000 + JST_OFFSET_MS).toISOString().slice(11, 16);
 }
 
+/** 自動更新を止める理由になった残り：どの鍵・どの枠が、あといくつか */
+export type PausedBy = { key: "user" | "app"; resource: "rest" | "graphql"; remaining: number };
+
+/** 残りの名前（docs/design.md の「上端の帯」）：`ログイン REST`・`ログイン GraphQL`・`App REST`・`App GraphQL` */
+export function pausedByLabel(by: Pick<PausedBy, "key" | "resource">): string {
+  return `${by.key === "app" ? "App" : "ログイン"} ${by.resource === "graphql" ? "GraphQL" : "REST"}`;
+}
+
+/**
+ * 自動更新を止めている間の1行。どの残りが少ないか分かれば `ログイン REST 残り 420。自動更新を停止中（01:14 再開）`、
+ * 分からなければ今までどおり `回数制限の残りが少ないため、自動更新を止めています（01:14 に再開）`
+ */
+export function formatPausedNote(by: PausedBy | null, resetAt: number): string {
+  const time = formatResetTime(resetAt);
+  if (!by) return `回数制限の残りが少ないため、自動更新を止めています（${time} に再開）`;
+  return `${pausedByLabel(by)} 残り ${by.remaining.toLocaleString("en-US")}。自動更新を停止中（${time} 再開）`;
+}
+
 /**
  * 同期の表示に出す時刻：最後に取り直した時刻（docs/spec.md の「更新」）。
  * 現在時刻で進めると、取り直せていない古い画面が最新に見えてしまう

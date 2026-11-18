@@ -28,6 +28,7 @@ export async function LayoutStream({ renderedAt }: { renderedAt: string }) {
         loadedAt: loaded.now.toISOString(),
         refreshIntervalMs: loaded.refreshPlan.intervalMs,
         resumeAt: loaded.refreshPlan.resumeAt,
+        pausedBy: loaded.refreshPlan.pausedBy,
         changeRepos: loaded.changeWatch.changeRepos,
         appliedChangeMarks: loaded.changeWatch.appliedMarks,
         needsIntervalRefresh: loaded.changeWatch.needsIntervalRefresh,
