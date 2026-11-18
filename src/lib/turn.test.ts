@@ -149,6 +149,21 @@ describe("保留", () => {
     const released = data({ issues: [issue(1, {})], comments: [comment("claude[bot]")] });
     expect(buildTurnItems([ok("o", "r", released)], NOW)[0].status.stage).toBe("notStarted");
   });
+
+  it("印つきでも、閉じるPRがマージ待ち（ai:hold・CI通過）なら、あなたの番に Merge として出す", () => {
+    const mark = comment(1, "<!-- paused: 計測中 -->", { createdAt: "2026-10-25T09:00:00Z" });
+    const repoData = data({
+      issues: [issue(1, { labels: ["ai:skip"] })],
+      pulls: [pull(15, 1, { labels: ["ai:hold"] })],
+      pullChecks: { 15: { checkRuns: [check()], statuses: [] } },
+      comments: [mark],
+    });
+    const items = buildTurnItems([ok("o", "r", repoData)], NOW);
+    expect(items).toHaveLength(1);
+    expect(items[0].status.stage).toBe("mergeWaiting");
+    expect(items[0].status.paused ?? null).toBeNull();
+    expect(items[0].buttons.some((button) => button.type === "operation" && button.kind === "merge")).toBe(true);
+  });
 });
 
 describe("パイプライン未設定", () => {
