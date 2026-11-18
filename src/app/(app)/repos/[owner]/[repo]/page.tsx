@@ -12,7 +12,7 @@ import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { buildWatchdogNotices } from "@/lib/watchdogState";
 import { logout } from "../../../logout";
 
-const NO_COUNTS = { total: 0, byRepo: {} };
+const NO_COUNTS = { byRepo: {} };
 
 /**
  * そのリポジトリの中身（あなたの番・いまの様子）は、そのリポジトリの取得だけで描く。

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition, type ClipboardEvent, type D
 import { createNewIssue, uploadNewIssueImage } from "@/app/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
 import { focusAfterRemove, type FocusAfterRemove } from "@/lib/imageFocus";
+import { chooseIssueRepo } from "@/lib/issueRepo";
 import { IMAGE_ACCEPT, IMAGE_FORM_FIELDS, IMAGE_HEAD_BYTES, isFileDrag, pickAddableImages } from "@/lib/issueImages";
 import type { CreateIssueResult, UploadImageResult } from "@/lib/operations";
 import { checkNewIssueTitle, composeNewIssue, MAX_NEW_ISSUE_TITLE } from "@/lib/newIssue";
@@ -79,7 +80,15 @@ export function NewIssueForm({
   const bar = variant === "bar";
   const service = mode === "service";
   const names = repos.map((repo) => repo.name);
-  const [selected, setSelected] = useState(initialRepo && names.includes(initialRepo) ? initialRepo : (names[0] ?? ""));
+  // 入力欄はページをまたいで残るので、選びは「手で選んだ物と、そのときのページ」だけ覚え、今のページ（initialRepo）と合わせて決める。
+  // 別のページへ移ったら手の選びは捨てて、移った先に従う
+  const [manual, setManual] = useState<{ name: string; page: string | null } | null>(null);
+  const selected = chooseIssueRepo({
+    names,
+    pageRepo: initialRepo,
+    manual: manual?.name,
+    manualPage: manual?.page,
+  });
   const [title, setTitle] = useState("");
   const [omakase, setOmakase] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
@@ -293,7 +302,7 @@ export function NewIssueForm({
                       options={names}
                       value={selected}
                       onChange={(next) => {
-                        setSelected(next);
+                        setManual({ name: next, page: initialRepo ?? null });
                         setStatus({ kind: "idle" });
                       }}
                       label={service ? "送り先のテンプレートリポジトリ" : "Issueを書くリポジトリ"}

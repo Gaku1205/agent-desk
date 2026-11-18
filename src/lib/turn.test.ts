@@ -319,8 +319,8 @@ describe("件数", () => {
 
   it("サイドバーの件数は、各ページの「あなたの番」の件数と一致する", () => {
     const counts = countTurnItems(items);
-    expect(counts.total).toBe(items.length);
-    expect(counts.total).toBe(5);
+    expect(Object.values(counts.byRepo).reduce((sum, n) => sum + n, 0)).toBe(items.length);
+    expect(items.length).toBe(5);
     for (const repo of ["r", "other", "empty"]) {
       const page = filterTurnItems(items, "o", repo);
       expect(counts.byRepo[`o/${repo}`] ?? 0).toBe(page.length);

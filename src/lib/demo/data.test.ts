@@ -96,11 +96,10 @@ describe("デモのサンプル", () => {
     expect(all.find((s) => s.stage === "deployFailed")).toBeDefined();
   });
 
-  it("上端の帯の件数：「全部」と各リポジトリで、あなたの番と動いている件数が同じにならない", () => {
+  it("上端の帯の件数：各リポジトリで、あなたの番と動いている件数が同じにならない", () => {
     const results = buildDemoResults(NOW, startPlayback(NOW));
     const turn = countTurnItems(buildTurnItems(results, NOW));
     const running = countRunningPipelineRows(results, NOW);
-    expect(turn.total).not.toBe(running.total);
     // notes-api は 0・0 の見本（左のバーに出ない物）なので、数のある2つだけを見る
     for (const { owner, repo } of DEMO_REPOS.filter((r) => r.repo !== "notes-api")) {
       const key = `${owner}/${repo}`.toLowerCase();
@@ -203,7 +202,8 @@ describe("デモの自動追加", () => {
   it("足したリポジトリは取れていて、動いている作業がある", () => {
     const result = demoAutoAddResult(NOW.toISOString());
     expect(result.ok).toBe(true);
-    expect(countRunningPipelineRows([result], NOW).total).toBeGreaterThan(0);
+    const counts = countRunningPipelineRows([result], NOW);
+    expect(Object.values(counts.byRepo).reduce((sum, n) => sum + n, 0)).toBeGreaterThan(0);
   });
 });
 

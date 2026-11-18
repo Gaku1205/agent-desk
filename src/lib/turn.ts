@@ -429,8 +429,7 @@ export function filterTurnItems(items: TurnItem[], owner: string, repo: string):
 }
 
 export type TurnCounts = {
-  total: number;
-  /** `owner/repo`（小文字）→ 件数 */
+  /**`owner/repo`（小文字）→ 件数 */
   byRepo: Record<string, number>;
 };
 
@@ -441,7 +440,7 @@ export function countTurnItems(items: TurnItem[]): TurnCounts {
     const key = `${item.owner}/${item.repo}`.toLowerCase();
     byRepo[key] = (byRepo[key] ?? 0) + 1;
   }
-  return { total: items.length, byRepo };
+  return { byRepo };
 }
 
 const MINUTE_MS = 60 * 1000;
