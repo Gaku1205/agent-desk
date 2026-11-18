@@ -53,8 +53,6 @@ export function orderMergeQueue(items: TurnItem[]): TurnItem[] {
     if (byBlocking !== 0) return byBlocking;
     const byOverlap = (overlaps.get(turnItemKey(b)) ?? 0) - (overlaps.get(turnItemKey(a)) ?? 0);
     if (byOverlap !== 0) return byOverlap;
-    const byRepo = repoKey(a).localeCompare(repoKey(b));
-    if (byRepo !== 0) return byRepo;
     return pullNumber(a) - pullNumber(b);
   });
 }

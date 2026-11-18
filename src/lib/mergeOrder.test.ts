@@ -83,8 +83,8 @@ describe("orderMergeQueue", () => {
       item(20, { files: ["a.ts"], repo: "other" } as Partial<TurnItem>),
       item(5, { files: ["z.ts"] }),
     ]);
-    // 重なりは無いので、リポジトリ名→PR番号の順（other が先）
-    expect(numbers(ordered)).toEqual([20, 5, 10]);
+    // 重なりは無いので、PR番号の小さい順
+    expect(numbers(ordered)).toEqual([5, 10, 20]);
   });
 
   it("変更ファイルが無い物は重なり無しとして、PR番号で決める", () => {
