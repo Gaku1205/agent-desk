@@ -211,7 +211,7 @@ export function LanesTurn({ item, wait, mergeOrder, basePath, onHold, onGone }: 
           {issue.title}
         </a>
         {done ? (
-          <DoneResult summary={done} compact onClose={leave} closeRef={closeRef} />
+          <DoneResult summary={done} compact noClose />
         ) : (
           <span
             className={styles.turnDesc}
@@ -219,13 +219,30 @@ export function LanesTurn({ item, wait, mergeOrder, basePath, onHold, onGone }: 
             role={error ? "alert" : undefined}
             title={text}
           >
-            {text}
+            {lines && !error
+              ? lines.map((l, i) => (
+                  <span key={l.name}>
+                    {i > 0 && " · "}
+                    {l.name === "review" && l.tone === "warn" ? (
+                      <span className={styles.turnWarn}>{`${l.name} ${l.text}`}</span>
+                    ) : (
+                      `${l.name} ${l.text}`
+                    )}
+                  </span>
+                ))
+              : text}
           </span>
         )}
       </div>
       <div className={`${styles.right} ${styles.turnRight}`}>
         <span className={`${styles.time} num`}>{wait}</span>
-        {!done && (
+        {done ? (
+          <div className={styles.turnActs}>
+            <button ref={closeRef} type="button" className={styles.turnClose} data-act="" onClick={leave}>
+              閉じる
+            </button>
+          </div>
+        ) : (
           <div className={styles.turnActs}>
             {asks ? (
               <SmartLink className={`${styles.turnAct} ${styles.turnPrimary}`} href={href} data-act="">
@@ -239,6 +256,7 @@ export function LanesTurn({ item, wait, mergeOrder, basePath, onHold, onGone }: 
                   className={`${styles.turnAct} ${styles.turnPrimary}`}
                   data-act=""
                   data-weak={weak ? "" : undefined}
+                  data-busy={busy === "merge" ? "" : undefined}
                   aria-disabled={blocked ? "true" : undefined}
                   onClick={() => run("merge")}
                   onKeyDown={(event) => {

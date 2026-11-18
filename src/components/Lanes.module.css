@@ -665,6 +665,63 @@
   background: var(--bone-hover);
 }
 
+/* レビューが未実施・指摘ありの PR の マージする：弱める（地なし・縁 --fail-edge） */
+.turnPrimary[data-weak],
+.row[data-group="fix"] .turnPrimary[data-weak] {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--fail-edge);
+  color: var(--fail-dim);
+}
+
+.turnPrimary[data-weak]:hover,
+.row[data-group="fix"] .turnPrimary[data-weak]:hover {
+  background: var(--fail-wash);
+}
+
+/* 確認の文の review 未実施（指摘あり）の所 */
+.turnWarn {
+  color: var(--fail-dim);
+}
+
+/* 結果の間の 閉じる：ボタンの列の右端に置く文字のボタン（高さ32px） */
+.turnClose {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: none;
+  color: var(--bone-2);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.turnClose:hover {
+  background: var(--well);
+  color: var(--bone);
+}
+
+.turnClose:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+}
+
+/* 狭い所（3段）では3段目のボタンと同じ高さ（36px。スマホは下で44px） */
+@container (max-width: 859px) {
+  .turnClose {
+    height: 36px;
+  }
+}
+
+@media (max-width: 899px) {
+  .turnClose {
+    height: 44px;
+  }
+}
+
 .row[data-group="fix"] .turnPrimary {
   background: var(--fail);
   color: var(--fail-ink);

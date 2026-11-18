@@ -86,6 +86,26 @@
   font-size: 12.5px;
 }
 
+/* 閉じる を別に置く形：1行で折り返さず、入らなければ「…」 */
+.done[data-noclose] {
+  flex-wrap: nowrap;
+  gap: 12px;
+  min-width: 0;
+  height: calc(12.5px * 1.5); /* 説明の1行（12.5px）と同じ高さ。題名の位置を押す前と同じにする */
+  margin-top: 0;
+  overflow: hidden;
+}
+
+.done[data-noclose] .title {
+  line-height: 1.3;
+}
+
+.done[data-noclose] .starts {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 899px) {
   .close {
     height: 44px;
