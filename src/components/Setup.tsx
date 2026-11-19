@@ -63,7 +63,7 @@ const STEP_DESCRIPTIONS: Record<SetupStepId, string> = {
   app: "AIがラベル・PR・マージを進めるための鍵です。GitHub の画面では Create を押すだけです",
   claude: "AIが、あなたの Claude のサブスクで動くようにします",
   settings: "マージしたあとのブランチを、自動で消すようにします",
-  check: "足りない物が無いか、Actions の Doctor で確かめます",
+  check: "足りない設定が無いか、Actions の Doctor で確かめます",
 };
 
 const VISIBILITY = [
@@ -673,7 +673,7 @@ export function Setup({ login, facts: serverFacts, notTarget, canWrite, template
         <span className={styles.h1En}>Setup</span>
         <span className={styles.h1Ja}>導入</span>
       </h1>
-      <p className={styles.lead}>上から順に押すと、このリポジトリで Issue を書くだけで開発が進むようになります</p>
+      <p className={styles.lead}>上から順に押すと、Issue を書くだけで開発が進みます</p>
       {notice && (
         <p className={styles.notice} role="alert">
           {notice}
@@ -719,7 +719,7 @@ export function Setup({ login, facts: serverFacts, notTarget, canWrite, template
         <section className={styles.done} aria-label="Done">
           <div className={styles.doneHead}>
             <span className={styles.doneEn}>Done</span>
-            <span className={styles.doneJa}>このリポジトリを監視に足しました。Issue を書くと、AIが開発を進めます</span>
+            <span className={styles.doneJa}>監視に足しました。Issue を書くと開発が進みます</span>
           </div>
           {watchError && (
             <p className={styles.error} role="alert">

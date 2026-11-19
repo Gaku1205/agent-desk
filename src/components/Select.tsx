@@ -133,7 +133,7 @@ export function Select({ options, value, onChange, disabled, label, emptyText, b
         onKeyDown={onKeyDown}
       >
         {icon}
-        <span className={styles.value}>{value || emptyText || "（選べる物がありません）"}</span>
+        <span className={styles.value}>{value || emptyText || "（選べる項目がありません）"}</span>
         <span className={styles.caret} aria-hidden="true">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
             <path d="M2 3.5h6L5 7z" />

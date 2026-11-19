@@ -216,11 +216,11 @@ function StopsSection({ stops }: { stops: Stops }) {
           </p>
         </div>
         <div>
-          <p className={styles.label}>最近止まった物</p>
+          <p className={styles.label}>最近止まった作業</p>
           {stops.counts === null ? (
             <p className={styles.stopsEmpty}>{DASH}</p>
           ) : stops.recent.length === 0 ? (
-            <p className={styles.stopsEmpty}>この期間に止まった物はありません</p>
+            <p className={styles.stopsEmpty}>この期間に止まった作業はありません</p>
           ) : (
             <ul className={styles.recent}>
               {stops.recent.map((item) => (

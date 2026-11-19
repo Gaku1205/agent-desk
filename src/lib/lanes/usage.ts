@@ -247,11 +247,11 @@ export function buildUsageChart(source: UsageSource, settings: ParallelSettings 
 export function usageSummary(chart: UsageChart, formatSpan: (ms: number) => string): string {
   if (chart.blockedMs !== null) {
     return chart.blockedMs > 0
-      ? `空きの枠があるのに入れなかった時間は、合計 ${formatSpan(chart.blockedMs)}`
-      : "空きの枠があるのに入れなかった時間は、ありませんでした";
+      ? `席が空いているのに始まらなかった時間は、合計 ${formatSpan(chart.blockedMs)}`
+      : "席が空いているのに始まらなかった時間は、ありませんでした";
   }
   const parts: string[] = [];
-  if (chart.maxUsed !== null) parts.push(`使っていた枠は最大 ${chart.maxUsed}件`);
+  if (chart.maxUsed !== null) parts.push(`使っていた席は最大 ${chart.maxUsed}件`);
   parts.push(chart.peak ? `順番待ちは最大 ${chart.peak.value}件` : "順番待ちはありませんでした");
   return parts.join("、");
 }

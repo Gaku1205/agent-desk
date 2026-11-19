@@ -8,7 +8,7 @@ import styles from "./KeyboardHelp.module.css";
 /** 一覧に載せるのは、いま実際にある操作だけ（docs/spec.md の「キーボード操作の一覧」） */
 const ROWS: { keys: string[]; text: string }[] = [
   { keys: ["?"], text: "この一覧を開く・閉じる" },
-  { keys: ["Tab"], text: "最初の Tab で「本文へ移る」。押すと、あなたの番の最初のボタンへ移る" },
+  { keys: ["Tab"], text: "最初の Tab で「本文へ移る」。押すと、Your turn の最初のボタンへ移る" },
   { keys: ["Esc"], text: "スマホのメニュー・マージの確認を閉じる" },
 ];
 

@@ -186,7 +186,7 @@ describe("buildUsageChart", () => {
     const chart = buildUsageChart(source, SETTINGS);
     // 1:00〜2:00（使っている1件＜上限3）の4段、2:00〜2:15 は順番待ち中で使用0
     expect(chart.blockedMs).toBeGreaterThanOrEqual(4 * USAGE_BUCKET_MS);
-    expect(usageSummary(chart, (ms) => `${ms / 60_000}m`)).toMatch(/^空きの枠があるのに入れなかった時間は、合計 \d+m$/);
+    expect(usageSummary(chart, (ms) => `${ms / 60_000}m`)).toMatch(/^席が空いているのに始まらなかった時間は、合計 \d+m$/);
   });
 
   it("並列の設定が読めなければ、上限・夜の帯・空きの判定を出さない", () => {
@@ -195,7 +195,7 @@ describe("buildUsageChart", () => {
     expect(chart.nightSpans).toEqual([]);
     expect(chart.blockedMs).toBeNull();
     expect(chart.buckets.every((bucket) => bucket.limit === null)).toBe(true);
-    expect(usageSummary(chart, String)).toBe("使っていた枠は最大 1件、順番待ちは最大 1件");
+    expect(usageSummary(chart, String)).toBe("使っていた席は最大 1件、順番待ちは最大 1件");
   });
 
   it("進捗ログが無ければ、使っていた枠は出さず、空きの判定もしない", () => {
@@ -225,6 +225,6 @@ describe("buildUsageChart", () => {
       [result({ comments: [log(1, [{ step: "implement", started: "2026-11-18T01:00:00Z", finished: "2026-11-18T02:00:00Z" }])] })],
       NOW,
     )!;
-    expect(usageSummary(buildUsageChart(quiet, SETTINGS), String)).toBe("空きの枠があるのに入れなかった時間は、ありませんでした");
+    expect(usageSummary(buildUsageChart(quiet, SETTINGS), String)).toBe("席が空いているのに始まらなかった時間は、ありませんでした");
   });
 });

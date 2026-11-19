@@ -98,7 +98,7 @@ function TurnSection({ id, items, now, basePath }: { id: string; items: TurnItem
 
   return (
     <section className={styles.section} aria-labelledby={id}>
-      <SectionHead id={id} icon={<PersonIcon size={16} />} title="Your turn" sub={`あなたが押す物 · ${count}件`} />
+      <SectionHead id={id} icon={<PersonIcon size={16} />} title="Your turn" count={count} />
       <ul className={styles.legend} aria-label="色の見方">
         {TURN_GROUPS.map((g) => (
           <li key={g.group} data-group={g.group}>
@@ -128,13 +128,28 @@ function TurnSection({ id, items, now, basePath }: { id: string; items: TurnItem
   );
 }
 
-/** 区画の見出し：アイコン → 名前 → 横に説明 */
-function SectionHead({ id, icon, title, sub }: { id: string; icon: ReactNode; title: string; sub: string }) {
+/** 区画の見出し：アイコン → 名前（数があれば `Your turn 1` のように数字だけを続ける） → 横に説明（意味を足すときだけ） */
+function SectionHead({
+  id,
+  icon,
+  title,
+  count,
+  sub,
+}: {
+  id: string;
+  icon: ReactNode;
+  title: string;
+  count?: ReactNode;
+  sub?: string;
+}) {
   return (
     <h2 className={styles.sectionHead} id={id}>
       {icon}
-      <span>{title}</span>
-      <span className={styles.sectionSub}>{sub}</span>
+      <span>
+        {title}
+        {count !== undefined && <span className="num"> {count}</span>}
+      </span>
+      {sub && <span className={styles.sectionSub}>{sub}</span>}
     </h2>
   );
 }
@@ -366,7 +381,7 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
               </dt>
               <dd className={`${styles.countValue} num`} data-tone="running">
                 {lanes.counts.running}
-                <span className={styles.countRuns}>（処理 {lanes.counts.runs}）</span>
+                <span className={styles.countRuns}>（Actions {lanes.counts.runs}）</span>
               </dd>
             </div>
             {lanes.counts.free !== null && (
@@ -400,7 +415,8 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
             id={slotsId}
             icon={<ColumnsIcon size={16} />}
             title="Slots"
-            sub={limit === null ? "" : `${limit}件まで`}
+            count={limit === null ? undefined : `${lanes.counts.running} / ${limit}`}
+            sub={limit === null ? undefined : "使用中"}
           />
           {overLimit ? <p className={styles.slotsNote}>{overLimit}</p> : null}
           {lanes.slots.length === 0 ? (
@@ -415,9 +431,9 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
         </section>
 
         <section className={styles.section} aria-labelledby={runsId}>
-          <SectionHead id={runsId} icon={<PlayIcon size={16} />} title="Other" sub="席に座らない処理" />
+          <SectionHead id={runsId} icon={<PlayIcon size={16} />} title="Background" sub="CI・公開など、席を使わない作業" />
           {lanes.other.length === 0 ? (
-            <p className={styles.empty}>席に座らない処理はありません</p>
+            <p className={styles.empty}>いまは CI や公開の作業はありません</p>
           ) : (
             <ul className={styles.list}>
               {lanes.other.map((run) => (
@@ -428,9 +444,12 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
         </section>
 
         <section className={styles.section} aria-labelledby={queueId}>
-          <SectionHead id={queueId} icon={<QueueIcon size={15} />} title="Queue" sub="次に入る順" />
+          <SectionHead id={queueId} icon={<QueueIcon size={15} />} title="Queue"
+            count={lanes.queue.length}
+            sub="席が空いたら上から始まります"
+          />
           {lanes.queue.length === 0 ? (
-            <p className={styles.empty}>順番を待っている作業はありません</p>
+            <p className={styles.empty}>順番待ちの作業はありません</p>
           ) : (
             <ol className={styles.list}>
               {lanes.queue.map((entry) => (
@@ -446,14 +465,15 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
               id={pausedId}
               icon={<TurnKindIcon icon="onHold" size={16} />}
               title="Paused"
-              sub={`止めてある物 · ${source.paused.length}件`}
+              count={source.paused.length}
+              sub="理由があって止めています"
             />
             <PausedList entries={source.paused} now={at} />
           </section>
         )}
 
         <section className={styles.section} aria-labelledby={usageId}>
-          <SectionHead id={usageId} icon={<ChartIcon size={16} />} title="Last 24h" sub="枠の使われ方" />
+          <SectionHead id={usageId} icon={<ChartIcon size={16} />} title="Last 24h" sub="席の使われ方" />
           <LanesUsage usage={usage} settings={parallel?.settings ?? null} headingId={usageId} />
         </section>
       </main>

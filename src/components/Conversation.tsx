@@ -522,9 +522,9 @@ export function Conversation({
       )}
       <div className={styles.head}>
         <h2 className={styles.h2} id="now-title">
-          いまの様子
+          Activity
         </h2>
-        <span className={`${styles.count} num`}>{active.length}件</span>
+        <span className={`${styles.count} num`}>{active.length}</span>
         {repo && (
           <span className={styles.scope}>
             <span>{repo.name} だけ</span>

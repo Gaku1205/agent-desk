@@ -485,7 +485,7 @@ export function NewIssueForm({
                   )}
                   {status.kind === "created" && (
                     <span className={settingsStyles.saved} role="status">
-                      {status.number !== null ? `#${status.number} を作りました` : "作りました。あなたの番に出ます"}
+                      {status.number !== null ? `#${status.number} を作りました` : "作りました。Your turn に出ます"}
                       {status.url && (
                         <>
                           {" "}
@@ -503,7 +503,7 @@ export function NewIssueForm({
                   )}
                 </div>
                 {service && status.kind === "created" && (
-                  <p className={styles.after}>工場が新しいリポジトリを作って、公開まで進めます。相談があれば「あなたの番」に出ます</p>
+                  <p className={styles.after}>工場が新しいリポジトリを作って、公開まで進めます。相談があれば Your turn に出ます</p>
                 )}
               </form>
   );

@@ -40,7 +40,7 @@ export function TurnList({ items, now, showRepo, onPick }: Props) {
   }
 
   return (
-    <div className={styles.list} role="group" aria-label="あなたの番の残り">
+    <div className={styles.list} role="group" aria-label="Your turn の残り">
       {foldable && (
         <button
           type="button"
