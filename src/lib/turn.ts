@@ -33,7 +33,8 @@ export type OperationKind =
   | "createPull"
   | "requestReview"
   | "merge"
-  | "answer";
+  | "answer"
+  | "close";
 
 export const OPERATION_KINDS: readonly OperationKind[] = [
   "plan",
@@ -44,6 +45,7 @@ export const OPERATION_KINDS: readonly OperationKind[] = [
   "requestReview",
   "merge",
   "answer",
+  "close",
 ];
 
 /** ボタンの文字（docs/spec.md の「操作」、docs/design.md の「あなたの番」） */
@@ -56,6 +58,7 @@ export const OPERATION_LABEL: Record<OperationKind, string> = {
   requestReview: "レビューを依頼",
   merge: "マージ…",
   answer: "答えを送る",
+  close: "閉じる",
 };
 
 /** 1つのボタン：サーバーの操作か、GitHubで開くリンク（公開失敗の「確認する」） */
@@ -137,12 +140,16 @@ function needsReviewRequest(
 export function turnButtons(
   status: IssueStatus,
   data: Pick<RepoData, "comments" | "pipeline"> & Partial<Pick<RepoData, "pullChecks">>,
+  /** Issue のページ（知らせの `GitHub で見る ↗` のリンク先） */
+  issueUrl = "",
 ): TurnButton[] {
   switch (status.stage) {
     case "stuck":
       return [operation("resume")];
     case "skipped":
       return [operation("start")];
+    case "notice":
+      return [operation("close"), { type: "link", label: "GitHub で見る ↗", href: issueUrl }];
     case "question":
     case "factoryTalk":
       return [operation("answer")];
@@ -200,6 +207,9 @@ export function waitingSince(issue: IssueData, status: IssueStatus, data: RepoDa
           )
           .map((event) => event.createdAt),
       );
+      break;
+    case "notice":
+      since = issue.createdAt;
       break;
     case "skipped":
       since = latest(
@@ -332,7 +342,7 @@ export function repoTurnItems(owner: string, repo: string, repoData: RepoData, n
     const status = getIssueStatus(issue, data, now);
     const description = turnRowDescription(issue, status, data, `${owner}/${repo}`);
     if (description === null) continue;
-    const buttons = turnButtons(status, data);
+    const buttons = turnButtons(status, data, issue.url);
     const canMerge = buttons.some((b) => b.type === "operation" && b.kind === "merge");
     const blocking =
       status.stage === "mergeWaiting" && status.mergeWait === "hold" && status.pull

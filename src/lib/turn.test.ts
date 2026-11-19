@@ -8,6 +8,7 @@ import type {
   RepoResult,
 } from "./github/types";
 import { getIssueStatus } from "./status";
+import { turnKind } from "./turnKind";
 import {
   buildTurnItems,
   countTurnItems,
@@ -503,5 +504,52 @@ describe("formatWait", () => {
     ["2026-10-23T11:00:00Z", "2日"],
   ])("%s から → %s", (since, expected) => {
     expect(formatWait(since, NOW)).toBe(expected);
+  });
+});
+
+describe("パイプラインの知らせ", () => {
+  const notice = (number: number, overrides: Partial<IssueData> = {}) =>
+    issue(number, { labels: ["ai:skip"], author: "github-actions[bot]", ...overrides });
+
+  it("ボタンは「閉じる」と「GitHub で見る ↗」だけ（始めるは出さない）", () => {
+    const repoData = data({ issues: [notice(1)] });
+    const status = getIssueStatus(notice(1), repoData, NOW);
+    expect(turnButtons(status, repoData, "https://github.com/o/r/issues/1")).toEqual([
+      { type: "operation", kind: "close", label: "閉じる" },
+      { type: "link", label: "GitHub で見る ↗", href: "https://github.com/o/r/issues/1" },
+    ]);
+    expect(isOperationAvailable("close", status, repoData)).toBe(true);
+    expect(isOperationAvailable("start", status, repoData)).toBe(false);
+  });
+
+  it("閉じるは知らせの段階でしか受け付けない", () => {
+    const held = issue(1, { labels: ["ai:skip"] });
+    const repoData = data({ issues: [held] });
+    const status = getIssueStatus(held, repoData, NOW);
+    expect(isOperationAvailable("close", status, repoData)).toBe(false);
+  });
+
+  it("あなたの番に Notice（Fix）で出て、待ち時間の起点は Issue の作成時刻、Fix として相談より上に並ぶ", () => {
+    const repoData = data({
+      issues: [
+        issue(1, { labels: ["ai:question"], createdAt: "2026-10-25T08:00:00Z" }),
+        notice(2, { createdAt: "2026-10-25T10:00:00Z" }),
+      ],
+      comments: [
+        {
+          id: 1,
+          issueNumber: 1,
+          author: "claude[bot]",
+          body: "<!-- ai-question -->\n**Q1. 色は？**\n- A. 明るい\n- B. 暗い",
+          createdAt: "2026-10-25T08:30:00Z",
+        },
+      ],
+    });
+    const items = buildTurnItems([{ ok: true, owner: "o", repo: "r", data: repoData }], NOW);
+    expect(items.map((item) => item.issue.number)).toEqual([2, 1]);
+    expect(items[0].status.stage).toBe("notice");
+    expect(items[0].waitingSince).toBe("2026-10-25T10:00:00Z");
+    expect(items[0].description).toBe("配り先で落ちた知らせ");
+    expect(turnKind(items[0].status)).toEqual({ label: "Notice", group: "fix", icon: "notice" });
   });
 });

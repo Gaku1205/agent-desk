@@ -64,6 +64,7 @@ function position(status: IssueStatus, stage: BaseStage): { at: number; state: F
     case "notStarted":
     case "queued":
     case "skipped":
+    case "notice":
     case "question":
     case "factoryTalk":
       return { at: PLAN, state: status.grace ? "running" : "waiting" };

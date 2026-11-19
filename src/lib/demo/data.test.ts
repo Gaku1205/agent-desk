@@ -45,6 +45,7 @@ const ALL_STAGES: Record<Stage, true> = {
   planning: true,
   queued: true,
   skipped: true,
+  notice: true,
   notStarted: true,
 };
 

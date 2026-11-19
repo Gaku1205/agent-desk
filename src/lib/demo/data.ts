@@ -107,6 +107,8 @@ function addIssue(
     /** 企画AIが清書した（本文に `> 元のメモ：` を入れる） */
     planned?: boolean;
     closedAt?: string;
+    /** 作った人（Bot は `login[bot]`。無ければ付けない） */
+    author?: string;
   },
 ): IssueData {
   const issue: IssueData = {
@@ -119,6 +121,7 @@ function addIssue(
     createdAt: options.createdAt,
     updatedAt: options.closedAt ?? options.createdAt,
     closedAt: options.closedAt ?? null,
+    ...(options.author ? { author: options.author } : {}),
   };
   ctx.data.issues.push(issue);
   return issue;
@@ -658,6 +661,13 @@ function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean, placer:
   // 保留（ai:skip）
   addIssue(ctx, 31, "タスクをカレンダーに表示する", { createdAt: ago(ctx, 3 * 60), labels: ["ai:skip"] });
   addLabeled(ctx, 31, "ai:skip", ago(ctx, 3 * 60));
+
+  // パイプラインの知らせ（配布が配り先で落ちた。パイプラインが立てて `ai:skip` を付ける。Your turn に Notice（Fix）で出る）
+  addIssue(ctx, 79, "配布 772d4fe が配り先で落ちています", {
+    createdAt: ago(ctx, 20),
+    labels: ["ai:skip"],
+    author: "github-actions[bot]",
+  });
 
   // わざと止めた物（ai:skip に止めた理由の印がある。Slots & Queue の Paused に出て、あなたの番には出ない）
   addIssue(ctx, 42, "タスクの共有リンクを作る", { createdAt: ago(ctx, 6 * 60), labels: ["ai:skip"], planned: true });

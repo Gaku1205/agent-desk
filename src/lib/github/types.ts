@@ -13,6 +13,8 @@ export type IssueData = {
   createdAt: string;
   updatedAt: string;
   closedAt: string | null;
+  /** 作った人（コメントの `author` と同じ形。Bot は `login[bot]`。取れないとき・無いときは無し） */
+  author?: string;
 };
 
 export type PullData = {

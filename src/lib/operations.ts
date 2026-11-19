@@ -5,6 +5,7 @@ import { GitHubError } from "./github/errors";
 import {
   addComment,
   addLabel,
+  closeIssue,
   createIssue,
   createPull,
   ensureImagesBranch,
@@ -162,6 +163,10 @@ export async function executeOperation(
         break;
       case "start":
         await removeLabel(client, target, issue.number, LABEL.skip);
+        break;
+      case "close":
+        // 知らせの段階でだけ（isOperationAvailable が確かめ済み）
+        await closeIssue(client, target, issue.number);
         break;
       case "createPull": {
         const head = await findIssueBranch(client, target, issue.number);

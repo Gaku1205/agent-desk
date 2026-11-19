@@ -21,6 +21,7 @@ export const LABEL_EVENTS = `timelineItems(last: 50, itemTypes: [LABELED_EVENT, 
         }`;
 
 const ISSUE_FIELDS = `number title body state url createdAt updatedAt closedAt
+        author { __typename login }
         labels(first: 100) { nodes { name } }
         ${COMMENTS}
         ${LABEL_EVENTS}`;
@@ -293,6 +294,7 @@ export type GqlIssue = {
   createdAt: string;
   updatedAt: string;
   closedAt?: string | null;
+  author?: { __typename?: string | null; login?: string | null } | null;
   labels?: Nodes<{ name?: string | null }>;
   comments?: Nodes<GqlComment>;
   timelineItems?: Nodes<GqlLabelEvent>;
@@ -418,7 +420,15 @@ function labelNames(labels: GqlIssue["labels"]): string[] {
   return names;
 }
 
+/** 作った人。Bot のログイン名は REST と同じく `[bot]` を付ける。取れないときは undefined */
+function authorName(author: GqlIssue["author"]): string | undefined {
+  const login = author?.login ?? "";
+  if (!login) return undefined;
+  return author?.__typename === "Bot" ? `${login}[bot]` : login;
+}
+
 export function convertGqlIssue(raw: GqlIssue): IssueData {
+  const author = authorName(raw.author);
   return {
     number: raw.number,
     title: raw.title,
@@ -429,6 +439,7 @@ export function convertGqlIssue(raw: GqlIssue): IssueData {
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
     closedAt: raw.closedAt ?? null,
+    ...(author ? { author } : {}),
   };
 }
 

@@ -58,7 +58,7 @@ describe("OPERATION_COPY", () => {
   it("どの操作にも、押している間（〜中…）・していること・結果の文言がある", () => {
     for (const kind of OPERATION_KINDS) {
       const copy = OPERATION_COPY[kind];
-      expect(copy.busy.endsWith("中…")).toBe(true);
+      expect(copy.busy.endsWith("中…") || copy.busy.endsWith("います…")).toBe(true);
       expect(copy.doing).not.toBe("");
       expect(copy.done.endsWith("ました")).toBe(true);
     }

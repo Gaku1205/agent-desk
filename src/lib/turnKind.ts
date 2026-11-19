@@ -10,6 +10,7 @@ export type TurnGroup = "fix" | "answer" | "ship" | "start";
 export type TurnIcon =
   | "stuck"
   | "deployFailed"
+  | "notice"
   | "merge"
   | "question"
   | "factoryTalk"
@@ -38,6 +39,8 @@ export function turnKind(status: Pick<IssueStatus, "stage"> & Partial<Pick<Issue
       return { label: "Stuck", group: "fix", icon: "stuck" };
     case "deployFailed":
       return { label: "Deploy failed", group: "fix", icon: "deployFailed" };
+    case "notice":
+      return { label: "Notice", group: "fix", icon: "notice" };
     case "question":
       return { label: "Question", group: "answer", icon: "question" };
     case "factoryTalk":
