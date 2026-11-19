@@ -46,23 +46,23 @@ describe("chatLine（コンフリクト）", () => {
   it("修正の依頼が出ているときは、AIが解消しますを付ける", () => {
     expect(chatLine(status({ stage: "fixing", pull: conflictPull }))).toEqual({
       speaker: "AI",
-      text: "main とぶつかっています。AIが解消します",
+      text: "main とぶつかり・AIが解消中",
     });
   });
 
   it("コンフリクトでなければ今までどおり", () => {
     expect(
       chatLine(status({ stage: "mergeWaiting", mergeWait: "autoMerge", pull: { conflicting: false } as NonNullable<IssueStatus["pull"]> })).text,
-    ).toBe("CIもレビューもOKです。まもなく自動でマージします");
+    ).toBe("CI・レビューOK・まもなく自動マージ");
   });
 });
 
 describe("chatLine", () => {
   it("AIの番の段階は「〇〇が△△しています」の形（頭に「いま」を付けない）", () => {
-    expect(chatLine(status({ stage: "planning" }))).toEqual({ speaker: "企画AI", text: "企画AIがIssueを清書しています" });
+    expect(chatLine(status({ stage: "planning" }))).toEqual({ speaker: "企画AI", text: "企画AIが清書中" });
     expect(chatLine(status({ stage: "implementing" }))).toEqual({ speaker: "AI", text: "AIが実装しています" });
-    expect(chatLine(status({ stage: "ciRunning" }))).toEqual({ speaker: "CI", text: "CIが確かめています（3/4 通過）" });
-    expect(chatLine(status({ stage: "reviewing" }))).toEqual({ speaker: "レビューAI", text: "レビューAIが確認しています" });
+    expect(chatLine(status({ stage: "ciRunning" }))).toEqual({ speaker: "CI", text: "CIが確認中（3/4 通過）" });
+    expect(chatLine(status({ stage: "reviewing" }))).toEqual({ speaker: "レビューAI", text: "レビューAIが確認中" });
     expect(chatLine(status({ stage: "fixing", fixCount: 2 }))).toEqual({ speaker: "AI", text: "AIが直しています（2/3 回目）" });
     expect(chatLine(status({ stage: "fixing", fixCount: 3 }))).toEqual({ speaker: "AI", text: "AIが直しています（3/3 回目）" });
     expect(chatLine(status({ stage: "fixing", fixCount: 5 }))).toEqual({ speaker: "AI", text: "AIが直しています（3/3 回目）" });
@@ -70,54 +70,54 @@ describe("chatLine", () => {
     expect(chatLine(status({ stage: "ciFailed", fixCount: 1 }))).toEqual({ speaker: "AI", text: "AIが直しています（2回目/3）" });
     expect(chatLine(status({ stage: "ciFailed", fixCount: 3 }))).toEqual({
       speaker: "CI",
-      text: "CIが失敗しました。修正の上限に達しました",
+      text: "CI失敗・修正の上限",
     });
-    expect(chatLine(status({ stage: "deploying", turn: "none" }))).toEqual({ speaker: "本番", text: "本番に公開しています" });
+    expect(chatLine(status({ stage: "deploying", turn: "none" }))).toEqual({ speaker: "本番", text: "本番に公開中" });
   });
 
   it("修正の確認中は、CIとレビューで確かめている文", () => {
-    const text = "直した結果を、CIとレビューで確かめています（CI 3/4）";
+    const text = "修正をCIとレビューで確認中（CI 3/4）";
     expect(chatLine(status({ stage: "ciRunning", verifyingFix: true })).text).toBe(text);
     expect(chatLine(status({ stage: "reviewing", verifyingFix: true })).text).toBe(text);
   });
 
   it("マージ待ち（AI）は、自動マージかレビューに回すか", () => {
     expect(chatLine(status({ stage: "mergeWaiting", mergeWait: "autoMerge", ci: { passed: 4, total: 4 } })).text).toBe(
-      "CIもレビューもOKです。まもなく自動でマージします",
+      "CI・レビューOK・まもなく自動マージ",
     );
     expect(chatLine(status({ stage: "mergeWaiting", mergeWait: "needsReview", ci: { passed: 4, total: 4 } })).text).toBe(
-      "CIが通りました（4/4）。このあとレビューに回します",
+      "CI通過（4/4）・レビューへ",
     );
   });
 
   it("順番待ちは、理由に番号があれば「#17 の後」を添える", () => {
     expect(chatLine(status({ stage: "queued", turn: "none" }), { queueAfter: 17 }).text).toBe(
-      "前の作業が終わるのを待っています（#17 の後）",
+      "順番待ち（#17 の後）",
     );
-    expect(chatLine(status({ stage: "queued", turn: "none" })).text).toBe("前の作業が終わるのを待っています");
+    expect(chatLine(status({ stage: "queued", turn: "none" })).text).toBe("順番待ち");
   });
 
   it("公開済みは、不明なら分からないと言う", () => {
     expect(chatLine(status({ stage: "deployed", turn: "none" })).text).toBe("本番に公開しました");
     expect(chatLine(status({ stage: "deployed", turn: "none", deployUnknown: true })).text).toBe(
-      "マージしました。公開状況は分かりません",
+      "マージ済み・公開状況は不明",
     );
   });
 
   it("猶予の間はパイプラインの番", () => {
     expect(chatLine(status({ stage: "notStarted", grace: "intake" }))).toEqual({
       speaker: "パイプライン",
-      text: "パイプラインの受付が、企画に回すか決めています",
+      text: "受付が企画に回すか判断中",
     });
     expect(chatLine(status({ stage: "prWaiting", grace: "creatingPull" })).text).toBe(
-      "AIの作業が終わりました。パイプラインがPRを作っています",
+      "AIの作業完了・PRを作成中",
     );
   });
 
   it("やり直し待ちは、理由と回数の説明文", () => {
     const line = chatLine(status({ stage: "retrying", turn: "none", retry: { count: 2, max: 10, reason: "利用上限" } }));
     expect(line.speaker).toBe("パイプライン");
-    expect(line.text).toBe("利用上限（2/10回）。時間をおいて自動でやり直します");
+    expect(line.text).toBe("利用上限（2/10回）・自動でやり直し");
   });
 });
 

@@ -31,7 +31,7 @@ describe("describeStatus", () => {
     [
       "止まった",
       { stage: "stuck", stuckReason: "レビューの指摘が直りませんでした" },
-      "レビューの指摘が直りませんでした。確認して、対応したら「再開」を押してください",
+      "レビューの指摘が直りませんでした。確認して「再開」",
       "止まっています",
     ],
     [
@@ -41,58 +41,58 @@ describe("describeStatus", () => {
         turn: "none",
         retry: { count: 3, max: 10, reason: "使用量の上限に達しました" },
       },
-      "使用量の上限に達しました（3/10回）。時間をおいて自動でやり直します",
+      "使用量の上限に達しました（3/10回）・自動でやり直し",
       "やり直し待ち 3/10回",
     ],
     [
       "やり直し待ち（回数なし）",
       { stage: "retrying", turn: "none" },
-      "AIが止まりました。時間をおいて自動でやり直します",
+      "AIが止まりました・自動でやり直し",
       "やり直し待ち",
     ],
     [
       "保留",
       { stage: "skipped" },
-      "保留中です。準備ができたら「始める」を押してください",
+      "保留中。準備ができたら「始める」",
       "保留中",
     ],
     ["未着手", { stage: "notStarted" }, "まだ誰にも頼んでいません", "まだ頼んでいません"],
     [
       "未着手（受付中）",
       { stage: "notStarted", turn: "ai", grace: "intake" },
-      "パイプラインの受付が、企画に回すか決めています",
+      "受付が企画に回すか判断中",
       "受付中",
     ],
     [
       "PR作成待ち（PRを作成中）",
       { stage: "prWaiting", turn: "ai", grace: "creatingPull" },
-      "AIの作業が終わりました。パイプラインがPRを作っています",
+      "AIの作業完了・PRを作成中",
       "PRを作成中",
     ],
     [
       "順番待ち",
       { stage: "queued", turn: "none" },
-      "前の作業が終わったら自動で始まります",
+      "順番待ち（前の作業の後）",
       "順番待ち",
     ],
-    ["企画中", { stage: "planning", turn: "ai" }, "企画AIがIssueを清書中", "清書中"],
+    ["企画中", { stage: "planning", turn: "ai" }, "企画AIが清書中", "清書中"],
     ["AI作業中", { stage: "implementing", turn: "ai" }, "AIが実装中", "AIが実装中"],
     [
       "PR作成待ち",
       { stage: "prWaiting" },
-      "AIの作業が終わりました。PRを作るとCIが走ります",
+      "AIの作業完了・PR待ち",
       "PRを作れます",
     ],
     [
       "PR作成待ち（エラー）",
       { stage: "prWaiting", implementError: true },
-      "AIがエラーで止まりました。結果を確認してPRを作ってください",
+      "AIがエラーで停止・結果を確認",
       "AIがエラーで停止",
     ],
     [
       "PR作成待ち（エラー直後の猶予）",
       { stage: "prWaiting", turn: "ai", implementError: true, grace: "creatingPull" },
-      "AIの作業が終わりました。パイプラインがPRを作っています",
+      "AIの作業完了・PRを作成中",
       "PRを作成中",
     ],
     [
@@ -104,7 +104,7 @@ describe("describeStatus", () => {
     [
       "CI失敗",
       { stage: "ciFailed", turn: "ai" },
-      "CIが失敗しました。AIに直してもらいます",
+      "CI失敗・AIが修正します",
       "CIが失敗しました",
     ],
     ["レビュー中", { stage: "reviewing", turn: "ai" }, "レビューAIが確認中", "レビューAIが確認中"],
@@ -135,19 +135,19 @@ describe("describeStatus", () => {
     [
       "止まった（理由の末尾に。がある）",
       { stage: "stuck", stuckReason: "依存を足してください。" },
-      "依存を足してください。確認して、対応したら「再開」を押してください",
+      "依存を足してください。確認して「再開」",
       "止まっています",
     ],
     [
       "マージ待ち（レビュー前）",
       { stage: "mergeWaiting", turn: "ai", mergeWait: "needsReview", ci },
-      "CI 4/4 通過・レビューに回します",
+      "CI 4/4 通過・レビューへ",
       "レビューに回します",
     ],
     [
       "マージ待ち（自動マージ）",
       { stage: "mergeWaiting", turn: "ai", mergeWait: "autoMerge", ci },
-      "CIもレビューもOK・自動でマージします",
+      "CI・レビューOK・自動マージ",
       "自動でマージします",
     ],
     ["公開中", { stage: "deploying", turn: "none" }, "本番に公開中", "本番に公開中"],
@@ -173,7 +173,7 @@ describe("describeStatus", () => {
     it("止まった：URLを外して {説明}（{原因}） にする", () => {
       const stuck = status({ stage: "stuck", stuckReason: reason });
       expect(describeStatus(stuck, options).long).toBe(
-        "実装AIがエラーで止まりました（許可不足（Bash(git rebase main)））。確認して、対応したら「再開」を押してください",
+        "実装AIがエラーで止まりました（許可不足（Bash(git rebase main)））。確認して「再開」",
       );
       expect(failureLogUrl(stuck, "Gaku1205/agent-desk")).toBe(url);
     });
@@ -185,7 +185,7 @@ describe("describeStatus", () => {
         retry: { count: 1, max: 10, reason },
       });
       expect(describeStatus(retrying, options).long).toBe(
-        "実装AIがエラーで止まりました（許可不足（Bash(git rebase main)））（1/10回）。時間をおいて自動でやり直します",
+        "実装AIがエラーで止まりました（許可不足（Bash(git rebase main)））（1/10回）・自動でやり直し",
       );
       expect(failureLogUrl(retrying, "Gaku1205/agent-desk")).toBe(url);
     });
