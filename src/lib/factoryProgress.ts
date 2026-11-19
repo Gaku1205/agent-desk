@@ -219,7 +219,7 @@ export function factoryProgress(input: FactoryProgressInput): FactoryProgress {
     else if (pending !== null || lastAnswer === "redo" || lastAnswer === "text") current = lastCard;
     else current = talkOrder[talkOrder.indexOf(lastCard) + 1] ?? "repo";
   }
-  const allDone = closed || phase.kind === "done" || (buildStarted && current === null);
+  const allDone = closed || phase.kind === "done";
   const unknownDone = !allDone && current === null; // 段が決められない：相談したところまでを済みにする
   const currentIndex = current === null ? -1 : order.indexOf(current);
 
@@ -252,7 +252,7 @@ export function factoryProgress(input: FactoryProgressInput): FactoryProgress {
             : "pending"
         : unknownDone && (cards.has(key as FactoryStage) || (cards.size > 0 && index < order.indexOf(lastCard ?? "ideas")))
           ? "done"
-          : unknownDone && buildStarted
+          : unknownDone && buildStarted && !(BUILD_KEYS as string[]).includes(key)
             ? "done"
             : "pending";
     const a = acc.get(key);

@@ -144,6 +144,26 @@ describe("factoryProgress", () => {
     });
     expect(keys(p).slice(0, 3)).toEqual(["ideas:done", "looks:done", "mocks:pending"]);
   });
+
+  it("本番の実行が失敗して終わり Issue が開いたままなら、公開は済みにしない", () => {
+    const p = factoryProgress({
+      ...base,
+      comments: [card("confirm", T("03:30")), answer(T("03:32"), "go")],
+      runs: [run("Factory", { status: "completed", conclusion: "failure", startedAt: T("03:40"), updatedAt: T("03:50") })],
+    });
+    expect(p.steps.find((s) => s.key === "deploy")?.state).not.toBe("done");
+    expect(p.steps.find((s) => s.key === "build")?.state).not.toBe("done");
+    expect(p.steps.find((s) => s.key === "confirm")?.state).toBe("done");
+  });
+
+  it("go と答えた直後で実行が無いときも、公開は済みにしない", () => {
+    const p = factoryProgress({
+      ...base,
+      comments: [card("confirm", T("03:30")), answer(T("03:32"), "go")],
+      runs: null,
+    });
+    expect(p.steps.find((s) => s.key === "deploy")?.state).toBe("pending");
+  });
 });
 
 describe("findNewRepo", () => {
