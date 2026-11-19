@@ -22,10 +22,33 @@ export function judgeWatchdog(lastRun: WatchdogLastRun | undefined, now: Date): 
 export type WatchdogNotice = { owner: string; repo: string; hours: number };
 
 type WatchdogResult =
-  | { owner: string; repo: string; ok: true; data: { watchdog?: WatchdogLastRun } }
+  | {
+      owner: string;
+      repo: string;
+      ok: true;
+      data: {
+        watchdog?: WatchdogLastRun;
+        issues: ReadonlyArray<{ state: "open" | "closed"; labels: string[] }>;
+        pulls: ReadonlyArray<{ state: "open" | "closed"; headRef: string }>;
+      };
+    }
   | { owner: string; repo: string; ok: false };
 
-/** 止まっているリポジトリの注意を、取得結果の順に作る */
+/** 進めている作業があるとみなすラベル */
+const ACTIVE_LABELS: readonly string[] = ["ai:plan", "ai:implement", "ai:review", "ai:queue", "ai:retry"];
+
+/** 進めている作業があるか：開いている Issue に作業のラベルが付いている、または `claude/` で始まるブランチの開いている PR がある */
+export function hasActiveWork(
+  issues: ReadonlyArray<{ state: "open" | "closed"; labels: string[] }>,
+  pulls: ReadonlyArray<{ state: "open" | "closed"; headRef: string }>,
+): boolean {
+  return (
+    issues.some((issue) => issue.state === "open" && issue.labels.some((label) => ACTIVE_LABELS.includes(label))) ||
+    pulls.some((pull) => pull.state === "open" && pull.headRef.startsWith("claude/"))
+  );
+}
+
+/** 止まっているリポジトリの注意を、取得結果の順に作る（進めている作業が無いリポジトリには作らない） */
 export function buildWatchdogNotices(
   results: ReadonlyArray<WatchdogResult>,
   now: Date,
@@ -33,6 +56,7 @@ export function buildWatchdogNotices(
   const notices: WatchdogNotice[] = [];
   for (const result of results) {
     if (!result.ok) continue;
+    if (!hasActiveWork(result.data.issues, result.data.pulls)) continue;
     const alert = judgeWatchdog(result.data.watchdog, now);
     if (alert.stalled) notices.push({ owner: result.owner, repo: result.repo, hours: alert.hours });
   }

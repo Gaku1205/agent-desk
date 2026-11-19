@@ -32,6 +32,8 @@ export type ConversationNotice = {
   text: string;
   /** warn＝見張り役、fail＝取れなかったリポジトリ */
   tone: "warn" | "fail";
+  /** 細かい説明（行の `title` 属性） */
+  title?: string;
 };
 
 type Props = {
@@ -549,7 +551,7 @@ export function Conversation({
       {notices.length > 0 && (
         <ul className={styles.notices} role="status">
           {notices.map((notice) => (
-            <li key={notice.key} data-tone={notice.tone}>
+            <li key={notice.key} data-tone={notice.tone} title={notice.title}>
               {notice.text}
             </li>
           ))}
