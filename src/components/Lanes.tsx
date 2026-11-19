@@ -281,7 +281,7 @@ function QueueRow({ entry }: { entry: QueueEntry }) {
       <div className={styles.left}>
         <span className={styles.rank}>
           <QueueIcon size={13} />
-          <span className="num">#{entry.rank}</span>
+          <span className="num">{entry.rank}</span>
         </span>
       </div>
       <div className={styles.middle}>

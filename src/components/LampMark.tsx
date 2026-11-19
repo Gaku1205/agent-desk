@@ -12,7 +12,7 @@ export function LampLabel({ lamp }: { lamp: Lamp }) {
   return <span className={styles.srOnly}>{label}。</span>;
 }
 
-/** 順番待ちの待ち順：1行目の最後の ` · 2番目`（`--wait`）。読み上げは隠し文字がするので隠す */
+/** 順番待ちの待ち順：1行目の最後の ` · ⧗ 2`（`--wait`）。読み上げは隠し文字がするので隠す */
 export function LampWait({ lamp }: { lamp: Lamp }) {
   if (lamp.kind !== "waiting") return null;
   return (
@@ -22,7 +22,7 @@ export function LampWait({ lamp }: { lamp: Lamp }) {
       </span>
       <span className={`${styles.wait} num`} aria-hidden="true">
         <QueueIcon size={12} />
-        <span>{lamp.position}番目</span>
+        <span>{lamp.position}</span>
       </span>
     </>
   );
