@@ -13,11 +13,11 @@ export function LoadErrors({ errors }: { errors: DeskError[] }) {
   return (
     <ul className={styles.errors} role="alert">
       {errors.map((error) => (
-        <li key={error.repo}>
-          {error.repo}：{error.message}
+        <li key={`${error.repo}|${error.message}`}>
+          {error.work ? `${error.repo} ${error.message}` : `${error.repo}：${error.message}`}
         </li>
       ))}
-      <li className={styles.note}>{LOAD_ERRORS_NOTE}</li>
+      {errors.some((error) => !error.work) && <li className={styles.note}>{LOAD_ERRORS_NOTE}</li>}
     </ul>
   );
 }

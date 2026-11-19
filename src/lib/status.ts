@@ -247,7 +247,17 @@ export function findLinkedPull(pulls: PullData[], issueNumber: number): PullData
 
 /** 表示するIssueか：パイプラインの保守のIssueは出さない。openなら表示。閉じたIssueは紐づくPRがマージ済みのときだけ */
 export function shouldShowIssue(issue: IssueData, pulls: PullData[]): boolean {
-  if (isPipelineMaintenanceIssue(issue)) return false;
+  // 保守の印・ラベルに当たっても、実装AIが動いている作業（ai:implement）や紐づくPRがある作業は、本物の作業なので隠さない
+  if (
+    isPipelineMaintenanceIssue(issue) &&
+    !(
+      issue.state === "open" &&
+      (issue.labels.includes(LABEL.implement) ||
+        pulls.some((pull) => pull.state === "open" && isLinkedPull(pull, issue.number)))
+    )
+  ) {
+    return false;
+  }
   if (issue.state === "open") return true;
   return pulls.some((pull) => pull.merged && isLinkedPull(pull, issue.number));
 }

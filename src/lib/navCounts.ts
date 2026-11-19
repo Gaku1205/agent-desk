@@ -43,9 +43,9 @@ export function countText(value: number, unavailable: boolean): string {
 }
 
 /** 読めなかったリポジトリ（`owner/repo`）を、小文字の鍵の表にする（ページが左のバーへ渡す） */
-export function unreadableMapOf(errors: { repo: string }[]): Record<string, true> {
+export function unreadableMapOf(errors: { repo: string; work?: true }[]): Record<string, true> {
   const map: Record<string, true> = {};
-  for (const { repo } of errors) map[repo.toLowerCase()] = true;
+  for (const { repo, work } of errors) if (!work) map[repo.toLowerCase()] = true;
   return map;
 }
 
