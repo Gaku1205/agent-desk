@@ -745,6 +745,8 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   const checks = pull ? (input.pullChecks[pull.number] ?? { checkRuns: [], statuses: [] }) : null;
   const ci = checks ? ciState(checks.checkRuns) : { state: "running" as const, passed: 0, total: 0 };
   const breakdown = countCiChecks((checks?.checkRuns ?? []).filter((check) => !isClaudeReviewCheck(check)));
+  // 必須なのにまだ報告されていないチェックは、枠待ちと同じ扱いで数に入れる（段階の判定は変えない）
+  const missing = Math.max(0, checks?.missingRequired ?? 0);
   const fixes = pull ? fixCount(input.comments, pull) : 0;
   const pushedFix = pull ? hasPushedFix(input.comments, pull) : false;
   const result = (
@@ -756,9 +758,9 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
     pull,
     ci: {
       passed: ci.passed,
-      total: ci.total,
+      total: ci.total + missing,
       running: breakdown.running,
-      queued: breakdown.queued,
+      queued: breakdown.queued + missing,
       failed: breakdown.failed,
     },
     mergeWait: null,

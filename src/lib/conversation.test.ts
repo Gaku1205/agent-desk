@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildConversation, chatLine, compareMessages, queueAfterNumber, type ChatMessage } from "./conversation";
+import { buildConversation, chatCi, chatLine, compareMessages, queueAfterNumber, type ChatMessage } from "./conversation";
 import { buildDemoResults } from "./demo/data";
 import { startPlayback } from "./demo/playback";
 import { buildTrailEvents } from "./events";
@@ -57,11 +57,30 @@ describe("chatLine（コンフリクト）", () => {
   });
 });
 
+describe("chatCi（CI の線と数）", () => {
+  it("通常の CI 中は、席の行と同じ文（枠待ちがあれば枠待ち）", () => {
+    const ci = { passed: 4, total: 10, running: 0, queued: 6, failed: 0 };
+    const line = chatLine(status({ stage: "ciRunning", ci }));
+    expect(line.text).toBe("4/7 CI ✓4 ⧗6 枠待ち");
+    expect(chatCi(status({ stage: "ciRunning", ci }))?.counts).toEqual({ passed: 4, running: 0, queued: 6, failed: 0, total: 10 });
+  });
+
+  it("未報告の必須チェックが枠待ちに入った数も、そのまま文に出る", () => {
+    const ci = { passed: 4, total: 6, running: 0, queued: 2, failed: 0 };
+    expect(chatLine(status({ stage: "ciRunning", ci })).text).toBe("4/7 CI ✓4 ⧗2 枠待ち");
+  });
+
+  it("直した結果の確認中・CI 以外は null", () => {
+    expect(chatCi(status({ stage: "ciRunning", verifyingFix: true }))).toBeNull();
+    expect(chatCi(status({ stage: "reviewing" }))).toBeNull();
+  });
+});
+
 describe("chatLine", () => {
   it("AIの番の段階は「〇〇が△△しています」の形（頭に「いま」を付けない）", () => {
     expect(chatLine(status({ stage: "planning" }))).toEqual({ speaker: "企画AI", text: "企画AIがIssueを清書しています" });
     expect(chatLine(status({ stage: "implementing" }))).toEqual({ speaker: "AI", text: "AIが実装しています" });
-    expect(chatLine(status({ stage: "ciRunning" }))).toEqual({ speaker: "CI", text: "CIが確かめています（3/4 通過）" });
+    expect(chatLine(status({ stage: "ciRunning" }))).toEqual({ speaker: "CI", text: "4/7 CI ✓3 ◌1 実行中" });
     expect(chatLine(status({ stage: "reviewing" }))).toEqual({ speaker: "レビューAI", text: "レビューAIが確認しています" });
     expect(chatLine(status({ stage: "fixing", fixCount: 2 }))).toEqual({ speaker: "AI", text: "AIが直しています（2/3 回目）" });
     expect(chatLine(status({ stage: "fixing", fixCount: 3 }))).toEqual({ speaker: "AI", text: "AIが直しています（3/3 回目）" });

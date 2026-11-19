@@ -221,6 +221,16 @@
   color: var(--mute);
 }
 
+/* CI の段の間：工程名の左端に揃えて、CI のチェックの線と数（Issue #585。席の行と同じ部品） */
+.ci {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 0;
+  margin: 2px 0 0 32px;
+  min-width: 0;
+}
+
 /* CI失敗時の修正：CIの下に、工程名の左端まで字下げした枠。左の縦線が、修正からCIに戻る線 */
 .branch {
   margin: 6px 0 4px 32px;

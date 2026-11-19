@@ -99,6 +99,8 @@ export type PullChecks = {
   checkRuns: CheckRunData[];
   /** マージ済みPRのマージコミットのコミットステータス（それ以外は空） */
   statuses: CommitStatusData[];
+  /** 必須なのにまだ報告されていないチェックの数（CI が終わっていない開いている PR だけ。無ければ 0 とみなす） */
+  missingRequired?: number;
 };
 
 /** Actions の実行（`GET /repos/{owner}/{repo}/actions/runs` の1件） */
