@@ -613,6 +613,231 @@
   white-space: nowrap;
 }
 
+/* ───── Background の目盛りと Active・Sleeping（Issue #584） ───── */
+.bgHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 12px;
+}
+
+.bgHead .sectionHead {
+  margin: 0;
+}
+
+.gauge {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.gaugeName {
+  color: var(--mute);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.gaugeCells {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.gaugeCell {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--hair-2);
+  box-shadow: inset 0 0 0 1px var(--edge);
+}
+
+.gaugeCell[data-cell="active"] {
+  background: var(--ok);
+  box-shadow: none;
+}
+
+.gaugeCell[data-cell="sleeping"] {
+  background: var(--mute);
+  box-shadow: none;
+}
+
+.gaugeText {
+  color: var(--bone);
+  font-size: 13px;
+}
+
+.subHead {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin: 12px 0 4px;
+  color: var(--bone);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.bgHead + .subHead {
+  margin-top: 0;
+}
+
+.subCount {
+  color: var(--mute);
+  font-weight: 400;
+}
+
+.row[data-tone="sleeping"] {
+  --line: var(--edge-strong);
+}
+
+/* まとめた1行は、行全体が開閉のボタン */
+button.row {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.row:hover {
+  background: var(--well);
+}
+
+button.row:focus-visible {
+  border-radius: 4px;
+  box-shadow:
+    inset 2px 0 0 var(--line),
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
+}
+
+.moon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--mute);
+}
+
+.wakeList {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.wake {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 4px;
+  align-items: center;
+}
+
+.wakeTime {
+  color: var(--bone);
+}
+
+.wakeRepo {
+  color: var(--bone-2);
+}
+
+.wakeMore {
+  flex-shrink: 0;
+  color: var(--mute);
+}
+
+.longTag {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  height: 18px;
+  margin-left: 2px;
+  padding: 0 5px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--fail-edge);
+  color: var(--fail-soft);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.chevron {
+  color: var(--mute);
+}
+
+button[aria-expanded="true"] .chevron svg {
+  transform: rotate(180deg);
+}
+
+.sleepOpen[hidden] {
+  display: none;
+}
+
+.sleepList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sleepSub {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) 52px 64px;
+  gap: 16px;
+  align-items: center;
+  height: 40px;
+  padding: 0 0 0 40px;
+  background: var(--hair-2);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--edge-strong) 35%, transparent);
+  font-size: 13px;
+}
+
+.sleepRepo {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.sleepRepoName {
+  overflow: hidden;
+  color: var(--bone-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sleepTime {
+  text-align: right;
+}
+
+.sleepLog {
+  text-align: right;
+}
+
+@container (max-width: 639px) {
+  .gauge {
+    width: 100%;
+  }
+
+  .row[data-kind="sleep"] .wakeList {
+    grid-area: middle;
+  }
+}
+
+@container (max-width: 620px) {
+  .sleepSub {
+    grid-template-columns: 88px minmax(0, 1fr) 52px;
+    gap: 12px;
+    padding-left: 34px;
+  }
+
+  .sleepLog {
+    display: none;
+  }
+}
+
 /* 狭い所：左と右を1段目、真ん中を2段目 */
 @container (max-width: 639px) {
   .row {

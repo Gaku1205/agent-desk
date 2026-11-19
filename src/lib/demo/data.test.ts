@@ -9,6 +9,7 @@ import { getIssueStatus, shouldShowIssue, type IssueStatus, type Stage } from ".
 import { countRunningPipelineRows } from "../runningPipeline";
 import { buildTurnItems, countTurnItems } from "../turn";
 import { assignSlots } from "../lanes/slots";
+import { isLongSleep, jobGauge } from "../lanes/sleeping";
 import { buildLanesSource } from "../lanes/source";
 import { buildUsageChart, buildUsageSource, USAGE_BUCKET_MS, usageSummary } from "../lanes/usage";
 import {
@@ -111,6 +112,20 @@ describe("デモのサンプル", () => {
     expect(lanes.counts.free).toBe(0);
     expect(lanes.slots).toHaveLength(DEMO_PARALLEL_SETTINGS.day);
     expect(lanes.counts.queue).toBeGreaterThanOrEqual(3);
+  });
+
+  it("Background：目覚ましが10件（うち2件は Long）、どれも席にぶら下がらず、動いている実行にジョブの数がある", () => {
+    const results = buildDemoResults(NOW, startPlayback(NOW));
+    const source = buildLanesSource(results, NOW);
+    const lanes = assignSlots(source, DEMO_PARALLEL_SETTINGS.day);
+    const sleeping = lanes.other.filter((run) => run.sleeping);
+    expect(sleeping).toHaveLength(10);
+    expect(sleeping.every((run) => run.wakeAtMs !== null)).toBe(true);
+    expect(sleeping.filter((run) => isLongSleep(run.wakeAtMs, NOW))).toHaveLength(2);
+    expect(lanes.other.some((run) => !run.sleeping)).toBe(true);
+    const gauge = jobGauge(source.runs);
+    expect(gauge.sleeping).toBe(10);
+    expect(gauge.active).toBeGreaterThan(0);
   });
 
   it("Last 24h：どの時刻に開いても、使っていた枠はその時間帯の上限以内で、縦は0〜5に収まり、まとめがグラフと合う", () => {

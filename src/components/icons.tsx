@@ -401,7 +401,16 @@ export function BellIcon({ size = LABEL }: IconProps) {
   );
 }
 
-/** 夜＝月 */
+/** 開く・閉じる＝下向きの山形（開いたら CSS で上向きに回す） */
+export function ChevronIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="m6 9 6 6 6-6" />
+    </LineIcon>
+  );
+}
+
+/** 夜＝月（Slots & Queue の Sleeping も同じ形） */
 export function MoonIcon({ size = LABEL }: IconProps) {
   return (
     <LineIcon size={size}>

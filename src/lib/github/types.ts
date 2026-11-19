@@ -60,6 +60,12 @@ export type RunStepData = {
   url: string | null;
 };
 
+/** 動いている実行の、動いているジョブの数（`actions/runs/{run_id}/jobs` の `in_progress` の数。Issue #584） */
+export type RunJobsData = {
+  runId: number;
+  inProgress: number;
+};
+
 export type CheckRunData = {
   name: string;
   status: string;
@@ -138,6 +144,8 @@ export type RepoData = {
   runs?: WorkflowRunData[] | null;
   /** 動いている実行の今のステップ（作業中のコメントが無い物だけ取る。調べていなければ無し） */
   runSteps?: RunStepData[];
+  /** 動いている実行（寝ている目覚ましを除く）ごとの、動いているジョブの数。読めなかった実行は無い。調べていなければ無し */
+  runJobs?: RunJobsData[];
   /** どう読んだか（差分か全部か・読んだ時刻。次の差分の読みに使う。調べていなければ無し） */
   sync?: RepoSyncInfo;
 };
