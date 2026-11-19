@@ -43,6 +43,19 @@ export type QueueCause = "blocked" | "hold" | "noTouches" | "overlap" | "unknown
 /** 待つ相手（Issue か PR） */
 export type WaitFor = { label: string; url: string };
 
+/** 待つ相手の作業（Issue か PR）。2行目の `待ち：…` の材料 */
+export type WaitTarget = {
+  kind: "issue" | "pull";
+  number: number;
+  title: string;
+  /** Slots で席を使って動いている作業か */
+  running: boolean;
+  /** 進捗図を開く Issue の番号（PR で Issue が分からなければ null） */
+  issueNumber: number | null;
+  /** GitHub のページ */
+  url: string;
+};
+
 /** 順番待ちの1件（理由の最終の形は `assignSlots` が枠の数を見て決める） */
 export type QueueSource = {
   key: string;
@@ -56,6 +69,8 @@ export type QueueSource = {
   /** 重なる触るファイル（分かるときだけ） */
   file: string | null;
   waitFor: WaitFor | null;
+  /** 待つ相手の一覧（重なる作業すべて。分からなければ空） */
+  waitFors: WaitTarget[];
   /** `ai:queue`・`ai:blocked` が最後に付いてからの時間（取れなければ null） */
   waitingMs: number | null;
 };
@@ -359,15 +374,46 @@ export function buildLanesSource(results: readonly RepoResult[], now: Date): Lan
       let cause: QueueCause | null = null;
       let file: string | null = null;
       let waitFor: WaitFor | null = null;
+      let waitFors: WaitTarget[] = [];
+      const workTarget = (work: SlotWork): WaitTarget => ({
+        kind: "issue",
+        number: work.number,
+        title: work.title,
+        running: true,
+        issueNumber: work.number,
+        url: work.url,
+      });
       const hold = holds.find((candidate) => candidate.blocking.includes(row.issue.number));
       if (labels.includes(BLOCKED_LABEL)) {
         cause = "blocked";
         const after = queueAfterNumber(row.queueReason);
-        if (after !== null) waitFor = { label: `#${after}`, url: issueUrl(owner, repo, after) };
+        if (after !== null) {
+          waitFor = { label: `#${after}`, url: issueUrl(owner, repo, after) };
+          waitFors = [
+            {
+              kind: "issue",
+              number: after,
+              title: issues.get(after)?.title ?? "",
+              running: repoWorks.some((work) => work.number === after),
+              issueNumber: after,
+              url: issueUrl(owner, repo, after),
+            },
+          ];
+        }
       } else if (hold) {
         cause = "hold";
         file = touches && hold.pull.files ? touchesOverlap(touches, hold.pull.files) : null;
         waitFor = { label: `PR #${hold.pull.number}`, url: hold.pull.url };
+        waitFors = holds
+          .filter((candidate) => candidate.blocking.includes(row.issue.number))
+          .map(({ pull }) => ({
+            kind: "pull" as const,
+            number: pull.number,
+            title: pull.title,
+            running: false,
+            issueNumber: data.issues.find((candidate) => isLinkedPull(pull, candidate.number))?.number ?? null,
+            url: pull.url,
+          }));
       } else if (touches === null) {
         if (repoWorks.length > 0) cause = "noTouches";
       } else {
@@ -379,9 +425,13 @@ export function buildLanesSource(results: readonly RepoResult[], now: Date): Lan
           cause = "overlap";
           file = overlapping.file;
           waitFor = { label: `#${overlapping.work.number}`, url: overlapping.work.url };
+          waitFors = repoWorks
+            .filter((work) => work.touches !== null && touchesOverlap(touches, work.touches) !== null)
+            .map(workTarget);
         } else if (unknown) {
           cause = "unknownInflight";
           waitFor = { label: `#${unknown.number}`, url: unknown.url };
+          waitFors = repoWorks.filter((work) => work.touches === null).map(workTarget);
         }
       }
       const at = queuedAt(data, row.issue.number);
@@ -396,6 +446,7 @@ export function buildLanesSource(results: readonly RepoResult[], now: Date): Lan
           cause,
           file,
           waitFor,
+          waitFors,
           waitingMs: at === null ? null : Math.max(0, now.getTime() - at),
         },
         order,
