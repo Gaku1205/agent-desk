@@ -104,6 +104,27 @@ export function useShell(): ShellState {
   return value;
 }
 
+/** メニューが `inert` を付けた要素の印。外すときはこの印の付いた物だけを全部外す（ほかの `inert` には触らない） */
+const MENU_INERT = "data-menu-inert";
+
+/** メニューの外の `inert` を、開閉の状態に合わせて決め直す（閉じていれば、印の付いた物を全部外す） */
+function syncMenuInert(open: boolean) {
+  const sheet = document.getElementById("menu-sheet");
+  const marked = Array.from(document.querySelectorAll(`[${MENU_INERT}]`));
+  const outside = open
+    ? Array.from(sheet?.parentElement?.children ?? []).filter((el) => el !== sheet && (el.hasAttribute(MENU_INERT) || !el.hasAttribute("inert")))
+    : [];
+  for (const el of marked) {
+    if (outside.includes(el)) continue;
+    el.removeAttribute("inert");
+    el.removeAttribute(MENU_INERT);
+  }
+  for (const el of outside) {
+    el.setAttribute("inert", "");
+    el.setAttribute(MENU_INERT, "");
+  }
+}
+
 /** スマホのメニューの開閉。開いたページでだけ開いている扱い（リンクで移ったら閉じる）。`Esc` で閉じる */
 export function useMenuState(): Pick<ShellState, "menuOpen" | "openMenu" | "closeMenu"> {
   const pathname = usePathname();
@@ -121,22 +142,24 @@ export function useMenuState(): Pick<ShellState, "menuOpen" | "openMenu" | "clos
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [menuOpen]);
 
-  // 開いている間：メニューの外（帯・ページの中身）を inert にして Tab で裏へ出さず、body のスクロールを止める
+  // 開いている間：メニューの外（帯・ページの中身）を inert にして Tab で裏へ出さず、body のスクロールを止める。
+  // 付けた要素を覚えて外すのではなく、開閉の状態から毎回決め直す（入れ替えで要素が替わっても、閉じたら印の付いた物を全部外す）
   useEffect(() => {
+    syncMenuInert(menuOpen);
     if (!menuOpen) return;
     const sheet = document.getElementById("menu-sheet");
-    const outside = Array.from(sheet?.parentElement?.children ?? []).filter(
-      (el) => el !== sheet && !el.hasAttribute("inert"),
-    );
-    outside.forEach((el) => el.setAttribute("inert", ""));
+    // 開いている間に流れてきた要素（読み込みの続き・入れ替え）にも付ける
+    const observer = new MutationObserver(() => syncMenuInert(true));
+    if (sheet?.parentElement) observer.observe(sheet.parentElement, { childList: true });
     const { body } = document;
     const overflow = body.style.overflow;
     body.style.overflow = "hidden";
     return () => {
-      outside.forEach((el) => el.removeAttribute("inert"));
+      observer.disconnect();
+      syncMenuInert(false);
       body.style.overflow = overflow;
     };
-  }, [menuOpen]);
+  }, [menuOpen, pathname]);
 
   return { menuOpen, openMenu, closeMenu };
 }
