@@ -9,6 +9,7 @@ import styles from "./KeyboardHelp.module.css";
 const ROWS: { keys: string[]; text: string }[] = [
   { keys: ["?"], text: "この一覧を開く・閉じる" },
   { keys: ["Tab"], text: "最初の Tab で「本文へ移る」。押すと、Your turn の最初のボタンへ移る" },
+  { keys: ["↑", "↓", "←", "→", "Home", "End"], text: "Your turn の残りの一覧で、行を移る" },
   { keys: ["Esc"], text: "スマホのメニュー・マージの確認を閉じる" },
 ];
 
