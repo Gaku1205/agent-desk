@@ -110,6 +110,27 @@ describe("buildLanesSource：枠を使う作業", () => {
       NOW,
     );
     expect(source.works.map((work) => [work.number, work.stepText])).toEqual([[8, "CIが通りました。レビュー待ちです"]]);
+    expect(source.works[0].ci).toBeNull();
+  });
+
+  it("CI の段の作業には、CI のチェックの進み具合（枠待ちを含む）を付ける", () => {
+    const ciPull = pull(21, { body: "Closes #8" });
+    const run = (status: string, conclusion: string | null) => ({
+      name: "check",
+      status,
+      conclusion,
+      appSlug: "github-actions",
+      completedAt: null,
+    });
+    const checks = {
+      21: { checkRuns: [run("completed", "success"), run("queued", null), run("queued", null)], statuses: [] },
+    };
+    const source = buildLanesSource(
+      [result(data({ issues: [issue(8, ["ai:implement"])], pulls: [ciPull], pullChecks: checks }))],
+      NOW,
+    );
+    expect(source.works[0].ci?.counts).toEqual({ passed: 1, running: 0, queued: 2, failed: 0, total: 3 });
+    expect(source.works[0].ci?.word).toBe("枠待ち");
   });
 
   it("取れなかったリポジトリは飛ばす", () => {

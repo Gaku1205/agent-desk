@@ -1,4 +1,5 @@
 import { aiActivity } from "../aiActivity";
+import { ciProgress, type CiProgress } from "../ciProgress";
 import { ciFailureState } from "../ciFailureState";
 import { queueAfterNumber } from "../conversation";
 import { usageModel } from "../dashboard/aiUsage";
@@ -33,6 +34,8 @@ export type SlotWork = {
   stepName: string;
   /** 今の工程が始まってからの時間（進捗ログから。記録が無ければ null） */
   elapsedMs: number | null;
+  /** CI の段（`ciRunning`）にいる間だけ、CI のチェックの進み具合（`IssueStatus.ci` から）。ほかは null */
+  ci: CiProgress | null;
   /** 触るファイル（PRがあれば変更ファイル、無ければ Issue の印）。分からなければ null */
   touches: string[] | null;
 };
@@ -357,6 +360,7 @@ export function buildLanesSource(results: readonly RepoResult[], now: Date): Lan
         stepAt: flow.at,
         stepName: FLOW_STEPS[flow.at].name,
         elapsedMs: started === null ? null : Math.max(0, now.getTime() - started),
+        ci: row.status.stage === "ciRunning" ? ciProgress(row.status.ci) : null,
         touches: pull?.files && pull.state === "open" ? pull.files : parseTouches(issues.get(row.issue.number)?.body ?? ""),
       });
     }

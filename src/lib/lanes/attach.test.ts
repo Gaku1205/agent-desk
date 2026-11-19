@@ -14,6 +14,7 @@ function work(number: number, repo = "r"): SlotWork {
     stepAt: 2,
     stepName: "実装",
     elapsedMs: null,
+    ci: null,
     touches: null,
   };
 }
