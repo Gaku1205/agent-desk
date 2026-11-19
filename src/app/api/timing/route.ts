@@ -86,7 +86,7 @@ type RepoRow = {
   ok: boolean;
   source: "app" | "user" | null;
   kb: number | null;
-  mode: "delta" | "full" | null;
+  mode: "delta" | "full" | "delta+bg-full" | null;
   count: number | null;
 };
 

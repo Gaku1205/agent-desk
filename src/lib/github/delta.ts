@@ -27,9 +27,9 @@ export const RECENT_REREAD_MS = 60 * 60 * 1000;
 export type ReadPlan = { mode: "full" } | { mode: "delta"; sinceMs: number };
 
 /**
- * 読み方を決める。前の結果が無い・読んだ時刻が読めない・未来・最後に全部を読んでから6時間以上たった・
- * さかのぼる時刻が直近14日の境目より前なら、全部を読む。それ以外は、`sinceMs` より後に更新された物を読む
- * （前に読んだ時刻の2分前と、1時間前の早い方）
+ * 読み方を決める。前の結果が無い・読んだ時刻が読めない・未来・さかのぼる時刻が直近14日の境目より前なら、全部を読む。
+ * それ以外は、`sinceMs` より後に更新された物を読む（前に読んだ時刻の2分前と、1時間前の早い方）。
+ * 最後に全部を読んでから6時間以上たっていても差分で読む（全部の読み直しは裏で。`shouldReadFullInBackground`）
  */
 export function planRepoRead(base: RepoSyncInfo | null | undefined, nowMs: number, cutoffMs: number): ReadPlan {
   if (!base) return { mode: "full" };
@@ -37,10 +37,20 @@ export function planRepoRead(base: RepoSyncInfo | null | undefined, nowMs: numbe
   const fullAt = Date.parse(base.fullAt);
   if (Number.isNaN(readAt) || Number.isNaN(fullAt)) return { mode: "full" };
   if (readAt > nowMs || fullAt > readAt) return { mode: "full" };
-  if (nowMs - fullAt >= FULL_READ_INTERVAL_MS) return { mode: "full" };
   const sinceMs = Math.min(readAt - DELTA_OVERLAP_MS, nowMs - RECENT_REREAD_MS);
   if (sinceMs < cutoffMs) return { mode: "full" };
   return { mode: "delta", sinceMs };
+}
+
+/**
+ * 差分で返したあと、裏で全部を読み直すか（消えた物・取りこぼしを片づけるため）。
+ * 前の結果があり、最後に全部を読んでから6時間以上たっていたら true
+ */
+export function shouldReadFullInBackground(base: RepoSyncInfo | null | undefined, nowMs: number): boolean {
+  if (!base) return false;
+  const fullAt = Date.parse(base.fullAt);
+  if (Number.isNaN(fullAt)) return false;
+  return nowMs - fullAt >= FULL_READ_INTERVAL_MS;
 }
 
 /**

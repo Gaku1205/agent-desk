@@ -232,22 +232,27 @@ describe("差分の読み（docs/spec.md の「データの取得」の「差分
     expect(deltaQueryCost({ recentIssues: true, openIssues: true, recentPulls: true, openPulls: true, withMain: true })).toBeLessThanOrEqual(8);
   });
 
-  it("6時間に1回は全部を読み直す（削除された物の取りこぼしを片づける）", async () => {
+  it("6時間以上たっても差分で返し、裏で全部を読み直す印（delta+bg-full）を付ける", async () => {
     const before = bigRepo();
     await read(before, T0);
     const second = await read(before, T0 + FULL_READ_INTERVAL_MS - MIN);
     expect(second.result.ok && second.result.data.sync?.mode).toBe("delta");
     const third = await read(before, T0 + FULL_READ_INTERVAL_MS);
-    expect(third.result.ok && third.result.data.sync).toMatchObject({ mode: "full", fullAt: at(T0 + FULL_READ_INTERVAL_MS) });
+    expect(third.result.ok && third.result.data.sync).toMatchObject({ mode: "delta+bg-full", fullAt: at(T0) });
+    // 8時間後でも、画面が待つのは差分の問い合わせ1回だけ
+    const later = await read(before, T0 + 8 * HOUR);
+    expect(later.calls.length).toBe(1);
   });
 
   it("全部を読み直すと、削除された物は消える（差分のままだと残る）", async () => {
     const before = bigRepo();
     await read(before, T0);
     const removed = { issues: before.issues.slice(1), pulls: before.pulls };
-    const delta = await read(removed, T0 + 10 * MIN);
+    const delta = await read(removed, T0 + 8 * HOUR);
     expect(delta.result.ok && delta.result.data.issues.some((i) => i.number === before.issues[0].number)).toBe(true);
-    const full = await read(removed, T0 + FULL_READ_INTERVAL_MS);
+    // 裏の全部読みは、差分の元を使わずに読む（`forceFull`）
+    deltaBaseCacheForTest.clear();
+    const full = await read(removed, T0 + 8 * HOUR);
     expect(full.result.ok && full.result.data.issues.some((i) => i.number === before.issues[0].number)).toBe(false);
   });
 

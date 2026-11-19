@@ -7,7 +7,7 @@ import {
 } from "./client";
 import { classifyError, GitHubError } from "./errors";
 import { fakeGitHub, gqlIssue, gqlPull, jsonResponse, type FakeRepo } from "./fakeGitHub";
-import { actionsCacheForTest, fetchAllRepos, mainDeployedCacheForTest, rememberedMainDeployed } from "./fetch";
+import { actionsCacheForTest, deltaBaseCacheForTest, fetchAllRepos, mainDeployedCacheForTest, rememberedMainDeployed } from "./fetch";
 
 describe("rememberedMainDeployed（前回の成功を覚える）", () => {
   const ok = (at: string) => [{ context: "Vercel", state: "success", description: "", updatedAt: at }];
@@ -259,6 +259,7 @@ describe("fetchAllRepos", () => {
     etagCacheForTest.clear();
     mainDeployedCacheForTest.clear();
     actionsCacheForTest.clear();
+    deltaBaseCacheForTest.clear();
   });
 
   it("リポジトリのデータを自前の型にして返す", async () => {

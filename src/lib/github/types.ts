@@ -156,8 +156,11 @@ export type RepoData = {
 
 /** そのデータをどう読んだか（docs/spec.md の「データの取得」の「差分だけ読む」） */
 export type RepoSyncInfo = {
-  /** `delta`＝差分だけ読んで前の結果に混ぜた、`full`＝全部を読んだ */
-  mode: "delta" | "full";
+  /**
+   * `delta`＝差分だけ読んで前の結果に混ぜた、`full`＝全部を読んだ、
+   * `delta+bg-full`＝差分で返して、裏で全部を読み直すことにした（最後に全部を読んでから6時間以上）
+   */
+  mode: "delta" | "full" | "delta+bg-full";
   /** 読み始めた時刻（ISO）。次の差分は、この少し前から読む */
   readAt: string;
   /** 最後に全部を読んだ時刻（ISO） */
