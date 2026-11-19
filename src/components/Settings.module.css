@@ -666,6 +666,50 @@
   .page {
     padding: 24px 0 72px;
   }
+
+  /* 押せる範囲を高さ44px以上に（見た目の寸法は変えない。Issue #616）。疑似要素で上下に広げる */
+  .textButton,
+  .addButton,
+  .scope,
+  .segment,
+  .tocItem,
+  .cell,
+  .timeRow .timeSelect button {
+    position: relative;
+  }
+
+  .textButton::after,
+  .scope::after,
+  .segment::after,
+  .timeRow .timeSelect button::after {
+    position: absolute;
+    inset: -7px 0;
+    content: "";
+  }
+
+  /* 32px → 44px */
+  .textButton::after,
+  .timeRow .timeSelect button::after {
+    inset: -6px 0;
+  }
+
+  /* 36px → 44px */
+  .addButton::after {
+    position: absolute;
+    inset: -4px 0;
+    content: "";
+  }
+
+  /* 帯のます：縦だけ。上の件数の − ＋（下に9px）と重ならないよう、上2px・下16pxに広げる */
+  .cell {
+    z-index: 1; /* 下の目盛り（位置指定あり）より手前に出す */
+  }
+
+  .cell::after {
+    position: absolute;
+    inset: -2px 0 -16px;
+    content: "";
+  }
 }
 
 @container (max-width: 760px) {
@@ -689,6 +733,18 @@
 
   .toc::-webkit-scrollbar {
     display: none;
+  }
+
+  /* 目次の押せる範囲を44pxに。広げた2pxが横スクロールの枠で切れないよう、同じ幅の余白で打ち消す */
+  .toc {
+    padding: 2px 0;
+    margin: -2px 0;
+  }
+
+  .tocItem::after {
+    position: absolute;
+    inset: -2px 0;
+    content: "";
   }
 
   /* 件数の＋−が入らなければ、夜と昼を別の行にする */
