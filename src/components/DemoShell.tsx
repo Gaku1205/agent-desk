@@ -142,6 +142,7 @@ export function DemoShell({
       fastRefresh: false,
       pausedUntil: null,
       pausedBy: null,
+      syncFailed: false,
       // デモは自動更新をしない
       // 取り直す物が無いので、押しても動かないことを知らせる
       refresh: notify,
