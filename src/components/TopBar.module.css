@@ -316,6 +316,14 @@
   min-width: 0;
 }
 
+/* 自動更新を止めている間の短い文字（スマホだけ。点の色だけで伝えない） */
+.syncPaused {
+  display: none;
+  margin-left: -4px;
+  color: var(--accent);
+  font-size: 12px;
+}
+
 .syncBtn {
   display: inline-flex;
   align-items: center;
@@ -606,8 +614,17 @@
     display: none;
   }
 
+  .top .syncPaused {
+    display: inline;
+  }
+
+  .top .menuBtn {
+    flex-shrink: 0;
+  }
+
   .top .pageName {
     display: block;
+    flex-shrink: 0;
     min-width: 0;
     overflow: hidden;
     font-size: 15px;
@@ -623,6 +640,17 @@
   /* 再生：見た目は30pxのまま、押せる範囲を上下7pxずつ広げて44pxに（Issue #623） */
   .play {
     position: relative;
+    padding: 0 10px;
+  }
+
+  /* アイコンだけにする（文字は隠す。aria-label に文言が入っている） */
+  .playLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .play::after {

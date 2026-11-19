@@ -10,7 +10,12 @@ describe("pageTitle", () => {
     expect(pageTitle("/repos/Gaku1205/todo-app")).toBe("todo-app");
     expect(pageTitle("/settings")).toBe("設定");
     expect(pageTitle("/new/service")).toBe("新サービス");
-    expect(pageTitle("/somewhere")).toBe("agent-desk");
+    expect(pageTitle("/setup")).toBe("Setup");
+  });
+
+  it("どれにも当たらないパス（見つからないページ）は 見つかりません", () => {
+    expect(pageTitle("/somewhere")).toBe("見つかりません");
+    expect(pageTitle("/demo/nope", "/demo")).toBe("見つかりません");
   });
 
   it("デモは /demo を除いて決める", () => {

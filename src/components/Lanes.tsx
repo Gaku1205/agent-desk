@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
-import { assignSlots, freeRowText, lanesHeadline, overLimitNote, type Slot } from "@/lib/lanes/slots";
+import { assignSlots, freeRowText, lanesHeadline, overLimitDetail, overLimitNote, type Slot } from "@/lib/lanes/slots";
 import {
   multiWaitText,
   NEXT_FREE_TEXT,
@@ -691,7 +691,11 @@ export function Lanes({ source, usage, items, now, nav, errors, readMode = "ok" 
             count={unreadable ? DASH : limit === null ? undefined : `${lanes.counts.running} / ${limit}`}
             sub={unreadable || limit === null ? undefined : "使用中"}
           />
-          {overLimit && !unreadable ? <p className={styles.slotsNote}>{overLimit}</p> : null}
+          {overLimit && !unreadable && limit !== null ? (
+            <p className={styles.slotsNote} title={overLimitDetail(limit)}>
+              {overLimit}
+            </p>
+          ) : null}
           {unreadable ? null : lanes.slots.length === 0 ? (
             canSayEmpty ? <p className={styles.empty}>動いている作業はありません</p> : null
           ) : (
