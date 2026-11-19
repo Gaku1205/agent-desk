@@ -126,7 +126,7 @@ export function Select({ options, value, onChange, disabled, label, emptyText, b
         aria-label={label}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-controls={`${id}-list`}
+        aria-controls={open ? `${id}-list` : undefined}
         aria-activedescendant={open ? `${id}-${active}` : undefined}
         disabled={disabled || options.length === 0}
         onClick={() => (open ? setOpen(false) : show())}

@@ -1,7 +1,17 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DemoRepo } from "@/components/DemoPages";
 import { findWatchedRepo } from "@/lib/config";
 import { DEMO_AUTO_ADD_REPO, DEMO_REPOS } from "@/lib/demo/data";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ owner: string; repo: string }>;
+}): Promise<Metadata> {
+  const { repo } = await params;
+  return { title: `${repo} · デモ` };
+}
 
 export default async function DemoRepoPage({
   params,

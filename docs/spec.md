@@ -229,6 +229,30 @@ GitHub の認証が切れたとき（サーバーで GitHub を呼んで **401**
 - 「動いている」件数の数え方は `isRunningStage`（企画中・AI作業中・CI中・レビュー中・修正中・公開中）。待機中（順番待ち・やり直し待ち）はどちらの数にも入れない。取れなかったリポジトリは数えない
 - `WATCHED_REPOS` に無いリポジトリのURLは 404
 
+### タブの題名（全ページ共通）
+
+2026年11月19日、Issue #619。ブラウザのタブ・履歴・ブックマークで、どのページか見分けられるよう、ページごとに題名を付ける。形は `ページ名 · agent-desk`（区切りは半角の空白・中黒・半角の空白）。`src/app/layout.tsx` の `metadata.title` を `{ default: "agent-desk", template: "%s · agent-desk" }` にし、各ページが `title`（リポジトリのページは `generateMetadata`）でページ名だけを返す。ページ名はスマホの上のバーの `pageTitle`（`src/lib/pageTitle.ts`）と同じ言葉を使う。
+
+| ページ | タブの題名 |
+| --- | --- |
+| ホーム `/` | `agent-desk`（ページ名は付けない） |
+| Dashboard `/dashboard` | `Dashboard · agent-desk` |
+| Slots & Queue `/lanes` | `Slots & Queue · agent-desk` |
+| すべてのリポジトリ `/repos` | `すべてのリポジトリ · agent-desk` |
+| リポジトリのページ `/repos/{owner}/{repo}` | `{repo} · agent-desk`（リポジトリ名。`owner` は付けない） |
+| 設定 `/settings` | `設定 · agent-desk` |
+| Issueを書く `/new` | `Issueを書く · agent-desk` |
+| 新しいサービスを作る `/new/service` | `新サービス · agent-desk` |
+| 導入 `/setup` | `導入 · agent-desk` |
+| 見つからないページ | `ページが見つかりません · agent-desk` |
+| デモ（`/demo` の下の各ページ） | `ページ名 · デモ · agent-desk`（デモのホームは `デモ · agent-desk`） |
+
+ログインしていないとき（ログインボタンだけの画面）は `agent-desk` のまま。`/auth-error` は今までどおり `ログインできません`。
+
+### 見つからないページの HTTP の状態
+
+どのページにも当たらないURL（`/nope`・`/demo/nope`）は、画面の `ページが見つかりません` に合わせて HTTP **404** を返す（ログインしていない人にはログインの画面を出すので、そのときは今までどおり）。`/demo` の下は `src/app/demo/[...missing]/page.tsx` で受け、デモの `ページが見つかりません` を出す。404 にするため、`(app)` の読み込み中の骨組み（`loading.tsx`）は `(app)` 全体ではなく、ホーム（`(app)/(home)/`）・導入・各ページにそれぞれ置く（流し始めたあとの `notFound()` は 200 のままになるため）。`WATCHED_REPOS` に無いリポジトリのページ（`/repos/acme/zzz`）は、画面は同じだが、ログインの確認と骨組みを先に流し始めたあとで分かるため、HTTP の状態は 200 のままのことがある（できる範囲）。
+
 ### アプリのアイコン（全ページ共通）
 
 2026年11月19日、Issue #552。見た目は `docs/design.md` の「アプリのアイコン」。`src/app/` の直下に置くので、ログインの画面・デモ・`/auth-error` を含む全ページで、ログイン前でも取れる（ログインの確認は `(app)/layout.tsx` の中だけ）。

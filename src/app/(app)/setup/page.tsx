@@ -15,6 +15,8 @@ import {
 } from "@/lib/setupState";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
 
+export const metadata = { title: "導入" };
+
 /** 導入：段の状態は、開くたびに GitHub から求める（データベースは持たない） */
 export default async function SetupPage({
   searchParams,
