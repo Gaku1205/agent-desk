@@ -110,6 +110,7 @@ function OpenFlow({
         flow,
         extra: message.flowExtra,
         stepLog: infos,
+        factory: message.factoryFlow,
       }}
     />
   );

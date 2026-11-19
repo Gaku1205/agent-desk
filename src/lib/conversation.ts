@@ -7,6 +7,7 @@ import { describeStatus, failureLogUrl } from "./describe";
 import { groupTrails } from "./eventGroups";
 import type { TrailEvent } from "./events";
 import { isFactoryTitle } from "./factoryIssue";
+import { factoryProgress, type FactoryProgress } from "./factoryProgress";
 import { factoryChatText, factoryStage, type FactoryPhase } from "./factoryStage";
 import { FLOW_STEPS, getFlow, type Flow } from "./flow";
 import { flowFacts, type FlowExtraSource } from "./flowExtraBranches";
@@ -152,6 +153,8 @@ export type ChatMessage = {
   flow: Flow;
   /** 進捗図のほかの分岐を決める材料（docs/spec.md の「ほかの分岐」。無ければ出さない） */
   flowExtra?: FlowExtraSource;
+  /** 工場の Issue の進捗図（工場の段。あれば通常の7つの工程の代わりに出す） */
+  factoryFlow?: FactoryProgress;
   /** 行の左のランプ（緑・赤・紫の数字・無し） */
   lamp: Lamp;
 };
@@ -259,6 +262,19 @@ export function buildConversation(
         running: isRunningStage(row.status.stage, row.status.grace),
         flow: getFlow(row.status),
         flowExtra: { status: row.status, facts: flowFacts(issue, row.status, result.data.comments, result.owner) },
+        ...(factory
+          ? {
+              factoryFlow: factoryProgress({
+                owner: result.owner,
+                repo: result.repo,
+                issue,
+                comments: result.data.comments,
+                runs: result.data.runs,
+                runSteps: result.data.runSteps,
+                now,
+              }),
+            }
+          : {}),
         lamp: { kind: "none" },
       });
     }
