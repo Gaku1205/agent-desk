@@ -204,6 +204,14 @@ describe("unreadable-hidden（#612 の形）", () => {
   });
 });
 
+describe("buildScreen の unreadableShown", () => {
+  it("画面が読めなかった行を出すときの元（resolveLoadState）から数える", () => {
+    const broken: RepoResult = { owner: "o", repo: "broken", ok: false, error: { kind: "other", message: "x" } };
+    expect(buildScreen([repo({}), broken], NOW).unreadableShown).toBe(1);
+    expect(buildScreen([repo({})], NOW).unreadableShown).toBe(0);
+  });
+});
+
 describe("runSelfcheck", () => {
   it("決まりの名前は5つの英字で、並べて足していける", () => {
     expect(SELFCHECK_RULES.map((rule) => rule.name)).toEqual([

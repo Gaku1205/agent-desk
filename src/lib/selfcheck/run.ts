@@ -25,34 +25,42 @@ export function runSelfcheck(results: RepoResult[], now: Date, screen: Screen = 
   return { checkedAt: now.toISOString(), repoCount: results.length, unreadable, drifts };
 }
 
-let memo: { at: number; report: SelfcheckReport } | null = null;
-let inFlight: Promise<SelfcheckReport> | null = null;
+const memos = new Map<string, { at: number; report: SelfcheckReport }>();
+const inFlights = new Map<string, Promise<SelfcheckReport>>();
 
 /** テスト用：覚えた結果を消す */
 export function clearSelfcheckMemoForTest(): void {
-  memo = null;
-  inFlight = null;
+  memos.clear();
+  inFlights.clear();
+}
+
+/** 覚える物の分け方：その鍵で読めるリポジトリの一覧（小文字にして並べた文字列）。鍵そのものは使わない */
+export function selfcheckScopeKey(reachable: string[]): string {
+  return reachable.map((repo) => repo.toLowerCase()).sort().join(",");
 }
 
 /**
  * 点検の結果を5分覚える。5分のうちは `read` を呼ばない（GitHub を読み直さない）。同時に呼ばれたら1回にまとめる。
- * 覚えるのは返事だけ（鍵は覚えない）
+ * 覚えるのは返事だけ（鍵は覚えない）。`scope`（鍵で読めるリポジトリの一覧）ごとに分けて覚える
  */
 export async function selfcheckOnce(
+  scope: string,
   read: () => Promise<RepoResult[]>,
   nowMs: number = Date.now(),
 ): Promise<SelfcheckReport> {
+  const memo = memos.get(scope);
   if (memo && nowMs - memo.at >= 0 && nowMs - memo.at < SELFCHECK_TTL_MS) return memo.report;
-  if (inFlight) return inFlight;
+  const running = inFlights.get(scope);
+  if (running) return running;
   const started = read()
     .then((results) => {
       const report = runSelfcheck(results, new Date(nowMs));
-      memo = { at: nowMs, report };
+      memos.set(scope, { at: nowMs, report });
       return report;
     })
     .finally(() => {
-      if (inFlight === started) inFlight = null;
+      if (inFlights.get(scope) === started) inFlights.delete(scope);
     });
-  inFlight = started;
+  inFlights.set(scope, started);
   return started;
 }

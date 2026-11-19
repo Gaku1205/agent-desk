@@ -7,7 +7,7 @@ import {
 } from "@/lib/github/selfcheck";
 import type { RepoResult } from "@/lib/github/types";
 import { isSelfcheckKeyAccepted, parseBearer, watchedAmong, parseInstallationRepositories } from "@/lib/selfcheck/auth";
-import { selfcheckOnce } from "@/lib/selfcheck/run";
+import { selfcheckOnce, selfcheckScopeKey } from "@/lib/selfcheck/run";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
@@ -40,7 +40,9 @@ export async function POST(request: Request): Promise<Response> {
     return unauthorized();
   }
 
+  const scope = selfcheckScopeKey(reachable.map(({ owner, repo }) => `${owner}/${repo}`));
   const report = await selfcheckOnce(
+    scope,
     (): Promise<RepoResult[]> => Promise.all(repos.map((repo) => getRepoResult(token, repo))),
   );
   return Response.json(report, { headers: NO_STORE });

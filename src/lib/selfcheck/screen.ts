@@ -1,6 +1,7 @@
 import { buildConversation } from "../conversation";
 import type { RepoResult } from "../github/types";
 import { buildLanesSource } from "../lanes/source";
+import { resolveLoadState } from "../loadState";
 import { buildTurnItems } from "../turn";
 import type { Screen } from "./types";
 
@@ -10,6 +11,10 @@ export function buildScreen(results: RepoResult[], now: Date): Screen {
     turnItems: buildTurnItems(results, now),
     lanes: buildLanesSource(results, now),
     messages: buildConversation(results, [], now),
-    unreadableShown: results.filter((result) => !result.ok).length,
+    // 画面が「読めなかった」の行を出すときの元（`resolveLoadState` の `errors`。作業の行は含めない）
+    unreadableShown: resolveLoadState(
+      results.map((fresh) => ({ fresh, stale: null })),
+      now,
+    ).errors.filter((error) => !error.work).length,
   };
 }
