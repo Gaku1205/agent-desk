@@ -177,9 +177,9 @@ export function summarizeAll(results: readonly RepoResult[], now: Date): Record<
   return Object.fromEntries(PERIOD_KEYS.map((key) => [key, summarize(results, now, key)])) as Record<PeriodKey, Summary>;
 }
 
-/** まとめの文：`この24時間で、14件マージして、止まったのは 3回でした。` 数が取れないときは `—` */
+/** まとめの文：`この24時間：14件マージ、止まり 3回` 数が取れないときは `—` */
 export function summarySentence(summary: Summary, wordOfPeriod: string): string {
   const merged = summary.merged === null ? "—" : String(summary.merged);
   const stopped = summary.stopped === null ? "—" : String(summary.stopped);
-  return `この${wordOfPeriod}で、${merged}件マージして、止まったのは ${stopped}回でした。`;
+  return `この${wordOfPeriod}：${merged}件マージ、止まり ${stopped}回`;
 }

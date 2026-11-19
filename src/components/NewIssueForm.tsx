@@ -308,8 +308,8 @@ export function NewIssueForm({
   const empty = (
     <p className={styles.empty}>
       {service
-        ? "監視リストにテンプレートのリポジトリがありません。設定でテンプレートのリポジトリ（ai-dev-template など）を追加すると、ここから新しいサービスを作れます"
-        : "監視するリポジトリがありません。設定で追加すると、ここからIssueを書けます"}
+        ? "テンプレートが監視にありません（設定で追加）"
+        : "監視するリポジトリがありません（設定で追加）"}
     </p>
   );
   const form = (
@@ -472,7 +472,7 @@ export function NewIssueForm({
                       <span aria-hidden="true">全部おまかせ</span>
                     </label>
                     <span className={styles.hint}>
-                      {omakase ? "相談せずに、AIが全部決めて作ります" : "選ばなければ、AIが案を出して相談してきます"}
+                      {omakase ? "相談せずに、AIが全部決めて作ります" : "選ばなければ、AIが案を出す"}
                     </span>
                   </div>
                 )}
@@ -503,7 +503,7 @@ export function NewIssueForm({
                   )}
                 </div>
                 {service && status.kind === "created" && (
-                  <p className={styles.after}>工場が新しいリポジトリを作って、公開まで進めます。相談があれば Your turn に出ます</p>
+                  <p className={styles.after}>公開まで進めます。相談は Your turn に出ます</p>
                 )}
               </form>
   );
@@ -528,7 +528,7 @@ export function NewIssueForm({
             </h2>
             {service && (
               <p className={styles.lead}>
-                新しいリポジトリを工場が作ります。今あるリポジトリに頼むときは、「Issueを書く」から
+                新しいリポジトリを作る。既存は「Issueを書く」から
               </p>
             )}
             {names.length === 0 ? empty : form}

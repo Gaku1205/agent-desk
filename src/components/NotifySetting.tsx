@@ -105,7 +105,7 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
   if (targets.length === 0) {
     return (
       <p className={styles.empty}>
-        パイプラインのある監視リポジトリがありません。Repositories で追加すると、ここで通知を選べます
+        通知を選べるリポジトリがありません
       </p>
     );
   }

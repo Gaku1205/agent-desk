@@ -108,7 +108,8 @@ export function DashboardThroughput({ throughput, basePath = "" }: Props) {
           いちばん長いのは{" "}
           {longest === "queue" ? (
             <>
-              <QueueIcon size={14} /> Queue（順番待ち）。触るファイルが重なる物は、並列でも待つ。{" "}
+              <QueueIcon size={14} />{" "}
+              <span title="触るファイルが重なると、並列でも待つ">Queue（順番待ち）。</span>{" "}
               <Link href={`${basePath}/lanes`} className={styles.link}>
                 Slots &amp; Queue を見る →
               </Link>

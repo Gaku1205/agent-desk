@@ -151,7 +151,7 @@ function Choices({
                   <span className={styles.title}>全部ちがう</span>
                   {selected === FACTORY_REDO && <span className={q.mockPicked}>選んだ案</span>}
                 </span>
-                <span className={styles.sub}>どう変えてほしいかを書いて、出し直してもらう</span>
+                <span className={styles.sub}>変えたい所を書いて出し直す</span>
               </button>
             );
           }
