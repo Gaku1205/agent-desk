@@ -29,7 +29,7 @@ export type DeskScope =
   | { kind: "all"; repoCount: number }
   | { kind: "repo"; owner: string; repo: string; githubUrl: string | null };
 
-export type DeskError = { repo: string; message: string };
+export type DeskError = { repo: string; message: string; work?: true };
 
 type Props = {
   items: TurnItem[];
