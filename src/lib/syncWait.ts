@@ -14,3 +14,16 @@ export function requestedAtAfterSync(options: {
 }): Date {
   return options.reached ? options.requestedAt : options.lastSyncedAt;
 }
+
+/**
+ * 取り直しの結果（自動更新の計画）が届いたときの、同期に出す時刻と「最後に読めた時刻」。
+ * 全部のリポジトリが読めなかった（`readFailed`）ときは、時刻を進めず最後に読めた時刻のまま。
+ * 1つでも読めたら、その取り直しを始めた時刻（`requestedAt`）にする（docs/spec.md の「更新」の「取り直しが全部失敗したとき」）
+ */
+export function syncAfterPlan(options: { readFailed: boolean; requestedAt: Date; lastReadAt: Date }): {
+  shownAt: Date;
+  lastReadAt: Date;
+} {
+  if (options.readFailed) return { shownAt: options.lastReadAt, lastReadAt: options.lastReadAt };
+  return { shownAt: options.requestedAt, lastReadAt: options.requestedAt };
+}

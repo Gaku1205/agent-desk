@@ -14,7 +14,7 @@ import {
 } from "react";
 import { syncNow } from "@/app/actions";
 import { callAction } from "@/lib/actionCall";
-import { requestedAtAfterSync, SYNC_WAIT_LIMIT_MS } from "@/lib/syncWait";
+import { requestedAtAfterSync, SYNC_WAIT_LIMIT_MS, syncAfterPlan } from "@/lib/syncWait";
 import {
   changesPollIntervalMs,
   parseChangeMarks,
@@ -44,6 +44,8 @@ export type ShellState = {
   pausedBy: PausedBy | null;
   /** 手で押した同期が届かなかった（次に取り直せたら false に戻る） */
   syncFailed: boolean;
+  /** 最後の取り直しで、全部のリポジトリが GitHub から読めなかった（同期の時刻は最後に読めた時刻のまま。次に読めたら false） */
+  readFailed: boolean;
   refresh: () => void;
   /** 今のページで、取り直しが終わった回数（ページを移ると0に戻る） */
   refreshCountOnPage: number;
@@ -75,9 +77,12 @@ export type ShellPlan = {
   needsIntervalRefresh: boolean;
   /** 次に猶予（PR作成待ち・未着手）が終わる時刻の少し後（ISO文字列）。猶予の中の物が無ければ null */
   graceRefreshAt: string | null;
+  /** 全部のリポジトリが GitHub から読めなかった（`resolveLoadState` の同期の状態が「全部読めなかった」） */
+  readFailed: boolean;
 };
 
 const NO_PLAN: ShellPlan = {
+  readFailed: false,
   loadedAt: "",
   refreshIntervalMs: null,
   resumeAt: null,
@@ -273,8 +278,19 @@ export function AppShell({
     });
   }, [router]);
 
-  // 取り直しが終わったら、取り直しを始めた時刻を同期の時刻にして、終わった回数を数える
-  if (!refreshing && requestedAt !== syncedAt) {
+  // 取り直しの結果（新しい計画）が届いた：全部読めなかったなら、同期の時刻を進めず最後に読めた時刻へ戻す
+  const [seenPlanAt, setSeenPlanAt] = useState(plan.loadedAt);
+  const [lastReadAt, setLastReadAt] = useState(syncedAt);
+  if (plan.loadedAt !== seenPlanAt) {
+    setSeenPlanAt(plan.loadedAt);
+    const next = syncAfterPlan({ readFailed: plan.readFailed, requestedAt, lastReadAt });
+    setLastReadAt(next.lastReadAt);
+    if (plan.readFailed) {
+      setRequestedAt(next.shownAt);
+      setSyncedAt(next.shownAt);
+    }
+  } else if (!refreshing && requestedAt !== syncedAt) {
+    // 取り直しが終わったら、取り直しを始めた時刻を同期の時刻にして、終わった回数を数える
     setSyncedAt(requestedAt);
     setSyncFailed(false);
     setRefreshCount({
@@ -353,6 +369,7 @@ export function AppShell({
       pausedUntil: refreshIntervalMs === null && resumeAt !== null ? new Date(resumeAt) : null,
       pausedBy: refreshIntervalMs === null && resumeAt !== null ? plan.pausedBy : null,
       syncFailed,
+      readFailed: plan.readFailed,
       refresh,
       refreshCountOnPage: refreshCount.pathname === pathname ? refreshCount.count : 0,
       menuOpen,
@@ -366,6 +383,7 @@ export function AppShell({
       refreshIntervalMs,
       resumeAt,
       plan.pausedBy,
+      plan.readFailed,
       syncFailed,
       refresh,
       refreshCount,

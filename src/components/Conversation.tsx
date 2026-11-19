@@ -44,6 +44,8 @@ type Props = {
   repo: { name: string; githubUrl: string | null } | null;
   /** 「いまの様子」の上のお知らせ（見張り役・取れなかったリポジトリ） */
   notices: ConversationNotice[];
+  /** 読めなかったリポジトリがある（動いている行が無いとき、「無い」と言い切らない） */
+  unreadable?: boolean;
   /** 自動で監視に足したリポジトリ。公開済みと同じ過去の欄に、日ごとに混ぜる */
   added?: AddedNotice[];
   /** PCの進捗図に描くため選んでいる行（`owner/repo#番号`）。選んでいなければ null */
@@ -153,6 +155,7 @@ export function Conversation({
   showRepo,
   repo,
   notices,
+  unreadable = false,
   added = [],
   selected = null,
   onSelect,
@@ -553,7 +556,9 @@ export function Conversation({
         </ul>
       )}
       {active.length === 0 ? (
-        <p className={styles.empty}>動いている作業はありません</p>
+        <p className={styles.empty}>
+          {unreadable ? "読めなかったリポジトリの作業は、ここに出ていません" : "動いている作業はありません"}
+        </p>
       ) : (
         <>
           {queue.length > 0 && renderQueue()}

@@ -349,6 +349,16 @@
   background: var(--accent);
 }
 
+/* 全部のリポジトリが読めなかった：緑にしない（docs/design.md の「上端の帯」の「取り直しが全部失敗したとき」） */
+.syncDot[data-state="failed"] {
+  background: var(--fail);
+}
+
+.syncFail {
+  margin-left: 6px;
+  color: var(--fail-soft);
+}
+
 .syncDot[data-state="busy"] {
   box-sizing: border-box;
   width: 10px;

@@ -5,6 +5,7 @@ import { isAuthExpired, SESSION_EXPIRED_PATH } from "@/lib/authExpired";
 import type { WatchedRepo } from "@/lib/config";
 import { getRepoResult } from "@/lib/github/fetch";
 import { buildLanesSource } from "@/lib/lanes/source";
+import { resolveLoadState } from "@/lib/loadState";
 import { loadTurns } from "@/lib/loadTurns";
 import { newIssueRepos } from "@/lib/newIssue";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
@@ -34,6 +35,8 @@ export async function LayoutStream({ renderedAt }: { renderedAt: string }) {
         appliedChangeMarks: loaded.changeWatch.appliedMarks,
         needsIntervalRefresh: loaded.changeWatch.needsIntervalRefresh,
         graceRefreshAt: loaded.graceRefreshAt,
+        // 全部のリポジトリが読めなかった（同期の時刻を進めず、点を緑にしない）
+        readFailed: resolveLoadState(loaded.results.map((result) => ({ fresh: result, stale: null }))).sync === "failed",
       }}
       streamed={{
         counts: countTurnItems(loaded.items),
