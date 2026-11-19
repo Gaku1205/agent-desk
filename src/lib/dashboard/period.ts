@@ -58,6 +58,13 @@ export function inRange(time: number, from: number, to: number): boolean {
   return time >= from && time < to;
 }
 
+/** 日時の文字列 → ミリ秒。null・読めない値は null */
+export function time(value: string | null): number | null {
+  if (value === null) return null;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 export function periodWord(key: PeriodKey): string {
   return PERIOD_WORD[key];
 }

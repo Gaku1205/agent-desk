@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CommentData, IssueData, IssueEventData, RepoData, RepoResult } from "../github/types";
 import type { ParallelSettings } from "../parallel";
-import { buildUsageChart, buildUsageSource, usageSummary, USAGE_BUCKET_MS } from "./usage";
+import { buildUsageChart, buildUsageSource, usageSummary, usageSummaryDetail, USAGE_BUCKET_MS } from "./usage";
 
 // 日本時間 11:13
 const NOW = new Date("2026-11-18T02:13:00Z");
@@ -176,6 +176,7 @@ describe("buildUsageChart", () => {
       startMs: source.startMs,
       used: source.queued.map((_, index) => (index === 3 ? 22 : 0)),
       queued: source.queued,
+      queuedBy: source.queuedBy,
     };
     const chart = buildUsageChart(many, SETTINGS);
     expect(chart.yTicks).toEqual([0, 5, 10, 15, 20, 25]);
@@ -186,7 +187,30 @@ describe("buildUsageChart", () => {
     const chart = buildUsageChart(source, SETTINGS);
     // 1:00〜2:00（使っている1件＜上限3）の4段、2:00〜2:15 は順番待ち中で使用0
     expect(chart.blockedMs).toBeGreaterThanOrEqual(4 * USAGE_BUCKET_MS);
-    expect(usageSummary(chart, (ms) => `${ms / 60_000}m`)).toMatch(/^席が空いているのに始まらなかった時間は、合計 \d+m$/);
+    expect(usageSummary(chart, (ms) => `${ms / 60_000}m`)).toMatch(/^空き席の待ち \d+m$/);
+  });
+
+  it("内訳は ai:queue（ファイルの重なり待ち）と ai:blocked（前の作業待ち）の付いていた時間で分ける", () => {
+    const split = buildUsageSource(
+      [
+        result({
+          comments: [log(1, [{ step: "implement", started: "2026-11-18T00:00:00Z", finished: "2026-11-18T00:15:00Z" }])],
+          events: [
+            label("labeled", "ai:queue", 5, "2026-11-18T01:00:00Z"),
+            label("unlabeled", "ai:queue", 5, "2026-11-18T02:00:00Z"),
+            label("labeled", "ai:blocked", 6, "2026-11-18T02:00:00Z"),
+            label("unlabeled", "ai:blocked", 6, "2026-11-18T02:10:00Z"),
+          ],
+        }),
+      ],
+      NOW,
+    )!;
+    const chart = buildUsageChart(split, SETTINGS);
+    expect(chart.blockedBy).toEqual({ queueMs: 4 * USAGE_BUCKET_MS, blockedMs: USAGE_BUCKET_MS });
+    expect(chart.blockedMs).toBe(5 * USAGE_BUCKET_MS);
+    expect(usageSummaryDetail(chart, (ms) => `${ms / 60_000}m`)).toBe(
+      "席が空いているのに始まらなかった時間の内訳：ファイルの重なり待ち 60m · 前の作業待ち 15m",
+    );
   });
 
   it("並列の設定が読めなければ、上限・夜の帯・空きの判定を出さない", () => {
@@ -225,6 +249,6 @@ describe("buildUsageChart", () => {
       [result({ comments: [log(1, [{ step: "implement", started: "2026-11-18T01:00:00Z", finished: "2026-11-18T02:00:00Z" }])] })],
       NOW,
     )!;
-    expect(usageSummary(buildUsageChart(quiet, SETTINGS), String)).toBe("席が空いているのに始まらなかった時間は、ありませんでした");
+    expect(usageSummary(buildUsageChart(quiet, SETTINGS), String)).toBe("空き席の待ち なし");
   });
 });

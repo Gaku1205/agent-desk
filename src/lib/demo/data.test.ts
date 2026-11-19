@@ -160,7 +160,7 @@ describe("デモのサンプル", () => {
       expect(chart.buckets.some((bucket) => bucket.queued >= 3)).toBe(true);
       const blocked = chart.buckets.filter((bucket) => bucket.queued > 0 && (bucket.used ?? 0) < (bucket.limit ?? 0));
       expect(chart.blockedMs).toBe(blocked.length * USAGE_BUCKET_MS);
-      expect(usageSummary(chart, (ms) => `${ms}`)).toContain("席が空いているのに始まらなかった時間は");
+      expect(usageSummary(chart, (ms) => `${ms}`)).toContain("空き席の待ち");
     }
   });
 
