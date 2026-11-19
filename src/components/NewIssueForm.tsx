@@ -21,14 +21,20 @@ import { chooseIssueRepo } from "@/lib/issueRepo";
 import { IMAGE_ACCEPT, IMAGE_FORM_FIELDS, IMAGE_HEAD_BYTES, isFileDrag, pickAddableImages } from "@/lib/issueImages";
 import type { CreateIssueResult, UploadImageResult } from "@/lib/operations";
 import {
+  appendExample,
   checkNewIssueMemo,
   composeNewIssue,
+  createdServiceHref,
   MAX_NEW_ISSUE_MEMO,
   memoLength,
   NEW_ISSUE_COUNTER_FROM,
   NEW_ISSUE_MESSAGES,
+  omakaseHint,
+  SERVICE_EXAMPLES,
 } from "@/lib/newIssue";
 import { useDemo } from "./DemoContext";
+import type { DeskNav } from "./Desk";
+import { NewServiceFrame } from "./NewServiceFrame";
 import { CrossIcon, EnterIcon, FileIcon, ImageIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
 import { Select } from "./Select";
 import { Sheet } from "./Sheet";
@@ -44,7 +50,7 @@ export type NewIssueRepo = {
 
 type Status =
   | { kind: "idle" }
-  | { kind: "created"; number: number | null; url: string | null }
+  | { kind: "created"; number: number | null; url: string | null; repo: string }
   | { kind: "error"; message: string };
 
 type AttachedImage = {
@@ -87,7 +93,10 @@ export function NewIssueForm({
   variant = "page",
   mode = "issue",
   newServiceHref,
+  nav,
 }: {
+  /** 左のバーの情報。渡すと（`mode="service"` のページ）左のバーつきの枠に置く */
+  nav?: DeskNav;
   /** `bar` の補助の行に置く「＋ 新しいサービスを作る」の行き先（`/new/service`。デモは `/demo/new/service`） */
   newServiceHref?: string;
   repos: NewIssueRepo[];
@@ -247,7 +256,7 @@ export function NewIssueForm({
       // GitHub には送らず、サンプルのデータにIssueを足す
       demo.createIssue({ owner, repo }, composeNewIssue({ memo: checked.memo, isTemplate: template, omakase }));
       // 画像は見せるだけ（デモのIssueには入れない）
-      setStatus({ kind: "created", number: null, url: null });
+      setStatus({ kind: "created", number: null, url: null, repo: selected });
       setTitle("");
       clearImages();
       inputRef.current?.focus();
@@ -285,7 +294,7 @@ export function NewIssueForm({
         () => ({ ok: false, message: ACTION_UNREACHABLE_MESSAGE }),
       );
       if (result.ok) {
-        setStatus({ kind: "created", number: result.number, url: result.url });
+        setStatus({ kind: "created", number: result.number, url: result.url, repo: selected });
         setTitle("");
         clearImages();
         // できたIssueを出すための取り直しは裏で行う（骨組みに戻さない）
@@ -302,6 +311,14 @@ export function NewIssueForm({
     event.preventDefault();
     if (saving || blank || overLimit) return;
     formRef.current?.requestSubmit();
+  }
+
+  /** 書き方の見本を入力欄に入れる（空なら入れ、書いてあれば後ろに足す） */
+  function insertExample(example: string) {
+    if (saving) return;
+    setTitle((current) => appendExample(current, example));
+    if (status.kind === "error") setStatus({ kind: "idle" });
+    inputRef.current?.focus();
   }
 
   const memoLabel = service ? "どんなサービスを作りたいか" : template ? "新サービスのメモ" : "メモ";
@@ -330,14 +347,14 @@ export function NewIssueForm({
                     <span className={styles.label}>送り先</span>
                     <span className={styles.target}>
                       <RepoIcon />
-                      {selected}
+                      工場（{selected}）が新しいリポジトリを作ります
                     </span>
                   </div>
                 ) : (
                   <div className={`${styles.field} ${bar ? styles.barRepo : ""}`}>
                     {!bar && (
                       <span className={styles.label} id="new-issue-repo">
-                        {service ? "送り先のテンプレート" : "リポジトリ"}
+                        {service ? "工場のテンプレート（ここから新しいリポジトリを作る）" : "リポジトリ"}
                       </span>
                     )}
                     <Select
@@ -401,6 +418,28 @@ export function NewIssueForm({
                     )}
                   </span>
                 </MemoWrap>
+                {service && !bar && (
+                  <div className={styles.examples}>
+                    <span className={styles.exampleLabel} id="new-service-examples">
+                      書き方の見本
+                    </span>
+                    <ul className={styles.exampleList} aria-labelledby="new-service-examples">
+                      {SERVICE_EXAMPLES.map((example) => (
+                        <li key={example}>
+                          <button
+                            type="button"
+                            className={styles.example}
+                            onClick={() => insertExample(example)}
+                            disabled={saving}
+                            title={example}
+                          >
+                            {example}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {overLimit && (
                   <p className={`${settingsStyles.error} ${styles.imageMessage}`} role="alert">
                     {NEW_ISSUE_MESSAGES.tooLong}
@@ -471,9 +510,7 @@ export function NewIssueForm({
                       <span className={settingsStyles.lamp} aria-hidden="true" />
                       <span aria-hidden="true">全部おまかせ</span>
                     </label>
-                    <span className={styles.hint}>
-                      {omakase ? "相談せずに、AIが全部決めて作ります" : "選ばなければ、AIが案を出す"}
-                    </span>
+                    <span className={styles.hint}>{omakaseHint(omakase)}</span>
                   </div>
                 )}
                 <div className={`${settingsStyles.save} ${styles.actions}`}>
@@ -486,10 +523,23 @@ export function NewIssueForm({
                   {status.kind === "created" && (
                     <span className={settingsStyles.saved} role="status">
                       {status.number !== null ? `#${status.number} を作りました` : "作りました。Your turn に出ます"}
+                      {service && status.number !== null && (
+                        <>
+                          {" "}
+                          <Link className={styles.link} href={createdServiceHref(status.repo)}>
+                            進み具合を見る
+                          </Link>
+                        </>
+                      )}
                       {status.url && (
                         <>
                           {" "}
-                          <a className={styles.link} href={status.url} target="_blank" rel="noreferrer noopener">
+                          <a
+                            className={service && status.number !== null ? styles.sideLink : styles.link}
+                            href={status.url}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                          >
                             開く ↗
                           </a>
                         </>
@@ -516,8 +566,7 @@ export function NewIssueForm({
     );
   }
 
-  return (
-    <Sheet>
+  const content = (
       <div className={settingsStyles.page}>
         <h1 className={settingsStyles.h1}>{service ? "新しいサービスを作る" : "Issueを書く"}</h1>
         <div className={settingsStyles.sections}>
@@ -535,6 +584,7 @@ export function NewIssueForm({
           </section>
         </div>
       </div>
-    </Sheet>
   );
+  // 新しいサービスのページは左のバーつきの枠（Issue #660）。「Issueを書く」は今までの1本の列
+  return nav ? <NewServiceFrame nav={nav}>{content}</NewServiceFrame> : <Sheet>{content}</Sheet>;
 }

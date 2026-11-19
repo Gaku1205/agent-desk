@@ -187,24 +187,46 @@ export function SettingsSkeleton() {
   );
 }
 
-/** 新しいサービスを作る／Issueを書くの骨組み：見出し、節の見出しと一文、入力の行、ボタン */
+/** 見出し、節の見出しと一文、入力の行、ボタンの帯 */
+function FormSkeletonBody() {
+  return (
+    <div className={settingsStyles.page} aria-busy="true" aria-hidden="true">
+      <Band width={220} height={36} />
+      <div className={settingsStyles.section} style={{ paddingTop: 0, borderTop: 0 }}>
+        <div className={settingsStyles.title}>
+          <Band width={140} height={15} />
+        </div>
+        <div className={styles.line}>
+          <Band width="70%" height={13} />
+          <Band width={260} height={36} />
+          <Band width="100%" height={36} />
+          <Band width={160} height={32} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Issueを書くの骨組み：見出し、節の見出しと一文、入力の行、ボタン */
 export function FormSkeleton() {
   return (
     <Sheet>
-      <div className={settingsStyles.page} aria-busy="true" aria-hidden="true">
-        <Band width={220} height={36} />
-        <div className={settingsStyles.section} style={{ paddingTop: 0, borderTop: 0 }}>
-          <div className={settingsStyles.title}>
-            <Band width={140} height={15} />
-          </div>
-          <div className={styles.line}>
-            <Band width="70%" height={13} />
-            <Band width={260} height={36} />
-            <Band width="100%" height={36} />
-            <Band width={160} height={32} />
-          </div>
-        </div>
-      </div>
+      <FormSkeletonBody />
     </Sheet>
+  );
+}
+
+/** 新しいサービスを作るの骨組み：左のバー（本物。layout が渡した物）と、中央に同じ形の帯（Issue #660） */
+export function NewServiceSkeleton() {
+  const nav = useNav();
+  return (
+    <div className={repoListStyles.panes} data-panes="" aria-busy="true">
+      <div className={repoListStyles.side} id="side-repos">
+        {nav && <SideRepos {...nav} />}
+      </div>
+      <main id="main" className={repoListStyles.main}>
+        <FormSkeletonBody />
+      </main>
+    </div>
   );
 }

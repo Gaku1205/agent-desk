@@ -2,6 +2,7 @@
 
 .form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
   width: 100%;
   max-width: 560px;
@@ -315,6 +316,73 @@
   height: 36px;
   color: var(--bone);
   font-size: 13.5px;
+}
+
+/* 書き方の見本（入力欄のすぐ下。押すと入力欄に入る） */
+.examples {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  margin-top: -14px;
+}
+
+.exampleLabel {
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.exampleList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.exampleList > li {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.example {
+  display: block;
+  max-width: 100%;
+  height: 32px;
+  padding: 0 12px;
+  overflow: hidden;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--hair);
+  color: var(--bone-2);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.example:hover {
+  background: var(--hair-2);
+  color: var(--bone);
+}
+
+.example:disabled {
+  opacity: 0.6;
+}
+
+@media (max-width: 899px) {
+  .example {
+    height: 44px;
+  }
+}
+
+/* 作ったあとの脇のリンク（GitHub へ）。主のリンクより小さく */
+.sideLink {
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.sideLink:hover {
+  color: var(--bone);
 }
 
 .after {
