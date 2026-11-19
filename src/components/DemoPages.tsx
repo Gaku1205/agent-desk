@@ -170,7 +170,8 @@ export function DemoNewIssue({ initialRepo }: { initialRepo?: string }) {
 /** デモの新しいサービスを作る画面：送り先はテンプレートの見本（landing-page）だけ */
 export function DemoNewService() {
   const { repos } = useDemoState();
-  return <NewIssueForm mode="service" repos={newIssueRepos(repos).filter((repo) => repo.template)} />;
+  const nav = useDemoNav();
+  return <NewIssueForm mode="service" repos={newIssueRepos(repos).filter((repo) => repo.template)} nav={nav} />;
 }
 
 /** デモの導入：同じ画面。何も書き込まず、押すと次の段へ進むだけ */
