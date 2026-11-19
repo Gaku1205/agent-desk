@@ -251,8 +251,13 @@
 }
 
 @media (max-width: 899px) {
+  /* ログ ↗ を押せる範囲44pxに（行の間の線1pxを含めて45px。Issue #623） */
   .hang {
-    height: 36px;
+    height: 45px;
+  }
+
+  .hangLog {
+    align-self: stretch;
   }
 }
 
@@ -455,6 +460,29 @@
   color: var(--bone);
 }
 
+/* スマホ：題名・ログ ↗ の押せる範囲を高さ44pxに（Issue #623。docs/design.md の「Slots & Queue」） */
+@media (max-width: 899px) {
+  .title {
+    min-height: 44px;
+    padding-block: 11px;
+  }
+
+  .log {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+}
+
+/* 上の display を、狭い所で隠す決まり（席の下の行・開いた Sleeping の行）より後に置いて、隠す側を勝たせる */
+@container (max-width: 620px) {
+  .log.hangLog,
+  .log.sleepLog {
+    display: none;
+  }
+}
+
 /* Paused の題名（Queue の行と同じ文字だった物） */
 .queueTitle {
   overflow: hidden;
@@ -651,8 +679,27 @@
 }
 
 @media (max-width: 899px) {
+  /* 題名のリンクを押せる範囲44pxに（行の間の線1pxを含めて45px。Issue #623） */
   .qRow {
-    height: 36px;
+    height: 45px;
+  }
+
+  .qTitle {
+    display: block;
+    min-height: 44px;
+    padding-block: 12px;
+    line-height: 20px;
+  }
+
+  /* 親の行：`待ち：` の相手の番号のリンクを44pxに */
+  .groupHead {
+    height: 44px;
+  }
+
+  .groupRef {
+    display: inline-flex;
+    align-items: center;
+    height: 44px;
   }
 }
 
@@ -857,6 +904,16 @@ button[aria-expanded="true"] .chevron svg {
 
 .sleepLog {
   text-align: right;
+}
+
+@media (max-width: 899px) {
+  .sleepSub {
+    height: 44px;
+  }
+
+  .sleepLog {
+    align-self: stretch;
+  }
 }
 
 @container (max-width: 639px) {
