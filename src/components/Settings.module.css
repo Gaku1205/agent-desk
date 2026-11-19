@@ -9,9 +9,6 @@
   margin: 0 auto;
   padding: 40px 0 96px;
   container-type: inline-size;
-  /* 帯の夜・昼の地（既存の紫・インディゴを薄めた物。新しい色ではない） */
-  --night-wash: color-mix(in srgb, var(--wait) 28%, transparent);
-  --day-wash: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 /* ───── 見出しの行 ───── */
@@ -348,26 +345,53 @@
 
 /* ───── Parallel ───── */
 
-.summaryHead {
-  font-size: 17px;
-  font-weight: 700;
+/* 白い面1つに4段：今・件数・帯・夜の時刻（Issue #590） */
+.parallel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
 }
 
-.badge {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 6px;
-  box-shadow: inset 0 0 0 1px var(--hair);
+.parallel[data-busy] > * {
+  opacity: 0.7;
+  transition: opacity 0s 0.22s;
+}
+
+.nowLine {
+  margin: 0;
+  color: var(--mute);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.nowTime {
   color: var(--accent);
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
 }
 
-.badge[data-period="night"] {
-  color: var(--wait);
+/* 件数：夜と昼を同じ行に重ね、区間の真ん中あたりに置く。狭いときは2行 */
+.counts {
+  display: grid;
+  min-width: 0;
+}
+
+.countGroup {
+  display: inline-flex;
+  grid-area: 1 / 1;
+  gap: 8px;
+  align-items: center;
+  justify-self: start;
+  width: max-content;
+  max-width: 100%;
+}
+
+.countName {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--bone-2);
+  font-size: 12.5px;
+  white-space: nowrap;
 }
 
 .stepper {
@@ -376,18 +400,26 @@
 }
 
 .step {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
   box-shadow: inset 0 0 0 1px var(--edge);
   color: var(--bone);
-  font-size: 16px;
+  font-size: 14px;
   transition:
     transform 0.12s var(--ease),
     background 0.12s;
+}
+
+/* 見た目は26px、押せる所は44px */
+.step::after {
+  position: absolute;
+  inset: -9px;
+  content: "";
 }
 
 .step:hover:not(:disabled) {
@@ -404,15 +436,15 @@
 }
 
 .stepValue {
-  width: 40px;
+  width: 24px;
   color: var(--bone);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   text-align: center;
 }
 
-.row[data-kind="hours"] .below {
-  padding-top: 4px;
+.bandWrap {
+  position: relative;
 }
 
 .band {
@@ -421,15 +453,68 @@
   gap: 2px;
 }
 
+/* 昼は薄い灰色（地 + 縁）、夜は濃い灰色 */
 .cell {
-  height: 28px;
+  height: 26px;
   min-width: 0;
-  border-radius: 4px;
-  background: var(--day-wash);
+  border-radius: 3px;
+  background: var(--hair-2);
+  box-shadow: inset 0 0 0 1px var(--hair);
 }
 
 .cell[data-night] {
-  background: var(--night-wash);
+  background: var(--bone-2);
+  box-shadow: none;
+}
+
+/* 「今」の縦線：帯の上下に6pxはみ出す */
+.nowMark {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+/* 夜の時刻：☾ Night と選択欄 */
+.timeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  align-items: center;
+}
+
+.timeTo {
+  color: var(--mute);
+  font-size: 13px;
+}
+
+.timeRow .timeSelect {
+  width: 104px;
+}
+
+.timeRow .timeSelect button {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--edge-strong);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeRow .timeSelect button:hover,
+.timeRow .timeSelect button[aria-expanded="true"] {
+  background: var(--hair-2);
+  box-shadow: inset 0 0 0 1px var(--edge-strong);
+}
+
+.timeRow .timeSelect button:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--bone);
 }
 
 .cell:hover:not(:disabled) {
@@ -604,6 +689,11 @@
 
   .toc::-webkit-scrollbar {
     display: none;
+  }
+
+  /* 件数の＋−が入らなければ、夜と昼を別の行にする */
+  .countGroup {
+    grid-area: auto;
   }
 
   /* 名前と説明を狭くしてでも、操作を同じ行の右に残す（入らないときだけ下へ回す） */

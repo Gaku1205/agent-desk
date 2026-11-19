@@ -14,8 +14,6 @@ import {
 import {
   buildParallelWrites,
   checkParallelSettings,
-  currentParallelLimit,
-  currentPeriod,
   DEFAULT_PARALLEL_TZ,
   PARALLEL_MESSAGES,
   PARALLEL_SELECT_MAX,
@@ -259,33 +257,6 @@ export function pickNightHour(anchor: number | null, hour: number): NightPick {
 }
 
 /* ───────── 表示の文 ───────── */
-
-function hourText(hour: number): string {
-  return `${hour}:00`;
-}
-
-function nightCountText(night: number): string {
-  return night === 1 ? "1件ずつ" : `${night}件まで`;
-}
-
-/** 並列の今の状態の行：大きい字・下の説明・右の札 */
-export function describeParallelSummary(
-  now: Date,
-  settings: ParallelSettings,
-  timeZone: string = DEFAULT_PARALLEL_TZ,
-): { headline: string; detail: string; badge: string } {
-  const period = currentPeriod(now, settings.nightHours, timeZone);
-  const limit = currentParallelLimit(now, settings, timeZone);
-  const hours = settings.nightHours;
-  if (period === "night") {
-    const doing = settings.night === 1 ? "1件ずつ進めます" : `${settings.night}件まで同時に進めます`;
-    return { headline: "いまは夜", detail: `${doing} · 昼は${settings.day}件まで`, badge: `Night · ${limit}` };
-  }
-  const night = hours
-    ? `夜（${hourText(hours.start)}〜${hourText(hours.end)}）は${nightCountText(settings.night)}`
-    : "夜の時間帯はありません";
-  return { headline: "いまは昼", detail: `${settings.day}件まで同時に進めます · ${night}`, badge: `Day · ${limit}` };
-}
 
 /** 見出しの右の保存の状態。まだ保存していなければ `変えたらすぐ保存` だけ */
 export function formatSavedAt(savedAt: Date | null, timeZone: string = DEFAULT_PARALLEL_TZ): string | null {

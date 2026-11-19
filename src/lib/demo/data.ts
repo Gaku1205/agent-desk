@@ -530,12 +530,12 @@ function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean, placer:
   addComment(ctx, 36, "<!-- hold-blocking: #15,#14 -->", ago(ctx, 20 * 60), "github-actions[bot]");
 
   // マージ待ち（AIがマージする直前。審査役の採点が8点未満で、実装に1回戻った）
+  // （マージ待ちでも `ai:implement` があると枠に数えるので、デモの枠が上限を超えないよう、この4件には付けない）
   const reviewed = addIssue(ctx, 20, "タスクの検索に絞り込みを足す", {
     createdAt: ago(ctx, 70),
-    labels: ["ai:implement"],
+    labels: [],
     planned: true,
   });
-  addLabeled(ctx, 20, "ai:implement", ago(ctx, 65));
   addPull(ctx, 35, reviewed, {
     createdAt: ago(ctx, 30),
     headSha: "7b8c9d0",
@@ -549,9 +549,8 @@ function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean, placer:
   // マージ待ち（レビューに回す前）
   const needsReview = addIssue(ctx, 19, "期限の表示を「あと2日」の形にする", {
     createdAt: ago(ctx, 40),
-    labels: ["ai:implement"],
+    labels: [],
   });
-  addLabeled(ctx, 19, "ai:implement", ago(ctx, 38));
   addPull(ctx, 34, needsReview, {
     createdAt: ago(ctx, 3),
     headSha: "8c9d0e1",
@@ -771,7 +770,7 @@ function landingPage(base: Date, placer: Placer): RepoData {
   // マージ待ち（レビューに回す前）
   const needsReview = addIssue(ctx, 5, "フッターのリンクを整理する", {
     createdAt: ago(ctx, 25),
-    labels: ["ai:implement"],
+    labels: [],
   });
   addPull(ctx, 13, needsReview, {
     createdAt: ago(ctx, 10),
@@ -782,7 +781,7 @@ function landingPage(base: Date, placer: Placer): RepoData {
   // マージ待ち（自動でマージする直前）
   const autoMerge = addIssue(ctx, 4, "ページの読み込みを速くする", {
     createdAt: ago(ctx, 80),
-    labels: ["ai:implement"],
+    labels: [],
     planned: true,
   });
   addPull(ctx, 12, autoMerge, {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CommentData, IssueData, PullData, RepoData, RepoResult, WorkflowRunData } from "../github/types";
-import { buildLanesSource, modelLabel, runKind, runTarget } from "./source";
+import type { IssueStatus } from "../status";
+import { buildLanesSource, modelLabel, occupiesSlot, runKind, runTarget } from "./source";
 
 const NOW = new Date("2026-11-18T02:13:00Z");
 
@@ -96,9 +97,52 @@ describe("buildLanesSource：枠を使う作業", () => {
     expect(source.works.map((work) => [work.number, work.stepName])).toEqual([[7, "CI"]]);
   });
 
+  it("CI が通ってレビューを待つ Issue（needsReview）も席にする", () => {
+    const passedPull = pull(21, { body: "Closes #8" });
+    const checks = {
+      21: {
+        checkRuns: [{ name: "check", status: "completed", conclusion: "success", appSlug: "github-actions", completedAt: "2026-11-18T02:00:00Z" }],
+        statuses: [],
+      },
+    };
+    const source = buildLanesSource(
+      [result(data({ issues: [issue(8, ["ai:implement"])], pulls: [passedPull], pullChecks: checks }))],
+      NOW,
+    );
+    expect(source.works.map((work) => [work.number, work.stepText])).toEqual([[8, "CIが通りました。レビュー待ちです"]]);
+  });
+
   it("取れなかったリポジトリは飛ばす", () => {
     const failed: RepoResult = { owner: "o", repo: "x", ok: false, error: { kind: "other", message: "x" } };
     expect(buildLanesSource([failed], NOW)).toEqual({ works: [], queue: [], runs: [], paused: [] });
+  });
+});
+
+describe("occupiesSlot：マージ待ち", () => {
+  const base: IssueStatus = {
+    stage: "mergeWaiting",
+    turn: "ai",
+    stageBeforeStuck: null,
+    stageBeforeRetry: null,
+    retry: null,
+    pull: null,
+    ci: { passed: 1, total: 1 },
+    mergeWait: "needsReview",
+    implementError: false,
+    deployUnknown: false,
+    stuckReason: null,
+    holdRequest: null,
+    planned: true,
+    fixCount: 0,
+    verifyingFix: false,
+    reviewedClean: false,
+    grace: null,
+  };
+
+  it("needsReview・autoMerge は枠を使い、hold は使わない", () => {
+    expect(occupiesSlot({ ...base, mergeWait: "needsReview" })).toBe(true);
+    expect(occupiesSlot({ ...base, mergeWait: "autoMerge" })).toBe(true);
+    expect(occupiesSlot({ ...base, mergeWait: "hold", turn: "human" })).toBe(false);
   });
 });
 

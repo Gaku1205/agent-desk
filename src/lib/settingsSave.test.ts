@@ -3,7 +3,6 @@ import type { NotifyEvent } from "./notifyEvents";
 import type { ParallelSettings } from "./parallel";
 import {
   canStep,
-  describeParallelSummary,
   dueSave,
   formatSavedAt,
   needsParallelSave,
@@ -200,32 +199,6 @@ describe("段階ボタンと帯", () => {
 });
 
 describe("表示の文", () => {
-  const settings: ParallelSettings = { day: 5, night: 1, nightHours: { start: 23, end: 7 } };
-
-  it("昼：何件まで・夜の時間帯・札", () => {
-    // 日本時間 12:00
-    expect(describeParallelSummary(new Date("2026-11-18T03:00:00Z"), settings)).toEqual({
-      headline: "いまは昼",
-      detail: "5件まで同時に進めます · 夜（23:00〜7:00）は1件ずつ",
-      badge: "Day · 5",
-    });
-  });
-
-  it("夜", () => {
-    // 日本時間 2:00
-    expect(describeParallelSummary(new Date("2026-11-17T17:00:00Z"), { ...settings, night: 2 })).toEqual({
-      headline: "いまは夜",
-      detail: "2件まで同時に進めます · 昼は5件まで",
-      badge: "Night · 2",
-    });
-  });
-
-  it("夜の時間帯が無い", () => {
-    expect(describeParallelSummary(new Date("2026-11-17T17:00:00Z"), { ...settings, nightHours: null }).detail).toBe(
-      "5件まで同時に進めます · 夜の時間帯はありません",
-    );
-  });
-
   it("保存した時刻（日本時間の時:分）", () => {
     expect(formatSavedAt(null)).toBeNull();
     expect(formatSavedAt(new Date("2026-11-18T11:41:00Z"))).toBe("20:41 に保存しました");
