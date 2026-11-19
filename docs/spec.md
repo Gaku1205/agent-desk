@@ -118,7 +118,7 @@ AIと働くときの、人間の待ち時間と見落としを減らす画面。
 - レビューが「指摘なし」で終わっていない（レビューしていない・指摘あり） → AI（パイプラインがレビューに回すか、直させる）
 - それ以外 → AI（パイプラインが自動でマージする直前）
 
-コンフリクト（Issue #483）：AIの番のマージ待ち（上の2つ目と3つ目）と修正中で、PRが main とコンフリクトしている（GraphQL の `PullRequest.mergeable` が `CONFLICTING`。`PullData.conflicting`）ときは、「自動でマージします」「レビューに回します」にせず、`main とぶつかっています`（修正の依頼が出ている＝修正中のときは `main とぶつかっています。AIが解消します`）を出す。`UNKNOWN`・取れなかったときは今までどおり。`ai:hold`（人間の番）は変えない。取得は既存のPRの問い合わせに `mergeable` を1項目足すだけで、呼び出しは増やさない。判定は `src/lib/conflict.ts` の `conflictKind`。
+コンフリクト（Issue #483）：AIの番のマージ待ち（上の2つ目と3つ目）と修正中で、PRが main とコンフリクトしている（GraphQL の `PullRequest.mergeable` が `CONFLICTING`。`PullData.conflicting`）ときは、「自動でマージします」「レビューに回します」にせず、`main とぶつかっています`（修正の依頼が出ている＝修正中のときは `main とぶつかり・AIが解消中`）を出す。`UNKNOWN`・取れなかったときは今までどおり。`ai:hold`（人間の番）は変えない。取得は既存のPRの問い合わせに `mergeable` を1項目足すだけで、呼び出しは増やさない。判定は `src/lib/conflict.ts` の `conflictKind`。
 
 「レビューが指摘なしで終わった」：PRのコメントのうち、`claude[bot]` が書いた「`## Code review`」で始まる最新のコメントに `No issues found` が含まれる。
 
