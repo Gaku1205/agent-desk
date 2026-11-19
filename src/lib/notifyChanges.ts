@@ -20,13 +20,3 @@ export function sameEvents(a: readonly NotifyEvent[], b: readonly NotifyEvent[])
 export function changedRepos(drafts: readonly NotifyDraft[]): NotifyDraft[] {
   return drafts.filter((d) => d.pipeline && !sameEvents(d.saved, d.current));
 }
-
-/** 失敗の表示文。2つ以上のリポジトリで失敗したときは、どれか分かるようにリポジトリ名を付ける */
-export function formatSaveFailures(
-  failures: readonly { name: string; message: string }[],
-  attempted: number,
-): string {
-  if (failures.length === 0) return "";
-  if (attempted <= 1) return failures[0].message;
-  return failures.map((f) => `${f.name}：${f.message}`).join(" / ");
-}

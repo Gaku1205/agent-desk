@@ -25,6 +25,8 @@ import { cachedRepoData, cachedUserCanRead, snapshotRepoData, type AppRepoData }
 import { PIPELINE_WORKFLOW_PATH } from "./settings";
 import type { CommitStatusData, RepoData, RepoResult, RepoSyncInfo, RunJobsData, RunStepData, WorkflowRunData } from "./types";
 import { currentStepFromJobs, stepProbeRunIds } from "../aiActivity";
+import { isClaudeReviewCheck } from "../status";
+import { missingRequiredChecks, pullsNeedingRequiredChecks, requiredChecksQuery } from "./requiredChecks";
 import { countInProgressJobs, isSleepingRun } from "../lanes/sleeping";
 
 const WINDOW_DAYS = 14;
@@ -67,13 +69,50 @@ export async function fetchRepoData(
     sync: read.sync,
   };
   rememberDeltaBase(baseKey, data);
-  const { runSteps, runJobs } = await fetchRunJobs(client, base, data);
-  if (runSteps.length === 0 && runJobs.length === 0) return data;
+  const [{ runSteps, runJobs }, missing] = await Promise.all([
+    fetchRunJobs(client, base, data),
+    fetchMissingRequired(client, owner, repo, data),
+  ]);
+  const missingNumbers = Object.keys(missing).map(Number);
+  const pullChecks =
+    missingNumbers.length === 0
+      ? data.pullChecks
+      : {
+          ...data.pullChecks,
+          ...Object.fromEntries(
+            missingNumbers.map((number) => [
+              number,
+              { ...(data.pullChecks[number] ?? { checkRuns: [], statuses: [] }), missingRequired: missing[number] },
+            ]),
+          ),
+        };
+  if (runSteps.length === 0 && runJobs.length === 0 && missingNumbers.length === 0) return data;
   return {
     ...data,
+    pullChecks,
     ...(runSteps.length > 0 ? { runSteps } : {}),
     ...(runJobs.length > 0 ? { runJobs } : {}),
   };
+}
+
+/**
+ * 未報告の必須チェックの数（PR 番号 → 数）。CI が終わっていない開いている PR があるときだけ、リポジトリごとに1回問い合わせる。
+ * 補助の情報なので、取れなかった（権限が無い・ブランチ保護が無い）ときは空にして、ほかは落とさない
+ */
+async function fetchMissingRequired(
+  client: GitHubClient,
+  owner: string,
+  name: string,
+  data: RepoData,
+): Promise<Record<number, number>> {
+  const numbers = pullsNeedingRequiredChecks(data.pulls, data.pullChecks, isClaudeReviewCheck);
+  if (numbers.length === 0) return {};
+  try {
+    const response = await client.graphql(requiredChecksQuery(numbers), { owner, name });
+    return missingRequiredChecks(response, numbers, data.pullChecks);
+  } catch {
+    return {};
+  }
 }
 
 /** 差分の読みの元（前に読んだ結果）を覚えておく件数の上限（超えたら古い物から捨てる） */
@@ -146,7 +185,8 @@ async function readRepoParts(
         sync: { mode: "delta", readAt, fullAt: known.sync.fullAt, count: nodes.count },
       };
     } catch (error) {
-      if (!shouldReadFullAfterDeltaError(error instanceof GitHubError ? error.kind : null)) throw error;
+      const failure = error instanceof GitHubError ? error : null;
+      if (!shouldReadFullAfterDeltaError(failure ? failure.kind : null, failure?.timedOut ?? false)) throw error;
     }
   }
   const nodes = await fetchRepoNodes(client, owner, name, since, cutoffMs);
@@ -449,6 +489,7 @@ export function toWorkflowRun(raw: unknown): WorkflowRunData | null {
   const run = raw as {
     id?: unknown;
     status?: unknown;
+    conclusion?: unknown;
     head_branch?: unknown;
     display_title?: unknown;
     pull_requests?: unknown;
@@ -471,6 +512,7 @@ export function toWorkflowRun(raw: unknown): WorkflowRunData | null {
   return {
     ...(typeof run.id === "number" ? { id: run.id } : {}),
     status: run.status,
+    ...(typeof run.conclusion === "string" && run.conclusion !== "" ? { conclusion: run.conclusion } : {}),
     headBranch: typeof run.head_branch === "string" ? run.head_branch : null,
     displayTitle: typeof run.display_title === "string" ? run.display_title : "",
     pullNumbers,

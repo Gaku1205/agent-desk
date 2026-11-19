@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CheckRunData, CommentData, IssueData, PullChecks, PullData } from "./github/types";
+import type { CheckRunData, CommentData, IssueData, PullChecks, PullData, WorkflowRunData } from "./github/types";
 import { encodeFactoryMark } from "./factoryTalk";
 import { mainDeployedFrom, mergeMainDeployed } from "./github/graphql";
 import {
@@ -220,6 +220,16 @@ describe("getIssueStatus：表の各段階", () => {
     );
     expect(status.stage).toBe("ciRunning");
     expect(status.ci).toEqual({ passed: 1, total: 5, running: 1, queued: 3, failed: 0 });
+  });
+
+  it("CI中：未報告の必須チェック（missingRequired）は、枠待ちと全数に足す。段階は変えない", () => {
+    const status = getIssueStatus(
+      issue(),
+      input([pull()], { 11: { checkRuns: [check(), ciRunning], missingRequired: 2 } }),
+      NOW,
+    );
+    expect(status.stage).toBe("ciRunning");
+    expect(status.ci).toEqual({ passed: 1, total: 4, running: 1, queued: 2, failed: 0 });
   });
 
   it("CI失敗：内訳の失敗に、failure・cancelled を数える（通過・全数は今までどおり）", () => {
@@ -1194,6 +1204,80 @@ describe("getIssueStatus：修正中・修正の確認中・清書した・修�
     expect(status.turn).toBe("ai");
     expect(status.fixCount).toBe(1);
     expect(status.verifyingFix).toBe(false);
+  });
+
+  describe("修正AIの実行の終わり方（Issue #609）", () => {
+    const requestAt = "2026-10-25T10:20:00Z";
+    const fixRun = (overrides: Partial<WorkflowRunData> = {}): WorkflowRunData => ({
+      id: 900,
+      status: "completed",
+      conclusion: "cancelled",
+      name: "Claude Mention",
+      headBranch: "claude/issue-3-20261025-1509",
+      displayTitle: "",
+      pullNumbers: [11],
+      startedAt: "2026-10-25T10:21:00Z",
+      updatedAt: "2026-10-25T11:21:00Z",
+      ...overrides,
+    });
+    const withRuns = (runs: WorkflowRunData[] | null, labels: string[] = []): StatusInput => ({
+      ...input([pull({ labels })], checks, [fixRequest("head", requestAt)]),
+      runs,
+    });
+
+    for (const conclusion of ["cancelled", "failure", "timed_out"]) {
+      it(`${conclusion} で終わっていれば修正中にしない`, () => {
+        const status = getIssueStatus(issue(), withRuns([fixRun({ conclusion })]), NOW);
+        expect(status.stage).not.toBe("fixing");
+      });
+    }
+
+    it("ai:retry が付いていれば、やり直し待ち（修正中にしない）", () => {
+      const status = getIssueStatus(issue(), withRuns([fixRun()], ["ai:retry"]), NOW);
+      expect(status.stage).toBe("retrying");
+      expect(status.turn).toBe("none");
+    });
+
+    it("取り消された修正依頼と、そのあとのPRの更新は、先へ進んだ印に数えない", () => {
+      const record = comment({
+        issueNumber: 11,
+        body: "<!-- auto-retry -->\nやり直し 1/10 回",
+        createdAt: "2026-10-25T10:10:00Z",
+      });
+      const base = withRuns([fixRun()], ["ai:retry"]);
+      const status = getIssueStatus(
+        issue(),
+        {
+          ...base,
+          pulls: [pull({ labels: ["ai:retry"], updatedAt: "2026-10-25T11:21:30Z" })],
+          comments: [record, fixRequest("head", requestAt)],
+        },
+        NOW,
+      );
+      expect(status.stage).toBe("retrying");
+    });
+
+    it("実行がちゃんと動いている（実行中）なら、今までどおり修正中", () => {
+      const running = fixRun({ status: "in_progress", conclusion: undefined });
+      expect(getIssueStatus(issue(), withRuns([running]), NOW).stage).toBe("fixing");
+    });
+
+    it("成功で終わった実行・依頼より前の取り消し・別のブランチの実行は見ない", () => {
+      expect(getIssueStatus(issue(), withRuns([fixRun({ conclusion: "success" })]), NOW).stage).toBe("fixing");
+      expect(
+        getIssueStatus(issue(), withRuns([fixRun({ startedAt: "2026-10-25T10:00:00Z" })]), NOW).stage,
+      ).toBe("fixing");
+      expect(getIssueStatus(issue(), withRuns([fixRun({ headBranch: "claude/issue-9-x" })]), NOW).stage).toBe(
+        "fixing",
+      );
+    });
+
+    it("実行の一覧が取れていない（null・無し）ときは今までどおり", () => {
+      expect(getIssueStatus(issue(), withRuns(null), NOW).stage).toBe("fixing");
+      expect(getIssueStatus(issue(), input([pull()], checks, [fixRequest("head", requestAt)]), NOW).stage).toBe(
+        "fixing",
+      );
+    });
   });
 
   it("修正中ではない：先頭コミットが進んでいる", () => {

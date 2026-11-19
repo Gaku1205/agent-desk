@@ -131,6 +131,19 @@
   font-weight: 600;
 }
 
+/* 幅899px以下：押せる範囲を高さ44pxに（見た目は30pxのまま。3択の枠の内側3pxを使って広げる。Issue #616） */
+@media (max-width: 899px) {
+  .choice {
+    position: relative;
+  }
+
+  .choice::after {
+    position: absolute;
+    inset: -7px 0;
+    content: "";
+  }
+}
+
 /* 書いている間 */
 .choice:disabled {
   opacity: 0.7;
@@ -174,6 +187,19 @@
 .foldedButton .cell {
   flex: none;
   width: 8px;
+}
+
+/* スマホ：見た目は28pxのまま、押せる範囲を上下8pxずつ広げて44pxに（Issue #623） */
+@media (max-width: 899px) {
+  .foldedButton {
+    position: relative;
+  }
+
+  .foldedButton::after {
+    position: absolute;
+    inset: -8px 0;
+    content: "";
+  }
 }
 
 .foldedCount {

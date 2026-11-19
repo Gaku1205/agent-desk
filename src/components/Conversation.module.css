@@ -442,32 +442,54 @@
     min-height: 44px;
   }
 
-  /* スマホで押せる範囲を高さ24px以上に（見た目・並びは変えない。docs/design.md の「スマホで押せる範囲」）。透明な ::after で上下に広げる */
+  /* スマホで押せる範囲を高さ44px以上に（docs/design.md の「スマホで押せる範囲」、Issue #623）。
+     縦に並ぶ物は重ならずに44pxを置けないので、箱を本当に44pxにして文字を真ん中に置く。箱の中の余白の分、margin-top は0 */
   .pick,
   .noteToggle,
-  .queueToggle,
-  .link,
+  .link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .queueToggle {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .queueToggle > [aria-hidden="true"] {
+    margin-left: 0.3em;
+  }
+
+  .queueList {
+    margin-top: 0;
+  }
+
+  /* 1行目（番号）：箱の上の余白の分だけ引き上げ、1つ前のメッセージとの間（28px）に収める */
+  .meta {
+    align-items: center;
+    margin-top: -12px;
+  }
+
+  .title,
+  .titleTop,
+  .text,
+  .activity,
+  .noteWrap,
+  .noteWrap .note,
+  .note {
+    margin-top: 0;
+  }
+
+  .activity,
+  .note {
+    align-items: center;
+  }
+
   .title a {
-    position: relative;
-  }
-
-  .pick::after,
-  .noteToggle::after,
-  .queueToggle::after {
-    position: absolute;
-    inset: -2px 0;
-    content: "";
-  }
-
-  .link::after {
-    position: absolute;
-    inset: -1px 0; /* もともと約21.5px。折り返しの行の間（2px）に収まる広げ方 */
-    content: "";
-  }
-
-  .title a::after {
-    position: absolute;
-    inset: -4px 0;
-    content: "";
+    display: flex;
+    align-items: center;
+    min-height: 44px;
   }
 }

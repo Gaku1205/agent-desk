@@ -131,6 +131,59 @@ describe("覚えている物をすぐ出し、読めた所から順に入れ替�
     expect(seen.at(-1)).toEqual({ results: ["a-new", "b-new", "c-new"], staleCount: 0, missingCount: 0 });
   });
 
+  it("isFailed を渡すと、失敗で届いた所は古い結果を出し続ける（最後の段でも）。古い結果が無ければ失敗の結果", async () => {
+    const clock = fakeClock();
+    let staleReads = 0;
+    const sources: StepSource<string>[] = [
+      { fresh: clock.after(10, "a-new"), stale: async () => "a-old" },
+      {
+        fresh: clock.after(20, "b-failed"),
+        stale: async () => {
+          staleReads++;
+          return "b-old";
+        },
+      },
+      { fresh: clock.after(30, "c-failed"), stale: async () => null },
+    ];
+    const seen = collect(
+      gatherSteps(sources, { ...OPTIONS, wait: clock.wait, isFailed: (value) => value.endsWith("-failed") }),
+    );
+    await clock.advance(50);
+    expect(seen).toEqual([
+      {
+        results: ["a-new", "b-old", "c-failed"],
+        staleCount: 1,
+        missingCount: 0,
+        loads: [
+          { fresh: "a-new", stale: null },
+          { fresh: "b-failed", stale: "b-old" },
+          { fresh: "c-failed", stale: null },
+        ],
+      },
+    ]);
+    expect(staleReads).toBe(1);
+  });
+
+  it("isFailed を渡しても、読めた所は今までどおり（古い結果は読まない）", async () => {
+    const clock = fakeClock();
+    let staleReads = 0;
+    const sources: StepSource<string>[] = [
+      {
+        fresh: clock.after(10, "a-new"),
+        stale: async () => {
+          staleReads++;
+          return "a-old";
+        },
+      },
+    ];
+    const seen = collect(gatherSteps(sources, { ...OPTIONS, wait: clock.wait, isFailed: () => false }));
+    await clock.advance(50);
+    expect(seen).toEqual([
+      { results: ["a-new"], staleCount: 0, missingCount: 0, loads: [{ fresh: "a-new", stale: null }] },
+    ]);
+    expect(staleReads).toBe(0);
+  });
+
   it("取得元が無ければ、空の段を1つ", async () => {
     const clock = fakeClock();
     const step = await gatherSteps<string>([], { ...OPTIONS, wait: clock.wait });

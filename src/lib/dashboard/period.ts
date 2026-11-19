@@ -3,6 +3,12 @@
 export const PERIOD_KEYS = ["24h", "7d", "30d"] as const;
 export type PeriodKey = (typeof PERIOD_KEYS)[number];
 
+/** URL の `?period=` を期間にする。分からない値・無い値は undefined（既定の `24h`） */
+export function parsePeriodParam(value: string | string[] | undefined): PeriodKey | undefined {
+  const first = Array.isArray(value) ? value[0] : value;
+  return PERIOD_KEYS.find((key) => key === first);
+}
+
 /** `loadTurns` の直近14日だけで数えられる期間（追加で GitHub を読まない） */
 export const LOCAL_PERIOD_KEYS = ["24h", "7d"] as const;
 export type LocalPeriodKey = (typeof LOCAL_PERIOD_KEYS)[number];

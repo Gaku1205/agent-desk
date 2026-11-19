@@ -27,7 +27,7 @@ export function ciFailureState(input: CiFailureInput): CiFailureState | null {
   return { kind: "fixing", n: branch?.n ?? 1 };
 }
 
-/** 会話の文：「AIが直しています（1回目/3）」 */
+/** 会話の文：「AIが直しています（1/3 回目）」 */
 export function ciFixingText(n: number): string {
-  return `AIが直しています（${n}回目/${FIX_MAX}）`;
+  return `AIが直しています（${n}/${FIX_MAX} 回目）`;
 }

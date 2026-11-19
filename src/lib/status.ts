@@ -9,7 +9,7 @@ import { isMergeablePull } from "./mergeablePull";
 import { holdRequestText, humanRequestReason } from "./humanRequest";
 import { pausedMark, type PausedMark } from "./paused";
 import { isQuestionAnswered, latestQuestionComment } from "./question";
-import type { CheckRunData, CommentData, CommitStatusData, IssueData, PullChecks, PullData } from "./github/types";
+import type { CheckRunData, CommentData, CommitStatusData, IssueData, PullChecks, PullData, WorkflowRunData } from "./github/types";
 
 /** 各Issueの段階（docs/spec.md の「状態の判定」） */
 export type Stage =
@@ -120,6 +120,8 @@ export type StatusInput = {
   isTemplate?: boolean;
   /** リポジトリのオーナー（`owner/repo` の `owner`）。「答えた」は、このオーナーのコメントだけで判定する。無ければ誰も答えていないことにする */
   owner?: string;
+  /** 直近の Actions の実行。修正AIが取り消し・失敗・時間切れで終わったかを見る。取れていない（null・無し）ときは今までどおりの判定 */
+  runs?: WorkflowRunData[] | null;
 };
 
 export const LABEL = {
@@ -497,14 +499,25 @@ export function hasProgressedSince(
   }
   if (!pull) return false;
   if (isAfter(pull.createdAt, since)) return true;
+  // 取り消された修正依頼（とその実行が終わるまでのPRの更新）は、先へ進んだ印に数えない
+  const broken = brokenFixRun(input.comments, pull, input.runs);
+  const brokenEnd = broken ? broken.updatedAt : null;
   // 記録のコメントのあとに ai:retry を付けると updatedAt が数秒進むので、その分は進んだ扱いにしない
   const sinceMs = Date.parse(since);
-  if (!Number.isNaN(sinceMs) && isAfter(pull.updatedAt, new Date(sinceMs + UPDATED_AT_GRACE_MS).toISOString())) {
+  const updatedBase = Math.max(
+    Number.isNaN(sinceMs) ? 0 : sinceMs,
+    brokenEnd !== null && !Number.isNaN(Date.parse(brokenEnd)) ? Date.parse(brokenEnd) : 0,
+  );
+  if (updatedBase > 0 && isAfter(pull.updatedAt, new Date(updatedBase + UPDATED_AT_GRACE_MS).toISOString())) {
     return true;
   }
   if (
     input.comments.some(
-      (c) => c.issueNumber === pull.number && c.body.includes(AUTO_FIX_MARK) && isAfter(c.createdAt, since),
+      (c) =>
+        c.issueNumber === pull.number &&
+        c.body.includes(AUTO_FIX_MARK) &&
+        isAfter(c.createdAt, since) &&
+        !(brokenEnd !== null && !isAfter(c.createdAt, brokenEnd)),
     )
   ) {
     return true;
@@ -525,10 +538,73 @@ export function autoFixRequestShas(comments: CommentData[], pullNumber: number):
     .map((comment) => AUTO_FIX_SHA_PATTERN.exec(comment.body)?.[1] ?? null);
 }
 
-/** 修正中か：最新の修正依頼のSHAが、PRの先頭コミットのまま（まだ直したコミットが来ていない） */
-export function isFixing(comments: CommentData[], pull: PullData): boolean {
+/** 修正AIのワークフローの名前 */
+const FIX_RUN_NAME = "claude mention";
+/** 実行が取り消し・失敗・時間切れで終わった印 */
+const BROKEN_CONCLUSIONS = ["cancelled", "failure", "timed_out"];
+
+/** 実行の始まった時刻（無ければ最後の更新） */
+function runTime(run: WorkflowRunData): string {
+  return run.startedAt ?? run.updatedAt;
+}
+
+/** そのブランチの修正AI（Claude Mention）の実行のうち、いちばん新しい物（`after` より後に始まった物だけ。無ければ null） */
+export function latestFixRun(
+  runs: WorkflowRunData[] | null | undefined,
+  headRef: string,
+  after: string | null = null,
+): WorkflowRunData | null {
+  if (!runs || headRef === "") return null;
+  let latest: WorkflowRunData | null = null;
+  for (const run of runs) {
+    if (run.name?.trim().toLowerCase() !== FIX_RUN_NAME || run.headBranch !== headRef) continue;
+    if (after !== null && !isAfter(runTime(run), after)) continue;
+    if (latest === null || runTime(run) > runTime(latest)) latest = run;
+  }
+  return latest;
+}
+
+/** 終わった（取り消し・失敗・時間切れ）修正AIの実行か */
+function isBrokenRun(run: WorkflowRunData | null): run is WorkflowRunData {
+  return (
+    run !== null &&
+    run.status === "completed" &&
+    run.conclusion !== undefined &&
+    run.conclusion !== null &&
+    BROKEN_CONCLUSIONS.includes(run.conclusion)
+  );
+}
+
+/**
+ * 最新の修正依頼のあとに始まった修正AIの実行が、取り消し・失敗・時間切れで終わっていれば、その実行。
+ * 実行の一覧が取れていない（null・無し）・依頼が無い・実行が無いときは null
+ */
+export function brokenFixRun(
+  comments: CommentData[],
+  pull: PullData,
+  runs: WorkflowRunData[] | null | undefined,
+): WorkflowRunData | null {
+  const request = comments
+    .filter((comment) => comment.issueNumber === pull.number && comment.body.includes(AUTO_FIX_MARK))
+    .sort(byCreatedAt)
+    .at(-1);
+  if (!request) return null;
+  const run = latestFixRun(runs, pull.headRef, request.createdAt);
+  return isBrokenRun(run) ? run : null;
+}
+
+/**
+ * 修正中か：最新の修正依頼のSHAが、PRの先頭コミットのまま（まだ直したコミットが来ていない）。
+ * ただし、依頼のあとの修正AIの実行が取り消し・失敗・時間切れで終わっていれば、誰も直していないので修正中にしない
+ */
+export function isFixing(
+  comments: CommentData[],
+  pull: PullData,
+  runs: WorkflowRunData[] | null | undefined = null,
+): boolean {
   const last = autoFixRequestShas(comments, pull.number).at(-1);
-  return last !== undefined && last !== null && last === pull.headSha;
+  if (last === undefined || last === null || last !== pull.headSha) return false;
+  return brokenFixRun(comments, pull, runs) === null;
 }
 
 /** 修正の上限：最新の修正依頼コメントの `（自動の依頼 n/N）` の N。読めなければ3 */
@@ -669,6 +745,8 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   const checks = pull ? (input.pullChecks[pull.number] ?? { checkRuns: [], statuses: [] }) : null;
   const ci = checks ? ciState(checks.checkRuns) : { state: "running" as const, passed: 0, total: 0 };
   const breakdown = countCiChecks((checks?.checkRuns ?? []).filter((check) => !isClaudeReviewCheck(check)));
+  // 必須なのにまだ報告されていないチェックは、枠待ちと同じ扱いで数に入れる（段階の判定は変えない）
+  const missing = Math.max(0, checks?.missingRequired ?? 0);
   const fixes = pull ? fixCount(input.comments, pull) : 0;
   const pushedFix = pull ? hasPushedFix(input.comments, pull) : false;
   const result = (
@@ -680,9 +758,9 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
     pull,
     ci: {
       passed: ci.passed,
-      total: ci.total,
+      total: ci.total + missing,
       running: breakdown.running,
-      queued: breakdown.queued,
+      queued: breakdown.queued + missing,
       failed: breakdown.failed,
     },
     mergeWait: null,
@@ -707,7 +785,7 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   }
 
   if (pull && checks) {
-    if (isFixing(input.comments, pull)) return result("fixing");
+    if (isFixing(input.comments, pull, input.runs)) return result("fixing");
     if (pull.labels.includes(LABEL.review) && !hasFinishedReviewCheck(checks.checkRuns)) {
       return result("reviewing");
     }

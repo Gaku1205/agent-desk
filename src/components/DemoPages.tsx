@@ -126,7 +126,7 @@ function demoGithubLimits(now: Date, runs: number | null): GithubLimits {
 }
 
 /** デモの Dashboard：デモのデータで、本物と同じ集計を出す */
-export function DemoDashboard() {
+export function DemoDashboard({ initialPeriod }: { initialPeriod?: PeriodKey }) {
   const { dashboardResults, now, repos } = useDemoState();
   const nav = useDemoNav();
   // Dashboard のデモのデータは60日分あるので、`30d` も含めて全部の期間をここで数える（取得は無い）
@@ -141,6 +141,7 @@ export function DemoDashboard() {
       now={now.toISOString()}
       repoCount={repos.length}
       nav={nav}
+      initialPeriod={initialPeriod}
     />
   );
 }

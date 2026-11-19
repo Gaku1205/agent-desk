@@ -95,6 +95,40 @@ describe("pickWorkingComment", () => {
   it("紐づく PR のコメントも使う", () => {
     expect(pickWorkingComment([comment(1, WORKING, { issueNumber: 40 })], [21, 40])?.id).toBe(1);
   });
+
+  describe("修正AIの実行が終わっているとき（Issue #609）", () => {
+    const pulls = [{ number: 40, headRef: "claude/issue-21-x" }];
+    const fixRun = (overrides: Partial<WorkflowRunData> = {}): WorkflowRunData => ({
+      id: 7,
+      status: "completed",
+      conclusion: "cancelled",
+      name: "Claude Mention",
+      headBranch: "claude/issue-21-x",
+      displayTitle: "",
+      pullNumbers: [40],
+      startedAt: "2026-11-16T09:50:00Z",
+      updatedAt: "2026-11-16T10:30:00Z",
+      ...overrides,
+    });
+    const onPull = [comment(1, WORKING, { issueNumber: 40 })];
+
+    it("取り消し・失敗・時間切れで終わっていれば拾わない", () => {
+      for (const conclusion of ["cancelled", "failure", "timed_out"]) {
+        expect(pickWorkingComment(onPull, [21, 40], [fixRun({ conclusion })], pulls)).toBeNull();
+      }
+    });
+
+    it("実行が動いている・成功・一覧が取れていないときは拾う", () => {
+      expect(pickWorkingComment(onPull, [21, 40], [fixRun({ status: "in_progress", conclusion: undefined })], pulls)?.id).toBe(1);
+      expect(pickWorkingComment(onPull, [21, 40], [fixRun({ conclusion: "success" })], pulls)?.id).toBe(1);
+      expect(pickWorkingComment(onPull, [21, 40], null, pulls)?.id).toBe(1);
+    });
+
+    it("その実行より前のコメント・修正AI以外の実行は関係ない", () => {
+      expect(pickWorkingComment(onPull, [21, 40], [fixRun({ startedAt: "2026-11-16T10:30:00Z" })], pulls)?.id).toBe(1);
+      expect(pickWorkingComment(onPull, [21, 40], [fixRun({ name: "Claude Review" })], pulls)?.id).toBe(1);
+    });
+  });
 });
 
 describe("todoActivity", () => {

@@ -151,37 +151,42 @@
   border-top: 1px solid var(--hair-2);
 }
 
-/* 席の行の下にぶら下がる、その席の処理（高さ40px）。左に薄い緑の縦線、左端に枝の線 */
+/* 席のまとまり（Issue #588）：席の行と処理の行を1つにし、席の左の縦線を処理の行の一番下まで続ける。席と席の間は10px（地を切る。線は引かない） */
+.seatList > .seat + .seat {
+  margin-top: 10px;
+  border-top: 0;
+}
+
+/* 席の下にぶら下がる処理の行：まとまりの一番下に6pxの余白（地は行と同じ）。縦線は席の線と同じ（2px・--ok） */
+.hangList {
+  margin: 0;
+  padding: 0 0 6px;
+  list-style: none;
+  box-shadow: inset 2px 0 0 var(--ok);
+}
+
 .hang {
   position: relative;
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr) 150px 52px 64px;
+  grid-template-columns: 110px minmax(0, 1fr) 150px 52px 64px;
   gap: 16px;
   align-items: center;
-  height: 40px;
+  height: 28px;
   padding: 0 0 0 40px;
-  background: var(--hair-2);
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--ok) 35%, transparent);
 }
 
+.hangList > .hang + .hang {
+  border-top: 1px solid var(--hair);
+}
+
+/* 内側の縦線（2px・--accent）：行の左端から26px */
 .hang::before {
   position: absolute;
   top: 0;
-  bottom: 50%;
-  left: 14px;
-  width: 16px;
-  border-bottom: 1px solid var(--edge-line);
-  border-bottom-left-radius: 4px;
-  border-left: 1px solid var(--edge-line);
-  content: "";
-}
-
-.hang:not([data-last])::after {
-  position: absolute;
-  top: 50%;
   bottom: 0;
-  left: 14px;
-  border-left: 1px solid var(--edge-line);
+  left: 26px;
+  width: 2px;
+  background: var(--accent);
   content: "";
 }
 
@@ -208,7 +213,7 @@
   grid-column: 3;
   overflow: hidden;
   color: var(--mute);
-  font-size: 12.5px;
+  font-size: 12px;
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -216,12 +221,16 @@
 
 .hang .time {
   grid-column: 4;
+  color: var(--bone-2);
+  font-size: 12.5px;
   text-align: right;
 }
 
 .hangLog {
   grid-column: 5;
+  font-size: 12px;
   text-align: right;
+  text-decoration: underline;
 }
 
 @container (max-width: 620px) {
@@ -237,7 +246,18 @@
   .hang {
     grid-template-columns: 110px minmax(0, 1fr) 52px;
     gap: 12px;
-    padding-left: 34px;
+    padding-left: 36px;
+  }
+}
+
+@media (max-width: 899px) {
+  /* ログ ↗ を押せる範囲44pxに（行の間の線1pxを含めて45px。Issue #623） */
+  .hang {
+    height: 45px;
+  }
+
+  .hangLog {
+    align-self: stretch;
   }
 }
 
@@ -249,12 +269,25 @@
   --line: var(--ok);
 }
 
+/* 空きの席をまとめた1行（Issue #586）：高さ40px・縦線 --edge-strong。左に `○ Free × 3`、真ん中に `Waiting 4 · …` */
 .row[data-tone="free"] {
-  --line: var(--hair);
+  --line: var(--edge-strong);
 }
 
-.row[data-tone="queue"] {
-  --line: var(--wait);
+.row[data-kind="free"] {
+  min-height: 40px;
+  height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.freeText {
+  margin: 0;
+  overflow: hidden;
+  color: var(--bone-2);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .left,
@@ -308,17 +341,6 @@
 .title:hover,
 .queueTitle:hover {
   text-decoration: underline;
-}
-
-.reason {
-  display: -webkit-box;
-  margin: 0;
-  overflow: hidden;
-  color: var(--bone-2);
-  font-size: 13px;
-  line-height: 1.55;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 /* 今の工程：回る印＋文＋経過時間 */
@@ -383,110 +405,7 @@
   opacity: 0.35;
 }
 
-/* CI の段の間だけ：CI のチェックの割合の線（Issue #583）。高さ・角丸は7工程の線と同じ */
-.ciLine {
-  display: flex;
-  gap: 1px;
-  width: 100%;
-  height: 3px;
-  margin-top: 6px;
-  border-radius: 2px;
-}
-
-/* チェックがまだ1つも無いときは、まだの色の1本 */
-.ciLine:empty {
-  background: var(--hair);
-}
-
-.ciSeg {
-  flex: var(--n) 1 0;
-  min-width: 2px;
-  height: 3px;
-  border-radius: 2px;
-}
-
-.ciSeg[data-kind="passed"] {
-  background: var(--ok);
-}
-
-.ciSeg[data-kind="running"] {
-  background: var(--accent);
-}
-
-.ciSeg[data-kind="queued"] {
-  background: var(--wait);
-}
-
-.ciSeg[data-kind="failed"] {
-  background: var(--fail);
-}
-
-/* CI の段の1段目の文：`4/7 CI ✓4 ⧗6 枠待ち` */
-.ciText {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--bone-2);
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.ciStep {
-  color: var(--mute);
-}
-
-.ciCount {
-  display: inline-flex;
-  flex-shrink: 0;
-  gap: 3px;
-  align-items: center;
-}
-
-.ciCount[data-kind="passed"] {
-  color: var(--ok);
-}
-
-.ciCount[data-kind="running"] {
-  color: var(--accent);
-}
-
-.ciCount[data-kind="queued"] {
-  color: var(--wait);
-}
-
-.ciCount[data-kind="failed"] {
-  color: var(--fail-soft);
-}
-
-.ciWord {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-.next {
-  display: inline-flex;
-  gap: 4px;
-  align-items: center;
-  color: var(--bone-2);
-  font-size: 12.5px;
-  white-space: nowrap;
-}
-
-.nextWord {
-  color: var(--mute);
-}
+/* CI のチェックの割合の線と数は CiProgress.module.css（Issue #585 で共有に移した） */
 
 /* Running */
 .kind {
@@ -529,44 +448,42 @@
   white-space: nowrap;
 }
 
-.log,
-.waitFor {
+.log {
   color: var(--bone-2);
+  font-size: 12.5px;
   text-decoration: underline;
   text-underline-offset: 2px;
   white-space: nowrap;
 }
 
-.log {
-  font-size: 12.5px;
-}
-
-.log:hover,
-.waitFor:hover {
+.log:hover {
   color: var(--bone);
 }
 
-/* Queue */
-.rank {
-  display: inline-flex;
-  gap: 3px;
-  align-items: center;
-  color: var(--wait);
-  font-size: 14px;
-  font-weight: 600;
+/* スマホ：題名・ログ ↗ の押せる範囲を高さ44pxに（Issue #623。docs/design.md の「Slots & Queue」） */
+@media (max-width: 899px) {
+  .title {
+    min-height: 44px;
+    padding-block: 11px;
+  }
+
+  .log {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
 }
 
-.queueTop {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  min-width: 0;
+/* 上の display を、狭い所で隠す決まり（席の下の行・開いた Sleeping の行）より後に置いて、隠す側を勝たせる */
+@container (max-width: 620px) {
+  .log.hangLog,
+  .log.sleepLog {
+    display: none;
+  }
 }
 
-.queueTop .ref {
-  flex-shrink: 0;
-}
-
+/* Paused の題名（Queue の行と同じ文字だった物） */
 .queueTitle {
   overflow: hidden;
   color: var(--bone);
@@ -576,41 +493,214 @@
   white-space: nowrap;
 }
 
-.why {
+/* ───── Queue：待つ相手ごとのまとまり（Issue #586） ───── */
+/* まとまりの間は10px空けて地を切る（線は引かない）。親の左の縦線をまとまりの一番下まで続け、下に6pxの余白 */
+.groupList > .group + .group {
+  margin-top: 10px;
+  border-top: 0;
+}
+
+.group {
+  --group-line: var(--edge-strong);
+  padding-bottom: 6px;
+  box-shadow: inset 2px 0 0 var(--group-line);
+}
+
+.group[data-tone="running"] {
+  --group-line: var(--ok);
+}
+
+.group[data-tone="queue"] {
+  --group-line: var(--wait);
+}
+
+/* 親の行：1行・40px。3列は行（3つの区画で共通）と同じ */
+.groupHead {
+  display: grid;
+  grid-template-columns: minmax(0, 200px) minmax(0, 1fr) minmax(0, 220px);
+  gap: 20px;
+  align-items: center;
+  height: 40px;
+  padding: 0 0 0 12px;
+}
+
+.groupLeft {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--mute);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.groupHead[data-tone="running"] .groupLeft {
+  color: var(--ok);
+}
+
+.groupRefs {
   overflow: hidden;
   color: var(--bone-2);
-  font-size: 12.5px;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-/* 待っている相手：`待ち：agent-desk#550 題名…  ほか2件`（題名だけが縮んで「…」になる） */
-.whyFlex {
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
+.groupHead[data-tone="running"] .groupRefs {
+  color: var(--ok);
 }
 
-.whyHead,
-.whyMore {
-  flex: none;
-  white-space: nowrap;
+.groupRef {
+  color: inherit;
 }
 
-.whyHead {
-  margin-right: -6px;
+.groupRef:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
-.whyMore {
+.groupPlus {
   color: var(--mute);
 }
 
-.whyTitle {
-  flex: 0 1 auto;
-  min-width: 0;
+.groupText {
   overflow: hidden;
+  color: var(--bone);
+  font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.groupText[data-muted],
+.groupHead[data-kind="next"] .groupText {
+  color: var(--bone-2);
+}
+
+.groupStep {
+  overflow: hidden;
+  color: var(--bone-2);
+  font-size: 12.5px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupRows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 子の行：1行・28px（スマホ36px）。左の余白26pxに内側の縦線（2px・--wait）、その右12pxから中身 */
+.qRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) minmax(0, 200px) 56px;
+  gap: 16px;
+  align-items: center;
+  height: 28px;
+  padding: 0 0 0 40px;
+}
+
+.qRow[data-depth="2"] {
+  padding-left: 66px;
+}
+
+.groupRows > .qRow + .qRow {
+  border-top: 1px solid var(--hair);
+}
+
+.qRow::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 26px;
+  width: 2px;
+  background: var(--wait);
+  content: "";
+}
+
+.qRow[data-depth="2"]::before {
+  left: 52px;
+}
+
+.qRank {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  color: var(--wait);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.qTitle {
+  overflow: hidden;
+  color: var(--bone);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qTitle:hover {
+  text-decoration: underline;
+}
+
+.qMeta {
+  overflow: hidden;
+  color: var(--mute);
+  font-size: 12px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qTime {
+  color: var(--bone-2);
+  font-size: 12.5px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@container (max-width: 639px) {
+  .qMeta,
+  .groupStep {
+    display: none;
+  }
+
+  .qRow {
+    grid-template-columns: 40px minmax(0, 1fr) 56px;
+    gap: 12px;
+  }
+
+  .groupHead {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+
+@media (max-width: 899px) {
+  /* 題名のリンクを押せる範囲44pxに（行の間の線1pxを含めて45px。Issue #623） */
+  .qRow {
+    height: 45px;
+  }
+
+  .qTitle {
+    display: block;
+    min-height: 44px;
+    padding-block: 12px;
+    line-height: 20px;
+  }
+
+  /* 親の行：`待ち：` の相手の番号のリンクを44pxに */
+  .groupHead {
+    height: 44px;
+  }
+
+  .groupRef {
+    display: inline-flex;
+    align-items: center;
+    height: 44px;
+  }
 }
 
 /* ───── Background の目盛りと Active・Sleeping（Issue #584） ───── */
@@ -816,6 +906,16 @@ button[aria-expanded="true"] .chevron svg {
   text-align: right;
 }
 
+@media (max-width: 899px) {
+  .sleepSub {
+    height: 44px;
+  }
+
+  .sleepLog {
+    align-self: stretch;
+  }
+}
+
 @container (max-width: 639px) {
   .gauge {
     width: 100%;
@@ -856,9 +956,15 @@ button[aria-expanded="true"] .chevron svg {
   }
 
   .middle,
-  .title,
-  .reason {
+  .title {
     grid-area: middle;
+  }
+
+  /* 空きの席の1行は1行のまま（左と真ん中を横に、真ん中を縮める） */
+  .row[data-kind="free"] {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: none;
+    gap: 12px;
   }
 
   /* 枠の行は右の幅をそろえ、工程の線を行をまたいで同じ位置に置く */

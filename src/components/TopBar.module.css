@@ -316,6 +316,14 @@
   min-width: 0;
 }
 
+/* 自動更新を止めている間の短い文字（スマホだけ。点の色だけで伝えない） */
+.syncPaused {
+  display: none;
+  margin-left: -4px;
+  color: var(--accent);
+  font-size: 12px;
+}
+
 .syncBtn {
   display: inline-flex;
   align-items: center;
@@ -347,6 +355,16 @@
 
 .syncDot[data-state="paused"] {
   background: var(--accent);
+}
+
+/* 全部のリポジトリが読めなかった：緑にしない（docs/design.md の「上端の帯」の「取り直しが全部失敗したとき」） */
+.syncDot[data-state="failed"] {
+  background: var(--fail);
+}
+
+.syncFail {
+  margin-left: 6px;
+  color: var(--fail-soft);
 }
 
 .syncDot[data-state="busy"] {
@@ -596,8 +614,17 @@
     display: none;
   }
 
+  .top .syncPaused {
+    display: inline;
+  }
+
+  .top .menuBtn {
+    flex-shrink: 0;
+  }
+
   .top .pageName {
     display: block;
+    flex-shrink: 0;
     min-width: 0;
     overflow: hidden;
     font-size: 15px;
@@ -608,6 +635,28 @@
 
   .top .foldedSlot {
     display: block;
+  }
+
+  /* 再生：見た目は30pxのまま、押せる範囲を上下7pxずつ広げて44pxに（Issue #623） */
+  .play {
+    position: relative;
+    padding: 0 10px;
+  }
+
+  /* アイコンだけにする（文字は隠す。aria-label に文言が入っている） */
+  .playLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .play::after {
+    position: absolute;
+    inset: -7px 0;
+    content: "";
   }
 
   .top .right {
@@ -667,8 +716,20 @@
       visibility 0s;
   }
 
+  /* ホームへのリンク（Issue #613）：押せる範囲は高さ44px。文字の位置は今のまま（左の −12px と内側の 12px で合わせる） */
   .sheet .mark {
-    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    height: 44px;
+    margin: -8px 0 6px -12px;
+    padding: 0 12px;
+    border-radius: 6px;
+  }
+
+  /* 押した印：ほかの項目と同じ（押している間だけ「今いる」の見た目） */
+  .sheet .mark:has([data-pending]) {
+    background: var(--well);
+    color: var(--bone);
   }
 
   .sheet .repos {

@@ -395,6 +395,7 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
                 type="button"
                 className={`${styles.act} ${first ? styles.primary : styles.text}`}
                 data-act=""
+                data-pre-tap=""
                 data-hit={hit === "merge" ? "" : undefined}
                 aria-disabled={blocked ? "true" : undefined}
                 onClick={() => {
@@ -514,6 +515,8 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
                       type="button"
                       className={`${styles.act} ${role}`}
                       data-act=""
+                      // 流し直してよい押し（Issue #615）。答えるは入力が要るので印を付けない
+                      data-pre-tap={button.kind === "answer" ? undefined : ""}
                       data-hit={hit === button.kind ? "" : undefined}
                       data-busy={busy === button.kind ? "" : undefined}
                       aria-disabled={

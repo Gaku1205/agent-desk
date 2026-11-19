@@ -1,21 +1,37 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { startTransition as startRefresh, useEffect, useState, useTransition } from "react";
+import { startTransition as startRefresh, useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { runOperation } from "@/app/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
 import { DEMO_OP_DELAY_MS } from "@/lib/demo/ops";
 import { formatSpan } from "@/lib/dashboard/duration";
+import { heldPausedIndex, withHeldPaused, type HeldPaused } from "@/lib/lanes/pausedHold";
 import type { PausedEntry } from "@/lib/lanes/source";
 import { OPERATION_COPY, RESULT_SHOW_MS } from "@/lib/operationResult";
 import type { OperationResult } from "@/lib/operations";
 import { useDemo } from "./DemoContext";
 import styles from "./Lanes.module.css";
 
-type Phase = "idle" | "busy" | "done" | "gone";
+/** 片づけた1行を隠しておく長さ（Your turn の `TURN_LEAVE_MS` と同じ） */
+const HIDE_MS = 8000;
+
+type Phase ="idle" | "busy" | "done" | "gone";
 
 /** Paused の1行（Issue #520。docs/design.md の「Slots & Queue」）：理由・止めてからの時間・`今すぐ始める` */
-function PausedRow({ entry, now }: { entry: PausedEntry; now: Date }) {
+function PausedRow({
+  entry,
+  now,
+  onHold,
+  onGone,
+}: {
+  entry: PausedEntry;
+  now: Date;
+  /** 押してから片づけるまで、この1行の中身を預ける。null で預かりをやめる */
+  onHold: (key: string, entry: PausedEntry | null) => void;
+  /** 結果を見せ終えた：この行を片づける */
+  onGone: (key: string) => void;
+}) {
   const demo = useDemo();
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -30,12 +46,20 @@ function PausedRow({ entry, now }: { entry: PausedEntry; now: Date }) {
     return () => window.clearTimeout(timer);
   }, [phase, demo]);
 
-  // 結果を見せたら消す
+  // 押してから片づけるまで、この1行の中身を預ける（取り直しで一覧から外れても、結果を見せ終えるまで残す）
+  useEffect(() => {
+    onHold(entry.key, phase === "idle" || phase === "gone" ? null : entry);
+  }, [phase, entry, onHold]);
+
+  // 結果を見せたら片づける
   useEffect(() => {
     if (phase !== "done") return;
-    const timer = window.setTimeout(() => setPhase("gone"), RESULT_SHOW_MS);
+    const timer = window.setTimeout(() => {
+      setPhase("gone");
+      onGone(entry.key);
+    }, RESULT_SHOW_MS);
     return () => window.clearTimeout(timer);
-  }, [phase]);
+  }, [phase, entry.key, onGone]);
 
   function start() {
     if (phase !== "idle") return;
@@ -56,12 +80,17 @@ function PausedRow({ entry, now }: { entry: PausedEntry; now: Date }) {
       } else {
         // 画面の取り直しは裏で行う（骨組みに戻さず、届くまで今の中身を出し続ける）
         startRefresh(() => router.refresh());
-        setPhase(result.ok ? "done" : "gone");
+        if (result.ok) {
+          setPhase("done");
+        } else {
+          // 押した時点で状態が変わっていて何もしなかった：結果は出さず、すぐ片づける
+          setPhase("gone");
+          onGone(entry.key);
+        }
       }
     });
   }
 
-  if (phase === "gone") return null;
   const text = error ?? entry.reason;
   return (
     <li className={styles.row} data-kind="paused">
@@ -100,10 +129,53 @@ function PausedRow({ entry, now }: { entry: PausedEntry; now: Date }) {
 
 /** Paused の行の一覧 */
 export function PausedList({ entries, now }: { entries: readonly PausedEntry[]; now: Date }) {
+  const [held, setHeld] = useState<ReadonlyMap<string, HeldPaused>>(() => new Map());
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
+  const entriesRef = useRef(entries);
+  useEffect(() => {
+    entriesRef.current = entries;
+  });
+
+  const hold = useCallback((key: string, value: PausedEntry | null) => {
+    setHeld((prev) => {
+      const before = prev.get(key);
+      if (value === null) {
+        if (!before) return prev;
+        const next = new Map(prev);
+        next.delete(key);
+        return next;
+      }
+      if (before) return prev;
+      const next = new Map(prev);
+      next.set(key, { entry: value, index: heldPausedIndex(undefined, entriesRef.current, key) });
+      return next;
+    });
+  }, []);
+
+  const gotAway = useCallback((key: string) => {
+    setHidden((prev) => new Set(prev).add(key));
+    // 取り直しが古い内容のままでも、1件が隠れたまま残らないようにする（Your turn と同じ8秒）
+    window.setTimeout(() => {
+      setHidden((prev) => {
+        if (!prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }, HIDE_MS);
+    setHeld((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Map(prev);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const shown = withHeldPaused(entries, held, hidden);
   return (
     <ul className={styles.list}>
-      {entries.map((entry) => (
-        <PausedRow key={entry.key} entry={entry} now={now} />
+      {shown.map((entry) => (
+        <PausedRow key={entry.key} entry={entry} now={now} onHold={hold} onGone={gotAway} />
       ))}
     </ul>
   );

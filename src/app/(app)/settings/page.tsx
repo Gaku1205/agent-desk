@@ -13,6 +13,8 @@ import { DEFAULT_PARALLEL_SETTINGS } from "@/lib/parallel";
 import { NOTIFY_EVENTS_VARIABLE, parseNotifyEvents } from "@/lib/notifyEvents";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
 
+export const metadata = { title: "設定" };
+
 const GITHUB_FALLBACK_MESSAGE = "GitHubからデータを取れませんでした";
 
 export default async function SettingsPage() {

@@ -302,6 +302,7 @@ export function LanesTurn({ item, wait, mergeOrder, basePath, onHold, onGone }: 
                     type="button"
                     className={i === all.length - 1 ? `${styles.turnAct} ${styles.turnPrimary}` : styles.turnAct}
                     data-act=""
+                    data-pre-tap={button.kind === "answer" ? undefined : ""}
                     data-busy={busy === button.kind ? "" : undefined}
                     aria-disabled={blocked ? "true" : undefined}
                     onClick={() => {

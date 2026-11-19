@@ -18,15 +18,19 @@ export class GitHubError extends Error {
   readonly status: number | null;
   /** 返事の `X-RateLimit-Reset`（回復する時刻。UNIX秒）。無ければ null */
   readonly rateLimitResetAt: number | null;
+  /** 返事が時間切れで来なかった（種類は `other`）。差分の読みから全部の読み直しに進まないために使う */
+  readonly timedOut: boolean;
 
   constructor(
     kind: GitHubErrorKind,
     status: number | null = null,
     rateLimitResetAt: number | null = null,
     source: ErrorSource = "user",
+    timedOut = false,
   ) {
     super(buildMessage(kind, rateLimitResetAt, source));
     this.name = "GitHubError";
+    this.timedOut = timedOut;
     this.kind = kind;
     this.status = status;
     this.rateLimitResetAt = rateLimitResetAt;

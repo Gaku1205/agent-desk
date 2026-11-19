@@ -5,6 +5,9 @@ import { isAuthExpired, SESSION_EXPIRED_PATH } from "@/lib/authExpired";
 import type { WatchedRepo } from "@/lib/config";
 import { getRepoResult } from "@/lib/github/fetch";
 import { buildLanesSource } from "@/lib/lanes/source";
+import { loadErrorsOf } from "@/lib/loadErrors";
+import { resolveLoadState } from "@/lib/loadState";
+import { slotsInUseOf } from "@/lib/navCounts";
 import { loadTurns } from "@/lib/loadTurns";
 import { newIssueRepos } from "@/lib/newIssue";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
@@ -22,6 +25,8 @@ export async function LayoutStream({ renderedAt }: { renderedAt: string }) {
   // 描画中は Cookie を消せないので、Route Handler に任せる
   if (isAuthExpired(loaded.results)) redirect(SESSION_EXPIRED_PATH);
   const { repos } = await loadWatchedRepos();
+  // 読めなかったリポジトリ：札は残し、数と「使用中」は 0 ではなく「–」にする
+  const unreadableRepos = loadErrorsOf(loaded.results).map((error) => error.repo.toLowerCase());
 
   return (
     <LayoutFeed
@@ -34,12 +39,15 @@ export async function LayoutStream({ renderedAt }: { renderedAt: string }) {
         appliedChangeMarks: loaded.changeWatch.appliedMarks,
         needsIntervalRefresh: loaded.changeWatch.needsIntervalRefresh,
         graceRefreshAt: loaded.graceRefreshAt,
+        // 全部のリポジトリが読めなかった（同期の時刻を進めず、点を緑にしない）
+        readFailed: resolveLoadState(loaded.results.map((result) => ({ fresh: result, stale: null }))).sync === "failed",
       }}
       streamed={{
         counts: countTurnItems(loaded.items),
         runningCounts: countRunningPipelineRows(loaded.results, loaded.now),
         newIssueRepos: newIssueRepos(repos, loaded.results),
-        slotsInUse: buildLanesSource(loaded.results, loaded.now).works.length,
+        slotsInUse: slotsInUseOf(buildLanesSource(loaded.results, loaded.now).works.length, unreadableRepos.length),
+        unreadableRepos,
         addedNotices: loaded.addedNotices,
         renderedAt,
       }}
@@ -63,6 +71,7 @@ export async function RepoStream({ token, repo, renderedAt }: { token: string; r
       turn={countTurnItems(buildTurnItems([result], now)).byRepo[key] ?? 0}
       running={countRunningPipelineRows([result], now).byRepo[key] ?? 0}
       renderedAt={renderedAt}
+      unreadable={!result.ok}
     />
   );
 }

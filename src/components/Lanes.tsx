@@ -1,13 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
-import { ciStepText, type CiKind, type CiProgress } from "@/lib/ciProgress";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
-import { assignSlots, lanesHeadline, overLimitNote,type QueueEntry, type Slot } from "@/lib/lanes/slots";
-import { queueLine } from "@/lib/lanes/queueLine";
+import { assignSlots, freeRowText, lanesHeadline, overLimitDetail, overLimitNote, type Slot } from "@/lib/lanes/slots";
+import {
+  multiWaitText,
+  NEXT_FREE_TEXT,
+  queueGroups,
+  queueRowMeta,
+  queueRowTitle,
+  targetLabel,
+  workStepText,
+  type QueueGroup,
+  type QueueGroupRow,
+} from "@/lib/lanes/queueGroups";
 import { isLongSleep, jobGauge, sleepingCountText, sortByWake, wakeTimeText, type JobGauge } from "@/lib/lanes/sleeping";
-import type { LanesSource, RunEntry } from "@/lib/lanes/source";
+import type { LanesSource, RunEntry, WaitTarget } from "@/lib/lanes/source";
+import type { LanesReadMode } from "@/lib/lanes/readMode";
 import { lanesTurnRows, mergeOrdinals } from "@/lib/lanes/turnRows";
 import { heldIndex, withHeldRows, type HeldRow } from "@/lib/operationResult";
 import { turnItemKey, turnSig, type TurnItem } from "@/lib/turn";
@@ -16,6 +26,7 @@ import { getBrowserStorage } from "@/lib/motion";
 import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import dashboardStyles from "./Dashboard.module.css";
 import { getSidebarSnapshot, subscribeSidebar, type DeskError, type DeskNav } from "./Desk";
+import { CiLine, CiText } from "./CiProgress";
 import { LoadErrors } from "./LoadErrors";
 import type { UsageSource } from "@/lib/lanes/usage";
 import {
@@ -50,13 +61,31 @@ type Props = {
   nav: DeskNav;
   /** 読めなかったリポジトリ（あれば、見出しの下に出す。数や一覧には入っていない） */
   errors?: DeskError[];
+  /** 読めなかったときの出し方（無ければ全部読めた）。`failed` は数を `–` にして空きの席の行と「空」の文を出さず、`partial` は「空」の文だけ出さない */
+  readMode?: LanesReadMode;
 };
+
+const DASH = "–";
 
 /** 片づけた1件を隠しておく長さ */
 const TURN_LEAVE_MS = 8000;
 
 /** Your turn：いまの「あなたの番」を1行ずつ並べ、その場で押せる */
-function TurnSection({ id, items, now, basePath }: { id: string; items: TurnItem[]; now: Date; basePath: string }) {
+function TurnSection({
+  id,
+  items,
+  now,
+  basePath,
+  canSayEmpty,
+  unknownCount,
+}: {
+  id: string;
+  items: TurnItem[];
+  now: Date;
+  basePath: string;
+  canSayEmpty: boolean;
+  unknownCount: boolean;
+}) {
   const [held, setHeld] = useState<ReadonlyMap<string, HeldRow<TurnItem>>>(() => new Map());
   const [gone, setGone] = useState<ReadonlyMap<string, string>>(() => new Map());
   const rows = lanesTurnRows(items);
@@ -111,7 +140,7 @@ function TurnSection({ id, items, now, basePath }: { id: string; items: TurnItem
 
   return (
     <section className={styles.section} aria-labelledby={id}>
-      <SectionHead id={id} icon={<PersonIcon size={16} />} title="Your turn" count={count} />
+      <SectionHead id={id} icon={<PersonIcon size={16} />} title="Your turn" count={unknownCount ? DASH : count} />
       <ul className={styles.legend} aria-label="色の見方">
         {TURN_GROUPS.map((g) => (
           <li key={g.group} data-group={g.group}>
@@ -121,7 +150,7 @@ function TurnSection({ id, items, now, basePath }: { id: string; items: TurnItem
         ))}
       </ul>
       {shown.length === 0 ? (
-        <p className={styles.empty}>あなたが答えることはありません</p>
+        canSayEmpty ? <p className={styles.empty}>あなたが答えることはありません</p> : null
       ) : (
         <ul className={styles.list}>
           {shown.map((item, index) => (
@@ -182,67 +211,10 @@ function StepLine({ at }: { at: number }) {
   );
 }
 
-/** CI の段の間だけ、7工程の線の代わりに出す、CI のチェックの割合の線（左から 通過・実行中・枠待ち・失敗） */
-function CiLine({ ci }: { ci: CiProgress }) {
-  return (
-    <span className={styles.ciLine} role="img" aria-label={ci.label}>
-      {ci.segments.map((segment) => (
-        <span
-          key={segment.kind}
-          className={styles.ciSeg}
-          data-kind={segment.kind}
-          style={{ "--n": segment.count } as CSSProperties}
-        />
-      ))}
-    </span>
-  );
-}
-
-function CiMark({ kind }: { kind: CiKind }) {
-  switch (kind) {
-    case "passed":
-      return <span>✓</span>;
-    case "running":
-      return (
-        <span className={styles.spin}>
-          <SpinnerIcon size={12} />
-        </span>
-      );
-    case "queued":
-      return <QueueIcon size={12} />;
-    case "failed":
-      return <span>×</span>;
-  }
-}
-
-/** CI の段の間の1段目の文：`4/7 CI ✓4 ⧗6 枠待ち`（数は記号ごとに線と同じ色） */
-function CiText({ at, ci }: { at: number; ci: CiProgress }) {
-  return (
-    <span className={styles.ciText}>
-      <span className={styles.srOnly}>{ciStepText(at, FLOW_STEPS.length, ci)}</span>
-      <span className={styles.ciStep} aria-hidden="true">
-        <span className="num">
-          {at + 1}/{FLOW_STEPS.length}
-        </span>{" "}
-        CI
-      </span>
-      {ci.segments.map((segment) => (
-        <span key={segment.kind} className={styles.ciCount} data-kind={segment.kind} aria-hidden="true">
-          <CiMark kind={segment.kind} />
-          <span className="num">{segment.count}</span>
-        </span>
-      ))}
-      <span className={styles.ciWord} aria-hidden="true">
-        {ci.word}
-      </span>
-    </span>
-  );
-}
-
 /** 席の行の下にぶら下がる、その席の処理の1行 */
-function HangRow({ run, last }: { run: RunEntry; last: boolean }) {
+function HangRow({ run }: { run: RunEntry }) {
   return (
-    <li className={styles.hang} data-last={last ? "" : undefined} data-kind="hang">
+    <li className={styles.hang} data-kind="hang">
       <span className={styles.hangKind}>
         <span className={styles.spin} aria-hidden="true">
           <SpinnerIcon size={13} />
@@ -263,12 +235,13 @@ function HangRow({ run, last }: { run: RunEntry; last: boolean }) {
   );
 }
 
-function SlotRow({ slot }: { slot: Slot }) {
-  if (slot.kind === "running") {
-    const { work } = slot;
-    return (
-      <>
-      <li className={styles.row} data-tone="running" data-kind="slot">
+type RunningSlot = Extract<Slot, { kind: "running" }>;
+
+function SlotRow({ slot }: { slot: RunningSlot }) {
+  const { work } = slot;
+  return (
+      <li className={styles.seat}>
+      <div className={styles.row} data-tone="running" data-kind="slot">
         <div className={styles.left}>
           <span className={styles.slotName} data-tone="running">
             <PlayIcon size={12} />
@@ -297,36 +270,37 @@ function SlotRow({ slot }: { slot: Slot }) {
           </span>
           {work.ci ? <CiLine ci={work.ci} /> : <StepLine at={work.stepAt} />}
         </div>
+      </div>
+      {slot.runs.length > 0 && (
+        <ul className={styles.hangList}>
+          {slot.runs.map((run) => (
+            <HangRow key={run.key} run={run} />
+          ))}
+        </ul>
+      )}
       </li>
-      {slot.runs.map((run, index) => (
-        <HangRow key={run.key} run={run} last={index === slot.runs.length - 1} />
-      ))}
-      </>
-    );
-  }
+  );
+}
+
+/** 空きの席をまとめた1行：`○ Free × 3`・`Waiting 4 · 下の作業が終わるのを待っている`（Issue #586） */
+function FreeRow({ count, queue, canSayEmpty }: { count: number; queue: number; canSayEmpty: boolean }) {
+  const { waiting, text } = freeRowText(queue);
+  // 読めなかったリポジトリがあるとき、Queue が0件でも「待っている作業はありません」とは言わない
+  const shownText = waiting === null && !canSayEmpty ? null : text;
   return (
-    <li className={styles.row} data-tone="free" data-kind="slot">
-      <div className={styles.left}>
-        <span className={styles.slotName} data-tone="free">
-          <CircleIcon size={12} />
-          Slot {slot.index} · Free
-        </span>
-        <span className={styles.ref}>空いています</span>
-      </div>
-      <p className={styles.reason} title={slot.reason}>
-        {slot.reason}
-      </p>
-      <div className={styles.right}>
-        {slot.next && (
-          <span className={styles.next}>
-            <QueueIcon size={12} />
-            <span className={styles.nextWord}>次</span>
-            <span className="num">
-              {slot.next.repo}#{slot.next.number}
-            </span>
-          </span>
+    <li className={`${styles.seat} ${styles.row}`} data-tone="free" data-kind="free">
+      <span className={styles.slotName} data-tone="free">
+        <CircleIcon size={12} />
+        Free ×<span className="num">{count}</span>
+      </span>
+      <p className={styles.freeText}>
+        {waiting !== null && (
+          <>
+            <span className="num">Waiting {waiting}</span> ·{" "}
+          </>
         )}
-      </div>
+        {shownText}
+      </p>
     </li>
   );
 }
@@ -476,7 +450,19 @@ function SleepingRow({ runs, now }: { runs: RunEntry[]; now: Date }) {
 }
 
 /** Background：`Active`（動いている）と `Sleeping`（寝ている）に分けて出す */
-function BackgroundSection({ id, other, all, now }: { id: string; other: RunEntry[]; all: RunEntry[]; now: Date }) {
+function BackgroundSection({
+  id,
+  other,
+  all,
+  now,
+  canSayEmpty,
+}: {
+  id: string;
+  other: RunEntry[];
+  all: RunEntry[];
+  now: Date;
+  canSayEmpty: boolean;
+}) {
   const active = other.filter((run) => !run.sleeping);
   const sleeping = sortByWake(other.filter((run) => run.sleeping));
   const gauge = jobGauge(all);
@@ -487,7 +473,7 @@ function BackgroundSection({ id, other, all, now }: { id: string; other: RunEntr
         <JobGaugeView gauge={gauge} />
       </div>
       {active.length === 0 && sleeping.length === 0 ? (
-        <p className={styles.empty}>いまは CI や公開の作業はありません</p>
+        canSayEmpty ? <p className={styles.empty}>いまは CI や公開の作業はありません</p> : null
       ) : (
         <>
           {active.length > 0 && (
@@ -514,70 +500,100 @@ function BackgroundSection({ id, other, all, now }: { id: string; other: RunEntr
   );
 }
 
-function QueueWhy({ entry, basePath }: { entry: QueueEntry; basePath: string }) {
-  const line = queueLine(entry);
-  if (line.kind === "text") {
-    return (
-      <span className={styles.why} title={entry.reason}>
-        {line.text}
-      </span>
-    );
-  }
-  const { target, more } = line;
-  const label = target.kind === "pull" ? `${entry.repo} PR #${target.number}` : `${entry.repo}#${target.number}`;
-  // 進捗図は、その作業のあるリポジトリのページで見る（Issue が分からない PR は GitHub の PR）
+/** 親の行の相手の番号（`#553`・`PR #36`）。進捗図は、その作業のあるリポジトリのページで見る（Issue が分からない PR は GitHub の PR） */
+function TargetLink({ target, group, basePath }: { target: WaitTarget; group: QueueGroup; basePath: string }) {
   const inApp = target.issueNumber !== null;
-  const href = inApp ? `${basePath}/repos/${entry.owner}/${entry.repo}` : target.url;
+  const href = inApp ? `${basePath}/repos/${group.owner}/${group.repo}` : target.url;
   return (
-    <span className={`${styles.why} ${styles.whyFlex}`} title={entry.reason}>
-      <span className={styles.whyHead}>待ち：</span>
-      <a
-        className={styles.waitFor}
-        href={href}
-        {...(inApp ? {} : { target: "_blank", rel: "noreferrer" })}
-      >
-        {label}
-      </a>
-      {target.title !== "" && <span className={styles.whyTitle}>{target.title}</span>}
-      {more > 0 && <span className={styles.whyMore}>ほか{more}件</span>}
-    </span>
+    <a className={styles.groupRef} href={href} {...(inApp ? {} : { target: "_blank", rel: "noreferrer" })}>
+      {targetLabel(target)}
+    </a>
   );
 }
 
-function QueueRow({ entry, basePath }: { entry: QueueEntry; basePath: string }) {
+/** まとまりの親の行（1行・40px）：待つ相手 → 相手の題名（または文） → 相手の今の工程 */
+function GroupHead({ group, basePath }: { group: QueueGroup; basePath: string }) {
+  if (group.kind === "next") {
+    return (
+      <div className={styles.groupHead} data-kind="next">
+        <span className={styles.groupLeft}>
+          <CircleIcon size={12} />
+          Next free slot
+        </span>
+        <span className={styles.groupText}>{NEXT_FREE_TEXT}</span>
+      </div>
+    );
+  }
+  const middle =
+    group.kind === "multi" ? multiWaitText(group.targets.length) : group.work?.title ?? group.targets[0].title;
   return (
-    <li className={styles.row} data-tone="queue" data-kind="queue">
-      <div className={styles.left}>
-        <span className={styles.rank}>
-          <QueueIcon size={13} />
-          <span className="num">{entry.rank}</span>
+    <div className={styles.groupHead} data-kind={group.kind} data-tone={group.tone}>
+      <span className={styles.groupLeft}>
+        {group.tone === "running" ? <PlayIcon size={12} /> : group.kind === "multi" ? <CircleIcon size={12} /> : null}
+        <span className={`${styles.groupRefs} num`}>
+          {group.targets.map((target, index) => (
+            <span key={`${target.kind}:${target.number}`}>
+              {index > 0 && <span className={styles.groupPlus}> + </span>}
+              <TargetLink target={target} group={group} basePath={basePath} />
+            </span>
+          ))}
         </span>
-      </div>
-      <div className={styles.middle}>
-        <span className={styles.queueTop}>
-          <span className={`${styles.ref} num`}>
-            {entry.repo}#{entry.number}
-          </span>
-          <a className={styles.queueTitle} href={entry.url} target="_blank" rel="noreferrer" title={entry.title}>
-            {entry.title}
-          </a>
-        </span>
-        <QueueWhy entry={entry} basePath={basePath} />
-      </div>
-      <div className={styles.right}>
-        {entry.waitingMs !== null && <span className={`${styles.time} num`}>{formatSpan(entry.waitingMs)}</span>}
-      </div>
+      </span>
+      <span
+        className={styles.groupText}
+        data-muted={group.kind === "work" ? undefined : ""}
+        title={group.kind === "multi" ? undefined : middle}
+      >
+        {middle}
+      </span>
+      {group.work && <span className={styles.groupStep}>{workStepText(group.work)}</span>}
+    </div>
+  );
+}
+
+/** まとまりの子の行（1行・28px）：`⧗ 1`・題名・`agent-desk#556 · TopBar.tsx`・待ち時間 */
+function QueueChildRow({ row }: { row: QueueGroupRow }) {
+  const { entry } = row;
+  return (
+    <li className={styles.qRow} data-depth={row.depth} title={queueRowTitle(entry)}>
+      <span className={styles.qRank}>
+        <QueueIcon size={12} />
+        <span className="num">{row.order}</span>
+      </span>
+      <a className={styles.qTitle} href={entry.url} target="_blank" rel="noreferrer" title={entry.title}>
+        {entry.title}
+      </a>
+      <span className={`${styles.qMeta} num`}>{queueRowMeta(row)}</span>
+      <span className={`${styles.qTime} num`}>{entry.waitingMs !== null ? formatSpan(entry.waitingMs) : ""}</span>
+    </li>
+  );
+}
+
+function QueueGroupView({ group, basePath }: { group: QueueGroup; basePath: string }) {
+  return (
+    <li className={styles.group} data-tone={group.kind === "next" ? "idle" : group.tone}>
+      <GroupHead group={group} basePath={basePath} />
+      <ol className={styles.groupRows}>
+        {group.rows.map((row) => (
+          <QueueChildRow key={row.entry.key} row={row} />
+        ))}
+      </ol>
     </li>
   );
 }
 
 /** Slots & Queue（`/lanes`、デモは `/demo/lanes`）：見出し・Slots・Running・Queue */
-export function Lanes({ source, usage, items, now, nav, errors }: Props) {
+export function Lanes({ source, usage, items, now, nav, errors, readMode = "ok" }: Props) {
+  const canSayEmpty = readMode === "ok";
+  const unreadable = readMode === "failed";
   const turnId = useId();
   const parallel = useParallelView();
   const limit = parallel?.state?.limit ?? null;
   const lanes = assignSlots(source, limit);
   const overLimit = overLimitNote(lanes.counts.running, limit);
+  const runningSlots = lanes.slots.filter((slot): slot is RunningSlot => slot.kind === "running");
+  const freeCount = lanes.slots.length - runningSlots.length;
+  const groups = queueGroups(lanes.queue, source.works);
   const at = new Date(now);
   const slotsId = useId();
   const runsId = useId();
@@ -624,8 +640,14 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
                 Running
               </dt>
               <dd className={`${styles.countValue} num`} data-tone="running">
-                {lanes.counts.running}
-                <span className={styles.countRuns}>（Actions {lanes.counts.runs}）</span>
+                {unreadable ? (
+                  DASH
+                ) : (
+                  <>
+                    {lanes.counts.running}
+                    <span className={styles.countRuns}>（Actions {lanes.counts.runs}）</span>
+                  </>
+                )}
               </dd>
             </div>
             {lanes.counts.free !== null && (
@@ -636,7 +658,7 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
                   </span>
                   Free
                 </dt>
-                <dd className={`${styles.countValue} num`}>{lanes.counts.free}</dd>
+                <dd className={`${styles.countValue} num`}>{unreadable ? DASH : lanes.counts.free}</dd>
               </div>
             )}
             <div className={styles.count}>
@@ -645,50 +667,68 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
                 Queue
               </dt>
               <dd className={`${styles.countValue} num`} data-tone="queue">
-                {lanes.counts.queue}
+                {unreadable ? DASH : lanes.counts.queue}
               </dd>
             </div>
           </dl>
         </header>
         <LoadErrors errors={errors ?? []} />
 
-        <TurnSection id={turnId} items={items} now={at} basePath={nav.basePath ?? ""} />
+        <TurnSection
+          id={turnId}
+          items={items}
+          now={at}
+          basePath={nav.basePath ?? ""}
+          canSayEmpty={canSayEmpty}
+          unknownCount={unreadable}
+        />
 
         <section className={styles.section} aria-labelledby={slotsId}>
           <SectionHead
             id={slotsId}
             icon={<ColumnsIcon size={16} />}
             title="Slots"
-            count={limit === null ? undefined : `${lanes.counts.running} / ${limit}`}
-            sub={limit === null ? undefined : "使用中"}
+            count={unreadable ? DASH : limit === null ? undefined : `${lanes.counts.running} / ${limit}`}
+            sub={unreadable || limit === null ? undefined : "使用中"}
           />
-          {overLimit ? <p className={styles.slotsNote}>{overLimit}</p> : null}
-          {lanes.slots.length === 0 ? (
-            <p className={styles.empty}>動いている作業はありません</p>
+          {overLimit && !unreadable && limit !== null ? (
+            <p className={styles.slotsNote} title={overLimitDetail(limit)}>
+              {overLimit}
+            </p>
+          ) : null}
+          {unreadable ? null : lanes.slots.length === 0 ? (
+            canSayEmpty ? <p className={styles.empty}>動いている作業はありません</p> : null
           ) : (
-            <ul className={styles.list}>
-              {lanes.slots.map((slot) => (
-                <SlotRow key={slot.kind === "running" ? slot.work.key : `free-${slot.index}`} slot={slot} />
+            <ul className={`${styles.list} ${styles.seatList}`}>
+              {runningSlots.map((slot) => (
+                <SlotRow key={slot.work.key} slot={slot} />
               ))}
+              {freeCount > 0 && <FreeRow count={freeCount} queue={lanes.queue.length} canSayEmpty={canSayEmpty} />}
             </ul>
           )}
         </section>
 
-        <BackgroundSection id={runsId} other={lanes.other} all={source.runs} now={at} />
+        <BackgroundSection
+          id={runsId}
+          other={lanes.other}
+          all={source.runs}
+          now={at}
+          canSayEmpty={canSayEmpty}
+        />
 
         <section className={styles.section} aria-labelledby={queueId}>
           <SectionHead id={queueId} icon={<QueueIcon size={15} />} title="Queue"
-            count={lanes.queue.length}
+            count={unreadable ? DASH : lanes.queue.length}
             sub="席が空いたら上から始まります"
           />
           {lanes.queue.length === 0 ? (
-            <p className={styles.empty}>順番待ちの作業はありません</p>
+            canSayEmpty ? <p className={styles.empty}>順番待ちの作業はありません</p> : null
           ) : (
-            <ol className={styles.list}>
-              {lanes.queue.map((entry) => (
-                <QueueRow key={entry.key} entry={entry} basePath={nav.basePath ?? ""} />
+            <ul className={`${styles.list} ${styles.groupList}`}>
+              {groups.map((group) => (
+                <QueueGroupView key={group.key} group={group} basePath={nav.basePath ?? ""} />
               ))}
-            </ol>
+            </ul>
           )}
         </section>
 

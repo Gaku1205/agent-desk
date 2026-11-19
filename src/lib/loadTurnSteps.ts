@@ -3,16 +3,20 @@ import type { WatchedRepo } from "./config";
 import { getRepoResult, getStaleRepoResult } from "./github/fetch";
 import { syncRateHistory } from "./github/rateHistoryStore";
 import type { RepoResult } from "./github/types";
+import type { LoadError } from "./loadErrors";
+import { resolveLoadState, type LoadState, type RepoLoad } from "./loadState";
 import { loadTurns } from "./loadTurns";
-import { appendStep, DEFAULT_GATHER, gatherSteps, mapSteps, type Step } from "./steps";
-import { oldestReadAt } from "./staleSnapshot";
+import { appendStep, DEFAULT_GATHER, gatherSteps, mapSteps, type Gathered, type Step } from "./steps";
 import { buildTurnItems, type TurnItem } from "./turn";
 import { loadWatchedRepos } from "./watchedRepos";
 import type { AddedNotice } from "./autoAdd";
 
+/** 覚えている古い結果を出している理由（新しい結果を待っている／読めなかった） */
+export type StaleBecause = LoadState["staleBecause"];
+
 /** その時点で出せる分の「あなたの番」と、その元（docs/spec.md の「全部のリポジトリを待つページ」） */
 export type TurnsSoFar = {
-  /** 読めたリポジトリの結果（まだ読めていないリポジトリは入らない。覚えている古い結果のこともある） */
+  /** 出すリポジトリの結果（まだ読めていないリポジトリは入らない。覚えている古い結果のことも、読めなかった結果のこともある） */
   results: RepoResult[];
   items: TurnItem[];
   addedNotices: AddedNotice[];
@@ -23,67 +27,141 @@ export type TurnsSoFar = {
   complete: boolean;
   /** 覚えている古い結果を出しているときの、その内容の時刻（ISO）。無ければ無し */
   staleAt?: string | null;
+  /** 覚えている古い結果を出している理由。出していなければ null */
+  staleBecause?: StaleBecause;
+  /** 読めなかったリポジトリと理由（覚えている古い結果を出していても入る） */
+  errors: LoadError[];
+  /** 「何も無い」と言ってよいか（`resolveLoadState` の `canSayEmpty`）。無ければ言ってよい */
+  canSayEmpty?: boolean;
+  /** 同期の状態（`resolveLoadState` の `sync`）。無ければ全部読めた */
+  sync?: LoadState["sync"];
 };
+
+const isFailedResult = (result: RepoResult): boolean => !result.ok;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** 段の中身（取得元ごとの新しい結果・古い結果）から、出す物を決める */
+function stateOf(gathered: Gathered<RepoResult>): LoadState {
+  const loads: RepoLoad[] =
+    gathered.loads ?? gathered.results.map((result) => ({ fresh: result, stale: null }));
+  return resolveLoadState(loads);
+}
+
+/**
+ * 全部の新しい結果（`loadTurns`）のうち、読めなかったリポジトリを、覚えている最後の結果に置き換える。
+ * 覚えている結果は同じリクエストの中で使い回す（`getStaleRepoResult`。GitHub の呼び出しは増えない）
+ */
+async function withRemembered(token: string, results: RepoResult[]): Promise<LoadState> {
+  const loads = await Promise.all(
+    results.map(
+      async (result): Promise<RepoLoad> => ({
+        fresh: result,
+        stale: result.ok
+          ? null
+          : await getStaleRepoResult(token, { owner: result.owner, repo: result.repo }).catch(() => null),
+      }),
+    ),
+  );
+  return resolveLoadState(loads);
+}
+
+/** 出す結果（まだの所を除く） */
+function shownResults(state: LoadState): RepoResult[] {
+  return state.shown.filter((result): result is RepoResult => result !== null);
+}
 
 /**
  * 全部のリポジトリを使うページ（ホーム・Slots & Queue・Dashboard・すべてのリポジトリ）のための取得。
  * 全部がそろうのを待たず、覚えている最後の結果（古くてよい）と読めた分を先に返し、読めた所から順に次の段で入れ替える。
  * 最後の段は `loadTurns` の結果（自動で足したリポジトリ・お知らせも入る）。取得は `getRepoResult` を使い回すので、GitHub の呼び出しは増えない。
+ * 読めなかった（失敗した）リポジトリは、覚えている最後の結果があれば、最後の段でもそれを出す（`resolveLoadState`）。
  * `build` は、段ごとにページの中身（画面の部品に渡す物）を作る
  */
 export async function loadTurnSteps<T extends object>(
   build: (turns: TurnsSoFar) => T | Promise<T>,
-): Promise<Step<T & { staleAt: string | null }>> {
+): Promise<Step<T & { staleAt: string | null; staleBecause: StaleBecause }>> {
   const token = await getGitHubToken();
   const { repos } = await loadWatchedRepos();
   const last = async (): Promise<TurnsSoFar> => {
     const loaded = await loadTurns();
     // GitHub limits の履歴を残す（前に確かめてから10分以上たっているときだけ。書けなくても続ける）
     if (token) await syncRateHistory({ userToken: token, nowMs: loaded.now.getTime(), needStore: false });
+    const state = token ? await withRemembered(token, loaded.results) : resolveLoadState([]);
+    const results = token ? shownResults(state) : loaded.results;
     return {
-      results: loaded.results,
-      items: loaded.items,
+      results,
+      // 覚えている結果に置き換えた所があるときだけ作り直す（無ければ `loadTurns` と同じ物）
+      items: state.staleRepos.length > 0 ? buildTurnItems(results, loaded.now) : loaded.items,
       addedNotices: loaded.addedNotices,
       now: loaded.now,
       repos: (await loadWatchedRepos()).repos,
       complete: true,
+      staleAt: state.staleAt,
+      staleBecause: state.staleBecause,
+      errors: state.errors,
+      canSayEmpty: state.canSayEmpty,
+      sync: state.sync,
     };
   };
-  if (!token || repos.length === 0) return { value: { ...(await build(await last())), staleAt: null }, next: null };
+  const finish = async (turns: TurnsSoFar) => ({
+    ...(await build(turns)),
+    staleAt: turns.staleAt ?? null,
+    staleBecause: turns.staleBecause ?? null,
+  });
+  if (!token || repos.length === 0) return { value: await finish(await last()), next: null };
 
   const gathered = await gatherSteps<RepoResult>(
     repos.map((repo) => ({
       fresh: getRepoResult(token, repo),
       stale: () => getStaleRepoResult(token, repo),
     })),
-    { ...DEFAULT_GATHER, wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) },
+    { ...DEFAULT_GATHER, wait: sleep, isFailed: isFailedResult },
   );
-  const partial = await mapSteps(gathered, ({ results, staleCount }): TurnsSoFar => {
+  const partial = await mapSteps(gathered, (step): TurnsSoFar => {
     const now = new Date();
-    const loaded = results.filter((result): result is RepoResult => result !== null);
-    // 覚えている古い結果が入っているときだけ、その内容の時刻を持たせる
-    const okResults = loaded.flatMap((result) => (result.ok ? [{ data: result.data, changeMark: result.changeMark }] : []));
-    const staleAt = staleCount > 0 ? oldestReadAt(okResults) : null;
-    return { results: loaded, items: buildTurnItems(loaded, now), addedNotices: [], now, repos, complete: false, staleAt };
+    const state = stateOf(step);
+    const loaded = shownResults(state);
+    return {
+      results: loaded,
+      items: buildTurnItems(loaded, now),
+      addedNotices: [],
+      now,
+      repos,
+      complete: false,
+      staleAt: state.staleAt,
+      staleBecause: state.staleBecause,
+      errors: state.errors,
+      canSayEmpty: state.canSayEmpty,
+      sync: state.sync,
+    };
   });
   // 全部そろった段のあとに、`loadTurns` の結果（自動で足した物・お知らせ入り）で仕上げる
-  return mapSteps(appendStep(partial, last), async (turns) => ({ ...(await build(turns)), staleAt: turns.staleAt ?? null }));
+  return mapSteps(appendStep(partial, last), finish);
 }
+
+/** リポジトリのページの段の中身：出す結果と、その判定 */
+export type RepoStepView = { result: RepoResult; state: LoadState };
 
 /**
  * リポジトリのページのための取得：そのリポジトリの新しい結果が遅いとき（GitHub から取り直している・立ち上がった直後で
- * App の鍵を確かめている）は、覚えている最後の結果を先に返し、届いたら入れ替える。`build` の2つ目は、新しい結果か
+ * App の鍵を確かめている）は、覚えている最後の結果を先に返し、届いたら入れ替える。
+ * 新しい結果が失敗したときは、覚えている最後の結果があればそれを出し続ける。`build` の2つ目は、新しい結果がそろった最後の段か
  */
 export async function loadRepoSteps<T>(
   token: string,
   repo: WatchedRepo,
-  build: (result: RepoResult, complete: boolean) => T | Promise<T>,
+  build: (view: RepoStepView, complete: boolean) => T | Promise<T>,
 ): Promise<Step<T>> {
   const fresh = getRepoResult(token, repo);
   const gathered = await gatherSteps<RepoResult>([{ fresh, stale: () => getStaleRepoResult(token, repo) }], {
     ...DEFAULT_GATHER,
-    wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    wait: sleep,
+    isFailed: isFailedResult,
   });
   // 取得元は1つで、出せる物が無い間は段を出さないので、結果は必ずある
-  return mapSteps(gathered, async ({ results }, isLast) => build(results[0] ?? (await fresh), isLast));
+  return mapSteps(gathered, async (step, isLast) => {
+    const state = stateOf(step);
+    return build({ result: state.shown[0] ?? (await fresh), state }, isLast);
+  });
 }

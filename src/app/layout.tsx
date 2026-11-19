@@ -36,7 +36,7 @@ const bricolage = Bricolage_Grotesque({
 });
 
 export const metadata: Metadata = {
-  title: "agent-desk",
+  title: { default: "agent-desk", template: "%s · agent-desk" },
   description: "AIに開発を任せるときの進行状況と、人間の判断待ちを1画面で",
 };
 

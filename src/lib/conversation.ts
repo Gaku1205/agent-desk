@@ -1,11 +1,12 @@
 import { aiActivity, type AiActivity } from "./aiActivity";
 import { conflictKind, conflictText } from "./conflict";
 import { ciFailureState, ciFixingText } from "./ciFailureState";
+import { ciProgress, ciStepText, type CiProgress } from "./ciProgress";
 import type { DeployLink } from "./deployStatus";
 import { describeStatus, failureLogUrl } from "./describe";
 import { groupTrails } from "./eventGroups";
 import type { TrailEvent } from "./events";
-import { getFlow, type Flow } from "./flow";
+import { FLOW_STEPS, getFlow, type Flow } from "./flow";
 import { flowFacts, type FlowExtraSource } from "./flowExtraBranches";
 import type { IssueData, RepoData, RepoResult } from "./github/types";
 import { assignLamps, hasOpenHumanRequest, judgeLamp, runActivity, type Lamp, type LampTarget } from "./lamp";
@@ -27,6 +28,15 @@ export type ChatLineOptions = {
   queueAfter?: number | null;
 };
 
+/**
+ * 「いまの様子」と進捗図の CI の段に出す、CI のチェックの線と数（docs/spec.md の「CI の段にいる間」）。
+ * 通常の CI 中（段階が `ciRunning`で、直した結果の確認中でない）のときだけ。それ以外は null
+ */
+export function chatCi(status: IssueStatus): CiProgress | null {
+  if (status.stage !== "ciRunning" || status.verifyingFix) return null;
+  return ciProgress(status.ci);
+}
+
 /** 段階から、話し手と会話の文を決める。人間の番の段階は、ふつう会話には出ない（説明文をそのまま使う） */
 export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): ChatLine {
   const ci = `${status.ci.passed}/${status.ci.total}`;
@@ -44,10 +54,12 @@ export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): Ch
       const n = Math.min(Math.max(status.fixCount, 1), max);
       return { speaker: "AI", text: `AIが直しています（${n}/${max} 回目）` };
     }
-    case "ciRunning":
-      return status.verifyingFix
-        ? { speaker: "CI", text: `修正をCIとレビューで確認中（CI ${ci}）` }
-        : { speaker: "CI", text: `CIが確認中（${ci} 通過）` };
+    case "ciRunning": {
+      const progress = chatCi(status);
+      return progress
+        ? { speaker: "CI", text: ciStepText(getFlow(status).at, FLOW_STEPS.length, progress) }
+        : { speaker: "CI", text: `修正をCIとレビューで確認中（CI ${ci}）` };
+    }
     case "ciFailed": {
       const failure = ciFailureState({ stage: status.stage, stuck: false, fixCount: status.fixCount });
       if (failure?.kind === "fixing") return { speaker: "AI", text: ciFixingText(failure.n) };
@@ -107,6 +119,8 @@ export type ChatMessage = {
   stage: Stage;
   speaker: string;
   text: string;
+  /** CI の段の間（`chatCi`）だけ、CI のチェックの線と数（文は `text` と同じ内容。進捗図の工程の番号は `flow.at`）。ほかは null */
+  ci: CiProgress | null;
   /** 話し手を失敗の色にするか（CI失敗） */
   failed: boolean;
   /** 文の下に出す理由（順番待ちの理由）。無ければ null */
@@ -215,6 +229,7 @@ export function buildConversation(
         stage: row.status.stage,
         speaker: line.speaker,
         text: line.text,
+        ci: chatCi(row.status),
         failed: failure?.kind === "stopped",
         note: row.queueReason,
         logUrl: failureLogUrl(row.status, full),

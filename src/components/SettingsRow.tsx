@@ -1,15 +1,40 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
+import type { SaveFailureLine } from "@/lib/saveFailures";
 import styles from "./Settings.module.css";
 
-/** 保存に成功したことを、見出しの右の `20:41 に保存しました` に知らせる */
-export const SettingsSavedContext = createContext<(() => void) | null>(null);
+export type SettingsSavedValue = {
+  /** 保存に成功したことを、見出しの右の `20:41 に保存しました` に知らせる */
+  markSaved: () => void;
+  /** 行（`parallel:day` など）の保存の失敗が残っているかを知らせる。残っている間は `〜に保存しました` を出さない */
+  reportFailure: (id: string, failed: boolean) => void;
+};
+
+export const SettingsSavedContext = createContext<SettingsSavedValue | null>(null);
 
 function noop() {}
 
 export function useMarkSaved(): () => void {
-  return useContext(SettingsSavedContext) ?? noop;
+  return useContext(SettingsSavedContext)?.markSaved ?? noop;
+}
+
+export function useReportFailure(): (id: string, failed: boolean) => void {
+  return useContext(SettingsSavedContext)?.reportFailure ?? noop;
+}
+
+/** 保存の失敗の行（理由ごとに1行にまとめた物）。`title` にリポジトリ名の一覧 */
+export function SaveFailureLines({ lines }: { lines: readonly SaveFailureLine[] | undefined }) {
+  if (!lines || lines.length === 0) return null;
+  return (
+    <div className={styles.rowError} role="alert">
+      {lines.map((line) => (
+        <p key={line.text} title={line.title}>
+          {line.text}
+        </p>
+      ))}
+    </div>
+  );
 }
 
 /** 節の白い面（行を並べる1枚） */
@@ -28,6 +53,8 @@ type RowProps = {
   below?: ReactNode;
   /** 失敗の理由（行の下に出す） */
   error?: string | null;
+  /** 保存の失敗（理由ごとに1行） */
+  failures?: readonly SaveFailureLine[];
   /** 書いている間：右の操作を薄くする */
   busy?: boolean;
   /** 名前の左に置く物（アイコン） */
@@ -37,7 +64,7 @@ type RowProps = {
 };
 
 /** 白い面の1行：左に名前と説明、右に操作。失敗は行の下 */
-export function SettingsRow({ name, description, children, below, error, busy, icon, kind }: RowProps) {
+export function SettingsRow({ name, description, children, below, error, failures, busy, icon, kind }: RowProps) {
   return (
     <div className={styles.row} data-busy={busy ? "" : undefined} data-kind={kind}>
       <div className={styles.text}>
@@ -54,6 +81,7 @@ export function SettingsRow({ name, description, children, below, error, busy, i
           {error}
         </p>
       )}
+      <SaveFailureLines lines={failures} />
     </div>
   );
 }

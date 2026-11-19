@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changedRepos, formatSaveFailures, sameEvents, type NotifyDraft } from "./notifyChanges";
+import { changedRepos, sameEvents, type NotifyDraft } from "./notifyChanges";
 
 const draft = (over: Partial<NotifyDraft>): NotifyDraft => ({
   name: "o/a",
@@ -28,25 +28,5 @@ describe("changedRepos", () => {
   });
   it("パイプラインが無い列は返さない", () => {
     expect(changedRepos([draft({ pipeline: false, current: [] })])).toEqual([]);
-  });
-});
-
-describe("formatSaveFailures", () => {
-  it("失敗が無ければ空", () => {
-    expect(formatSaveFailures([], 2)).toBe("");
-  });
-  it("1つだけ保存しようとして失敗したら理由だけ", () => {
-    expect(formatSaveFailures([{ name: "o/a", message: "失敗" }], 1)).toBe("失敗");
-  });
-  it("複数のときはリポジトリ名を付ける", () => {
-    expect(
-      formatSaveFailures(
-        [
-          { name: "o/a", message: "A" },
-          { name: "o/b", message: "B" },
-        ],
-        3,
-      ),
-    ).toBe("o/a：A / o/b：B");
   });
 });

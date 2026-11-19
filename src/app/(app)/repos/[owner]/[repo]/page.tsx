@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { loadStepLog } from "@/app/actions";
 import { DeskLive } from "@/components/LivePages";
@@ -13,6 +14,16 @@ import { buildWatchdogNotices } from "@/lib/watchdogState";
 import { logout } from "../../../logout";
 
 const NO_COUNTS = { byRepo: {} };
+
+/** タブの題名はリポジトリ名（docs/spec.md の「タブの題名」） */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ owner: string; repo: string }>;
+}): Promise<Metadata> {
+  const { repo } = await params;
+  return { title: repo };
+}
 
 /**
  * そのリポジトリの中身（あなたの番・いまの様子）は、そのリポジトリの取得だけで描く。
@@ -35,11 +46,14 @@ export default async function RepoPage({
 
   // 新しい結果が遅いときは、覚えている最後の結果を先に出し、届いたら入れ替える（`loadRepoSteps`）
   const login = (await getSignedInLogin()) ?? undefined;
-  const first = await loadRepoSteps(token, watched, (result, complete) => {
+  // 読めなかったときは、覚えている最後の結果があればそれを出し続ける（いつ時点かは下の1行）
+  const first = await loadRepoSteps(token, watched, ({ result, state }, complete) => {
     const results = [result];
     const now = new Date();
     return {
       complete,
+      staleAt: state.staleAt,
+      staleBecause: state.staleBecause,
       props: {
         items: buildTurnItems(results, now),
         messages: buildConversation(results, buildTrailEvents(results, now, watched), now, watched),
@@ -50,7 +64,7 @@ export default async function RepoPage({
           repo: watched.repo,
           githubUrl: `https://github.com/${watched.owner}/${watched.repo}`,
         },
-        errors: result.ok ? [] : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }],
+        errors: state.errors,
         notices: buildWatchdogNotices(results, now),
         nav: { repos, counts: NO_COUNTS, runningCounts: NO_COUNTS, countsPending: true, login, logout },
         newIssueRepos: newIssueRepos(repos, results),

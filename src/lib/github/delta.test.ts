@@ -55,6 +55,11 @@ describe("shouldReadFullAfterDeltaError（差分の読みが失敗したとき�
   it("通信や返事の失敗は、その回のうちに全部を読み直す", () => {
     expect(shouldReadFullAfterDeltaError(null)).toBe(true);
     expect(shouldReadFullAfterDeltaError("other")).toBe(true);
+    expect(shouldReadFullAfterDeltaError("other", false)).toBe(true);
+  });
+
+  it("時間切れのときは読み直さない（続けて15秒待たせない）", () => {
+    expect(shouldReadFullAfterDeltaError("other", true)).toBe(false);
   });
 
   it("回数制限・権限なし・見つからないは読み直さない（全部を読んでも同じ）", () => {

@@ -3,10 +3,11 @@
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ACTION_UNREACHABLE_MESSAGE } from "@/lib/actionCall";
 import { PLAY_BUTTON_LABEL } from "@/lib/demo/playback";
 import { formatPausedNote, formatSyncTime, getDisplayedSyncTime } from "@/lib/refresh";
 import { shouldCloseMenuOnPick, shouldRestoreMenuFocus } from "@/lib/menuFocus";
-import { isRepoCountPending } from "@/lib/navCounts";
+import { countText, isRepoCountPending } from "@/lib/navCounts";
 import { newIssueHref } from "@/lib/issueRepo";
 import { pageTitle } from "@/lib/pageTitle";
 import { hasHiddenBelow } from "@/lib/sideScroll";
@@ -33,6 +34,8 @@ type Props = {
   countsPending?: boolean;
   /** 全部が届く前に、件数が届いたリポジトリ（`owner/repo` の小文字）。届いた物は件数を出す */
   countsLoaded?: Record<string, true>;
+  /** 読めなかったリポジトリ（`owner/repo` の小文字）。札は残し、数は 0 ではなく「–」で出す */
+  countsUnreadable?: Record<string, true>;
   /** リンクの頭（デモでは `/demo`） */
   basePath?: string;
   /** ログイン中のユーザー名（デモでは無し） */
@@ -53,14 +56,18 @@ export function Counts({
   running,
   labeled,
   pending: countsPending = false,
+  unreadable = false,
 }: {
   turn: number;
   running: number;
   labeled: boolean;
   /** 件数がまだ届いていない。数の代わりに「–」を出す */
   pending?: boolean;
+  /** 読めなかったリポジトリ。数の代わりに「–」を出す（0 にしない） */
+  unreadable?: boolean;
 }) {
-  const text = countsPending ? "件数を読み込み中" : `Your turn ${turn}件、AIが動いている ${running}件`;
+  const dash = countsPending || unreadable;
+  const text = unreadable ? READ_FAILED_NOTE : countsPending ? "件数を読み込み中" : `Your turn ${turn}件、AIが動いている ${running}件`;
   // 押した札の点：次の画面が出るまで脈打つ（動きを減らすときは色だけ）。<Link> の子の部品の中で使う
   const { pending } = useLinkStatus();
   return (
@@ -74,11 +81,11 @@ export function Counts({
     >
       <b className={styles.countTurn} aria-hidden="true">
         {labeled && <span className={styles.countName}>Your turn</span>}
-        {countsPending ? "–" : turn}
+        {countText(turn, dash)}
       </b>
       <b className={styles.countRunning} aria-hidden="true">
         {labeled && <span className={styles.countName}>AI</span>}
-        {countsPending ? "–" : running}
+        {countText(running, dash)}
       </b>
     </i>
   );
@@ -134,9 +141,10 @@ export function RepoTabs({
   runningCounts,
   countsPending = false,
   countsLoaded,
+  countsUnreadable,
   basePath = "",
   onPick,
-}: Pick<Props, "repos" | "counts" | "runningCounts" | "countsPending" | "countsLoaded" | "basePath"> & {
+}: Pick<Props, "repos" | "counts" | "runningCounts" | "countsPending" | "countsLoaded" | "countsUnreadable" | "basePath"> & {
   onPick?: () => void;
 }) {
   const pathname = usePathname();
@@ -144,7 +152,7 @@ export function RepoTabs({
   const allReposHref = `${basePath}/repos`;
   // 動きのあるリポジトリ（あなたの番かAIの番が1件以上）と、今開いているリポジトリだけを出す。全部は「すべてのリポジトリ」で見る。
   // ホームへはワードマークで戻る（ホームにいる間は、どの札も「今いる」にならない）
-  const shown = visibleRepos(repos, counts, runningCounts, currentRepoFromPath(pathname));
+  const shown = visibleRepos(repos, counts, runningCounts, currentRepoFromPath(pathname), countsUnreadable);
   const navRef = useRef<HTMLElement>(null);
   // 札が増えて横にスクロールするとき、今いる札が見える位置に来る（動きは付けない）
   useEffect(() => {
@@ -182,6 +190,7 @@ export function RepoTabs({
               running={runningCounts.byRepo[key] ?? 0}
               labeled={isCurrent(href)}
               pending={isRepoCountPending(countsPending, countsLoaded, key)}
+              unreadable={countsUnreadable?.[key] === true}
             />
           </Link>
         );
@@ -208,7 +217,7 @@ export function RepoTabs({
 export function SideRepos(
   props: Pick<
     Props,
-    "repos" | "counts" | "runningCounts" | "countsPending" | "countsLoaded" | "basePath" | "login" | "logout"
+    "repos" | "counts" | "runningCounts" | "countsPending" | "countsLoaded" | "countsUnreadable" | "basePath" | "login" | "logout"
   >,
 ) {
   const pathname = usePathname();
@@ -293,28 +302,46 @@ function LanesUsage() {
   );
 }
 
+/** 全部のリポジトリが GitHub から読めなかったときの、同期の `title` と読み上げの文 */
+const READ_FAILED_NOTE = "GitHubから読めませんでした";
+
 /**
  * 上のバーの右端の同期：状態の点（緑＝最新・読み込み中は回る印・止めているときは注意の色）＋ `同期 02:19:46` ＋ 更新のアイコンのボタン。
  * 自動更新を止めている理由の1行は、`title`（と読み上げ）に入れる。スマホでは点とアイコンだけ
  */
 export function SyncStatus() {
-  const { syncedAt, refreshing, fastRefresh, pausedUntil, pausedBy, refresh } = useShell();
+  const { syncedAt, refreshing, fastRefresh, pausedUntil, pausedBy, syncFailed, readFailed, refresh } = useShell();
   const time = formatSyncTime(getDisplayedSyncTime(syncedAt));
-  const note = pausedUntil ? formatPausedNote(pausedBy, pausedUntil.getTime() / 1000) : null;
-  const state = refreshing ? "busy" : note ? "paused" : "ok";
+  // 手で押した同期が届かなかった知らせは、ほかより先に出す（次に取り直せたら消える）。
+  // 全部のリポジトリが読めなかったときは、その知らせと、止めている理由を続けて出す
+  const pausedNote = pausedUntil ? formatPausedNote(pausedBy, pausedUntil.getTime() / 1000) : null;
+  const unreachable = syncFailed && !refreshing;
+  const unread = readFailed && !refreshing;
+  const note =
+    [unreachable ? ACTION_UNREACHABLE_MESSAGE : null, unread ? READ_FAILED_NOTE : null, pausedNote]
+      .filter((text): text is string => text !== null)
+      .join("。") || null;
+  const state = refreshing ? "busy" : unread ? "failed" : note ? "paused" : "ok";
   return (
     <div className={styles.syncGroup} title={note ?? undefined}>
       <span className={styles.syncDot} data-state={state} data-fast={fastRefresh ? "true" : undefined} aria-hidden="true" />
+      {pausedNote && (
+        <span className={styles.syncPaused} aria-hidden="true">
+          停止中
+        </span>
+      )}
       <span className={`${styles.syncText} num`}>
         {refreshing ? "同期中" : "同期"} {time}
+        {unread && <span className={styles.syncFail}>GitHubから読めません</span>}
       </span>
       <button
         type="button"
         className={styles.syncBtn}
+        data-pre-tap=""
         onClick={refresh}
         disabled={refreshing}
         aria-busy={refreshing}
-        aria-label={`更新（最後に取り直した時刻 ${time}）${note ? `。${note}` : ""}`}
+        aria-label={`更新（最後に${unread ? "読めた" : "取り直した"}時刻 ${time}）${note ? `。${note}` : ""}`}
         title={note ?? "更新"}
       >
         <RefreshIcon size={14} />
@@ -348,9 +375,10 @@ function DemoControls() {
         onClick={demo.play}
         disabled={demo.playState === "playing"}
         aria-live="polite"
+        aria-label={PLAY_BUTTON_LABEL[demo.playState]}
       >
         <PlayIcon />
-        {PLAY_BUTTON_LABEL[demo.playState]}
+        <span className={styles.playLabel}>{PLAY_BUTTON_LABEL[demo.playState]}</span>
       </button>
     </>
   );
@@ -419,6 +447,7 @@ function MenuSheet(props: Props) {
   const demo = useDemo();
   const pathname = usePathname();
   const newIssueLink = newIssueHref(props.basePath ?? "", currentRepoFromPath(pathname));
+  const homeHref = props.basePath || "/";
   const newServiceHref = `${props.basePath ?? ""}/new/service`;
   const dashboardHref = `${props.basePath ?? ""}/dashboard`;
   const lanesHref = `${props.basePath ?? ""}/lanes`;
@@ -438,7 +467,16 @@ function MenuSheet(props: Props) {
     >
       <div className={styles.scrim} onClick={closeMenu} aria-hidden="true" />
       <div className={styles.pane} role="dialog" aria-modal="true" aria-label="メニュー" ref={paneRef}>
-        <span className={styles.mark}>agent-desk</span>
+        {/* 先頭のワードマークはホームへのリンク（Issue #613）。読み上げは「ホーム」。今ホームにいるときは閉じるだけ */}
+        <Link
+          href={homeHref}
+          className={styles.mark}
+          aria-label="ホーム"
+          onClick={shouldCloseMenuOnPick(pathname, homeHref) ? closeMenu : undefined}
+        >
+          agent-desk
+          <PendingMark />
+        </Link>
         <Link
           href={newServiceHref}
           className={styles.lnk}

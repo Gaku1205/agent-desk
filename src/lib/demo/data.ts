@@ -582,6 +582,7 @@ function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean, placer:
     labels: ["ai:implement"],
     planned: true,
   });
+  fixing.body += "\n\n<!-- ai-touches: src/components/TaskList.tsx, src/lib/sort.ts -->";
   addLabeled(ctx, 17, "ai:implement", ago(ctx, 4 * 60 + 50));
   addPull(ctx, 32, fixing, {
     createdAt: ago(ctx, 60),
@@ -594,11 +595,12 @@ function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean, placer:
   addComment(ctx, 32, autoFixComment("4d5e6f7", "レビューの指摘"), ago(ctx, 12));
 
   // AI作業中（並列動作）
-  addIssue(ctx, 16, "タスクにメモ欄を付ける", {
+  const memo = addIssue(ctx, 16, "タスクにメモ欄を付ける", {
     createdAt: ago(ctx, 15),
     labels: ["ai:implement"],
     planned: true,
   });
+  memo.body += "\n\n<!-- ai-touches: src/components/TaskItem.tsx, src/lib/memo.ts -->";
   addLabeled(ctx, 16, "ai:implement", ago(ctx, 9));
   // AIのアクションが作業中に更新し続けるコメント（「AIが今していること」の見本）
   addComment(ctx, 16, DEMO_WORKING_COMMENT, ago(ctx, 8));
@@ -628,6 +630,30 @@ function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean, placer:
   });
   addComment(ctx, 14, "#17 の並べ替えができてから、その順番を保存する作業なので順番待ちにします", ago(ctx, 32));
   addLabeled(ctx, 14, "ai:queue", ago(ctx, 32));
+
+  // Slots & Queue の Queue のまとまりの見本（Issue #586）：
+  // #76 は動いている #17 と触るファイルが重なる・#77 は順番待ちの #76 のあと（2段目）・#78 は誰も待たない（Next free slot）
+  const listCount = addIssue(ctx, 76, "タスクの一覧に残りの件数を出す", {
+    createdAt: ago(ctx, 30),
+    labels: ["ai:queue"],
+    planned: true,
+  });
+  listCount.body += "\n\n<!-- ai-touches: src/components/TaskList.tsx -->";
+  addLabeled(ctx, 76, "ai:queue", ago(ctx, 27));
+  addIssue(ctx, 77, "残りの件数の表示を設定で隠せるようにする", {
+    createdAt: ago(ctx, 29),
+    labels: ["ai:blocked"],
+    planned: true,
+  });
+  addComment(ctx, 77, "#76（残りの件数）ができてから、その表示を隠せるようにする作業なので待ちます", ago(ctx, 26));
+  addLabeled(ctx, 77, "ai:blocked", ago(ctx, 26));
+  const print = addIssue(ctx, 78, "タスクの一覧を印刷できるようにする", {
+    createdAt: ago(ctx, 25),
+    labels: ["ai:queue"],
+    planned: true,
+  });
+  // （Last 24h の縦の目盛りを 0〜5 に収めるため、#78 にはラベルの出来事を足さない。待ち時間は出ない）
+  print.body += "\n\n<!-- ai-touches: src/app/print/ -->";
 
   // 保留（ai:skip）
   addIssue(ctx, 31, "タスクをカレンダーに表示する", { createdAt: ago(ctx, 3 * 60), labels: ["ai:skip"] });
@@ -1018,8 +1044,23 @@ function demoRuns(data: RepoData, base: Date, stalled: number[] = []): WorkflowR
       pullNumbers: [],
       updatedAt,
       name: DEMO_RUN_NAMES[status.stage] ?? "Pipeline",
-      startedAt: new Date(base.getTime() - ((issue.number % 5) * 6 + 3) * MINUTE_MS).toISOString(),
+      startedAt: new Date(demoRunStartedMs(data, issue.number, base)).toISOString(),
     }));
+}
+
+/**
+ * デモの実行の始まった時刻（ms）。見本は「今」から3〜27分前。ただしデモで押した操作（ラベルの出来事）が
+ * それより新しければ、押した時刻にする（押した直後の経過時間が `21m` にならないように）
+ */
+function demoRunStartedMs(data: RepoData, issueNumber: number, base: Date): number {
+  const sample = base.getTime() - ((issueNumber % 5) * 6 + 3) * MINUTE_MS;
+  let pressed = sample;
+  for (const event of data.events) {
+    if (event.event !== "labeled" || event.issueNumber !== issueNumber) continue;
+    const at = Date.parse(event.createdAt);
+    if (!Number.isNaN(at) && at > pressed) pressed = at;
+  }
+  return pressed;
 }
 
 /** Slots & Queue の Other の見本：Issue の席に属さない実行（見張り役・配布）。番号の手がかりを持たない */

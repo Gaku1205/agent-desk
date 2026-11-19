@@ -94,6 +94,11 @@
 }
 
 @media (max-width: 899px) {
+  /* 押せる範囲を高さ44pxに（Issue #623） */
+  .fold {
+    min-height: 44px;
+  }
+
   .row {
     grid-template-columns: auto minmax(0, 1fr) auto;
     min-height: 44px;

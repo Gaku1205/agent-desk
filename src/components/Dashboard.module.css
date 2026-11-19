@@ -45,6 +45,10 @@
 }
 
 .tab {
+  /* `<a>`（URL のリンク）でも、ボタンだったときと同じ見た目 */
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
   padding: 0 14px;
   border-radius: 8px;
   color: var(--bone-2);
@@ -670,7 +674,15 @@
   }
 
   .tab {
+    position: relative;
     min-width: 44px;
+  }
+
+  /* 押せる範囲を高さ44pxに（見た目は36pxのまま。Issue #616） */
+  .tab::after {
+    position: absolute;
+    inset: -4px 0;
+    content: "";
   }
 }
 

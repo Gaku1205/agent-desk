@@ -5,15 +5,12 @@ import type { LanesSource, QueueCause, QueueSource, RunEntry, SlotWork } from ".
 
 /**
  * Slots & Queue の、枠の数（今の並列の上限）から決まる物（docs/spec.md の「Slots & Queue」）：
- * 枠の割り当て、空き枠の数と理由、Queue の最終の理由、見出しの数と一文
+ * 枠の割り当て、空き枠の数、Queue の最終の理由、見出しの数と一文
  */
-
-/** 次に入る物（空きの枠の右に出す） */
-export type SlotNext = { owner: string; repo: string; number: number };
 
 export type Slot =
   | { index: number; kind: "running"; work: SlotWork; runs: RunEntry[] }
-  | { index: number; kind: "free"; reason: string; next: SlotNext | null };
+  | { index: number; kind: "free" };
 
 /** 最終の待つ理由（枠の数で決まる `full`・`ready` を足した物） */
 export type QueueReasonKind = QueueCause | "full" | "ready";
@@ -64,19 +61,13 @@ export function queueReasonText(kind: QueueReasonKind, file: string | null): str
   }
 }
 
-/** 空きの枠の理由 */
-export function freeSlotReason(queue: readonly QueueEntry[]): string {
-  if (queue.length === 0) return "順番待ちなし";
-  const ready = queue.find((entry) => entry.reasonKind === "ready");
-  if (ready) return `次に ${ready.repo}#${ready.number} が入ります`;
-  const head = queue.length === 1 ? "1件は" : `${queue.length}件とも`;
-  if (queue.every((entry) => entry.reasonKind === "overlap" || entry.reasonKind === "hold")) {
-    return `${head}ファイルが重なり待ち`;
-  }
-  if (queue.every((entry) => entry.reasonKind === "blocked")) {
-    return `${head}前の作業の完了待ち`;
-  }
-  return `${head}前の作業待ち`;
+/**
+ * 空きの席をまとめた1行の真ん中（Issue #586）：Queue があれば `Waiting 4 · 下の作業が終わるのを待っている`、
+ * 無ければ `待っている作業はありません`（`waiting` は null）
+ */
+export function freeRowText(queueCount: number): { waiting: number | null; text: string } {
+  if (queueCount === 0) return { waiting: null, text: "待っている作業はありません" };
+  return { waiting: queueCount, text: "下の作業が終わるのを待っている" };
 }
 
 /**
@@ -90,9 +81,6 @@ export function assignSlots(source: LanesSource, limit: number | null): Lanes {
     const reasonKind: QueueReasonKind = entry.cause ?? (free !== null && free > 0 ? "ready" : "full");
     return { ...entry, rank: index + 1, reasonKind, reason: queueReasonText(reasonKind, entry.file) };
   });
-  const first = queue[0];
-  const next: SlotNext | null = first ? { owner: first.owner, repo: first.repo, number: first.number } : null;
-  const reason = freeSlotReason(queue);
   const attached = attachRuns(source.works, source.runs);
   const slots: Slot[] = source.works.map((work, index) => ({
     index: index + 1,
@@ -101,7 +89,7 @@ export function assignSlots(source: LanesSource, limit: number | null): Lanes {
     runs: attached.bySlot[work.key] ?? [],
   }));
   for (let i = 0; i < (free ?? 0); i += 1) {
-    slots.push({ index: slots.length + 1, kind: "free", reason, next });
+    slots.push({ index: slots.length + 1, kind: "free" });
   }
   return {
     slots,
@@ -116,7 +104,12 @@ export function assignSlots(source: LanesSource, limit: number | null): Lanes {
  */
 export function overLimitNote(running: number, limit: number | null): string | null {
   if (limit === null || running <= limit) return null;
-  return `上限（${limit}件）より多く動いています。上限は、新しく始める数だけを決めます。もう動いている作業は止めません。`;
+  return "上限より多く動いています";
+}
+
+/** `overLimitNote` の理由（その要素の `title` に入れる） */
+export function overLimitDetail(limit: number): string {
+  return `上限（${limit}件）は、新しく始める数だけを決めます。もう動いている作業は止めません`;
 }
 
 /** 数を `3件まで同時に`・`1件ずつ`（1のとき）に */

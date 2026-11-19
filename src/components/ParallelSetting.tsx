@@ -32,14 +32,21 @@ import {
   stepCount,
   type PendingSave,
 } from "@/lib/settingsSave";
+import { summarizeSaveFailures, type SaveFailureLine } from "@/lib/saveFailures";
 import { useDemo } from "./DemoContext";
 import { MoonIcon, SunIcon } from "./icons";
 import { broadcastParallelSettings, useParallelSaved } from "./ParallelContext";
 import { Select } from "./Select";
 import styles from "./Settings.module.css";
-import { SettingsPanel, useMarkSaved } from "./SettingsRow";
+import { SaveFailureLines, SettingsPanel, useMarkSaved, useReportFailure } from "./SettingsRow";
 
 type RowKey = "day" | "night" | "hours";
+const ROW_KEYS: readonly RowKey[] = ["day", "night", "hours"];
+
+/** 別の行で同じ文が残っていても、1回だけ出す */
+function uniqueLines(lines: readonly SaveFailureLine[]): SaveFailureLine[] {
+  return lines.filter((line, index) => lines.findIndex((other) => other.text === line.text) === index);
+}
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const SCALE = [0, 6, 12, 18, 24];
@@ -203,8 +210,11 @@ export function ParallelSetting({ initial }: { initial: ParallelSettings }) {
   const [draft, setDraft] = useState(initial);
   const [anchor, setAnchor] = useState<number | null>(null);
   const [error, setError] = useState<{ row: RowKey; message: string } | null>(null);
+  // 保存の失敗（行ごと。同じ行の次の保存が成功したら消す）
+  const [failures, setFailures] = useState<Partial<Record<RowKey, SaveFailureLine[]>>>({});
   const [busyRow, setBusyRow] = useState<RowKey | null>(null);
   const demo = useDemo();
+  const reportFailure = useReportFailure();
   const applySaved = useParallelSaved();
   const markSaved = useMarkSaved();
   const minute = useSyncExternalStore(subscribeMinute, minuteNow, () => null);
@@ -263,12 +273,19 @@ export function ParallelSetting({ initial }: { initial: ParallelSettings }) {
     if (result.ok) {
       applySaved?.(plan.write.settings);
       broadcastParallelSettings(plan.write.settings);
+      // 同じ行の失敗の文を消す（ほかの行のは残す）
+      setFailures((prev) => ({ ...prev, [row]: undefined }));
+      reportFailure(`parallel:${row}`, false);
       markSaved();
       return;
     }
     // 失敗したら保存済みの値に戻す（そのあと変えた分が待っていれば、それは残す）
     if (!pending.current) setDraft(before);
-    setError({ row, message: result.message });
+    const lines = result.failures
+      ? summarizeSaveFailures(result.failures, result.attempted ?? result.failures.length)
+      : [{ text: result.message }];
+    setFailures((prev) => ({ ...prev, [row]: lines }));
+    reportFailure(`parallel:${row}`, true);
   }
 
   function change(next: ParallelSettings, row: RowKey) {
@@ -384,6 +401,7 @@ export function ParallelSetting({ initial }: { initial: ParallelSettings }) {
             {error.message}
           </p>
         )}
+        <SaveFailureLines lines={uniqueLines(ROW_KEYS.flatMap((key) => failures[key] ?? []))} />
       </div>
     </SettingsPanel>
   );

@@ -99,6 +99,8 @@ export type PullChecks = {
   checkRuns: CheckRunData[];
   /** マージ済みPRのマージコミットのコミットステータス（それ以外は空） */
   statuses: CommitStatusData[];
+  /** 必須なのにまだ報告されていないチェックの数（CI が終わっていない開いている PR だけ。無ければ 0 とみなす） */
+  missingRequired?: number;
 };
 
 /** Actions の実行（`GET /repos/{owner}/{repo}/actions/runs` の1件） */
@@ -107,6 +109,8 @@ export type WorkflowRunData = {
   id?: number;
   /** `queued`・`in_progress`・`completed` など */
   status: string;
+  /** 終わり方（`success`・`failure`・`cancelled`・`timed_out` など。終わっていない・読めなければ無し） */
+  conclusion?: string;
   /** 実行したブランチ（無ければ null） */
   headBranch: string | null;
   /** 実行の題名（`display_title`。無ければ空文字） */

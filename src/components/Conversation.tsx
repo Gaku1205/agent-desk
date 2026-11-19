@@ -8,6 +8,7 @@ import { splitQueue } from "@/lib/queueGroup";
 import { applyStepLog, hideUnknownModels } from "@/lib/flow";
 import type { StepInfo } from "@/lib/stepLog";
 import { formatWait } from "@/lib/turn";
+import { CiLine, CiText } from "./CiProgress";
 import { FlowMap } from "./FlowMap";
 import { CheckIcon, CrossIcon, SpinnerIcon } from "./icons";
 import { lampLabel } from "@/lib/lamp";
@@ -43,6 +44,8 @@ type Props = {
   repo: { name: string; githubUrl: string | null } | null;
   /** 「いまの様子」の上のお知らせ（見張り役・取れなかったリポジトリ） */
   notices: ConversationNotice[];
+  /** 読めなかったリポジトリがある（動いている行が無いとき、「無い」と言い切らない） */
+  unreadable?: boolean;
   /** 自動で監視に足したリポジトリ。公開済みと同じ過去の欄に、日ごとに混ぜる */
   added?: AddedNotice[];
   /** PCの進捗図に描くため選んでいる行（`owner/repo#番号`）。選んでいなければ null */
@@ -152,6 +155,7 @@ export function Conversation({
   showRepo,
   repo,
   notices,
+  unreadable = false,
   added = [],
   selected = null,
   onSelect,
@@ -243,7 +247,7 @@ export function Conversation({
           type="button"
           className={styles.noteToggle}
           aria-expanded={isNoteOpen}
-          aria-controls={noteId}
+          aria-controls={isNoteOpen ? noteId : undefined}
           onClick={() => toggleNote(message.key)}
         >
           {isNoteOpen ? "理由を閉じる" : "理由を見る"}
@@ -330,7 +334,12 @@ export function Conversation({
           <SmartLink href={message.url}>{message.title}</SmartLink>
         </p>
         {mark === null ? (
-          <p className={styles.text}>{message.text}</p>
+          <>
+            <p className={styles.text}>
+              {message.ci ? <CiText at={message.flow.at} ci={message.ci} /> : message.text}
+            </p>
+            {message.ci && <CiLine ci={message.ci} />}
+          </>
         ) : (
           <>
             <p className={`${styles.text} ${styles.status}`}>
@@ -343,8 +352,9 @@ export function Conversation({
                   <CrossIcon />
                 )}
               </span>
-              <span>{message.text}</span>
+              {message.ci ? <CiText at={message.flow.at} ci={message.ci} /> : <span>{message.text}</span>}
             </p>
+            {message.ci && <CiLine ci={message.ci} />}
             {message.activity && <ActivityLine activity={message.activity} />}
           </>
         )}
@@ -372,7 +382,7 @@ export function Conversation({
           type="button"
           className={styles.queueToggle}
           aria-expanded={queueOpen}
-          aria-controls="queue-list"
+          aria-controls={queueOpen ? "queue-list" : undefined}
           onClick={() => setQueueOpen((open) => !open)}
         >
           <span className={styles.queueIcon}>
@@ -546,7 +556,9 @@ export function Conversation({
         </ul>
       )}
       {active.length === 0 ? (
-        <p className={styles.empty}>動いている作業はありません</p>
+        <p className={styles.empty}>
+          {unreadable ? "読めなかったリポジトリの作業は、ここに出ていません" : "動いている作業はありません"}
+        </p>
       ) : (
         <>
           {queue.length > 0 && renderQueue()}

@@ -14,6 +14,7 @@ import {
 } from "react";
 import { syncNow } from "@/app/actions";
 import { callAction } from "@/lib/actionCall";
+import { requestedAtAfterSync, SYNC_WAIT_LIMIT_MS, syncAfterPlan } from "@/lib/syncWait";
 import {
   changesPollIntervalMs,
   parseChangeMarks,
@@ -41,6 +42,10 @@ export type ShellState = {
   pausedUntil: Date | null;
   /** 止めているとき、どの鍵・どの枠の残りが少ないか（分からなければ null） */
   pausedBy: PausedBy | null;
+  /** 手で押した同期が届かなかった（次に取り直せたら false に戻る） */
+  syncFailed: boolean;
+  /** 最後の取り直しで、全部のリポジトリが GitHub から読めなかった（同期の時刻は最後に読めた時刻のまま。次に読めたら false） */
+  readFailed: boolean;
   refresh: () => void;
   /** 今のページで、取り直しが終わった回数（ページを移ると0に戻る） */
   refreshCountOnPage: number;
@@ -72,9 +77,12 @@ export type ShellPlan = {
   needsIntervalRefresh: boolean;
   /** 次に猶予（PR作成待ち・未着手）が終わる時刻の少し後（ISO文字列）。猶予の中の物が無ければ null */
   graceRefreshAt: string | null;
+  /** 全部のリポジトリが GitHub から読めなかった（`resolveLoadState` の同期の状態が「全部読めなかった」） */
+  readFailed: boolean;
 };
 
 const NO_PLAN: ShellPlan = {
+  readFailed: false,
   loadedAt: "",
   refreshIntervalMs: null,
   resumeAt: null,
@@ -91,9 +99,6 @@ const SetPlanContext = createContext<((plan: ShellPlan) => void) | null>(null);
 export function useSetShellPlan(): ((plan: ShellPlan) => void) | null {
   return useContext(SetPlanContext);
 }
-
-/** 同期を押したあと、反映が届かなくても「同期中」を止める上限 */
-const SYNC_WAIT_LIMIT_MS = 30_000;
 
 /** 自動更新を持たない画面（デモ）が、同じ部品を使うために中身を直接渡す */
 export const ShellProvider = ShellContext.Provider;
@@ -204,19 +209,27 @@ export function AppShell({
   }, [plan.loadedAt]);
   const waitingForSync = syncFrom !== null && plan.loadedAt === syncFrom;
   const refreshing = pending || waitingForSync;
-  // 届かないまま待ち続けないための上限
-  useEffect(() => {
-    if (!waitingForSync) return;
-    const timer = setTimeout(() => setSyncFrom(null), SYNC_WAIT_LIMIT_MS);
-    return () => clearTimeout(timer);
-  }, [waitingForSync]);
   const [syncedAt, setSyncedAt] = useState(() => new Date(initialSyncedAt));
   const [requestedAt, setRequestedAt] = useState(syncedAt);
+  const [syncFailed, setSyncFailed] = useState(false);
   // 手で押した同期が届かなかったとき、同期の時刻を戻す先（最後に取り直せた時刻）
   const syncedAtRef = useRef(syncedAt);
   useEffect(() => {
     syncedAtRef.current = syncedAt;
   }, [syncedAt]);
+  // 届かないまま待ち続けないための上限
+  useEffect(() => {
+    if (!waitingForSync) return;
+    const timer = setTimeout(() => {
+      // 届いていないので、同期の時刻は進めない（最後に取り直せた時刻へ戻す）
+      setRequestedAt(
+        requestedAtAfterSync({ requestedAt: new Date(), lastSyncedAt: syncedAtRef.current, reached: false }),
+      );
+      setSyncFailed(true);
+      setSyncFrom(null);
+    }, SYNC_WAIT_LIMIT_MS);
+    return () => clearTimeout(timer);
+  }, [waitingForSync]);
   const [refreshCount, setRefreshCount] = useState({ pathname, count: 0 });
   // `/api/changes` が 404 だった（Webhook を使わない設定）。今までどおりの間隔に戻す
   const [changesUnavailable, setChangesUnavailable] = useState(false);
@@ -241,6 +254,7 @@ export function AppShell({
   const refresh = useCallback(() => {
     // 押した瞬間に「同期中」にする（サーバーの返事を待たない）
     setRequestedAt(new Date());
+    setSyncFailed(false);
     setSyncFrom(planLoadedAtRef.current);
     startTransition(async () => {
       // 呼び出しが投げても（通信が切れた・古い画面のまま押した）、画面を落とさない。
@@ -255,15 +269,30 @@ export function AppShell({
         () => false,
       );
       if (!reached) {
-        setRequestedAt(syncedAtRef.current);
+        setRequestedAt(
+          requestedAtAfterSync({ requestedAt: new Date(), lastSyncedAt: syncedAtRef.current, reached }),
+        );
+        setSyncFailed(true);
         setSyncFrom(null);
       }
     });
   }, [router]);
 
-  // 取り直しが終わったら、取り直しを始めた時刻を同期の時刻にして、終わった回数を数える
-  if (!refreshing && requestedAt !== syncedAt) {
+  // 取り直しの結果（新しい計画）が届いた：全部読めなかったなら、同期の時刻を進めず最後に読めた時刻へ戻す
+  const [seenPlanAt, setSeenPlanAt] = useState(plan.loadedAt);
+  const [lastReadAt, setLastReadAt] = useState(syncedAt);
+  if (plan.loadedAt !== seenPlanAt) {
+    setSeenPlanAt(plan.loadedAt);
+    const next = syncAfterPlan({ readFailed: plan.readFailed, requestedAt, lastReadAt });
+    setLastReadAt(next.lastReadAt);
+    if (plan.readFailed) {
+      setRequestedAt(next.shownAt);
+      setSyncedAt(next.shownAt);
+    }
+  } else if (!refreshing && requestedAt !== syncedAt) {
+    // 取り直しが終わったら、取り直しを始めた時刻を同期の時刻にして、終わった回数を数える
     setSyncedAt(requestedAt);
+    setSyncFailed(false);
     setRefreshCount({
       pathname,
       count: refreshCount.pathname === pathname ? refreshCount.count + 1 : 1,
@@ -339,6 +368,8 @@ export function AppShell({
       fastRefresh: isFastRefresh(intervalMs),
       pausedUntil: refreshIntervalMs === null && resumeAt !== null ? new Date(resumeAt) : null,
       pausedBy: refreshIntervalMs === null && resumeAt !== null ? plan.pausedBy : null,
+      syncFailed,
+      readFailed: plan.readFailed,
       refresh,
       refreshCountOnPage: refreshCount.pathname === pathname ? refreshCount.count : 0,
       menuOpen,
@@ -352,6 +383,8 @@ export function AppShell({
       refreshIntervalMs,
       resumeAt,
       plan.pausedBy,
+      plan.readFailed,
+      syncFailed,
       refresh,
       refreshCount,
       pathname,

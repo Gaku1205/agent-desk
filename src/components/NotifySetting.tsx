@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import { saveNotifyEvents, type SaveReposResult } from "@/app/(app)/settings/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
-import { formatSaveFailures } from "@/lib/notifyChanges";
 import type { NotifyEvent } from "@/lib/notifyEvents";
+import { summarizeSaveFailures, type SaveFailureLine } from "@/lib/saveFailures";
 import {
   NOTIFY_ROWS,
   notifyRowOn,
@@ -20,7 +20,7 @@ import {
 import { useDemo } from "./DemoContext";
 import { CheckIcon } from "./icons";
 import styles from "./Settings.module.css";
-import { SettingsPanel, SettingsRow, useMarkSaved } from "./SettingsRow";
+import { SettingsPanel, SettingsRow, useMarkSaved, useReportFailure } from "./SettingsRow";
 import { Switch } from "./Switch";
 
 export type NotifyRepoRow = {
@@ -47,10 +47,13 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
   const [changed, setChanged] = useState<Record<string, readonly NotifyEvent[]>>({});
   const [open, setOpen] = useState<ReadonlySet<NotifyRowKey>>(new Set());
   const [errors, setErrors] = useState<Partial<Record<NotifyRowKey, string>>>({});
+  // 保存の失敗（行ごと。同じ行の次の保存が成功したら消す）
+  const [failures, setFailures] = useState<Partial<Record<NotifyRowKey, SaveFailureLine[]>>>({});
   const [busyRow, setBusyRow] = useState<NotifyRowKey | null>(null);
   const [, startSaving] = useTransition();
   const demo = useDemo();
   const markSaved = useMarkSaved();
+  const reportFailure = useReportFailure();
 
   const repos: NotifyRepo[] = rows.map((row) => ({ ...row, events: changed[row.name] ?? row.events }));
   const targets = repos.filter((repo) => repo.pipeline);
@@ -75,21 +78,24 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
     }
     setBusyRow(key);
     startSaving(async () => {
-      const failures: { name: string; message: string }[] = [];
+      const failed: { name: string; message: string }[] = [];
       for (const write of plan.write) {
         const result = await callAction<SaveReposResult>(
           () => saveNotifyEvents(write.where, write.events),
           () => ({ ok: false, message: ACTION_UNREACHABLE_MESSAGE }),
         );
-        if (!result.ok) failures.push({ name: write.where, message: result.message });
+        if (!result.ok) failed.push({ name: write.where, message: result.message });
       }
       setBusyRow(null);
-      if (failures.length === 0) {
+      if (failed.length === 0) {
+        setFailures((prev) => ({ ...prev, [key]: undefined }));
+        reportFailure(`notify:${key}`, false);
         markSaved();
         return;
       }
-      apply(revertNotifyFailures(before, after, failures.map((failure) => failure.name)));
-      setErrors((prev) => ({ ...prev, [key]: formatSaveFailures(failures, plan.write.length) }));
+      apply(revertNotifyFailures(before, after, failed.map((failure) => failure.name)));
+      setFailures((prev) => ({ ...prev, [key]: summarizeSaveFailures(failed, plan.write.length) }));
+      reportFailure(`notify:${key}`, true);
     });
   }
 
@@ -125,6 +131,7 @@ export function NotifySetting({ rows }: { rows: NotifyRepoRow[] }) {
             description={row.description}
             busy={busy}
             error={errors[row.key] ?? null}
+            failures={failures[row.key]}
             below={
               expanded ? (
                 <ul className={styles.chips} id={listId} aria-label={`${row.name} を鳴らすリポジトリ`}>
