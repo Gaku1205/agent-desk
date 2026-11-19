@@ -48,10 +48,19 @@ export async function selfcheckOnce(
   read: () => Promise<RepoResult[]>,
   nowMs: number = Date.now(),
 ): Promise<SelfcheckReport> {
+  return (await selfcheckOnceDetailed(scope, read, nowMs)).report;
+}
+
+/** `selfcheckOnce` と同じ。新しく点検したのが自分のとき（5分の記憶・同時の呼び出しの合流ではないとき）だけ `fresh` が true */
+export async function selfcheckOnceDetailed(
+  scope: string,
+  read: () => Promise<RepoResult[]>,
+  nowMs: number = Date.now(),
+): Promise<{ report: SelfcheckReport; fresh: boolean }> {
   const memo = memos.get(scope);
-  if (memo && nowMs - memo.at >= 0 && nowMs - memo.at < SELFCHECK_TTL_MS) return memo.report;
+  if (memo && nowMs - memo.at >= 0 && nowMs - memo.at < SELFCHECK_TTL_MS) return { report: memo.report, fresh: false };
   const running = inFlights.get(scope);
-  if (running) return running;
+  if (running) return { report: await running, fresh: false };
   const started = read()
     .then((results) => {
       const report = runSelfcheck(results, new Date(nowMs));
@@ -62,5 +71,5 @@ export async function selfcheckOnce(
       if (inFlights.get(scope) === started) inFlights.delete(scope);
     });
   inFlights.set(scope, started);
-  return started;
+  return { report: await started, fresh: true };
 }
