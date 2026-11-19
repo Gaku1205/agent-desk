@@ -401,6 +401,15 @@ export function BellIcon({ size = LABEL }: IconProps) {
   );
 }
 
+/** 夜＝月 */
+export function MoonIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+    </LineIcon>
+  );
+}
+
 /** テーマ＝太陽 */
 export function SunIcon({ size = LABEL }: IconProps) {
   return (
