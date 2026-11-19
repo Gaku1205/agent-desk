@@ -3,7 +3,15 @@ import type { Env, WatchedRepo } from "../config";
 import { checkUserCanRead, forgetInstallation, resolveReadAccess } from "./appToken";
 import { GitHubClient, type Fetcher } from "./client";
 import { GitHubError, toErrorInfo } from "./errors";
-import { mergeRepoParts, planRepoRead, shouldReadFullAfterDeltaError, shouldReadMorePulls } from "./delta";
+import { after } from "next/server";
+import { shareInFlight } from "../inFlight";
+import {
+  mergeRepoParts,
+  planRepoRead,
+  shouldReadFullAfterDeltaError,
+  shouldReadFullInBackground,
+  shouldReadMorePulls,
+} from "./delta";
 import {
   convertRepoNodes,
   DELTA_LISTS,
@@ -21,7 +29,15 @@ import {
 } from "./graphql";
 import { judgePipelineState, type PipelineProbe, type PipelineState } from "../pipelineState";
 import type { WatchdogLastRun } from "../watchdogState";
-import { cachedRepoData, cachedUserCanRead, snapshotRepoData, type AppRepoData } from "./repoCache";
+import {
+  cachedRepoData,
+  cachedUserCanRead,
+  expireRepoDataAfterFullRead,
+  readStoredDeltaBase,
+  snapshotRepoData,
+  writeStoredDeltaBase,
+  type AppRepoData,
+} from "./repoCache";
 import { PIPELINE_WORKFLOW_PATH } from "./settings";
 import type { CommitStatusData, RepoData, RepoResult, RepoSyncInfo, RunJobsData, RunStepData, WorkflowRunData } from "./types";
 import { currentStepFromJobs, stepProbeRunIds } from "../aiActivity";
@@ -43,6 +59,7 @@ export async function fetchRepoData(
   client: GitHubClient,
   { owner, repo }: WatchedRepo,
   now: Date = new Date(),
+  options: { forceFull?: boolean } = {},
 ): Promise<RepoData> {
   const base = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
   // 直近14日の境目。結果の絞り込みに使う
@@ -52,7 +69,7 @@ export async function fetchRepoData(
 
   const baseKey = deltaBaseKey(client, base);
   const [read, actions] = await Promise.all([
-    readRepoParts(client, owner, repo, { since, cutoffMs, now, known: deltaBases.get(baseKey) }),
+    readRepoParts(client, owner, repo, { since, cutoffMs, now, known: deltaBases.get(baseKey), forceFull: options.forceFull }),
     fetchActionsState(client, base, now.getTime()),
   ]);
   const mainDeployed = rememberedMainDeployed(client.memoKey(base), read.mainCommits);
@@ -153,6 +170,74 @@ export function rememberRepoData(client: GitHubClient, { owner, repo }: WatchedR
   rememberDeltaBase(deltaBaseKey(client, `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`), data);
 }
 
+/** 差分の元を、サーバーのメモリの外（Next.js のキャッシュ。24時間以上残る）に置く所（`repoCache.ts`） */
+export type DeltaBaseStore = {
+  read: (repo: WatchedRepo) => Promise<RepoData | null>;
+  write: (repo: WatchedRepo, data: RepoData) => Promise<void>;
+  /** 裏の全部読みを置いたあと：覚えているデータを捨てて、次の表示で全部読みの結果を使わせる */
+  expireData: (repo: WatchedRepo) => void;
+};
+
+/** サーバーのメモリが空のとき、覚えている差分の元から読んで、差分の元にする */
+async function loadStoredBase(client: GitHubClient, repo: WatchedRepo, store: DeltaBaseStore | undefined): Promise<void> {
+  if (!store) return;
+  const key = deltaBaseKey(client, `/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}`);
+  if (deltaBases.has(key)) return;
+  try {
+    const stored = await store.read(repo);
+    if (stored) rememberDeltaBase(key, stored);
+  } catch {
+    // 読めなければ、今までどおり（無ければ全部を読む）
+  }
+}
+
+/** 同じリポジトリの裏の全部読み（同時に1つだけ） */
+const backgroundFullReads = new Map<string, Promise<void>>();
+/** 裏の全部読みを始めた時刻。失敗が続いても、キャッシュの寿命（5分）に1回より多くは始めない */
+const backgroundFullStartedAt = new Map<string, number>();
+const BACKGROUND_FULL_RETRY_MS = 5 * 60_000;
+
+/** テスト用：覚えている物を空にする */
+export const backgroundFullForTest = {
+  clear: (): void => {
+    backgroundFullReads.clear();
+    backgroundFullStartedAt.clear();
+  },
+  pending: (): Promise<unknown> => Promise.all([...backgroundFullReads.values()]),
+};
+
+/**
+ * 差分で返したあと、返事を返し終えてから（`after`）全部を読み直し、差分の元（メモリ・覚えている所）に入れ替える。
+ * 失敗しても画面には影響させない。リクエストの外（`after` が使えない所）では何もしない
+ */
+function readFullInBackground(
+  client: GitHubClient,
+  repo: WatchedRepo,
+  store: DeltaBaseStore | undefined,
+  now: Date | undefined,
+): void {
+  const key = deltaBaseKey(client, `/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}`);
+  if (backgroundFullReads.has(key)) return;
+  const startedAt = backgroundFullStartedAt.get(key);
+  if (startedAt !== undefined && Date.now() - startedAt < BACKGROUND_FULL_RETRY_MS) return;
+  try {
+    after(() =>
+      shareInFlight(backgroundFullReads, key, async () => {
+        backgroundFullStartedAt.set(key, Date.now());
+        try {
+          const data = await fetchRepoData(client, repo, now ?? new Date(), { forceFull: true });
+          await store?.write(repo, data);
+          store?.expireData(repo);
+        } catch {
+          // 次の機会にやり直す
+        }
+      }),
+    );
+  } catch {
+    // リクエストの外では始めない
+  }
+}
+
 type ReadParts = {
   parts: RepoParts;
   isTemplate: boolean | undefined;
@@ -168,11 +253,11 @@ async function readRepoParts(
   client: GitHubClient,
   owner: string,
   name: string,
-  options: { since: string; cutoffMs: number; now: Date; known: RepoData | undefined },
+  options: { since: string; cutoffMs: number; now: Date; known: RepoData | undefined; forceFull?: boolean },
 ): Promise<ReadParts> {
   const { since, cutoffMs, now, known } = options;
   const readAt = now.toISOString();
-  const plan = planRepoRead(known?.sync, now.getTime(), cutoffMs);
+  const plan = options.forceFull ? ({ mode: "full" } as const) : planRepoRead(known?.sync, now.getTime(), cutoffMs);
   if (plan.mode === "delta" && known?.sync) {
     try {
       const nodes = await fetchDeltaNodes(client, owner, name, { sinceMs: plan.sinceMs, windowSince: since, cutoffMs });
@@ -182,7 +267,12 @@ async function readRepoParts(
         parts: mergeRepoParts(known, delta, touched, cutoffMs),
         isTemplate: nodes.isTemplate ?? known.isTemplate,
         mainCommits: nodes.mainCommits,
-        sync: { mode: "delta", readAt, fullAt: known.sync.fullAt, count: nodes.count },
+        sync: {
+          mode: shouldReadFullInBackground(known.sync, now.getTime()) ? "delta+bg-full" : "delta",
+          readAt,
+          fullAt: known.sync.fullAt,
+          count: nodes.count,
+        },
       };
     } catch (error) {
       const failure = error instanceof GitHubError ? error : null;
@@ -579,6 +669,7 @@ export async function fetchAllRepos(
     now?: Date;
     env?: Env;
     readAppData?: (repo: WatchedRepo, load: () => Promise<RepoData>) => Promise<AppRepoData>;
+    store?: DeltaBaseStore;
   } = {},
 ): Promise<RepoResult[]> {
   const userClient = new GitHubClient(token, options.fetcher);
@@ -595,6 +686,7 @@ export async function fetchAllRepos(
       try {
         if (!access) {
           const data = await fetchRepoData(userClient, repo, options.now);
+          if (data.sync?.mode === "delta+bg-full") readFullInBackground(userClient, repo, undefined, options.now);
           return { owner, repo: name, ok: true, data, readSource };
         }
         const client = new GitHubClient(access.token, options.fetcher, {
@@ -602,10 +694,17 @@ export async function fetchAllRepos(
           keyId: access.keyId,
         });
         const load = () => fetchRepoData(client, repo, options.now);
-        if (!options.readAppData) return { owner, repo: name, ok: true, data: await load(), readSource };
+        // サーバーのメモリに前の結果が無いときは、覚えている差分の元（5分より長く残る）から読む
+        await loadStoredBase(client, repo, options.store);
+        if (!options.readAppData) {
+          const data = await load();
+          if (data.sync?.mode === "delta+bg-full") readFullInBackground(client, repo, options.store, options.now);
+          return { owner, repo: name, ok: true, data, readSource };
+        }
         const { data, changeMark } = await options.readAppData(repo, load);
         // キャッシュから受け取った物（ほかのインスタンスが読んだ物もある）も、次の差分の読みの元にする
         rememberRepoData(client, repo, data);
+        if (data.sync?.mode === "delta+bg-full") readFullInBackground(client, repo, options.store, options.now);
         return { owner, repo: name, ok: true, data, readSource, changeMark };
       } catch (error) {
         // App の鍵で権限なし・見つからないなら、記憶を消して、ログインした人のトークンで1回だけ読み直す
@@ -630,7 +729,10 @@ export async function fetchAllRepos(
  * App の鍵で読むリポジトリは、Next.js のキャッシュ（`cachedRepoData`。タグ `repo:<owner>/<repo>`）を通す
  */
 const fetchRepoOnce = cache(async (token: string, repoKey: string): Promise<RepoResult> => {
-  const [result] = await fetchAllRepos(token, [JSON.parse(repoKey) as WatchedRepo], { readAppData: cachedRepoData });
+  const [result] = await fetchAllRepos(token, [JSON.parse(repoKey) as WatchedRepo], {
+    readAppData: cachedRepoData,
+    store: { read: readStoredDeltaBase, write: writeStoredDeltaBase, expireData: expireRepoDataAfterFullRead },
+  });
   return result;
 });
 
