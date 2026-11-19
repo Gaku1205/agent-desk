@@ -107,6 +107,8 @@ export type WorkflowRunData = {
   id?: number;
   /** `queued`・`in_progress`・`completed` など */
   status: string;
+  /** 終わり方（`success`・`failure`・`cancelled`・`timed_out` など。終わっていない・読めなければ無し） */
+  conclusion?: string;
   /** 実行したブランチ（無ければ null） */
   headBranch: string | null;
   /** 実行の題名（`display_title`。無ければ空文字） */
