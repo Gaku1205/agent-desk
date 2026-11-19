@@ -6,7 +6,9 @@ import { Dashboard } from "./Dashboard";
 import { Desk, type DeskNav } from "./Desk";
 import { Lanes } from "./Lanes";
 import { useNav } from "./NavContext";
+import { NewIssueForm, type NewIssueRepo } from "./NewIssueForm";
 import { RepoList } from "./RepoList";
+import { NewServiceSkeleton } from "./Skeleton";
 import { formatStaleTime, shouldHoldPrevious } from "@/lib/staleSnapshot";
 import styles from "./LivePages.module.css";
 
@@ -130,6 +132,21 @@ export function DashboardLive({ first }: { first: Step<LiveValue<ComponentProps<
       <StaleNote staleAt={staleAt} staleBecause={staleBecause} complete={complete} />
     </>
   );
+}
+
+/**
+ * 新しいサービスを作る。送り先（テンプレート）は読めたリポジトリから決まるので、
+ * まだ1つも見つからない間は骨組みを出し、「テンプレートが監視にありません」を先に見せない
+ */
+export function NewServiceLive({
+  first,
+}: {
+  first: Step<LiveValue<{ repos: NewIssueRepo[]; nav: DeskNav }>>;
+}) {
+  const { props, complete } = useSteps(first, isComplete);
+  const nav = useLiveNav(props.nav, complete);
+  if (!complete && props.repos.length === 0) return <NewServiceSkeleton />;
+  return <NewIssueForm mode="service" repos={props.repos} nav={nav} />;
 }
 
 /** すべてのリポジトリ */

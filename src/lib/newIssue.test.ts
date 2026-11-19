@@ -1,16 +1,49 @@
 import { describe, expect, it } from "vitest";
 import { MAX_ISSUE_IMAGES } from "./issueImages";
 import {
+  appendExample,
   checkNewIssueMemo,
   composeNewIssue,
+  createdServiceHref,
   MAX_NEW_ISSUE_MEMO,
   MAX_NEW_ISSUE_TITLE,
   memoLength,
   memoTitle,
   NEW_ISSUE_MESSAGES,
   OMAKASE_BODY,
+  omakaseHint,
   parseNewIssueInput,
+  SERVICE_EXAMPLES,
 } from "./newIssue";
+
+describe("omakaseHint", () => {
+  it("オフ・オンの補足の1行", () => {
+    expect(omakaseHint(false)).toBe("案・見た目・最終確認の3回、Your turn で選ぶ");
+    expect(omakaseHint(true)).toBe("相談なしで公開まで（30分ほど）");
+  });
+});
+
+describe("書き方の見本", () => {
+  it("見本は2〜3個", () => {
+    expect(SERVICE_EXAMPLES.length).toBeGreaterThanOrEqual(2);
+    expect(SERVICE_EXAMPLES.length).toBeLessThanOrEqual(3);
+  });
+  it("空・空白だけなら見本だけを入れる", () => {
+    expect(appendExample("", "見本")).toBe("見本");
+    expect(appendExample("  \n", "見本")).toBe("見本");
+  });
+  it("書いてあれば消さずに、改行をはさんで後ろに足す", () => {
+    expect(appendExample("天気のページ", "見本")).toBe("天気のページ\n見本");
+    expect(appendExample("天気のページ\n\n", "見本")).toBe("天気のページ\n見本");
+  });
+});
+
+describe("createdServiceHref", () => {
+  it("agent-desk の中のリポジトリのページ", () => {
+    expect(createdServiceHref("Gaku1205/ai-dev-template")).toBe("/repos/Gaku1205/ai-dev-template");
+    expect(createdServiceHref("demo/landing-page", "/demo")).toBe("/demo/repos/demo/landing-page");
+  });
+});
 
 describe("checkNewIssueMemo", () => {
   it("前後の空白を外して通す", () => {

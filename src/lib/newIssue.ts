@@ -39,6 +39,32 @@ export const FACTORY_TITLE_PREFIX = "新サービス：";
 /** 本文に入れる「全部おまかせ」のチェック（工場が相談せずに全部決めて作る合図） */
 export const OMAKASE_BODY = "- [x] 全部おまかせ";
 
+/** `全部おまかせ` の横の補足の1行（オンのとき・オフのとき。「Issueを書く」のテンプレート選択時も同じ） */
+export function omakaseHint(on: boolean): string {
+  return on ? "相談なしで公開まで（30分ほど）" : "案・見た目・最終確認の3回、Your turn で選ぶ";
+}
+
+/** 新サービスの書き方の見本（誰が使う・何ができる・スマホか PC か・お金を取るか。押すと入力欄に入る） */
+export const SERVICE_EXAMPLES: readonly string[] = [
+  "一人暮らしの人が、毎朝の天気と予定を1枚で見られるスマホ向けのページ（無料）",
+  "小さなお店の人が、予約を受けて一覧で確認できるPC向けの管理画面（月500円）",
+  "家族で買い物リストを共有して、チェックを付けられるスマホのアプリ（無料）",
+];
+
+/**
+ * 見本を入力欄に入れた結果。空（空白だけも含む）なら見本だけ。書いてあれば消さずに、
+ * 末尾の改行を1つにそろえて、改行をはさんで足す
+ */
+export function appendExample(current: string, example: string): string {
+  if (current.trim() === "") return example;
+  return `${current.replace(/\n+$/, "")}\n${example}`;
+}
+
+/** 新サービスを作ったあとの、agent-desk の中の行き先（そのテンプレートリポジトリのページ。`basePath` はデモなら `/demo`） */
+export function createdServiceHref(repo: string, basePath = ""): string {
+  return `${basePath}/repos/${repo}`;
+}
+
 const FACTORY_PREFIX_PATTERN = /^新サービス[：:]\s*/;
 
 export type NewIssueInput = {
