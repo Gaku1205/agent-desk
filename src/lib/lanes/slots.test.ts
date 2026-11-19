@@ -30,6 +30,7 @@ function waiting(number: number, cause: QueueSource["cause"] = null, file: strin
     cause,
     file,
     waitFor: null,
+    waitFors: [],
     waitingMs: null,
   };
 }

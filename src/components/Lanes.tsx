@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, 
 import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
 import { assignSlots, lanesHeadline, overLimitNote,type QueueEntry, type Slot } from "@/lib/lanes/slots";
+import { queueLine } from "@/lib/lanes/queueLine";
 import type { LanesSource, RunEntry } from "@/lib/lanes/source";
 import { lanesTurnRows, mergeOrdinals } from "@/lib/lanes/turnRows";
 import { heldIndex, withHeldRows, type HeldRow } from "@/lib/operationResult";
@@ -290,7 +291,37 @@ function RunRow({ run }: { run: RunEntry }) {
   );
 }
 
-function QueueRow({ entry }: { entry: QueueEntry }) {
+function QueueWhy({ entry, basePath }: { entry: QueueEntry; basePath: string }) {
+  const line = queueLine(entry);
+  if (line.kind === "text") {
+    return (
+      <span className={styles.why} title={entry.reason}>
+        {line.text}
+      </span>
+    );
+  }
+  const { target, more } = line;
+  const label = target.kind === "pull" ? `${entry.repo} PR #${target.number}` : `${entry.repo}#${target.number}`;
+  // 進捗図は、その作業のあるリポジトリのページで見る（Issue が分からない PR は GitHub の PR）
+  const inApp = target.issueNumber !== null;
+  const href = inApp ? `${basePath}/repos/${entry.owner}/${entry.repo}` : target.url;
+  return (
+    <span className={`${styles.why} ${styles.whyFlex}`} title={entry.reason}>
+      <span className={styles.whyHead}>待ち：</span>
+      <a
+        className={styles.waitFor}
+        href={href}
+        {...(inApp ? {} : { target: "_blank", rel: "noreferrer" })}
+      >
+        {label}
+      </a>
+      {target.title !== "" && <span className={styles.whyTitle}>{target.title}</span>}
+      {more > 0 && <span className={styles.whyMore}>ほか{more}件</span>}
+    </span>
+  );
+}
+
+function QueueRow({ entry, basePath }: { entry: QueueEntry; basePath: string }) {
   return (
     <li className={styles.row} data-tone="queue" data-kind="queue">
       <div className={styles.left}>
@@ -308,17 +339,7 @@ function QueueRow({ entry }: { entry: QueueEntry }) {
             {entry.title}
           </a>
         </span>
-        <span className={styles.why} title={entry.reason}>
-          {entry.reason}
-          {entry.waitFor && (
-            <>
-              。待つ相手：
-              <a className={styles.waitFor} href={entry.waitFor.url} target="_blank" rel="noreferrer">
-                {entry.waitFor.label}
-              </a>
-            </>
-          )}
-        </span>
+        <QueueWhy entry={entry} basePath={basePath} />
       </div>
       <div className={styles.right}>
         {entry.waitingMs !== null && <span className={`${styles.time} num`}>{formatSpan(entry.waitingMs)}</span>}
@@ -453,7 +474,7 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
           ) : (
             <ol className={styles.list}>
               {lanes.queue.map((entry) => (
-                <QueueRow key={entry.key} entry={entry} />
+                <QueueRow key={entry.key} entry={entry} basePath={nav.basePath ?? ""} />
               ))}
             </ol>
           )}

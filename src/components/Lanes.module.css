@@ -492,6 +492,35 @@
   white-space: nowrap;
 }
 
+/* 待っている相手：`待ち：agent-desk#550 題名…  ほか2件`（題名だけが縮んで「…」になる） */
+.whyFlex {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.whyHead,
+.whyMore {
+  flex: none;
+  white-space: nowrap;
+}
+
+.whyHead {
+  margin-right: -6px;
+}
+
+.whyMore {
+  color: var(--mute);
+}
+
+.whyTitle {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 狭い所：左と右を1段目、真ん中を2段目 */
 @container (max-width: 639px) {
   .row {
