@@ -3,7 +3,14 @@
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AddedNotice } from "@/lib/autoAdd";
-import { applyRepoCount, fullNavCounts, NO_NAV_COUNTS, type NavCounts, type RepoCountFeed } from "@/lib/navCounts";
+import {
+  applyRepoCount,
+  fullNavCounts,
+  NO_NAV_COUNTS,
+  withPageCounts,
+  type NavCounts,
+  type RepoCountFeed,
+} from "@/lib/navCounts";
 import { parseSavedRepos, reposToShow, WATCHED_REPOS_CHANNEL, type SavedRepos } from "@/lib/savedRepos";
 import type { DriftSummary } from "@/lib/selfCheck";
 import type { TurnCounts } from "@/lib/turn";
@@ -37,6 +44,8 @@ type NavState = {
   saved: SavedRepos<DeskNav["repos"]> | null;
   setStreamed: (value: StreamedNav) => void;
   setRepoCount: (feed: RepoCountFeed) => void;
+  /** ページが全部を読み終えて数えた件数で入れ替える（ページを移っても件数が古いまま残らないように） */
+  setPageCounts: (page: Parameters<typeof withPageCounts>[1]) => void;
   applySavedRepos: (names: unknown) => void;
 };
 
@@ -73,6 +82,14 @@ export function NavProvider({ base, children }: { base: DeskNav; children: React
       }),
     [],
   );
+  const setPageCounts = useCallback(
+    (page: Parameters<typeof withPageCounts>[1]) =>
+      setState((current) => {
+        const live = withPageCounts(current.live, page);
+        return live === current.live ? current : { ...current, live };
+      }),
+    [],
+  );
   // 設定で保存した監視リポジトリ：サーバーの一覧（`base.repos`）が新しくなるまで、保存した一覧を札に使う
   const [saved, setSaved] = useState<SavedRepos<DeskNav["repos"]> | null>(null);
   const baseRepos = base.repos;
@@ -101,8 +118,17 @@ export function NavProvider({ base, children }: { base: DeskNav; children: React
     return () => channel.close();
   }, [applySavedRepos, router]);
   const value = useMemo(
-    () => ({ base, streamed: state.streamed, live: state.live, saved, setStreamed, setRepoCount, applySavedRepos }),
-    [base, state, saved, setStreamed, setRepoCount, applySavedRepos],
+    () => ({
+      base,
+      streamed: state.streamed,
+      live: state.live,
+      saved,
+      setStreamed,
+      setRepoCount,
+      setPageCounts,
+      applySavedRepos,
+    }),
+    [base, state, saved, setStreamed, setRepoCount, setPageCounts, applySavedRepos],
   );
   return <NavContext.Provider value={value}>{children}</NavContext.Provider>;
 }
@@ -138,6 +164,26 @@ export function useStreamedNav(): StreamedNav | null {
 
 export function useSetStreamedNav(): ((value: StreamedNav) => void) | null {
   return useContext(NavContext)?.setStreamed ?? null;
+}
+
+/**
+ * ページが全部を読み終えたら、そのページの件数を上のバー・左のバーへ入れる（`complete` が true のときだけ）。
+ * layout は描き直されないので、入れないと移った先で件数が古いまま残る。デモ（Provider の外）では何もしない
+ */
+export function usePublishPageCounts(nav: DeskNav, complete: boolean): void {
+  const state = useContext(NavContext);
+  const setPageCounts = state?.setPageCounts;
+  const { counts, runningCounts, countsUnreadable, countsPending } = nav;
+  const baseRepos = state?.base.repos;
+  useEffect(() => {
+    if (!setPageCounts || !complete || countsPending || !baseRepos) return;
+    setPageCounts({
+      counts,
+      runningCounts,
+      unreadable: countsUnreadable ?? {},
+      repoKeys: baseRepos.map((repo) => `${repo.owner}/${repo.repo}`.toLowerCase()),
+    });
+  }, [setPageCounts, complete, countsPending, counts, runningCounts, countsUnreadable, baseRepos]);
 }
 
 export function useSetRepoCount(): ((feed: RepoCountFeed) => void) | null {

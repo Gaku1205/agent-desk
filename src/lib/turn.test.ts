@@ -367,6 +367,22 @@ describe("件数", () => {
     expect(filterTurnItems(items, "O", "R")).toHaveLength(4);
   });
 
+  it("`factory:wait` の工場の相談も Your turn の数に入る（0 件にならない）", () => {
+    const factory = buildTurnItems(
+      [
+        ok(
+          "Gaku1205",
+          "ai-dev-template",
+          data({ issues: [issue(250, { title: "新サービス：朝の1枚", labels: ["factory", "factory:wait"] })] }),
+        ),
+      ],
+      NOW,
+    );
+    expect(factory).toHaveLength(1);
+    expect(factory[0].status.stage).toBe("factoryTalk");
+    expect(countTurnItems(factory).byRepo["gaku1205/ai-dev-template"]).toBe(1);
+  });
+
   it("1件のキーは `owner/repo#番号`（流れの光のキーと同じ）で、重ならない", () => {
     const keys = items.map(turnItemKey);
     expect(keys).toContain("o/other#1");

@@ -61,3 +61,11 @@ describe("newIssueHref", () => {
     expect(newIssueHref("/demo", null)).toBe("/demo/new");
   });
 });
+
+describe("chooseIssueRepo（Your turn の相談を開いても変わらない）", () => {
+  it("ホーム（pageRepo なし）では、開いた相談のリポジトリに関係なく手で選んだ物を守る", () => {
+    const repos = ["o/app", "o/ai-dev-template"];
+    expect(chooseIssueRepo({ names: repos })).toBe("o/app");
+    expect(chooseIssueRepo({ names: repos, manual: "o/app", manualPage: null })).toBe("o/app");
+  });
+});
