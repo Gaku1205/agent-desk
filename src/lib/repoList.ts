@@ -23,6 +23,8 @@ export type RepoListRow = {
   githubUrl: string;
   /** 公開先のリンク（公開済みの最新が成功のときだけ） */
   links: DeployLink[];
+  /** 読めなかった（あなたの番・AIの数は 0 ではなく「–」で出す。最後の動きは `—`） */
+  unreadable?: boolean;
 };
 
 /**
@@ -72,7 +74,7 @@ function latestDeployLinks(result: RepoResult, now: Date): DeployLink[] {
 
 /**
  * `/repos` の行（並べ替え前）。取得済みの結果から作り、GitHub は読まない。
- * 取れなかったリポジトリは 0・0・時刻なし
+ * 取れなかったリポジトリは `unreadable`（数は画面で「–」）・時刻なし
  */
 export function buildRepoRows(
   repos: WatchedRepo[],
@@ -94,6 +96,7 @@ export function buildRepoRows(
       lastAt,
       githubUrl: "https://github.com/" + owner + "/" + repo,
       links: result ? latestDeployLinks(result, now) : [],
+      ...(result && !result.ok ? { unreadable: true } : {}),
     };
   });
 }

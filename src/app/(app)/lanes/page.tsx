@@ -4,6 +4,7 @@ import { buildLanesSource } from "@/lib/lanes/source";
 import { lanesReadMode } from "@/lib/lanes/readMode";
 import { buildUsageSource } from "@/lib/lanes/usage";
 import { loadTurnSteps } from "@/lib/loadTurnSteps";
+import { unreadableMapOf } from "@/lib/navCounts";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
 import { logout } from "../logout";
@@ -32,6 +33,7 @@ export default async function LanesPage() {
         repos,
         counts: countTurnItems(items),
         runningCounts: countRunningPipelineRows(results, now),
+        countsUnreadable: unreadableMapOf(errors),
         login,
         logout,
       },

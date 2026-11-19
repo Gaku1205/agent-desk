@@ -20,6 +20,11 @@ describe("visibleRepos", () => {
     expect(visibleRepos(repos, turn, running, { owner: "O", repo: "D" }).map((r) => r.repo)).toEqual(["a", "c", "d"]);
   });
 
+  it("読めなかったリポジトリは 0・0 でも札を残す（数は「–」）", () => {
+    const zero: TurnCounts = { byRepo: {} };
+    expect(visibleRepos(repos, zero, zero, null, { "o/b": true }).map((r) => r.repo)).toEqual(["b"]);
+  });
+
   it("全部が 0・0 なら空", () => {
     const zero: TurnCounts = { byRepo: {} };
     expect(visibleRepos(repos, zero, zero, null)).toEqual([]);

@@ -1,6 +1,7 @@
 import { RepoListLive } from "@/components/LivePages";
 import { getSignedInLogin } from "@/lib/auth";
 import { loadTurnSteps } from "@/lib/loadTurnSteps";
+import { unreadableMapOf } from "@/lib/navCounts";
 import { buildRepoRows } from "@/lib/repoList";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
@@ -25,6 +26,7 @@ export default async function ReposPage() {
         repos,
         counts: countTurnItems(items),
         runningCounts: countRunningPipelineRows(results, now),
+        countsUnreadable: unreadableMapOf(errors),
         login,
         logout,
       },

@@ -61,6 +61,8 @@ export type DeskNav = {
   countsPending?: boolean;
   /** 全部が届く前に、件数が届いたリポジトリ（`owner/repo` の小文字）。届いた物だけ件数を出し、ほかは「–」 */
   countsLoaded?: Record<string, true>;
+  /** 読めなかったリポジトリ（`owner/repo` の小文字）。札は残し、数は 0 ではなく「–」 */
+  countsUnreadable?: Record<string, true>;
   /** リンクの頭（デモでは `/demo`） */
   basePath?: string;
   /** 左のバーのいちばん下：ログイン中のユーザー名とログアウト（デモでは無し） */
@@ -128,6 +130,7 @@ export function Desk({
     counts: deferred && live ? live.counts : navProp.counts,
     runningCounts: deferred && live ? live.runningCounts : navProp.runningCounts,
     countsLoaded: deferred && live ? live.countsLoaded : undefined,
+    countsUnreadable: deferred && live ? live.countsUnreadable : navProp.countsUnreadable,
     countsPending: deferred && (live ? live.countsPending : true),
   };
   const newIssueRepos = deferred && streamed ? streamed.newIssueRepos : newIssueReposProp;

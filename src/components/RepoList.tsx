@@ -74,7 +74,7 @@ export function RepoList({ rows, now, nav, errors }: Props) {
               <Link href={`${basePath}/repos/${row.owner}/${row.repo}`} className={styles.name} title={`${row.owner}/${row.repo}`}>
                 {row.repo}
               </Link>
-              <Counts turn={row.turn} running={row.running} labeled={false} />
+              <Counts turn={row.turn} running={row.running} labeled={false} unreadable={row.unreadable === true} />
               <span className={`${styles.time} num`}>{formatLastActivity(row.lastAt, at)}</span>
               <span className={styles.links}>
                 <a href={row.githubUrl} target="_blank" rel="noreferrer">

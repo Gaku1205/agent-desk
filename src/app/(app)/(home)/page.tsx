@@ -4,6 +4,7 @@ import { getSignedInLogin } from "@/lib/auth";
 import { buildConversation } from "@/lib/conversation";
 import { buildTrailEvents } from "@/lib/events";
 import { loadTurnSteps } from "@/lib/loadTurnSteps";
+import { unreadableMapOf } from "@/lib/navCounts";
 import { newIssueRepos } from "@/lib/newIssue";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
@@ -36,7 +37,14 @@ export default async function Home() {
       notices: buildWatchdogNotices(results, now),
       addedNotices,
       nav: complete
-        ? { repos, counts: countTurnItems(items), runningCounts: countRunningPipelineRows(results, now), login, logout }
+        ? {
+            repos,
+            counts: countTurnItems(items),
+            runningCounts: countRunningPipelineRows(results, now),
+            countsUnreadable: unreadableMapOf(errors),
+            login,
+            logout,
+          }
         : { repos, counts: NO_COUNTS, runningCounts: NO_COUNTS, countsPending: true, login, logout },
       newIssueRepos: newIssueRepos(repos, results),
       loadStepLog,

@@ -93,6 +93,7 @@ function useLiveNav(nav: DeskNav, complete: boolean): DeskNav {
     runningCounts: live.runningCounts,
     countsPending: live.countsPending,
     countsLoaded: live.countsLoaded,
+    countsUnreadable: live.countsUnreadable,
   };
 }
 

@@ -15,7 +15,9 @@ export type StreamedNav = {
   runningCounts: TurnCounts;
   newIssueRepos: NewIssueRepo[];
   /** 枠を使っている作業の数（Slots & Queue の「使用中」と同じ数え方）。「同時に動かす」の `1 / 1` に使う */
-  slotsInUse: number;
+  slotsInUse: number | null;
+  /** 読めなかったリポジトリ（`owner/repo` の小文字）。札は残し、数は「–」にする */
+  unreadableRepos: string[];
   addedNotices: AddedNotice[];
   /** この結果を作った描画の時刻（ISO文字列）。リポジトリごとの件数（`RepoCountFeed`）と比べる */
   renderedAt: string;
@@ -55,6 +57,7 @@ export function NavProvider({ base, children }: { base: DeskNav; children: React
           value.counts,
           value.runningCounts,
           value.newIssueRepos.map((repo) => repo.name),
+          value.unreadableRepos,
         ),
       }),
     [],
@@ -106,6 +109,7 @@ export function NavProvider({ base, children }: { base: DeskNav; children: React
  * 届いたリポジトリ（`countsLoaded`）だけ件数を出す
  */
 export function useNav(): (DeskNav & { countsPending: boolean }) | null {
+  // `countsUnreadable`：読めなかったリポジトリ。札は残し、数は「–」
   const state = useContext(NavContext);
   return useMemo(() => {
     if (!state) return null;
@@ -116,6 +120,7 @@ export function useNav(): (DeskNav & { countsPending: boolean }) | null {
       counts: live.counts,
       runningCounts: live.runningCounts,
       countsLoaded: live.loaded,
+      countsUnreadable: live.unreadable,
       countsPending: streamed === null,
     };
   }, [state]);
