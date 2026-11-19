@@ -114,6 +114,34 @@ export function fullNavCounts(
   return { counts, runningCounts, loaded, unreadable };
 }
 
+/**
+ * ページが全部を読み終えて数えた件数で、上のバー・左のバーの件数を入れ替える。
+ * layout はページを移っても描き直されず、件数が古いまま残るため、ページ（描き直される側）が新しい件数を渡す。
+ * 同じ件数なら入れ替えない（同じ物を返す）。`repoKeys` は監視しているリポジトリ（小文字の `owner/repo`）
+ */
+export function withPageCounts(
+  current: NavCounts,
+  page: { counts: TurnCounts; runningCounts: TurnCounts; unreadable: Record<string, true>; repoKeys: string[] },
+): NavCounts {
+  const next = fullNavCounts(page.counts, page.runningCounts, page.repoKeys, Object.keys(page.unreadable));
+  const same =
+    sameCounts(current.counts, next.counts) &&
+    sameCounts(current.runningCounts, next.runningCounts) &&
+    sameKeys(current.loaded, next.loaded) &&
+    sameKeys(current.unreadable, next.unreadable);
+  return same ? current : next;
+}
+
+function sameCounts(a: TurnCounts, b: TurnCounts): boolean {
+  const keys = Object.keys(a.byRepo);
+  return keys.length === Object.keys(b.byRepo).length && keys.every((key) => a.byRepo[key] === b.byRepo[key]);
+}
+
+function sameKeys(a: Record<string, true>, b: Record<string, true>): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => b[key] === true);
+}
+
 /** そのリポジトリの件数がまだ届いていないか（「–」を出すか） */
 export function isRepoCountPending(countsPending: boolean, loaded: Record<string, true> | undefined, key: string): boolean {
   return countsPending && loaded?.[key.toLowerCase()] !== true;
