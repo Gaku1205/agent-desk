@@ -662,13 +662,6 @@ function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean, placer:
   addIssue(ctx, 31, "タスクをカレンダーに表示する", { createdAt: ago(ctx, 3 * 60), labels: ["ai:skip"] });
   addLabeled(ctx, 31, "ai:skip", ago(ctx, 3 * 60));
 
-  // パイプラインの知らせ（配布が配り先で落ちた。パイプラインが立てて `ai:skip` を付ける。Your turn に Notice（Fix）で出る）
-  addIssue(ctx, 79, "配布 772d4fe が配り先で落ちています", {
-    createdAt: ago(ctx, 20),
-    labels: ["ai:skip"],
-    author: "github-actions[bot]",
-  });
-
   // わざと止めた物（ai:skip に止めた理由の印がある。Slots & Queue の Paused に出て、あなたの番には出ない）
   addIssue(ctx, 42, "タスクの共有リンクを作る", { createdAt: ago(ctx, 6 * 60), labels: ["ai:skip"], planned: true });
   addLabeled(ctx, 42, "ai:skip", ago(ctx, 5 * 60));
@@ -855,6 +848,16 @@ function landingPage(base: Date, placer: Placer): RepoData {
   addIssue(ctx, 16, "お知らせの帯を足す", { createdAt: ago(ctx, 12), labels: ["ai:plan"] });
   // 企画中（AIの番の数を、あなたの番の数とずらす）
   addIssue(ctx, 21, "ご利用の流れの図を足す", { createdAt: ago(ctx, 5), labels: ["ai:plan"] });
+  // 企画中（知らせが増えて、あなたの番と動いている件数が同じにならないように）
+  addIssue(ctx, 22, "料金表の見出しを整える", { createdAt: ago(ctx, 4), labels: ["ai:plan"] });
+
+  // パイプラインの知らせ（配布が配り先で落ちた。パイプラインが立てて `ai:skip` を付ける。Your turn に Notice（Fix）で出る）
+  // todo-app に置くと、マージ待ちの一覧より先に強い色の1件として出てしまうので、landing-page に置く
+  addIssue(ctx, 79, "配布 772d4fe が配り先で落ちています", {
+    createdAt: ago(ctx, 20),
+    labels: ["ai:skip"],
+    author: "github-actions[bot]",
+  });
 
   // 公開済み
   addDeployed(ctx, 2, 11, "スマホでナビが開かないのを直す", 4 * 60, { fixed: true });
