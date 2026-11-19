@@ -1044,8 +1044,23 @@ function demoRuns(data: RepoData, base: Date, stalled: number[] = []): WorkflowR
       pullNumbers: [],
       updatedAt,
       name: DEMO_RUN_NAMES[status.stage] ?? "Pipeline",
-      startedAt: new Date(base.getTime() - ((issue.number % 5) * 6 + 3) * MINUTE_MS).toISOString(),
+      startedAt: new Date(demoRunStartedMs(data, issue.number, base)).toISOString(),
     }));
+}
+
+/**
+ * デモの実行の始まった時刻（ms）。見本は「今」から3〜27分前。ただしデモで押した操作（ラベルの出来事）が
+ * それより新しければ、押した時刻にする（押した直後の経過時間が `21m` にならないように）
+ */
+function demoRunStartedMs(data: RepoData, issueNumber: number, base: Date): number {
+  const sample = base.getTime() - ((issueNumber % 5) * 6 + 3) * MINUTE_MS;
+  let pressed = sample;
+  for (const event of data.events) {
+    if (event.event !== "labeled" || event.issueNumber !== issueNumber) continue;
+    const at = Date.parse(event.createdAt);
+    if (!Number.isNaN(at) && at > pressed) pressed = at;
+  }
+  return pressed;
 }
 
 /** Slots & Queue の Other の見本：Issue の席に属さない実行（見張り役・配布）。番号の手がかりを持たない */
