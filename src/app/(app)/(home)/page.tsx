@@ -24,16 +24,15 @@ const NO_COUNTS = { byRepo: {} };
  */
 export default async function Home() {
   const login = (await getSignedInLogin()) ?? undefined;
-  const first = await loadTurnSteps(({ results, items, now, repos, addedNotices, complete }) => ({
+  const first = await loadTurnSteps(({ results, items, now, repos, addedNotices, complete, errors }) => ({
     complete,
     props: {
       items,
       messages: buildConversation(results, buildTrailEvents(results, now), now),
       now: now.toISOString(),
       scope: { kind: "all" as const, repoCount: repos.length },
-      errors: results.flatMap((result) =>
-        result.ok ? [] : [{ repo: `${result.owner}/${result.repo}`, message: result.error.message }],
-      ),
+      // 読めなかったリポジトリ（覚えている結果を出していても入る）
+      errors,
       notices: buildWatchdogNotices(results, now),
       addedNotices,
       nav: complete

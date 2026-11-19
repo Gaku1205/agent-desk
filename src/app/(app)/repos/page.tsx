@@ -1,6 +1,5 @@
 import { RepoListLive } from "@/components/LivePages";
 import { getSignedInLogin } from "@/lib/auth";
-import { loadErrorsOf } from "@/lib/loadErrors";
 import { loadTurnSteps } from "@/lib/loadTurnSteps";
 import { buildRepoRows } from "@/lib/repoList";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
@@ -15,12 +14,13 @@ export const metadata = { title: "すべてのリポジトリ" };
  */
 export default async function ReposPage() {
   const login = (await getSignedInLogin()) ?? undefined;
-  const first = await loadTurnSteps(({ results, items, now, repos, complete }) => ({
+  const first = await loadTurnSteps(({ results, items, now, repos, complete, errors }) => ({
     complete,
     props: {
       rows: buildRepoRows(repos, results, items, now),
       now: now.toISOString(),
-      errors: loadErrorsOf(results),
+      // 読めなかったリポジトリ（覚えている結果を出していても入る）
+      errors,
       nav: {
         repos,
         counts: countTurnItems(items),

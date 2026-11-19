@@ -294,22 +294,32 @@ function LanesUsage() {
   );
 }
 
+/** 全部のリポジトリが GitHub から読めなかったときの、同期の `title` と読み上げの文 */
+const READ_FAILED_NOTE = "GitHubから読めませんでした";
+
 /**
  * 上のバーの右端の同期：状態の点（緑＝最新・読み込み中は回る印・止めているときは注意の色）＋ `同期 02:19:46` ＋ 更新のアイコンのボタン。
  * 自動更新を止めている理由の1行は、`title`（と読み上げ）に入れる。スマホでは点とアイコンだけ
  */
 export function SyncStatus() {
-  const { syncedAt, refreshing, fastRefresh, pausedUntil, pausedBy, syncFailed, refresh } = useShell();
+  const { syncedAt, refreshing, fastRefresh, pausedUntil, pausedBy, syncFailed, readFailed, refresh } = useShell();
   const time = formatSyncTime(getDisplayedSyncTime(syncedAt));
-  // 手で押した同期が届かなかった知らせは、止めている理由より先に出す（次に取り直せたら消える）
+  // 手で押した同期が届かなかった知らせは、ほかより先に出す（次に取り直せたら消える）。
+  // 全部のリポジトリが読めなかったときは、その知らせと、止めている理由を続けて出す
   const pausedNote = pausedUntil ? formatPausedNote(pausedBy, pausedUntil.getTime() / 1000) : null;
-  const note = syncFailed && !refreshing ? ACTION_UNREACHABLE_MESSAGE : pausedNote;
-  const state = refreshing ? "busy" : note ? "paused" : "ok";
+  const unreachable = syncFailed && !refreshing;
+  const unread = readFailed && !refreshing;
+  const note =
+    [unreachable ? ACTION_UNREACHABLE_MESSAGE : null, unread ? READ_FAILED_NOTE : null, pausedNote]
+      .filter((text): text is string => text !== null)
+      .join("。") || null;
+  const state = refreshing ? "busy" : unread ? "failed" : note ? "paused" : "ok";
   return (
     <div className={styles.syncGroup} title={note ?? undefined}>
       <span className={styles.syncDot} data-state={state} data-fast={fastRefresh ? "true" : undefined} aria-hidden="true" />
       <span className={`${styles.syncText} num`}>
         {refreshing ? "同期中" : "同期"} {time}
+        {unread && <span className={styles.syncFail}>GitHubから読めません</span>}
       </span>
       <button
         type="button"
@@ -317,7 +327,7 @@ export function SyncStatus() {
         onClick={refresh}
         disabled={refreshing}
         aria-busy={refreshing}
-        aria-label={`更新（最後に取り直した時刻 ${time}）${note ? `。${note}` : ""}`}
+        aria-label={`更新（最後に${unread ? "読めた" : "取り直した"}時刻 ${time}）${note ? `。${note}` : ""}`}
         title={note ?? "更新"}
       >
         <RefreshIcon size={14} />

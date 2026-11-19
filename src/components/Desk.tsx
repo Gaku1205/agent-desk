@@ -296,6 +296,8 @@ export function Desk({
     ...errors.map((error) => ({ key: `error:${error.repo}`, tone: "fail" as const, text: `${error.repo}：${error.message}` })),
   ];
 
+  // 読めなかったリポジトリがあるときは、「何も無い」と言い切らない（docs/spec.md の「読めなかったリポジトリは、空ではなく読めなかったと出す」）
+  const unreadable = errors.length > 0;
   const showRepo = scope.kind === "all" && scope.repoCount > 1;
   // 「いまの様子」で選んだ行（`owner/repo#番号`）。同じ行をもう一度選ぶと外す。選んでいなければ今まで通りの1件を描く
   const [selected, setSelected] = useState<string | null>(null);
@@ -340,6 +342,7 @@ export function Desk({
       showRepo={showRepo}
       repo={scope.kind === "repo" ? { name: scope.repo, githubUrl: scope.githubUrl } : null}
       notices={conversationNotices}
+      unreadable={unreadable}
       added={addedNotices}
       selected={selectedKey}
       onSelect={select}
@@ -360,7 +363,7 @@ export function Desk({
       >
         <div className={styles.head}>
           <h1 className={styles.h1} id="turn-title" tabIndex={-1}>
-            {current ? "Your turn" : "いまは AI が進めています"}
+            {current ? "Your turn" : unreadable ? "読めなかったリポジトリがあります" : "いまは AI が進めています"}
           </h1>
           {current && shown.length >= 2 && (
             <ul className={styles.legend} aria-label="色の見方">
@@ -378,7 +381,11 @@ export function Desk({
             </p>
           )}
         </div>
-        {!current && <p className={styles.calm}>あなたが答えることはありません</p>}
+        {!current && (
+          <p className={styles.calm}>
+            {unreadable ? "読めなかったリポジトリの分は、ここに入っていません" : "あなたが答えることはありません"}
+          </p>
+        )}
         <TurnList items={others} now={at} showRepo={showRepo} onPick={pick} />
 
         {queue.length > 0 && (
@@ -443,7 +450,7 @@ export function Desk({
         </div>
       </div>
       <div className={styles.flow}>
-        <FlowMap target={flowTarget} />
+        <FlowMap target={flowTarget} unreadable={unreadable} />
       </div>
     </div>
   );

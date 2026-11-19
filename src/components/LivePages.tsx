@@ -48,19 +48,34 @@ export function useSteps<T>(first: Step<T>, isFinal: (value: T) => boolean = () 
   return value;
 }
 
-/** ページの中身と、全部のリポジトリの新しい結果がそろった最後の段か。`staleAt` は、覚えている古い結果を出しているときの、その内容の時刻（ISO） */
-export type LiveValue<P> = { props: P; complete: boolean; staleAt?: string | null };
+/**
+ * ページの中身と、全部のリポジトリの新しい結果がそろった最後の段か。`staleAt` は、覚えている古い結果を出しているときの、
+ * その内容の時刻（ISO）。`staleBecause` はその理由（新しい結果を待っている／読めなかった）
+ */
+export type LiveValue<P> = {
+  props: P;
+  complete: boolean;
+  staleAt?: string | null;
+  staleBecause?: "loading" | "unreadable" | null;
+};
 
 const isComplete = (value: { complete: boolean }): boolean => value.complete;
 
-/** 古い結果を出している間の1行（`HH:MM 時点の内容です。新しい内容を読んでいます…`。日本時間） */
-function StaleNote({ staleAt, complete }: { staleAt?: string | null; complete: boolean }) {
-  if (complete || !staleAt) return null;
+/**
+ * 古い結果を出している間の1行（日本時間）。新しい結果を待っている間は `HH:MM 時点の内容です。新しい内容を読んでいます…`、
+ * 読めなかったので覚えている結果を出し続けているときは `HH:MM 時点の内容です。GitHubから読めなかったため、前に読めた内容を出しています`
+ * （最後の段でも消えない）
+ */
+function StaleNote({ staleAt, staleBecause, complete }: Omit<LiveValue<unknown>, "props">) {
+  const unreadable = staleBecause === "unreadable";
+  if ((complete && !unreadable) || !staleAt) return null;
   const time = formatStaleTime(staleAt);
   if (!time) return null;
   return (
     <p className={styles.staleNote} role="status">
-      {time} 時点の内容です。新しい内容を読んでいます…
+      {unreadable
+        ? `${time} 時点の内容です。GitHubから読めなかったため、前に読めた内容を出しています`
+        : `${time} 時点の内容です。新しい内容を読んでいます…`}
     </p>
   );
 }
@@ -83,47 +98,47 @@ function useLiveNav(nav: DeskNav, complete: boolean): DeskNav {
 
 /** ホーム */
 export function DeskLive({ first }: { first: Step<LiveValue<ComponentProps<typeof Desk>>> }) {
-  const { props, complete, staleAt } = useSteps(first, isComplete);
+  const { props, complete, staleAt, staleBecause } = useSteps(first, isComplete);
   return (
     <>
       <Desk {...props} />
-      <StaleNote staleAt={staleAt} complete={complete} />
+      <StaleNote staleAt={staleAt} staleBecause={staleBecause} complete={complete} />
     </>
   );
 }
 
 /** Slots & Queue */
 export function LanesLive({ first }: { first: Step<LiveValue<ComponentProps<typeof Lanes>>> }) {
-  const { props, complete, staleAt } = useSteps(first, isComplete);
+  const { props, complete, staleAt, staleBecause } = useSteps(first, isComplete);
   const nav = useLiveNav(props.nav, complete);
   return (
     <>
       <Lanes {...props} nav={nav} />
-      <StaleNote staleAt={staleAt} complete={complete} />
+      <StaleNote staleAt={staleAt} staleBecause={staleBecause} complete={complete} />
     </>
   );
 }
 
 /** Dashboard */
 export function DashboardLive({ first }: { first: Step<LiveValue<ComponentProps<typeof Dashboard>>> }) {
-  const { props, complete, staleAt } = useSteps(first, isComplete);
+  const { props, complete, staleAt, staleBecause } = useSteps(first, isComplete);
   const nav = useLiveNav(props.nav, complete);
   return (
     <>
       <Dashboard {...props} nav={nav} />
-      <StaleNote staleAt={staleAt} complete={complete} />
+      <StaleNote staleAt={staleAt} staleBecause={staleBecause} complete={complete} />
     </>
   );
 }
 
 /** すべてのリポジトリ */
 export function RepoListLive({ first }: { first: Step<LiveValue<ComponentProps<typeof RepoList>>> }) {
-  const { props, complete, staleAt } = useSteps(first, isComplete);
+  const { props, complete, staleAt, staleBecause } = useSteps(first, isComplete);
   const nav = useLiveNav(props.nav, complete);
   return (
     <>
       <RepoList {...props} nav={nav} />
-      <StaleNote staleAt={staleAt} complete={complete} />
+      <StaleNote staleAt={staleAt} staleBecause={staleBecause} complete={complete} />
     </>
   );
 }

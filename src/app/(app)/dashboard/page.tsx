@@ -2,7 +2,6 @@ import { DashboardLive } from "@/components/LivePages";
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
 import { loadGithubLimits } from "@/lib/github/limits";
 import { buildLocalBundles } from "@/lib/dashboard/bundle";
-import { loadErrorsOf } from "@/lib/loadErrors";
 import { loadTurnSteps } from "@/lib/loadTurnSteps";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
@@ -19,7 +18,7 @@ export default async function DashboardPage() {
   const login = (await getSignedInLogin()) ?? undefined;
   const userToken = (await getGitHubToken()) ?? "";
   // 全部がそろうのを待たず、覚えている最後の結果と読めた分を先に出す（`loadTurnSteps`）
-  const first = await loadTurnSteps(async ({ results, items, now, repos, complete }) => {
+  const first = await loadTurnSteps(async ({ results, items, now, repos, complete, errors }) => {
     const bundles = buildLocalBundles(results, now);
     // GitHub を読むのは、パイプラインの App の鍵の `GET /rate_limit` だけ（5分に1回まで）
     // そろう前の段は、この読み取りを待たない（覚えている残りだけで出す）
@@ -37,7 +36,8 @@ export default async function DashboardPage() {
         loadPeriod: loadExtendedPeriod,
         limits,
         now: now.toISOString(),
-        errors: loadErrorsOf(results),
+        // 読めなかったリポジトリ（覚えている結果を出していても入る）
+        errors,
         repoCount: repos.length,
         nav: {
           repos,

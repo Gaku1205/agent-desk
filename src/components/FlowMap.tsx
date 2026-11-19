@@ -198,7 +198,16 @@ function extrasOf(target: FlowTarget): FlowExtras {
 }
 
 /** 進捗図：右の列に、上から下へ、7つの工程を縦の線でつなぐ（docs/design.md の「進捗図」） */
-export function FlowMap({ target, inline = false }: { target: FlowTarget | null; inline?: boolean }) {
+export function FlowMap({
+  target,
+  inline = false,
+  unreadable = false,
+}: {
+  target: FlowTarget | null;
+  inline?: boolean;
+  /** 読めなかったリポジトリがある（出す1件が無いとき、「無い」と言い切らない） */
+  unreadable?: boolean;
+}) {
   if (inline && target) {
     // スマホ：「いまの様子」の行の下に開く。見出しは行にあるので付けない。図だけが横にスクロールする
     const extras = extrasOf(target);
@@ -216,7 +225,9 @@ export function FlowMap({ target, inline = false }: { target: FlowTarget | null;
   if (!target) {
     return (
       <section className={styles.flow} aria-label="進捗図">
-        <p className={styles.empty}>いま動いている作業はありません</p>
+        <p className={styles.empty}>
+          {unreadable ? "読めなかったリポジトリの作業は、ここに出せません" : "いま動いている作業はありません"}
+        </p>
       </section>
     );
   }
