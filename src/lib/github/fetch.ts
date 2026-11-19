@@ -185,7 +185,8 @@ async function readRepoParts(
         sync: { mode: "delta", readAt, fullAt: known.sync.fullAt, count: nodes.count },
       };
     } catch (error) {
-      if (!shouldReadFullAfterDeltaError(error instanceof GitHubError ? error.kind : null)) throw error;
+      const failure = error instanceof GitHubError ? error : null;
+      if (!shouldReadFullAfterDeltaError(failure ? failure.kind : null, failure?.timedOut ?? false)) throw error;
     }
   }
   const nodes = await fetchRepoNodes(client, owner, name, since, cutoffMs);

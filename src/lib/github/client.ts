@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { timedCall } from "./callLog";
 import { classifyError, classifyGraphqlErrors, GitHubError } from "./errors";
+import { GITHUB_READ_TIMEOUT_MS, isReadTimedOut, readTimeoutSignal } from "./readTimeout";
 import {
   parseGraphqlRateLimit,
   parseRateLimit,
@@ -51,16 +52,19 @@ export class GitHubClient {
   private readonly source: ClientSource;
   /** ETag・回数制限の記憶のキーに使う名前。App の鍵は1時間で替わるので、インストールごとの名前を渡す */
   private readonly keyId: string;
+  /** 読み取りの時間切れ（書き込みには付けない） */
+  private readonly timeoutMs: number;
 
   constructor(
     token: string,
     fetcher: Fetcher = fetch,
-    options: { source?: ClientSource; keyId?: string } = {},
+    options: { source?: ClientSource; keyId?: string; timeoutMs?: number } = {},
   ) {
     this.token = token;
     this.fetcher = fetcher;
     this.source = options.source ?? "user";
     this.keyId = options.keyId ?? token;
+    this.timeoutMs = options.timeoutMs ?? GITHUB_READ_TIMEOUT_MS;
   }
 
   /** サーバーのメモリに覚える物のキー（トークンのハッシュ＋名前。トークンそのものは入れない） */
@@ -74,6 +78,7 @@ export class GitHubClient {
     const key = etagCacheKey(this.keyId, url);
     const cached = etagCache.get(key);
     let response: Response;
+    const signal = readTimeoutSignal(this.timeoutMs);
     try {
       response = await timedCall("rest", () =>
         this.fetcher(url, {
@@ -84,11 +89,12 @@ export class GitHubClient {
             ...(cached ? { "If-None-Match": cached.etag } : {}),
           },
           cache: "no-store",
+          signal,
         }),
       );
     } catch {
       // ネットワークエラーの原因にはヘッダー（トークン）が入りうるので捨てる
-      throw new GitHubError("other", null, null, this.source);
+      throw new GitHubError("other", null, null, this.source, isReadTimedOut(signal));
     }
     // 304の返事にも付くので、成功・失敗にかかわらず読む
     rememberRateLimit(this.keyId, response.headers);
@@ -107,7 +113,7 @@ export class GitHubClient {
     try {
       json = await response.json();
     } catch {
-      throw new GitHubError("other", response.status, null, this.source);
+      throw new GitHubError("other", response.status, null, this.source, isReadTimedOut(signal));
     }
     const next = parseNextLink(response.headers.get("link"));
     const etag = response.headers.get("etag");
@@ -163,6 +169,7 @@ export class GitHubClient {
    */
   async graphql(query: string, variables: Record<string, unknown>): Promise<unknown> {
     let response: Response;
+    const signal = readTimeoutSignal(this.timeoutMs);
     try {
       response = await timedCall("graphql", () =>
         this.fetcher(`${API_BASE}/graphql`, {
@@ -173,10 +180,11 @@ export class GitHubClient {
           },
           body: JSON.stringify({ query, variables }),
           cache: "no-store",
+          signal,
         }),
       );
     } catch {
-      throw new GitHubError("other", null, null, this.source);
+      throw new GitHubError("other", null, null, this.source, isReadTimedOut(signal));
     }
     const fromHeaders = parseRateLimit(response.headers);
     rememberGraphqlRateLimit(this.keyId, fromHeaders);
@@ -192,7 +200,7 @@ export class GitHubClient {
     try {
       body = (await response.json()) as { data?: unknown; errors?: unknown };
     } catch {
-      throw new GitHubError("other", response.status, null, this.source);
+      throw new GitHubError("other", response.status, null, this.source, isReadTimedOut(signal));
     }
     const data = (body?.data ?? null) as { rateLimit?: unknown } | null;
     const fromBody = parseGraphqlRateLimit(data?.rateLimit);

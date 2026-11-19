@@ -45,9 +45,10 @@ export function planRepoRead(base: RepoSyncInfo | null | undefined, nowMs: numbe
 
 /**
  * 差分の読みが失敗したとき、その回のうちに全部を読み直すか。回数制限・鍵の権限・見つからないは、全部を読んでも同じなので読み直さない
- * （`null`＝GitHub のエラーでない失敗。読み直す）
+ * （`null`＝GitHub のエラーでない失敗。読み直す）。時間切れ（`timedOut`）も読み直さない（続けて15秒待たせないため）
  */
-export function shouldReadFullAfterDeltaError(kind: GitHubErrorKind | null): boolean {
+export function shouldReadFullAfterDeltaError(kind: GitHubErrorKind | null, timedOut = false): boolean {
+  if (timedOut) return false;
   return kind === null || kind === "other";
 }
 
