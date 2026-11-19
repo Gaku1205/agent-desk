@@ -363,7 +363,7 @@ export function Desk({
             </p>
           )}
         </div>
-        {!current && <p className={styles.calm}>あなたが答えることはありません。上で、いまの様子を読めます</p>}
+        {!current && <p className={styles.calm}>あなたが答えることはありません</p>}
         <TurnList items={others} now={at} showRepo={showRepo} onPick={pick} />
 
         {queue.length > 0 && (
