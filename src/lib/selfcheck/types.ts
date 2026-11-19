@@ -3,7 +3,7 @@ import type { RepoData, RepoResult } from "../github/types";
 import type { LanesSource } from "../lanes/source";
 import type { TurnItem } from "../turn";
 
-/** 決まりの名前（英字のスラッグ。題名に使う日本語の名前は #651 で決める） */
+/** 決まりの名前（英字のスラッグ。題名に使う日本語の名前は `issues.ts` の `RULE_LABELS`） */
 export type RuleName = "all-sections" | "slots-count" | "your-turn-count" | "ai-working" | "unreadable-hidden";
 
 /** 見つけたずれ1件 */
