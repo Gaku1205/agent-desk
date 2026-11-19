@@ -9,8 +9,13 @@ test("ハイドレーション前に押したスイッチが、JS が動いた�
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
-  // JS のファイルを止めておく（ハイドレーション前を真似る）。あとで通す
+  // JS のファイルだけを止めておく（ハイドレーション前を真似る）。あとで通す。
+  // CSS まで止めると描画が止まって、スイッチが見えなくなる
   await page.route("**/_next/static/chunks/**", async (route) => {
+    if (route.request().resourceType() !== "script") {
+      await route.continue();
+      return;
+    }
     await held;
     await route.continue();
   });
