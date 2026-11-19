@@ -66,7 +66,8 @@
 }
 
 /* カードは入れ物（選ぶのは見出しと「この案にする」）。選んだカードの見た目は画面案の案の枠と同じ */
-.pickCard[data-checked="true"] {
+.pickCard[data-checked="true"],
+.pickCard.pickCard[data-checked="true"]:hover {
   background: var(--well);
   box-shadow: inset 0 0 0 1.5px var(--bone);
 }
