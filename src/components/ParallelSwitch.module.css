@@ -189,6 +189,19 @@
   width: 8px;
 }
 
+/* スマホ：見た目は28pxのまま、押せる範囲を上下8pxずつ広げて44pxに（Issue #623） */
+@media (max-width: 899px) {
+  .foldedButton {
+    position: relative;
+  }
+
+  .foldedButton::after {
+    position: absolute;
+    inset: -8px 0;
+    content: "";
+  }
+}
+
 .foldedCount {
   font-size: 12px;
   font-weight: 500;

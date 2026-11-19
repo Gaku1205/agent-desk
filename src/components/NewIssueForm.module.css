@@ -281,6 +281,13 @@
   .bar {
     padding-bottom: calc(14px + env(safe-area-inset-bottom));
   }
+
+  /* 補助の行（＋・画像・リポジトリの選択欄）は、押せる範囲を高さ44pxに。幅・アイコン・文字は今のまま（Issue #623） */
+  .barLink,
+  .barForm .attach,
+  .barForm .barRepo button {
+    height: 44px;
+  }
 }
 
 .hidden {

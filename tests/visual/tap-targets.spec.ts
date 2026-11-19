@@ -98,6 +98,37 @@ test("Issueを書く・新しいサービスを作る：作るボタン", async 
   await expectNoOverflow(page);
 });
 
+test("ホーム：Activity・順番待ち・ほかのN件・入力欄の下の行", async ({ page }) => {
+  await page.goto("/demo");
+  const article = page.locator("article").first();
+  await expectTall(article.getByRole("button", { name: /の進捗図を見る$/ }));
+  await expectTall(article.getByRole("link").first());
+  await expectTall(page.locator("article").getByRole("link", { name: /GitHubで見る/ }).first());
+  await expectTall(page.getByRole("button", { name: /^順番待ち/ }));
+  await expectTall(page.getByRole("button", { name: /ほかの\s*\d+件を開く/ }));
+  const bar = page.getByRole("region", { name: "Issueを書く" });
+  await expectTall(bar.getByRole("link", { name: /新しいサービス/ }));
+  await expectTall(bar.getByRole("button", { name: "画像を付ける" }));
+  await expectTall(bar.locator("button[aria-haspopup]").first());
+  await expectNoOverflow(page);
+});
+
+test("上のバー（デモ）：再生・同時に動かす", async ({ page }) => {
+  await page.goto("/demo");
+  await expectTall(page.getByRole("button", { name: /^再生/ }), { up: 7, down: 7 });
+  await expectTall(page.locator("button[aria-expanded]").filter({ hasText: /\d\/\d/ }), { up: 8, down: 8 });
+  await expectNoOverflow(page);
+});
+
+test("Slots & Queue：題名・ログ ↗・待ち：のリンク", async ({ page }) => {
+  await page.goto("/demo/lanes");
+  const slot = page.locator('li[data-kind="slot"], [data-kind="slot"]').first();
+  await expectTall(slot.getByRole("link").first());
+  await expectTall(page.getByRole("link", { name: /^ログ ↗/ }).first());
+  await expectTall(page.locator('[data-kind="next"], [data-tone="running"]').getByRole("link").first());
+  await expectNoOverflow(page);
+});
+
 test("メニューの中：同時に動かすの3択", async ({ page }) => {
   await page.goto("/demo");
   await page.getByRole("button", { name: "メニュー", exact: true }).tap();

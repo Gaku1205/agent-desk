@@ -620,6 +620,17 @@
     display: block;
   }
 
+  /* 再生：見た目は30pxのまま、押せる範囲を上下7pxずつ広げて44pxに（Issue #623） */
+  .play {
+    position: relative;
+  }
+
+  .play::after {
+    position: absolute;
+    inset: -7px 0;
+    content: "";
+  }
+
   .top .right {
     gap: 10px;
   }
