@@ -30,7 +30,7 @@ export type IconSpec = {
 };
 
 /** パイプラインが動いていないリポジトリの未着手の説明文（docs/design.md の「段階ごとの説明文」） */
-export const PIPELINE_MISSING_TEXT = "パイプライン未設定です。Secretsを登録してください";
+export const PIPELINE_MISSING_TEXT = "パイプライン未設定・Secretsを登録";
 
 function ciText(status: IssueStatus): string {
   return `${status.ci.passed}/${status.ci.total}`;
@@ -59,7 +59,7 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
   switch (status.stage) {
     case "stuck":
       return {
-        long: `${trimTrailingPeriod(failureReasonText(parseFailureReason(status.stuckReason ?? "", options.repo ?? "")))}。確認して、対応したら「再開」を押してください`,
+        long: `${trimTrailingPeriod(failureReasonText(parseFailureReason(status.stuckReason ?? "", options.repo ?? "")))}。確認して「再開」`,
         short: "止まっています",
       };
     case "retrying": {
@@ -68,45 +68,45 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
         parseFailureReason(status.retry?.reason ?? "AIが止まりました", options.repo ?? ""),
       );
       return {
-        long: `${reason}${count ? `（${count}）` : ""}。時間をおいて自動でやり直します`,
+        long: `${reason}${count ? `（${count}）` : ""}・自動でやり直し`,
         short: count ? `やり直し待ち ${count}` : "やり直し待ち",
       };
     }
     case "notStarted":
       if (status.grace === "intake") {
-        return { long: "パイプラインの受付が、企画に回すか決めています", short: "受付中" };
+        return { long: "受付が企画に回すか判断中", short: "受付中" };
       }
       return { long: "まだ誰にも頼んでいません", short: "まだ頼んでいません" };
     case "queued":
-      return { long: "前の作業が終わったら自動で始まります", short: "順番待ち" };
+      return { long: "順番待ち（前の作業の後）", short: "順番待ち" };
     case "skipped":
       if (status.paused) return { long: `止めてある：${status.paused.reason}`, short: "止めてある" };
-      return { long: "保留中です。準備ができたら「始める」を押してください", short: "保留中" };
+      return { long: "保留中。準備ができたら「始める」", short: "保留中" };
     case "planning":
-      return { long: "企画AIがIssueを清書中", short: "清書中" };
+      return { long: "企画AIが清書中", short: "清書中" };
     case "question":
-      return { long: "企画AIから質問があります。選んで「答えを送る」を押してください", short: "質問があります" };
+      return { long: "企画AIの質問に回答待ち", short: "質問があります" };
     case "factoryTalk":
-      return { long: "工場から相談があります。選んで「答えを送る」を押してください", short: "工場の相談" };
+      return { long: "工場の相談に回答待ち", short: "工場の相談" };
     case "implementing":
       return { long: "AIが実装中", short: "AIが実装中" };
     case "prWaiting":
       if (status.grace === "creatingPull") {
-        return { long: "AIの作業が終わりました。パイプラインがPRを作っています", short: "PRを作成中" };
+        return { long: "AIの作業完了・PRを作成中", short: "PRを作成中" };
       }
       return status.implementError
         ? {
-            long: "AIがエラーで止まりました。結果を確認してPRを作ってください",
+            long: "AIがエラーで停止・結果を確認",
             short: "AIがエラーで停止",
           }
-        : { long: "AIの作業が終わりました。PRを作るとCIが走ります", short: "PRを作れます" };
+        : { long: "AIの作業完了・PR待ち", short: "PRを作れます" };
     case "ciRunning":
       if (status.verifyingFix) {
         return { long: `直した結果を確認中（CI ${ci}・レビュー）`, short: "修正を確認中" };
       }
       return { long: `CI 実行中 ${ci}`, short: `CI 実行中 ${ci}` };
     case "ciFailed":
-      return { long: "CIが失敗しました。AIに直してもらいます", short: "CIが失敗しました" };
+      return { long: "CI失敗・AIが修正します", short: "CIが失敗しました" };
     case "reviewing":
       if (status.verifyingFix) {
         return { long: `直した結果を確認中（CI ${ci}・レビュー）`, short: "修正を確認中" };
@@ -129,9 +129,9 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
         };
       }
       if (status.mergeWait === "autoMerge") {
-        return { long: "CIもレビューもOK・自動でマージします", short: "自動でマージします" };
+        return { long: "CI・レビューOK・自動マージ", short: "自動でマージします" };
       }
-      return { long: `CI ${ci} 通過・レビューに回します`, short: "レビューに回します" };
+      return { long: `CI ${ci} 通過・レビューへ`, short: "レビューに回します" };
     case "deploying":
       return { long: "本番に公開中", short: "本番に公開中" };
     case "deployFailed":

@@ -167,7 +167,7 @@ describe("保留", () => {
 });
 
 describe("パイプライン未設定", () => {
-  const MISSING = "パイプライン未設定です。Secretsを登録してください";
+  const MISSING = "パイプライン未設定・Secretsを登録";
   const ASK = "まだ誰にも頼んでいません";
 
   function itemsFor(pipeline: RepoData["pipeline"], overrides: Partial<RepoData> = {}) {
@@ -199,7 +199,7 @@ describe("パイプライン未設定", () => {
 
   it("未着手以外（保留など）の表示は変えない", () => {
     const items = itemsFor("notConfigured", { issues: [issue(1, { labels: ["ai:skip"] })] });
-    expect(items[0].description).toBe("保留中です。準備ができたら「始める」を押してください");
+    expect(items[0].description).toBe("保留中。準備ができたら「始める」");
     expect(items[0].buttons.map((b) => b.label)).toEqual(["始める"]);
   });
 });

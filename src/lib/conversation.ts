@@ -46,7 +46,7 @@ export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): Ch
   }
   switch (status.stage) {
     case "planning":
-      return { speaker: "企画AI", text: "企画AIがIssueを清書しています" };
+      return { speaker: "企画AI", text: "企画AIが清書中" };
     case "implementing":
       return { speaker: "AI", text: "AIが実装しています" };
     case "fixing": {
@@ -58,49 +58,49 @@ export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): Ch
       const progress = chatCi(status);
       return progress
         ? { speaker: "CI", text: ciStepText(getFlow(status).at, FLOW_STEPS.length, progress) }
-        : { speaker: "CI", text: `直した結果を、CIとレビューで確かめています（CI ${ci}）` };
+        : { speaker: "CI", text: `修正をCIとレビューで確認中（CI ${ci}）` };
     }
     case "ciFailed": {
       const failure = ciFailureState({ stage: status.stage, stuck: false, fixCount: status.fixCount });
       if (failure?.kind === "fixing") return { speaker: "AI", text: ciFixingText(failure.n) };
-      return { speaker: "CI", text: "CIが失敗しました。修正の上限に達しました" };
+      return { speaker: "CI", text: "CI失敗・修正の上限" };
     }
     case "reviewing":
       return status.verifyingFix
-        ? { speaker: "CI", text: `直した結果を、CIとレビューで確かめています（CI ${ci}）` }
-        : { speaker: "レビューAI", text: "レビューAIが確認しています" };
+        ? { speaker: "CI", text: `修正をCIとレビューで確認中（CI ${ci}）` }
+        : { speaker: "レビューAI", text: "レビューAIが確認中" };
     case "mergeWaiting":
       if (status.mergeWait === "autoMerge") {
-        return { speaker: "パイプライン", text: "CIもレビューもOKです。まもなく自動でマージします" };
+        return { speaker: "パイプライン", text: "CI・レビューOK・まもなく自動マージ" };
       }
       if (status.mergeWait === "needsReview") {
-        return { speaker: "パイプライン", text: `CIが通りました（${ci}）。このあとレビューに回します` };
+        return { speaker: "パイプライン", text: `CI通過（${ci}）・レビューへ` };
       }
       break;
     case "deploying":
-      return { speaker: "本番", text: "本番に公開しています" };
+      return { speaker: "本番", text: "本番に公開中" };
     case "deployed":
       return status.deployUnknown
-        ? { speaker: "本番", text: "マージしました。公開状況は分かりません" }
+        ? { speaker: "本番", text: "マージ済み・公開状況は不明" }
         : { speaker: "本番", text: "本番に公開しました" };
     case "queued": {
       const after = options.queueAfter ?? null;
       return {
         speaker: "パイプライン",
-        text: after === null ? "前の作業が終わるのを待っています" : `前の作業が終わるのを待っています（#${after} の後）`,
+        text: after === null ? "順番待ち" : `順番待ち（#${after} の後）`,
       };
     }
     case "retrying":
       return { speaker: "パイプライン", text: describeStatus(status).long };
     case "notStarted":
       if (status.grace === "intake") {
-        return { speaker: "パイプライン", text: "パイプラインの受付が、企画に回すか決めています" };
+        return { speaker: "パイプライン", text: "受付が企画に回すか判断中" };
       }
       // 会話に出る未着手は、工場が受け持つ「新サービス：」の Issue だけ（ほかは「あなたの番」に出る）
-      return { speaker: "工場", text: "工場が受け持ちます。相談が届くまで待っています" };
+      return { speaker: "工場", text: "工場の担当・相談待ち" };
     case "prWaiting":
       if (status.grace === "creatingPull") {
-        return { speaker: "パイプライン", text: "AIの作業が終わりました。パイプラインがPRを作っています" };
+        return { speaker: "パイプライン", text: "AIの作業完了・PRを作成中" };
       }
       break;
   }
