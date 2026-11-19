@@ -11,6 +11,7 @@ import { countText, isRepoCountPending } from "@/lib/navCounts";
 import { newIssueHref } from "@/lib/issueRepo";
 import { pageTitle } from "@/lib/pageTitle";
 import { hasHiddenBelow } from "@/lib/sideScroll";
+import type { DriftSummary } from "@/lib/selfCheck";
 import { revealScrollLeft } from "@/lib/tabScroll";
 import { currentRepoFromPath, visibleRepos } from "@/lib/visibleRepos";
 import type { TurnCounts } from "@/lib/turn";
@@ -44,7 +45,23 @@ type Props = {
   logout?: () => Promise<void>;
   /** デモの帯の残り：GitHubで見る・ログイン */
   extraLinks?: ReactNode;
+  /** 開いている表示のずれの Issue（0 件・無しのときは出さない）。押すと、いちばん新しい1件へ行く */
+  drift?: DriftSummary | null;
 };
+
+/**
+ * 表示のずれ N（Issue #652）：開いている `表示のずれ：` の Issue があるときだけ出す。押すと、いちばん新しい1件の Issue へ行く。
+ * PCは上のバーの同期の左、スマホはメニューの中（CSS で出し分け）
+ */
+function DriftLink({ drift, className }: { drift: DriftSummary | null | undefined; className: string }) {
+  if (!drift || drift.count < 1 || drift.url === null) return null;
+  const label = `表示のずれが${drift.count}件あります`;
+  return (
+    <a href={drift.url} className={`${className} num`} aria-label={label} title={label}>
+      表示のずれ {drift.count}
+    </a>
+  );
+}
 
 /**
  * 札の右端の2つの件数：あなたの番（アンバーの点）→ 動いている（青の点）。0 でも出す（上端の帯は全部の数が並ぶ）。
@@ -433,6 +450,7 @@ export function TopBar(props: Props) {
         <div className={styles.right}>
           <DemoControls />
           <FoldedSlot />
+          <DriftLink drift={props.drift} className={styles.driftBar} />
           <SyncStatus />
         </div>
       </header>
@@ -524,6 +542,7 @@ function MenuSheet(props: Props) {
         <RepoTabs {...props} onPick={closeMenu} />
         <div className={styles.foot}>
           {demo && <span className={styles.demo}>デモ（サンプルのデータ）</span>}
+          <DriftLink drift={props.drift} className={styles.driftMenu} />
           <ParallelSwitch variant="menu" />
           <SideUser login={props.login} logout={props.logout} basePath={props.basePath} onPick={closeMenu} />
         </div>

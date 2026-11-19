@@ -367,6 +367,28 @@
   color: var(--fail-soft);
 }
 
+/* 表示のずれ N（Issue #652）：PCは上のバーの同期の左、スマホはメニューの中。色は GitHubから読めません と同じ */
+.driftBar {
+  display: none;
+  flex-shrink: 0;
+  color: var(--fail-soft);
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+@media (min-width: 900px) {
+  .driftBar {
+    display: inline;
+  }
+}
+
+.driftMenu {
+  color: var(--fail-soft);
+  font-size: 12px;
+  text-decoration: none;
+}
+
 .syncDot[data-state="busy"] {
   box-sizing: border-box;
   width: 10px;
@@ -798,7 +820,8 @@
   }
 
   /* 中身の左端は上の項目のアイコンの左端（29px）。押せる範囲は今のまま（内側の余白で合わせる） */
-  .foot .demo {
+  .foot .demo,
+  .foot .driftMenu {
     padding-left: 7px;
   }
 }
