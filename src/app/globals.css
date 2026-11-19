@@ -171,6 +171,7 @@
 
 html {
   scroll-padding-top: calc(var(--top-h) + 8px);
+  scroll-padding-bottom: calc(var(--composer-h, 0px) + 8px);
   background: var(--bg);
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
