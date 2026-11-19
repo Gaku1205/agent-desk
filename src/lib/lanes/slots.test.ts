@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ParallelSettings, ParallelState } from "../parallel";
-import { assignSlots, freeSlotReason, lanesHeadline, overLimitNote, queueReasonText, type QueueEntry } from "./slots";
+import { assignSlots, freeRowText, lanesHeadline, overLimitNote, queueReasonText } from "./slots";
 import type { LanesSource, QueueSource, RunEntry, SlotWork } from "./source";
 
 function work(number: number): SlotWork {
@@ -69,9 +69,7 @@ describe("assignSlots", () => {
       [1, 5, "触るファイルが重なる（src/a.ts）"],
       [2, 6, "次の見直しで入る"],
     ]);
-    const free = lanes.slots.find((slot) => slot.kind === "free");
-    expect(free?.kind === "free" && free.next).toEqual({ owner: "o", repo: "r", number: 5 });
-    expect(free?.kind === "free" && free.reason).toBe("次に r#6 が入ります");
+    expect(lanes.slots.filter((slot) => slot.kind === "free")).toHaveLength(2);
   });
 
   it("空きが無ければ、理由の無い物は「席が空くのを待っている」", () => {
@@ -107,27 +105,13 @@ describe("assignSlots", () => {
   });
 });
 
-function entry(kind: QueueEntry["reasonKind"]): QueueEntry {
-  return { ...waiting(1), rank: 1, reasonKind: kind, reason: queueReasonText(kind, null) };
-}
-
-describe("freeSlotReason", () => {
-  it("待つ物が無ければ「順番待ちなし」", () => {
-    expect(freeSlotReason([])).toBe("順番待ちなし");
+describe("freeRowText：空きの席をまとめた1行", () => {
+  it("Queue があれば件数と、下の作業を待っていること", () => {
+    expect(freeRowText(4)).toEqual({ waiting: 4, text: "下の作業が終わるのを待っている" });
   });
 
-  it("全部が触るファイルの重なりなら、そう言う", () => {
-    expect(freeSlotReason([entry("overlap"), entry("hold"), entry("overlap")])).toBe("3件ともファイルが重なり待ち");
-  });
-
-  it("全部がほかの作業の完了待ちなら、そう言う。1件なら「とも」を付けない", () => {
-    expect(freeSlotReason([entry("blocked")])).toBe("1件は前の作業の完了待ち");
-    expect(freeSlotReason([entry("overlap")])).toBe("1件はファイルが重なり待ち");
-    expect(freeSlotReason([entry("blocked"), entry("blocked")])).toBe("2件とも前の作業の完了待ち");
-  });
-
-  it("まざっていれば、まとめて言う", () => {
-    expect(freeSlotReason([entry("blocked"), entry("noTouches")])).toBe("2件とも前の作業待ち");
+  it("Queue が無ければ「待っている作業はありません」", () => {
+    expect(freeRowText(0)).toEqual({ waiting: null, text: "待っている作業はありません" });
   });
 });
 
