@@ -69,7 +69,7 @@ describe("assignSlots", () => {
     ]);
     const free = lanes.slots.find((slot) => slot.kind === "free");
     expect(free?.kind === "free" && free.next).toEqual({ owner: "o", repo: "r", number: 5 });
-    expect(free?.kind === "free" && free.reason).toBe("パイプラインが次に順番待ちを見るときに、r#6 が入ります。");
+    expect(free?.kind === "free" && free.reason).toBe("次に r#6 が入ります");
   });
 
   it("空きが無ければ、理由の無い物は「席が空くのを待っている」", () => {
@@ -107,24 +107,22 @@ function entry(kind: QueueEntry["reasonKind"]): QueueEntry {
 }
 
 describe("freeSlotReason", () => {
-  it("待つ物が無ければ「順番待ちの作業はありません」", () => {
-    expect(freeSlotReason([])).toBe("順番待ちの作業はありません");
+  it("待つ物が無ければ「順番待ちなし」", () => {
+    expect(freeSlotReason([])).toBe("順番待ちなし");
   });
 
   it("全部が触るファイルの重なりなら、そう言う", () => {
-    expect(freeSlotReason([entry("overlap"), entry("hold"), entry("overlap")])).toBe(
-      "待っている3件は、どれも使用中の作業と触るファイルが重なるので、まだ入れない。",
-    );
+    expect(freeSlotReason([entry("overlap"), entry("hold"), entry("overlap")])).toBe("3件ともファイルが重なり待ち");
   });
 
-  it("全部がほかの作業の完了待ちなら、そう言う。1件なら「どれも」を付けない", () => {
-    expect(freeSlotReason([entry("blocked")])).toBe("待っている1件は、ほかの作業の完了を待っているので、まだ入れない。");
+  it("全部がほかの作業の完了待ちなら、そう言う。1件なら「とも」を付けない", () => {
+    expect(freeSlotReason([entry("blocked")])).toBe("1件は前の作業の完了待ち");
+    expect(freeSlotReason([entry("overlap")])).toBe("1件はファイルが重なり待ち");
+    expect(freeSlotReason([entry("blocked"), entry("blocked")])).toBe("2件とも前の作業の完了待ち");
   });
 
   it("まざっていれば、まとめて言う", () => {
-    expect(freeSlotReason([entry("blocked"), entry("noTouches")])).toBe(
-      "待っている2件は、どれも先に終わるのを待つ作業があるので、まだ入れない。",
-    );
+    expect(freeSlotReason([entry("blocked"), entry("noTouches")])).toBe("2件とも前の作業待ち");
   });
 });
 

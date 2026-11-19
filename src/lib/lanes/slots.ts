@@ -66,17 +66,17 @@ export function queueReasonText(kind: QueueReasonKind, file: string | null): str
 
 /** 空きの枠の理由 */
 export function freeSlotReason(queue: readonly QueueEntry[]): string {
-  if (queue.length === 0) return "順番待ちの作業はありません";
+  if (queue.length === 0) return "順番待ちなし";
   const ready = queue.find((entry) => entry.reasonKind === "ready");
-  if (ready) return `パイプラインが次に順番待ちを見るときに、${ready.repo}#${ready.number} が入ります。`;
-  const head = queue.length === 1 ? "待っている1件は、" : `待っている${queue.length}件は、どれも`;
+  if (ready) return `次に ${ready.repo}#${ready.number} が入ります`;
+  const head = queue.length === 1 ? "1件は" : `${queue.length}件とも`;
   if (queue.every((entry) => entry.reasonKind === "overlap" || entry.reasonKind === "hold")) {
-    return `${head}使用中の作業と触るファイルが重なるので、まだ入れない。`;
+    return `${head}ファイルが重なり待ち`;
   }
   if (queue.every((entry) => entry.reasonKind === "blocked")) {
-    return `${head}ほかの作業の完了を待っているので、まだ入れない。`;
+    return `${head}前の作業の完了待ち`;
   }
-  return `${head}先に終わるのを待つ作業があるので、まだ入れない。`;
+  return `${head}前の作業待ち`;
 }
 
 /**
