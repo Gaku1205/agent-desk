@@ -3,7 +3,7 @@ import type { CheckRunData, PullChecks, PullData } from "./types";
 /**
  * 未報告の必須チェック（docs/spec.md の「Slots & Queue」の「未報告の必須チェック」）。
  * ブランチ保護で必須なのに、まだ一度も報告されていないチェックは、GitHub の画面で `Expected — Waiting for status` になる。
- * このチェックは `statusCheckRollup` に出てこないので、main のブランチ保護の必須チェック名と突き合わせて数える
+ * このチェックは `statusCheckRollup` に出てこないので、PR の土台のブランチ（baseRef）の保護の必須チェック名と突き合わせて数える
  */
 
 /** 1回の問い合わせで調べる PR の最大数 */
@@ -27,18 +27,17 @@ export function pullsNeedingRequiredChecks(
   return numbers.slice(0, REQUIRED_CHECKS_MAX_PULLS);
 }
 
-/** 問い合わせ（main のブランチ保護の必須チェック名と、各 PR の先頭コミットのコミットステータス） */
+/** 問い合わせ（各 PR の土台のブランチの保護の必須チェック名と、先頭コミットのコミットステータス） */
 export function requiredChecksQuery(numbers: readonly number[]): string {
   const pulls = numbers
     .map(
       (number) =>
-        `p${number}: pullRequest(number: ${number}) { commits(last: 1) { nodes { commit { status { contexts { context } } } } } }`,
+        `p${number}: pullRequest(number: ${number}) { baseRef { branchProtectionRule { requiredStatusCheckContexts } } commits(last: 1) { nodes { commit { status { contexts { context } } } } } }`,
     )
     .join("\n    ");
   return `
 query RequiredChecks($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
-    ref(qualifiedName: "refs/heads/main") { branchProtectionRule { requiredStatusCheckContexts } }
     ${pulls}
   }
 }`;
@@ -71,11 +70,13 @@ export function missingRequiredChecks(
   pullChecks: Record<number, PullChecks>,
 ): Record<number, number> {
   const repository = asRecord(asRecord(data)?.repository);
-  const required = asRecord(asRecord(repository?.ref)?.branchProtectionRule)?.requiredStatusCheckContexts;
-  if (!repository || !Array.isArray(required)) return {};
-  const names = [...new Set(required.filter((name): name is string => typeof name === "string" && name !== ""))];
+  if (!repository) return {};
   const missing: Record<number, number> = {};
   for (const number of numbers) {
+    const required = asRecord(asRecord(asRecord(repository[`p${number}`])?.baseRef)?.branchProtectionRule)
+      ?.requiredStatusCheckContexts;
+    if (!Array.isArray(required)) continue;
+    const names = [...new Set(required.filter((name): name is string => typeof name === "string" && name !== ""))];
     const reported = new Set([
       ...(pullChecks[number]?.checkRuns ?? []).map((check) => check.name),
       ...reportedStatusContexts(repository[`p${number}`]),

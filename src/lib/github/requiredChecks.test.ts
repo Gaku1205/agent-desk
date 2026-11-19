@@ -42,7 +42,23 @@ describe("requiredChecksQuery", () => {
 
 describe("missingRequiredChecks", () => {
   const response = (required: unknown, p1: unknown = { commits: { nodes: [{ commit: { status: null } }] } }) => ({
-    repository: { ref: { branchProtectionRule: { requiredStatusCheckContexts: required } }, p1 },
+    repository: {
+      p1: { baseRef: { branchProtectionRule: { requiredStatusCheckContexts: required } }, ...(p1 as object) },
+    },
+  });
+
+  it("PR ごとの土台のブランチの必須名で突き合わせる（main 以外でも）", () => {
+    const checks: Record<number, PullChecks> = {
+      1: { checkRuns: [], statuses: [] },
+      2: { checkRuns: [], statuses: [] },
+    };
+    const data = {
+      repository: {
+        p1: { baseRef: { branchProtectionRule: { requiredStatusCheckContexts: ["a", "b"] } } },
+        p2: { baseRef: { branchProtectionRule: null } },
+      },
+    };
+    expect(missingRequiredChecks(data, [1, 2], checks)).toEqual({ 1: 2 });
   });
 
   it("必須の名前のうち、まだ報告されていない物の数", () => {
@@ -63,7 +79,7 @@ describe("missingRequiredChecks", () => {
 
   it("ブランチ保護が読めない・無いときは空", () => {
     const checks: Record<number, PullChecks> = { 1: { checkRuns: [], statuses: [] } };
-    expect(missingRequiredChecks({ repository: { ref: { branchProtectionRule: null } } }, [1], checks)).toEqual({});
+    expect(missingRequiredChecks({ repository: { p1: { baseRef: null } } }, [1], checks)).toEqual({});
     expect(missingRequiredChecks(null, [1], checks)).toEqual({});
   });
 });
