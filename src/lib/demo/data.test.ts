@@ -9,6 +9,7 @@ import { getIssueStatus, shouldShowIssue, type IssueStatus, type Stage } from ".
 import { countRunningPipelineRows } from "../runningPipeline";
 import { buildTurnItems, countTurnItems } from "../turn";
 import { assignSlots } from "../lanes/slots";
+import { queueGroups } from "../lanes/queueGroups";
 import { isLongSleep, jobGauge } from "../lanes/sleeping";
 import { buildLanesSource } from "../lanes/source";
 import { buildUsageChart, buildUsageSource, USAGE_BUCKET_MS, usageSummary } from "../lanes/usage";
@@ -112,6 +113,19 @@ describe("デモのサンプル", () => {
     expect(lanes.counts.free).toBe(0);
     expect(lanes.slots).toHaveLength(DEMO_PARALLEL_SETTINGS.day);
     expect(lanes.counts.queue).toBeGreaterThanOrEqual(3);
+  });
+
+  it("Queue のまとまり：動いている相手・複数の相手・順番待ちの順番待ち・灰色の親・誰も待たない物が見える", () => {
+    const results = buildDemoResults(NOW, startPlayback(NOW));
+    const source = buildLanesSource(results, NOW);
+    const lanes = assignSlots(source, DEMO_PARALLEL_SETTINGS.day);
+    const groups = queueGroups(lanes.queue, source.works);
+    const kinds = groups.map((group) => group.kind);
+    expect(kinds).toContain("work");
+    expect(kinds).toContain("multi");
+    expect(kinds).toContain("idle");
+    expect(kinds[kinds.length - 1]).toBe("next");
+    expect(groups.some((group) => group.rows.some((row) => row.depth === 2))).toBe(true);
   });
 
   it("Background：目覚ましが10件（うち2件は Long）、どれも席にぶら下がらず、動いている実行にジョブの数がある", () => {

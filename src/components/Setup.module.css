@@ -474,4 +474,24 @@
   .field[data-size="token"] {
     width: 100%;
   }
+
+  /* 押せる範囲を高さ44pxに（見た目は変えない。Issue #616） */
+  .primary,
+  .ghost,
+  .textButton {
+    position: relative;
+  }
+
+  .primary::after,
+  .ghost::after {
+    position: absolute;
+    inset: -4px 0;
+    content: "";
+  }
+
+  .textButton::after {
+    position: absolute;
+    inset: -6px 0;
+    content: "";
+  }
 }
