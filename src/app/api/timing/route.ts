@@ -1,6 +1,8 @@
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
 import { withCallLog, type CallTotals } from "@/lib/github/callLog";
 import { getRepoResult } from "@/lib/github/fetch";
+import type { RepoResult } from "@/lib/github/types";
+import { buildScreen } from "@/lib/selfcheck/screen";
 import { getChangeMarks, isWebhookEnabled } from "@/lib/github/repoCache";
 import {
   formatServerTiming,
@@ -20,6 +22,7 @@ const STAGE_LABELS: Record<string, string> = {
   "first-repo": "最初のリポジトリを読み終えるまで（覚えた物。無ければ GitHub）",
   repos: "全部のリポジトリを読み終えるまで",
   "slowest-repo": "いちばん遅かったリポジトリ1つ（下の repos で、何番目かが分かる）",
+  build: "組み立て（Your turn・いまの様子・Slots & Queue の判定と整形。GitHub は読まない）",
   "gh-graphql": "GitHub の GraphQL を呼んだ時間の合計（同時に呼ぶので、足すと total より長くなる）",
   "gh-rest": "GitHub の REST（Actions の実行・ジョブ・読めるかの確認など）を呼んだ時間の合計",
   "gh-key": "App の鍵の確認と取得（インストールを調べる・鍵を取る）を呼んだ時間の合計",
@@ -47,19 +50,22 @@ export async function GET(): Promise<Response> {
     // 全部を同時に読み始め、最初の1つが終わった時と、全部が終わった時を残す。リポジトリごとの時間と、GitHub を呼んだ回数も数える
     const from = performance.now();
     const logged = await withCallLog(async () => {
-      const reads = repos.map(async (repo, index): Promise<RepoRow> => {
+      const reads = repos.map(async (repo, index): Promise<{ row: RepoRow; result: RepoResult }> => {
         const result = await getRepoResult(token, repo);
         const ms = roundTimingMs(performance.now() - from);
         return {
-          // 名前は返さない。設定の「監視するリポジトリ」の並びで何番目か
-          n: index + 1,
-          ms,
-          ok: result.ok,
-          source: result.readSource ?? null,
-          kb: result.ok ? Math.round(Buffer.byteLength(JSON.stringify(result.data)) / 1024) : null,
-          // そのデータを差分で読んだか全部を読んだかと、その回に GitHub から読んだ Issue・PR の数（覚えた物でも、覚えたときの読み方）
-          mode: result.ok ? (result.data.sync?.mode ?? null) : null,
-          count: result.ok ? (result.data.sync?.count ?? null) : null,
+          result,
+          row: {
+            // 名前は返さない。設定の「監視するリポジトリ」の並びで何番目か
+            n: index + 1,
+            ms,
+            ok: result.ok,
+            source: result.readSource ?? null,
+            kb: result.ok ? Math.round(Buffer.byteLength(JSON.stringify(result.data)) / 1024) : null,
+            // そのデータを差分で読んだか全部を読んだかと、その回に GitHub から読んだ Issue・PR の数（覚えた物でも、覚えたときの読み方）
+            mode: result.ok ? (result.data.sync?.mode ?? null) : null,
+            count: result.ok ? (result.data.sync?.count ?? null) : null,
+          },
         };
       });
       await Promise.race(reads);
@@ -68,7 +74,18 @@ export async function GET(): Promise<Response> {
       timer.add("repos", performance.now() - from);
       return rows;
     });
-    repoRows = logged.value;
+    repoRows = logged.value.map((entry) => entry.row);
+    // 組み立て（判定・整形）：読み終えたデータから、Your turn・いまの様子・Slots & Queue を作る時間（GitHub は読まない）
+    const buildFrom = performance.now();
+    try {
+      buildScreen(
+        logged.value.map((entry) => entry.result),
+        new Date(),
+      );
+    } catch {
+      // 組み立てが投げても、測るだけの入口は落とさない（そこまでの時間は残す）
+    }
+    timer.add("build", performance.now() - buildFrom);
     calls = logged.calls;
     timer.add("slowest-repo", Math.max(...repoRows.map((row) => row.ms)));
     timer.add("gh-graphql", calls.graphql.ms);

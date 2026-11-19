@@ -1,6 +1,6 @@
 import { getSignedInLogin } from "@/lib/auth";
 import { parseRepoList } from "@/lib/config";
-import { getChangeMarks, isWebhookEnabled } from "@/lib/github/repoCache";
+import { getChangeMarks, getUrgentMarks, isWebhookEnabled } from "@/lib/github/repoCache";
 import { formatServerTiming, startStageTimer } from "@/lib/serverTiming";
 import { CHANGES_MAX_REPOS } from "@/lib/webhook";
 
@@ -15,9 +15,9 @@ export async function GET(request: Request): Promise<Response> {
   if (!(await timer.time("auth", () => getSignedInLogin()))) return new Response(null, { status: 401 });
   const params = new URL(request.url).searchParams;
   const repos = parseRepoList(params.getAll("repo").join(",")).slice(0, CHANGES_MAX_REPOS);
-  const changes = await timer.time("marks", () => getChangeMarks(repos));
+  const [changes, urgent] = await timer.time("marks", () => Promise.all([getChangeMarks(repos), getUrgentMarks(repos)]));
   return Response.json(
-    { changes },
+    { changes, urgent },
     { headers: { "Cache-Control": "no-store", "Server-Timing": formatServerTiming(timer.stages()) } },
   );
 }

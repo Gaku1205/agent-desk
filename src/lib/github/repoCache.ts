@@ -316,6 +316,21 @@ export async function cachedUserCanRead(
   }
 }
 
+/**
+ * Webhook による無効化の枠を取る（`src/lib/webhookThrottle.ts`）。キーはリポジトリ・種類・30秒の区切りの番号。
+ * 区切りで最初に作った呼び出しだけ true（`keyedRecord` は、あればある物を返すので、自分の ID と比べる）。
+ * タグは付けない（どのインスタンスでも同じに効く）。読めなかったとき（キャッシュの失敗）は、取り直す側に倒して true
+ */
+export async function claimWebhookSlot(repo: WatchedRepo, kind: "invalidate" | "flush", period: number): Promise<boolean> {
+  const id = crypto.randomUUID();
+  try {
+    const record = await keyedRecord(["webhook-slot-v1", kind, repoChangeKey(repo), String(period)], { id });
+    return record?.id === id;
+  } catch {
+    return true;
+  }
+}
+
 /** 手で押す「同期」・ボタン操作の後：取り直しの持ち分に関係なく、次の表示ですぐ取り直す */
 export function invalidateRepoNow(repo: WatchedRepo): void {
   updateTag(repoTag(repo));
@@ -334,6 +349,17 @@ export async function getChangeMark(repo: WatchedRepo, now: number = Date.now())
 export async function getChangeMarks(repos: WatchedRepo[]): Promise<ChangeMarks> {
   const entries = await Promise.all(
     repos.map(async (repo) => [repoChangeKey(repo), await getChangeMark(repo)] as const),
+  );
+  return Object.fromEntries(entries);
+}
+
+/**
+ * 監視リポジトリごとの「最後に急ぎの知らせが来た時刻」（ISO 文字列。`/api/changes` の `urgent`）。
+ * 画面は、反映済みの印より新しければ、変化を60秒待たずにすぐ作り直す。GitHub には問い合わせない
+ */
+export async function getUrgentMarks(repos: WatchedRepo[]): Promise<ChangeMarks> {
+  const entries = await Promise.all(
+    repos.map(async (repo) => [repoChangeKey(repo), new Date(await readUrgentAt(repo)).toISOString()] as const),
   );
   return Object.fromEntries(entries);
 }
