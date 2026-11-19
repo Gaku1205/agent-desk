@@ -104,7 +104,12 @@ export function assignSlots(source: LanesSource, limit: number | null): Lanes {
  */
 export function overLimitNote(running: number, limit: number | null): string | null {
   if (limit === null || running <= limit) return null;
-  return `上限（${limit}件）より多く動いています。上限は、新しく始める数だけを決めます。もう動いている作業は止めません。`;
+  return "上限より多く動いています";
+}
+
+/** `overLimitNote` の理由（その要素の `title` に入れる） */
+export function overLimitDetail(limit: number): string {
+  return `上限（${limit}件）は、新しく始める数だけを決めます。もう動いている作業は止めません`;
 }
 
 /** 数を `3件まで同時に`・`1件ずつ`（1のとき）に */

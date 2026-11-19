@@ -317,6 +317,11 @@ export function SyncStatus() {
   return (
     <div className={styles.syncGroup} title={note ?? undefined}>
       <span className={styles.syncDot} data-state={state} data-fast={fastRefresh ? "true" : undefined} aria-hidden="true" />
+      {pausedNote && (
+        <span className={styles.syncPaused} aria-hidden="true">
+          停止中
+        </span>
+      )}
       <span className={`${styles.syncText} num`}>
         {refreshing ? "同期中" : "同期"} {time}
         {unread && <span className={styles.syncFail}>GitHubから読めません</span>}
@@ -362,9 +367,10 @@ function DemoControls() {
         onClick={demo.play}
         disabled={demo.playState === "playing"}
         aria-live="polite"
+        aria-label={PLAY_BUTTON_LABEL[demo.playState]}
       >
         <PlayIcon />
-        {PLAY_BUTTON_LABEL[demo.playState]}
+        <span className={styles.playLabel}>{PLAY_BUTTON_LABEL[demo.playState]}</span>
       </button>
     </>
   );

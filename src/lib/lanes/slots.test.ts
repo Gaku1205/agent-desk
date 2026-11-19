@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ParallelSettings, ParallelState } from "../parallel";
-import { assignSlots, freeRowText, lanesHeadline, overLimitNote, queueReasonText } from "./slots";
+import { assignSlots, freeRowText, lanesHeadline, overLimitDetail, overLimitNote, queueReasonText } from "./slots";
 import type { LanesSource, QueueSource, RunEntry, SlotWork } from "./source";
 
 function work(number: number): SlotWork {
@@ -154,9 +154,11 @@ describe("lanesHeadline", () => {
 
 describe("overLimitNote：上限より多く動いている一文", () => {
   it("上限より多いときだけ出す", () => {
-    expect(overLimitNote(5, 1)).toBe(
-      "上限（1件）より多く動いています。上限は、新しく始める数だけを決めます。もう動いている作業は止めません。",
-    );
+    expect(overLimitNote(5, 1)).toBe("上限より多く動いています");
+  });
+
+  it("理由は title 用に別の文で返す", () => {
+    expect(overLimitDetail(3)).toBe("上限（3件）は、新しく始める数だけを決めます。もう動いている作業は止めません");
   });
 
   it("上限以内・上限が読めないときは出さない", () => {
