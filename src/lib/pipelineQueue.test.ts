@@ -32,9 +32,9 @@ describe("順番待ちの順番", () => {
   it("ai:queue の行に、番号の小さい順で順番を付ける", () => {
     const rows = buildPipelineRows(data([queued(7), issue(5), queued(3), queued(9)]), NOW);
     const byNumber = Object.fromEntries(rows.map((row) => [row.issue.number, row]));
-    expect(byNumber[3].description).toBe("順番待ち 1番目");
-    expect(byNumber[7].description).toBe("順番待ち 2番目");
-    expect(byNumber[9].description).toBe("順番待ち 3番目");
+    expect(byNumber[3].description).toBe("順番待ち ⧗ 1");
+    expect(byNumber[7].description).toBe("順番待ち ⧗ 2");
+    expect(byNumber[9].description).toBe("順番待ち ⧗ 3");
     expect(byNumber[5].queuePosition).toBeNull();
   });
 
