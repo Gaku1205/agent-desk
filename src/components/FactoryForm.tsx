@@ -1,6 +1,7 @@
 "use client";
 
-import type { SyntheticEvent } from "react";
+import { useState, type SyntheticEvent } from "react";
+import { viewerSlides, type ViewerSlide } from "@/lib/imageViewer";
 import {
   FACTORY_FIX,
   FACTORY_GO,
@@ -12,6 +13,7 @@ import {
   type FactoryStage,
   type FactoryTalk,
 } from "@/lib/factoryTalk";
+import { ImageViewer } from "./ImageViewer";
 import { PlayIcon, RedoIcon, WrenchIcon } from "./icons";
 import { QuestionBlock, useRoving } from "./QuestionForm";
 import q from "./QuestionForm.module.css";
@@ -41,47 +43,105 @@ function hideBroken(event: SyntheticEvent<HTMLImageElement>) {
   event.currentTarget.dataset.broken = "";
 }
 
-function Shots({ images, label }: { images: FactoryImage[]; label: string }) {
+/** 画像を押したとき（見ている案の位置・案の中の画像の位置・押した物） */
+type OpenViewer = (slide: number, image: number, opener: HTMLElement) => void;
+
+/** 全体表示の開閉（開いている案と画像の位置、押した画像を覚える） */
+function useViewer(slides: ViewerSlide[]) {
+  const [view, setView] = useState<{ slide: number; image: number; opener: HTMLElement } | null>(null);
+  const open: OpenViewer = (slide, image, opener) => setView({ slide, image, opener });
+  const node = view && (
+    <ImageViewer
+      slides={slides}
+      slide={view.slide}
+      image={view.image}
+      opener={view.opener}
+      onChange={(slide, image) => setView({ ...view, slide, image })}
+      onClose={() => setView(null)}
+    />
+  );
+  return { open, node };
+}
+
+/** 画像を押すと全体表示（選ばない）。PC は幅の3/4、スマホは1/4 */
+function Shots({
+  images,
+  label,
+  slide,
+  onOpen,
+}: {
+  images: FactoryImage[];
+  label: string;
+  slide: number;
+  onOpen: OpenViewer;
+}) {
   if (images.length === 0) return null;
   return (
-    <span className={q.shots}>
-      {images.map((image) => (
-        // 工場のコメントの画像のURLをそのまま出す（外のサイトの画像なので next/image は使わない）
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={image.src}
-          src={image.src}
-          alt={image.alt || `${label} ${image.device === "mobile" ? "スマホ" : "PC"}`}
-          className={`${q.shot} ${styles.img}`}
-          data-device={image.device}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onError={hideBroken}
-        />
-      ))}
+    <span className={styles.shots}>
+      {images.map((image, i) => {
+        const alt = image.alt || `${label} ${image.device === "mobile" ? "スマホ" : "PC"}`;
+        return (
+          <button
+            key={image.src}
+            type="button"
+            className={styles.shotBtn}
+            data-device={image.device}
+            data-only={images.length === 1 || undefined}
+            aria-label={`${alt}を大きく見る`}
+            onClick={(event) => onOpen(slide, i, event.currentTarget)}
+          >
+            {/* 工場のコメントの画像のURLをそのまま出す（外のサイトの画像なので next/image は使わない） */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={image.src}
+              alt=""
+              className={`${styles.shotImg} ${styles.img}`}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={hideBroken}
+            />
+          </button>
+        );
+      })}
     </span>
   );
 }
 
-function ChoiceBody({ stage, choice }: { stage: FactoryStage; choice: FactoryChoice }) {
+function ChoiceBody({
+  stage,
+  choice,
+  slide,
+  onOpen,
+}: {
+  stage: FactoryStage;
+  choice: FactoryChoice;
+  /** 全体表示の並びの中の位置（画像が無ければ -1） */
+  slide: number;
+  onOpen: OpenViewer;
+}) {
   return (
     <>
       {choice.sub && <span className={`${styles.sub} num`}>{choice.sub}</span>}
       {stage === "looks" && choice.images.length > 0 && (
-        <span className={styles.board}>
+        <button
+          type="button"
+          className={`${styles.board} ${styles.shotBtn}`}
+          aria-label={`${choice.images[0].alt || `方向${choice.mark}`}を大きく見る`}
+          onClick={(event) => onOpen(slide, 0, event.currentTarget)}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={choice.images[0].src}
-            alt={choice.images[0].alt || `方向${choice.mark}`}
+            alt=""
             className={`${styles.boardImg} ${styles.img}`}
             loading="lazy"
             referrerPolicy="no-referrer"
             onError={hideBroken}
           />
-        </span>
+        </button>
       )}
-      {stage === "mocks" && <Shots images={choice.images} label={choice.mark} />}
-      {choice.text && <span className={styles.text}>{choice.text}</span>}
+      {stage === "mocks" && <Shots images={choice.images} label={choice.mark} slide={slide} onOpen={onOpen} />}
+      {choice.text &&<span className={styles.text}>{choice.text}</span>}
       {choice.facts.length > 0 && (
         <span className={styles.facts}>
           {choice.facts.map((fact) => (
@@ -120,6 +180,8 @@ function Choices({
 }) {
   const values = [...choices.map((c) => c.value), FACTORY_REDO];
   const roving = useRoving(values, selected, onSelect);
+  const slides = viewerSlides(stage, choices);
+  const viewer = useViewer(slides);
   const labelId = `${idPrefix}-factory`;
   const [head, ask] = HEADINGS[stage];
   return (
@@ -128,7 +190,8 @@ function Choices({
         <span className={`${q.qno} num`}>{head}</span>
         {ask}
       </p>
-      <div className={q.mocks} role="radiogroup" aria-labelledby={labelId}>
+      {viewer.node}
+      <div className={styles.grid} role="radiogroup" aria-labelledby={labelId}>
         {[...choices, null].map((choice, i) => {
           if (choice === null) {
             // 最後は「全部ちがう」（どう変えてほしいかを書いて、出し直してもらう）
@@ -157,27 +220,35 @@ function Choices({
           }
           const checked = selected === choice.value;
           return (
-            <button
-              key={choice.value}
-              ref={(el) => {
-                roving.refs.current[i] = el;
-              }}
-              type="button"
-              role="radio"
-              aria-checked={checked}
-              aria-label={`${choice.mark}：${choice.title}`}
-              tabIndex={roving.tabIndexOf(i)}
-              className={`${q.mock} ${styles.card}`}
-              onClick={() => roving.onClick(choice.value)}
-              onKeyDown={(event) => roving.onKeyDown(event, i)}
-            >
-              <span className={q.mockHead}>
+            // カードは入れ物。選ぶのは見出し（role="radio"）か「この案にする」。画像は全体表示を開くだけ
+            <div key={choice.value} className={`${q.mock} ${styles.card} ${styles.pickCard}`} data-checked={checked}>
+              <button
+                ref={(el) => {
+                  roving.refs.current[i] = el;
+                }}
+                type="button"
+                role="radio"
+                aria-checked={checked}
+                aria-label={`${choice.mark}：${choice.title}`}
+                tabIndex={roving.tabIndexOf(i)}
+                className={`${q.mockHead} ${styles.headBtn}`}
+                onClick={() => roving.onClick(choice.value)}
+                onKeyDown={(event) => roving.onKeyDown(event, i)}
+              >
                 <span className={q.mockLetter}>{choice.mark}</span>
                 <span className={styles.title}>{choice.title}</span>
                 {checked && <span className={q.mockPicked}>選んだ案</span>}
-              </span>
-              <ChoiceBody stage={stage} choice={choice} />
-            </button>
+              </button>
+              <ChoiceBody
+                stage={stage}
+                choice={choice}
+                slide={slides.findIndex((s) => s.id === choice.value)}
+                onOpen={viewer.open}
+              />
+              <button type="button" className={styles.pick} onClick={() => onSelect(choice.value)}>
+                この案にする
+              </button>
+            </div>
           );
         })}
       </div>
@@ -202,6 +273,7 @@ function Confirm({
   const labelId = `${idPrefix}-factory`;
   const [head, ask] = HEADINGS.confirm;
   const confirm = talk.confirm;
+  const viewer = useViewer([{ id: "confirm", mark: "", title: "選んだ画面", images: confirm?.images ?? [] }]);
   return (
     <div className={q.item}>
       <p className={q.qtext} id={labelId}>
@@ -218,7 +290,8 @@ function Confirm({
           ))}
         </dl>
       )}
-      {confirm && <Shots images={confirm.images} label="選んだ画面" />}
+      {confirm && <Shots images={confirm.images} label="選んだ画面" slide={0} onOpen={viewer.open} />}
+      {viewer.node}
       <div className={q.options} role="radiogroup" aria-labelledby={labelId}>
         {values.map((value, i) => (
           <button

@@ -410,6 +410,24 @@ export function ChevronIcon({ size = LABEL }: IconProps) {
   );
 }
 
+/** 画像の全体表示：前へ＝左向きの山形 */
+export function ChevronLeftIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="m15 6-6 6 6 6" />
+    </LineIcon>
+  );
+}
+
+/** 画像の全体表示：次へ＝右向きの山形 */
+export function ChevronRightIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="m9 6 6 6-6 6" />
+    </LineIcon>
+  );
+}
+
 /** 夜＝月（Slots & Queue の Sleeping も同じ形） */
 export function MoonIcon({ size = LABEL }: IconProps) {
   return (
