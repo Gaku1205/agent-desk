@@ -59,3 +59,16 @@
 .button:disabled {
   cursor: default;
 }
+
+/* 幅899px以下：押せる範囲を高さ44pxに（32px → 44px。見た目は変えない。Issue #616） */
+@media (max-width: 899px) {
+  .button {
+    position: relative;
+  }
+
+  .button::after {
+    position: absolute;
+    inset: -6px 0;
+    content: "";
+  }
+}

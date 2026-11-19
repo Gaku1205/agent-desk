@@ -8,14 +8,19 @@ import { newIssueRepos } from "@/lib/newIssue";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
 import { buildWatchdogNotices } from "@/lib/watchdogState";
-import { logout } from "./logout";
+import { logout } from "../logout";
 
 const NO_COUNTS = { byRepo: {} };
+
+// ホームの題名は `agent-desk` だけ（layout.tsx の default）
 
 /**
  * ホーム：全部のリポジトリの「あなたの番」と「いまの様子」。全部がそろうのを待たず、覚えている最後の結果と読めた分を先に出し、
  * 読めた所から順に入れ替える（`loadTurnSteps`）。そろう前の段では、件数・Issueを書く欄の一覧・自動で足したお知らせは
  * layout が後から流す物を使う（`nav.countsPending`。リポジトリのページと同じ）
+ *
+ * `(home)` のグループに置くのは、読み込み中の骨組み（`loading.tsx`）を `(app)` 全体ではなくホームだけにするため
+ * （`(app)` に置くと、見つからないURLの `[...missing]` まで Suspense に入り、`notFound()` が HTTP 200 になる）
  */
 export default async function Home() {
   const login = (await getSignedInLogin()) ?? undefined;

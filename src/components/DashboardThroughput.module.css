@@ -184,6 +184,28 @@
   white-space: nowrap;
 }
 
+/* 幅899px以下：文の中の小さいリンクの押せる範囲を高さ44pxに（見た目は変えない。Issue #616） */
+@media (max-width: 899px) {
+  .link {
+    position: relative;
+  }
+
+  .link::after {
+    position: absolute;
+    inset: -14px -4px;
+    content: "";
+  }
+
+  /* リポジトリ名：行の高さの中で上下に11.9pxずつ広げる（余白で広げて、同じだけ負の余白で打ち消す。
+     となりの行の名前まで24pxなので、重ならない）。下の棒より手前に出す */
+  .repoName {
+    position: relative;
+    z-index: 1;
+    padding: 11.9px 0;
+    margin: -11.9px 0;
+  }
+}
+
 @container (max-width: 559px) {
   .stepRow {
     grid-template-columns: 82px minmax(0, 1fr) 56px;
