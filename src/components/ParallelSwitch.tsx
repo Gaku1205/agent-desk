@@ -167,7 +167,7 @@ function Folded({ inUse }: { inUse: number | null }) {
         </span>
       </button>
       {open && (
-        <div className={`${styles.popover} ${styles.side}`}>
+        <div className={`${styles.wrap} ${styles.popover}`}>
           <Body inUse={inUse} />
         </div>
       )}
