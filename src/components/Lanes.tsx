@@ -240,9 +240,9 @@ function CiText({ at, ci }: { at: number; ci: CiProgress }) {
 }
 
 /** 席の行の下にぶら下がる、その席の処理の1行 */
-function HangRow({ run, last }: { run: RunEntry; last: boolean }) {
+function HangRow({ run }: { run: RunEntry }) {
   return (
-    <li className={styles.hang} data-last={last ? "" : undefined} data-kind="hang">
+    <li className={styles.hang} data-kind="hang">
       <span className={styles.hangKind}>
         <span className={styles.spin} aria-hidden="true">
           <SpinnerIcon size={13} />
@@ -267,8 +267,8 @@ function SlotRow({ slot }: { slot: Slot }) {
   if (slot.kind === "running") {
     const { work } = slot;
     return (
-      <>
-      <li className={styles.row} data-tone="running" data-kind="slot">
+      <li className={styles.seat}>
+      <div className={styles.row} data-tone="running" data-kind="slot">
         <div className={styles.left}>
           <span className={styles.slotName} data-tone="running">
             <PlayIcon size={12} />
@@ -297,15 +297,19 @@ function SlotRow({ slot }: { slot: Slot }) {
           </span>
           {work.ci ? <CiLine ci={work.ci} /> : <StepLine at={work.stepAt} />}
         </div>
+      </div>
+      {slot.runs.length > 0 && (
+        <ul className={styles.hangList}>
+          {slot.runs.map((run) => (
+            <HangRow key={run.key} run={run} />
+          ))}
+        </ul>
+      )}
       </li>
-      {slot.runs.map((run, index) => (
-        <HangRow key={run.key} run={run} last={index === slot.runs.length - 1} />
-      ))}
-      </>
     );
   }
   return (
-    <li className={styles.row} data-tone="free" data-kind="slot">
+    <li className={`${styles.seat} ${styles.row}`} data-tone="free" data-kind="slot">
       <div className={styles.left}>
         <span className={styles.slotName} data-tone="free">
           <CircleIcon size={12} />
@@ -666,7 +670,7 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
           {lanes.slots.length === 0 ? (
             <p className={styles.empty}>動いている作業はありません</p>
           ) : (
-            <ul className={styles.list}>
+            <ul className={`${styles.list} ${styles.seatList}`}>
               {lanes.slots.map((slot) => (
                 <SlotRow key={slot.kind === "running" ? slot.work.key : `free-${slot.index}`} slot={slot} />
               ))}
