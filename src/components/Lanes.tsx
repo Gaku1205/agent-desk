@@ -17,6 +17,7 @@ import {
 } from "@/lib/lanes/queueGroups";
 import { isLongSleep, jobGauge, sleepingCountText, sortByWake, wakeTimeText, type JobGauge } from "@/lib/lanes/sleeping";
 import type { LanesSource, RunEntry, WaitTarget } from "@/lib/lanes/source";
+import type { LanesReadMode } from "@/lib/lanes/readMode";
 import { lanesTurnRows, mergeOrdinals } from "@/lib/lanes/turnRows";
 import { heldIndex, withHeldRows, type HeldRow } from "@/lib/operationResult";
 import { turnItemKey, turnSig, type TurnItem } from "@/lib/turn";
@@ -60,13 +61,31 @@ type Props = {
   nav: DeskNav;
   /** 読めなかったリポジトリ（あれば、見出しの下に出す。数や一覧には入っていない） */
   errors?: DeskError[];
+  /** 読めなかったときの出し方（無ければ全部読めた）。`failed` は数を `–` にして空きの席の行と「空」の文を出さず、`partial` は「空」の文だけ出さない */
+  readMode?: LanesReadMode;
 };
+
+const DASH = "–";
 
 /** 片づけた1件を隠しておく長さ */
 const TURN_LEAVE_MS = 8000;
 
 /** Your turn：いまの「あなたの番」を1行ずつ並べ、その場で押せる */
-function TurnSection({ id, items, now, basePath }: { id: string; items: TurnItem[]; now: Date; basePath: string }) {
+function TurnSection({
+  id,
+  items,
+  now,
+  basePath,
+  canSayEmpty,
+  unknownCount,
+}: {
+  id: string;
+  items: TurnItem[];
+  now: Date;
+  basePath: string;
+  canSayEmpty: boolean;
+  unknownCount: boolean;
+}) {
   const [held, setHeld] = useState<ReadonlyMap<string, HeldRow<TurnItem>>>(() => new Map());
   const [gone, setGone] = useState<ReadonlyMap<string, string>>(() => new Map());
   const rows = lanesTurnRows(items);
@@ -121,7 +140,7 @@ function TurnSection({ id, items, now, basePath }: { id: string; items: TurnItem
 
   return (
     <section className={styles.section} aria-labelledby={id}>
-      <SectionHead id={id} icon={<PersonIcon size={16} />} title="Your turn" count={count} />
+      <SectionHead id={id} icon={<PersonIcon size={16} />} title="Your turn" count={unknownCount ? DASH : count} />
       <ul className={styles.legend} aria-label="色の見方">
         {TURN_GROUPS.map((g) => (
           <li key={g.group} data-group={g.group}>
@@ -131,7 +150,7 @@ function TurnSection({ id, items, now, basePath }: { id: string; items: TurnItem
         ))}
       </ul>
       {shown.length === 0 ? (
-        <p className={styles.empty}>あなたが答えることはありません</p>
+        canSayEmpty ? <p className={styles.empty}>あなたが答えることはありません</p> : null
       ) : (
         <ul className={styles.list}>
           {shown.map((item, index) => (
@@ -264,8 +283,10 @@ function SlotRow({ slot }: { slot: RunningSlot }) {
 }
 
 /** 空きの席をまとめた1行：`○ Free × 3`・`Waiting 4 · 下の作業が終わるのを待っている`（Issue #586） */
-function FreeRow({ count, queue }: { count: number; queue: number }) {
+function FreeRow({ count, queue, canSayEmpty }: { count: number; queue: number; canSayEmpty: boolean }) {
   const { waiting, text } = freeRowText(queue);
+  // 読めなかったリポジトリがあるとき、Queue が0件でも「待っている作業はありません」とは言わない
+  const shownText = waiting === null && !canSayEmpty ? null : text;
   return (
     <li className={`${styles.seat} ${styles.row}`} data-tone="free" data-kind="free">
       <span className={styles.slotName} data-tone="free">
@@ -278,7 +299,7 @@ function FreeRow({ count, queue }: { count: number; queue: number }) {
             <span className="num">Waiting {waiting}</span> ·{" "}
           </>
         )}
-        {text}
+        {shownText}
       </p>
     </li>
   );
@@ -429,7 +450,19 @@ function SleepingRow({ runs, now }: { runs: RunEntry[]; now: Date }) {
 }
 
 /** Background：`Active`（動いている）と `Sleeping`（寝ている）に分けて出す */
-function BackgroundSection({ id, other, all, now }: { id: string; other: RunEntry[]; all: RunEntry[]; now: Date }) {
+function BackgroundSection({
+  id,
+  other,
+  all,
+  now,
+  canSayEmpty,
+}: {
+  id: string;
+  other: RunEntry[];
+  all: RunEntry[];
+  now: Date;
+  canSayEmpty: boolean;
+}) {
   const active = other.filter((run) => !run.sleeping);
   const sleeping = sortByWake(other.filter((run) => run.sleeping));
   const gauge = jobGauge(all);
@@ -440,7 +473,7 @@ function BackgroundSection({ id, other, all, now }: { id: string; other: RunEntr
         <JobGaugeView gauge={gauge} />
       </div>
       {active.length === 0 && sleeping.length === 0 ? (
-        <p className={styles.empty}>いまは CI や公開の作業はありません</p>
+        canSayEmpty ? <p className={styles.empty}>いまは CI や公開の作業はありません</p> : null
       ) : (
         <>
           {active.length > 0 && (
@@ -550,7 +583,9 @@ function QueueGroupView({ group, basePath }: { group: QueueGroup; basePath: stri
 }
 
 /** Slots & Queue（`/lanes`、デモは `/demo/lanes`）：見出し・Slots・Running・Queue */
-export function Lanes({ source, usage, items, now, nav, errors }: Props) {
+export function Lanes({ source, usage, items, now, nav, errors, readMode = "ok" }: Props) {
+  const canSayEmpty = readMode === "ok";
+  const unreadable = readMode === "failed";
   const turnId = useId();
   const parallel = useParallelView();
   const limit = parallel?.state?.limit ?? null;
@@ -605,8 +640,14 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
                 Running
               </dt>
               <dd className={`${styles.countValue} num`} data-tone="running">
-                {lanes.counts.running}
-                <span className={styles.countRuns}>（Actions {lanes.counts.runs}）</span>
+                {unreadable ? (
+                  DASH
+                ) : (
+                  <>
+                    {lanes.counts.running}
+                    <span className={styles.countRuns}>（Actions {lanes.counts.runs}）</span>
+                  </>
+                )}
               </dd>
             </div>
             {lanes.counts.free !== null && (
@@ -617,7 +658,7 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
                   </span>
                   Free
                 </dt>
-                <dd className={`${styles.countValue} num`}>{lanes.counts.free}</dd>
+                <dd className={`${styles.countValue} num`}>{unreadable ? DASH : lanes.counts.free}</dd>
               </div>
             )}
             <div className={styles.count}>
@@ -626,45 +667,58 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
                 Queue
               </dt>
               <dd className={`${styles.countValue} num`} data-tone="queue">
-                {lanes.counts.queue}
+                {unreadable ? DASH : lanes.counts.queue}
               </dd>
             </div>
           </dl>
         </header>
         <LoadErrors errors={errors ?? []} />
 
-        <TurnSection id={turnId} items={items} now={at} basePath={nav.basePath ?? ""} />
+        <TurnSection
+          id={turnId}
+          items={items}
+          now={at}
+          basePath={nav.basePath ?? ""}
+          canSayEmpty={canSayEmpty}
+          unknownCount={unreadable}
+        />
 
         <section className={styles.section} aria-labelledby={slotsId}>
           <SectionHead
             id={slotsId}
             icon={<ColumnsIcon size={16} />}
             title="Slots"
-            count={limit === null ? undefined : `${lanes.counts.running} / ${limit}`}
-            sub={limit === null ? undefined : "使用中"}
+            count={unreadable ? DASH : limit === null ? undefined : `${lanes.counts.running} / ${limit}`}
+            sub={unreadable || limit === null ? undefined : "使用中"}
           />
-          {overLimit ? <p className={styles.slotsNote}>{overLimit}</p> : null}
-          {lanes.slots.length === 0 ? (
-            <p className={styles.empty}>動いている作業はありません</p>
+          {overLimit && !unreadable ? <p className={styles.slotsNote}>{overLimit}</p> : null}
+          {unreadable ? null : lanes.slots.length === 0 ? (
+            canSayEmpty ? <p className={styles.empty}>動いている作業はありません</p> : null
           ) : (
             <ul className={`${styles.list} ${styles.seatList}`}>
               {runningSlots.map((slot) => (
                 <SlotRow key={slot.work.key} slot={slot} />
               ))}
-              {freeCount > 0 && <FreeRow count={freeCount} queue={lanes.queue.length} />}
+              {freeCount > 0 && <FreeRow count={freeCount} queue={lanes.queue.length} canSayEmpty={canSayEmpty} />}
             </ul>
           )}
         </section>
 
-        <BackgroundSection id={runsId} other={lanes.other} all={source.runs} now={at} />
+        <BackgroundSection
+          id={runsId}
+          other={lanes.other}
+          all={source.runs}
+          now={at}
+          canSayEmpty={canSayEmpty}
+        />
 
         <section className={styles.section} aria-labelledby={queueId}>
           <SectionHead id={queueId} icon={<QueueIcon size={15} />} title="Queue"
-            count={lanes.queue.length}
+            count={unreadable ? DASH : lanes.queue.length}
             sub="席が空いたら上から始まります"
           />
           {lanes.queue.length === 0 ? (
-            <p className={styles.empty}>順番待ちの作業はありません</p>
+            canSayEmpty ? <p className={styles.empty}>順番待ちの作業はありません</p> : null
           ) : (
             <ul className={`${styles.list} ${styles.groupList}`}>
               {groups.map((group) => (

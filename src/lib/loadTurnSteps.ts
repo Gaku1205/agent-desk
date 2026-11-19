@@ -31,6 +31,10 @@ export type TurnsSoFar = {
   staleBecause?: StaleBecause;
   /** 読めなかったリポジトリと理由（覚えている古い結果を出していても入る） */
   errors: LoadError[];
+  /** 「何も無い」と言ってよいか（`resolveLoadState` の `canSayEmpty`）。無ければ言ってよい */
+  canSayEmpty?: boolean;
+  /** 同期の状態（`resolveLoadState` の `sync`）。無ければ全部読めた */
+  sync?: LoadState["sync"];
 };
 
 const isFailedResult = (result: RepoResult): boolean => !result.ok;
@@ -96,6 +100,8 @@ export async function loadTurnSteps<T extends object>(
       staleAt: state.staleAt,
       staleBecause: state.staleBecause,
       errors: state.errors,
+      canSayEmpty: state.canSayEmpty,
+      sync: state.sync,
     };
   };
   const finish = async (turns: TurnsSoFar) => ({
@@ -126,6 +132,8 @@ export async function loadTurnSteps<T extends object>(
       staleAt: state.staleAt,
       staleBecause: state.staleBecause,
       errors: state.errors,
+      canSayEmpty: state.canSayEmpty,
+      sync: state.sync,
     };
   });
   // 全部そろった段のあとに、`loadTurns` の結果（自動で足した物・お知らせ入り）で仕上げる
