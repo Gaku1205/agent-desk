@@ -355,6 +355,24 @@ describe("buildLanesSource：いま動いている実行", () => {
     const source = buildLanesSource([result(data({ runs: [run({ name: "Watchdog", displayTitle: "見張り" })] }))], NOW);
     expect(source.runs[0]).toMatchObject({ kind: "Watchdog", issueNumber: null, activity: "見張り", elapsedMs: null, logUrl: null, detail: null });
   });
+
+  it("目覚ましは寝ている実行（起きる時刻つき・番号の手がかり無し）。ほかの実行にはジョブの数", () => {
+    const runs = [
+      run({ id: 5, name: "Retry Timer", displayTitle: "やり直しの目覚まし 1795068487 #3", headBranch: "claude/issue-3-x" }),
+      run({ id: 6, name: "Retry Timer", displayTitle: "やり直しの目覚まし 1795068487" }),
+      run({ id: 7, name: "CI", headBranch: "claude/issue-3-x" }),
+      run({ id: 8, name: "Watchdog" }),
+    ];
+    const source = buildLanesSource(
+      [result(data({ issues: [issue(3, ["ai:implement"])], runs, runJobs: [{ runId: 7, inProgress: 9 }, { runId: 5, inProgress: 1 }] }))],
+      NOW,
+    );
+    const byId = (id: number) => source.runs.find((entry) => entry.key === `o/r@${id}`);
+    expect(byId(5)).toMatchObject({ sleeping: true, wakeAtMs: null, issueNumber: null, jobs: null });
+    expect(byId(6)).toMatchObject({ sleeping: true, wakeAtMs: 1795068487000, issueNumber: null, jobs: null });
+    expect(byId(7)).toMatchObject({ sleeping: false, wakeAtMs: null, issueNumber: 3, jobs: 9 });
+    expect(byId(8)).toMatchObject({ sleeping: false, jobs: null });
+  });
 });
 
 describe("buildLanesSource：Paused（止めてある物）", () => {

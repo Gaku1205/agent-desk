@@ -11,6 +11,7 @@ import { pausedMark } from "../paused";
 import { buildPipelineRows } from "../pipeline";
 import { findLinkedPull, isLinkedPull, type IssueStatus } from "../status";
 import { isStepLogComment } from "../stepLog";
+import { isSleepingRun, wakeAtFromTitle } from "./sleeping";
 import { parseTouches, touchesOverlap } from "./touches";
 
 /**
@@ -97,6 +98,12 @@ export type RunEntry = {
   logUrl: string | null;
   /** 並べるための始まった時刻（ミリ秒。取れなければ null） */
   startedMs: number | null;
+  /** 寝ているだけの実行か（目覚まし。`isSleepingRun`。Background の Sleeping に出す。Issue #584） */
+  sleeping: boolean;
+  /** 寝ている実行の起きる時刻（ミリ秒。題名の unix 時刻から。読めない・寝ていない実行は null） */
+  wakeAtMs: number | null;
+  /** 動いているジョブの数（`RepoData.runJobs` から。寝ている実行・読めなかった実行は null） */
+  jobs: number | null;
 };
 
 /** わざと止めた物（`ai:skip` に止めた理由の印がある。Paused の1行。Issue #520） */
@@ -270,12 +277,15 @@ function repoRuns(owner: string, repo: string, data: RepoData, now: Date): RunEn
   const statuses = new Map(
     buildPipelineRows(data, now, `${owner}/${repo}`).map((row) => [row.issue.number, row.status]),
   );
+  const jobCounts = new Map((data.runJobs ?? []).map((entry) => [entry.runId, entry.inProgress]));
   for (const run of data.runs ?? []) {
     if (run.status !== "in_progress") continue;
     const id = typeof run.id === "number" ? String(run.id) : `${run.headBranch}|${run.displayTitle}|${run.name ?? ""}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    const target = runTarget(run, data);
+    const sleeping = isSleepingRun(run);
+    // 寝ている実行は Issue の番号の手がかりを持たない物として扱う（席にぶら下げない）
+    const target = sleeping ? { issue: null, pull: null } : runTarget(run, data);
     const activity = target.issue === null ? null : aiActivity(data, target.issue, owner, repo);
     const step = target.issue === null && typeof run.id === "number"
       ? (data.runSteps ?? []).find((candidate) => candidate.runId === run.id)?.name ?? null
@@ -303,6 +313,9 @@ function repoRuns(owner: string, repo: string, data: RepoData, now: Date): RunEn
       elapsedMs: startedMs === null ? null : Math.max(0, now.getTime() - startedMs),
       logUrl: typeof run.id === "number" ? `https://github.com/${owner}/${repo}/actions/runs/${run.id}` : null,
       startedMs,
+      sleeping,
+      wakeAtMs: sleeping ? wakeAtFromTitle(run.displayTitle) : null,
+      jobs: sleeping ? null : (jobCounts.get(run.id ?? -1) ?? null),
     });
   }
   return entries;

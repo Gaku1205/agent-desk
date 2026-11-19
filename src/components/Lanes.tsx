@@ -6,6 +6,7 @@ import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
 import { assignSlots, lanesHeadline, overLimitNote,type QueueEntry, type Slot } from "@/lib/lanes/slots";
 import { queueLine } from "@/lib/lanes/queueLine";
+import { isLongSleep, jobGauge, sleepingCountText, sortByWake, wakeTimeText, type JobGauge } from "@/lib/lanes/sleeping";
 import type { LanesSource, RunEntry } from "@/lib/lanes/source";
 import { lanesTurnRows, mergeOrdinals } from "@/lib/lanes/turnRows";
 import { heldIndex, withHeldRows, type HeldRow } from "@/lib/operationResult";
@@ -17,7 +18,17 @@ import dashboardStyles from "./Dashboard.module.css";
 import { getSidebarSnapshot, subscribeSidebar, type DeskError, type DeskNav } from "./Desk";
 import { LoadErrors } from "./LoadErrors";
 import type { UsageSource } from "@/lib/lanes/usage";
-import { ChartIcon, CircleIcon, ColumnsIcon, PanelLeftIcon, PersonIcon, PlayIcon, SpinnerIcon } from "./icons";
+import {
+  ChartIcon,
+  ChevronIcon,
+  CircleIcon,
+  ColumnsIcon,
+  MoonIcon,
+  PanelLeftIcon,
+  PersonIcon,
+  PlayIcon,
+  SpinnerIcon,
+} from "./icons";
 import styles from "./Lanes.module.css";
 import { PausedList } from "./LanesPaused";
 import { LanesTurn } from "./LanesTurn";
@@ -355,6 +366,154 @@ function RunRow({ run }: { run: RunEntry }) {
   );
 }
 
+/** Background の見出しの右：`Actions jobs` と20マスの目盛りと `12/20`（Issue #584） */
+function JobGaugeView({ gauge }: { gauge: JobGauge }) {
+  return (
+    <div className={styles.gauge}>
+      <span className={styles.gaugeName} aria-hidden="true">
+        Actions jobs
+      </span>
+      <span className={styles.gaugeCells} role="img" aria-label={gauge.label}>
+        {gauge.cells.map((cell, index) => (
+          <span key={index} className={styles.gaugeCell} data-cell={cell} />
+        ))}
+      </span>
+      <span className={`${styles.gaugeText} num`} aria-hidden="true">
+        {gauge.text}
+      </span>
+    </div>
+  );
+}
+
+/** Background の中の小見出し（`Active 2`・`Sleeping 10 · Long 8`） */
+function SubHead({ title, count }: { title: string; count: string }) {
+  return (
+    <h3 className={styles.subHead}>
+      {title}
+      <span className={`${styles.subCount} num`}>{count}</span>
+    </h3>
+  );
+}
+
+function LongTag() {
+  return <span className={styles.longTag}>Long</span>;
+}
+
+/** 起きる時刻の早い順に先頭から出す数（残りは `+7`） */
+const SLEEP_PEEK = 3;
+
+/** Sleeping：目覚ましを1行にまとめ、押すと1つずつ開く（Issue #584） */
+function SleepingRow({ runs, now }: { runs: RunEntry[]; now: Date }) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  const peek = runs.slice(0, SLEEP_PEEK);
+  const rest = runs.length - peek.length;
+  return (
+    <>
+      <li className={styles.sleepItem}>
+        <button
+          type="button"
+          className={styles.row}
+          data-tone="sleeping"
+          data-kind="sleep"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <span className={styles.left}>
+            <span className={styles.kind}>
+              <span className={styles.moon} aria-hidden="true">
+                <MoonIcon size={13} />
+              </span>
+              Resume
+            </span>
+            <span className={styles.ref}>Retry timer</span>
+          </span>
+          <span className={styles.wakeList}>
+            {peek.map((run) => (
+              <span key={run.key} className={styles.wake}>
+                {run.wakeAtMs !== null && (
+                  <span className={`${styles.wakeTime} num`}>{wakeTimeText(run.wakeAtMs, now)}</span>
+                )}
+                <span className={styles.wakeRepo}>{run.repo}</span>
+                {isLongSleep(run.wakeAtMs, now) && <LongTag />}
+              </span>
+            ))}
+            {rest > 0 && <span className={`${styles.wakeMore} num`}>+{rest}</span>}
+          </span>
+          <span className={`${styles.right} ${styles.chevron}`} aria-hidden="true">
+            <ChevronIcon size={14} />
+          </span>
+        </button>
+      </li>
+      <li className={styles.sleepOpen} hidden={!open}>
+        <ul id={listId} className={styles.sleepList} aria-label="Retry timer">
+          {runs.map((run) => (
+            <li key={run.key} className={styles.sleepSub}>
+              <span className={`${styles.wakeTime} num`}>
+                {run.wakeAtMs !== null ? wakeTimeText(run.wakeAtMs, now) : ""}
+              </span>
+              <span className={styles.sleepRepo}>
+                <span className={styles.sleepRepoName}>{run.repo}</span>
+                {isLongSleep(run.wakeAtMs, now) && <LongTag />}
+              </span>
+              <span className={`${styles.time} ${styles.sleepTime} num`}>
+                {run.elapsedMs !== null ? formatSpan(run.elapsedMs) : ""}
+              </span>
+              {run.logUrl ? (
+                <a className={`${styles.log} ${styles.sleepLog}`} href={run.logUrl} target="_blank" rel="noreferrer">
+                  ログ ↗
+                </a>
+              ) : (
+                <span className={styles.sleepLog} />
+              )}
+            </li>
+          ))}
+        </ul>
+      </li>
+    </>
+  );
+}
+
+/** Background：`Active`（動いている）と `Sleeping`（寝ている）に分けて出す */
+function BackgroundSection({ id, other, all, now }: { id: string; other: RunEntry[]; all: RunEntry[]; now: Date }) {
+  const active = other.filter((run) => !run.sleeping);
+  const sleeping = sortByWake(other.filter((run) => run.sleeping));
+  const gauge = jobGauge(all);
+  return (
+    <section className={styles.section} aria-labelledby={id}>
+      <div className={styles.bgHead}>
+        <SectionHead id={id} icon={<PlayIcon size={16} />} title="Background" sub="CI・公開など、席を使わない作業" />
+        <JobGaugeView gauge={gauge} />
+      </div>
+      {active.length === 0 && sleeping.length === 0 ? (
+        <p className={styles.empty}>いまは CI や公開の作業はありません</p>
+      ) : (
+        <>
+          {active.length > 0 && (
+            <>
+              <SubHead title="Active" count={String(active.length)} />
+              <ul className={styles.list}>
+                {active.map((run) => (
+                  <RunRow key={run.key} run={run} />
+                ))}
+              </ul>
+            </>
+          )}
+          {sleeping.length > 0 && (
+            <>
+              <SubHead title="Sleeping" count={sleepingCountText(sleeping, now)} />
+              <ul className={styles.list}>
+                <SleepingRow runs={sleeping} now={now} />
+              </ul>
+            </>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 function QueueWhy({ entry, basePath }: { entry: QueueEntry; basePath: string }) {
   const line = queueLine(entry);
   if (line.kind === "text") {
@@ -515,18 +674,7 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
           )}
         </section>
 
-        <section className={styles.section} aria-labelledby={runsId}>
-          <SectionHead id={runsId} icon={<PlayIcon size={16} />} title="Background" sub="CI・公開など、席を使わない作業" />
-          {lanes.other.length === 0 ? (
-            <p className={styles.empty}>いまは CI や公開の作業はありません</p>
-          ) : (
-            <ul className={styles.list}>
-              {lanes.other.map((run) => (
-                <RunRow key={run.key} run={run} />
-              ))}
-            </ul>
-          )}
-        </section>
+        <BackgroundSection id={runsId} other={lanes.other} all={source.runs} now={at} />
 
         <section className={styles.section} aria-labelledby={queueId}>
           <SectionHead id={queueId} icon={<QueueIcon size={15} />} title="Queue"
