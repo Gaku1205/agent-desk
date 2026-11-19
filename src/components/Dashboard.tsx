@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { barRatios, USAGE_MODELS, type AiUsage, type UsageModel } from "@/lib/dashboard/aiUsage";
 import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
@@ -405,15 +405,18 @@ export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav, er
   const summary = bundle.summary;
   const at = new Date(bundle.now);
 
-  const readPeriod = (key: PeriodKey) => {
-    loadPeriod?.(key)
-      .then((result) => {
-        if (result) setLoaded((current) => ({ ...current, [key]: result }));
-        else setFailed(key);
-      })
-      .catch(() => setFailed(key))
-      .finally(() => setPending((current) => (current === key ? null : current)));
-  };
+  const readPeriod = useCallback(
+    (key: PeriodKey) => {
+      loadPeriod?.(key)
+        .then((result) => {
+          if (result) setLoaded((current) => ({ ...current, [key]: result }));
+          else setFailed(key);
+        })
+        .catch(() => setFailed(key))
+        .finally(() => setPending((current) => (current === key ? null : current)));
+    },
+    [loadPeriod],
+  );
   const selectPeriod = (key: PeriodKey) => {
     setPeriod(key);
     setFailed(null);
@@ -424,11 +427,12 @@ export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav, er
     readPeriod(key);
   };
   // URL が `?period=30d` で開いたとき、動き出した直後に読む（サーバーは「読んでいます…」まで描いてある）
+  const initialRead = useRef(false);
   useEffect(() => {
+    if (initialRead.current) return; // 最初の1回だけ
+    initialRead.current = true;
     if (pending !== null && pending === initialPeriod) readPeriod(initialPeriod);
-    // 最初の1回だけ
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pending, initialPeriod, readPeriod]);
   const sideCollapsed = useSyncExternalStore(subscribeSidebar, getSidebarSnapshot, () => false);
   const toggleSide = useCallback(() => {
     const next = !getSidebarSnapshot();
