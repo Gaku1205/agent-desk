@@ -18,6 +18,18 @@ export async function addLabel(
   await client.send("POST", `${repoPath(target)}/issues/${number}/labels`, { labels: [label] });
 }
 
+/** Issue を閉じる（完了として閉じる。パイプラインの知らせの「閉じる」） */
+export async function closeIssue(
+  client: GitHubClient,
+  target: WatchedRepo,
+  number: number,
+): Promise<void> {
+  await client.send("PATCH", `${repoPath(target)}/issues/${number}`, {
+    state: "closed",
+    state_reason: "completed",
+  });
+}
+
 /** Issue／PRにコメントを書く（企画AIの質問への答え） */
 export async function addComment(
   client: GitHubClient,

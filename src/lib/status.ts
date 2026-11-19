@@ -2,7 +2,7 @@ import { countCiChecks } from "./ciProgress";
 import { FIX_MAX } from "./flowBranch";
 import { isFactoryIssue } from "./factoryIssue";
 import { isFactoryAnswered } from "./factoryTalk";
-import { isPipelineMaintenanceIssue } from "./pipelineIssue";
+import { isPipelineMaintenanceIssue, isPipelineNotice } from "./pipelineIssue";
 import type { PipelineState } from "./pipelineState";
 import { isCountedDeploySuccess, isFailedState, latestCountedPerContext } from "./deployStatus";
 import { isMergeablePull } from "./mergeablePull";
@@ -29,6 +29,7 @@ export type Stage =
   | "implementing"
   | "planning"
   | "queued"
+  | "notice"
   | "skipped"
   | "notStarted";
 
@@ -191,6 +192,7 @@ const TURN_BY_STAGE: Record<Stage, Turn> = {
   implementing: "ai",
   planning: "ai",
   queued: "none",
+  notice: "human",
   skipped: "human",
   notStarted: "human",
 };
@@ -850,6 +852,8 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
       latestQuestionComment(input.comments, issue.number, input.owner ?? "") !== null &&
       !isQuestionAnswered(input.comments, issue.number, input.owner ?? "");
     if (unanswered) return result("question");
+    // パイプラインが立てた知らせは、確かめて閉じる物（「始める」を出さない）
+    if (isPipelineNotice(issue)) return result("notice");
     // 止めた理由の印がある保留は、人間の番ではない（Paused に出す）
     const paused = pausedMark(issue, input.comments, input.owner ?? "");
     return result("skipped", paused ? { turn: "none", paused } : {});

@@ -692,3 +692,36 @@ describe("executeUploadIssueImage", () => {
     });
   });
 });
+
+describe("executeOperation：閉じる（パイプラインの知らせ）", () => {
+  const noticeIssue = () => issue({ labels: ["ai:skip"], author: "github-actions[bot]" });
+
+  it("知らせの Issue を state_reason: completed で閉じる", async () => {
+    const { client, calls } = fakeClient(() => Response.json({ number: 1 }));
+    const result = await executeOperation(client, TARGET, input("close"), data({ issues: [noticeIssue()] }), NOW);
+    expect(result).toEqual({ ok: true });
+    expect(calls).toEqual([
+      {
+        method: "PATCH",
+        url: "https://api.github.com/repos/o/r/issues/1",
+        body: { state: "closed", state_reason: "completed" },
+      },
+    ]);
+  });
+
+  it("知らせでない Issue（人間の保留・普通の未着手）には何もしない", async () => {
+    for (const target of [issue({ labels: ["ai:skip"] }), issue()]) {
+      const { client, calls } = fakeClient();
+      const result = await executeOperation(client, TARGET, input("close"), data({ issues: [target] }), NOW);
+      expect(result).toEqual({ ok: false, changed: true });
+      expect(calls).toEqual([]);
+    }
+  });
+
+  it("知らせに「始める」は受け付けない", async () => {
+    const { client, calls } = fakeClient();
+    const result = await executeOperation(client, TARGET, input("start"), data({ issues: [noticeIssue()] }), NOW);
+    expect(result).toEqual({ ok: false, changed: true });
+    expect(calls).toEqual([]);
+  });
+});

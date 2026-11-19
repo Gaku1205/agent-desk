@@ -1517,3 +1517,39 @@ describe("getIssueStatus：パイプラインが自動で進める間の猶予",
     expect(stuck.grace).toBeNull();
   });
 });
+
+describe("getIssueStatus：パイプラインの知らせ", () => {
+  const skip = { labels: ["ai:skip"] };
+
+  it("パイプラインが作った ai:skip の開いた Issue は知らせ（人間の番）", () => {
+    for (const author of ["github-actions[bot]", "gaku-ai-pipeline[bot]"]) {
+      const status = getIssueStatus(issue({ ...skip, author }), input(), NOW);
+      expect(status.stage).toBe("notice");
+      expect(status.turn).toBe("human");
+      expect(status.paused ?? null).toBeNull();
+    }
+  });
+
+  it("人間が作った・作った人が無い ai:skip は今までどおり保留", () => {
+    expect(getIssueStatus(issue({ ...skip, author: "Gaku1205" }), input(), NOW).stage).toBe("skipped");
+    expect(getIssueStatus(issue({ ...skip }), input(), NOW).stage).toBe("skipped");
+  });
+
+  it("ai:plan などが付いていれば、そちらが先", () => {
+    const status = getIssueStatus(
+      issue({ labels: ["ai:skip", "ai:plan"], author: "github-actions[bot]" }),
+      input(),
+      NOW,
+    );
+    expect(status.stage).toBe("planning");
+  });
+
+  it("閉じた Issue は知らせにしない", () => {
+    const status = getIssueStatus(
+      issue({ ...skip, state: "closed", author: "github-actions[bot]" }),
+      input(),
+      NOW,
+    );
+    expect(status.stage).not.toBe("notice");
+  });
+});

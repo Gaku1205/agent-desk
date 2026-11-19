@@ -113,6 +113,10 @@ export function applyDemoOp(data: RepoData, op: DemoOp): RepoData {
       setIssue({ labels: withLabels(issue.labels, [LABEL.plan], [LABEL.skip]) });
       labeled(op.number, LABEL.plan);
       break;
+    case "close":
+      // 知らせを閉じる（ラベルは変えない）
+      setIssue({ state: "closed", closedAt: op.at });
+      break;
     case "resume": {
       setIssue({ labels: withLabels(issue.labels, [], [LABEL.stuck]) });
       if (pull) {

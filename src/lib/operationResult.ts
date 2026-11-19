@@ -25,6 +25,7 @@ export const OPERATION_COPY: Record<OperationKind, OperationCopy> = {
   requestReview: { busy: "依頼中…", doing: "GitHub に ai:review を付けています", done: "レビューを依頼しました" },
   merge: { busy: "マージ中…", doing: "GitHub でマージしています", done: "マージしました" },
   answer: { busy: "送信中…", doing: "GitHub にコメントを書いています", done: "送りました" },
+  close: { busy: "閉じています…", doing: "GitHub で Issue を閉じています", done: "閉じました" },
 };
 
 /** 結果の1行に出す物 */

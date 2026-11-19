@@ -7,6 +7,22 @@ const MAINTENANCE_MARK = "<!-- pipeline-maintenance -->";
 /** 印が付く前の保守の Issue の題名（全角コロン） */
 const MAINTENANCE_TITLE = /^AIの許可が足りない：/;
 
+/** パイプラインが Issue を立てるときの作者（Bot は `[bot]` 付き） */
+export const PIPELINE_AUTHORS: readonly string[] = ["gaku-ai-pipeline[bot]", "github-actions[bot]"];
+
+/**
+ * パイプラインが自分で立てる「知らせ」の Issue か：開いていて `ai:skip` があり、
+ * 作った人がパイプライン。作った人が無い（取れない）ときは false
+ */
+export function isPipelineNotice(issue: Pick<IssueData, "state" | "labels" | "author">): boolean {
+  return (
+    issue.state === "open" &&
+    issue.labels.includes("ai:skip") &&
+    issue.author !== undefined &&
+    PIPELINE_AUTHORS.includes(issue.author)
+  );
+}
+
 /**
  * パイプラインが自動で作る保守の Issue か（オーナーが押す物が無いので、画面に出さない）。
  * ラベル `pipeline`・本文の印・題名 `AIの許可が足りない：` のどれか

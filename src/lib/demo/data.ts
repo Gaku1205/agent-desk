@@ -107,6 +107,8 @@ function addIssue(
     /** 企画AIが清書した（本文に `> 元のメモ：` を入れる） */
     planned?: boolean;
     closedAt?: string;
+    /** 作った人（Bot は `login[bot]`。無ければ付けない） */
+    author?: string;
   },
 ): IssueData {
   const issue: IssueData = {
@@ -119,6 +121,7 @@ function addIssue(
     createdAt: options.createdAt,
     updatedAt: options.closedAt ?? options.createdAt,
     closedAt: options.closedAt ?? null,
+    ...(options.author ? { author: options.author } : {}),
   };
   ctx.data.issues.push(issue);
   return issue;
@@ -845,6 +848,16 @@ function landingPage(base: Date, placer: Placer): RepoData {
   addIssue(ctx, 16, "お知らせの帯を足す", { createdAt: ago(ctx, 12), labels: ["ai:plan"] });
   // 企画中（AIの番の数を、あなたの番の数とずらす）
   addIssue(ctx, 21, "ご利用の流れの図を足す", { createdAt: ago(ctx, 5), labels: ["ai:plan"] });
+  // 企画中（知らせが増えて、あなたの番と動いている件数が同じにならないように）
+  addIssue(ctx, 22, "料金表の見出しを整える", { createdAt: ago(ctx, 4), labels: ["ai:plan"] });
+
+  // パイプラインの知らせ（配布が配り先で落ちた。パイプラインが立てて `ai:skip` を付ける。Your turn に Notice（Fix）で出る）
+  // todo-app に置くと、マージ待ちの一覧より先に強い色の1件として出てしまうので、landing-page に置く
+  addIssue(ctx, 79, "配布 772d4fe が配り先で落ちています", {
+    createdAt: ago(ctx, 20),
+    labels: ["ai:skip"],
+    author: "github-actions[bot]",
+  });
 
   // 公開済み
   addDeployed(ctx, 2, 11, "スマホでナビが開かないのを直す", 4 * 60, { fixed: true });

@@ -82,6 +82,8 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
     case "skipped":
       if (status.paused) return { long: `止めてある：${status.paused.reason}`, short: "止めてある" };
       return { long: "保留中。準備ができたら「始める」", short: "保留中" };
+    case "notice":
+      return { long: "配り先で落ちた知らせ", short: "知らせ" };
     case "planning":
       return { long: "企画AIが清書中", short: "清書中" };
     case "question":
@@ -159,6 +161,7 @@ export function statusIconSpec(status: IssueStatus): IconSpec {
     case "retrying":
       return spec("dashed", "idle");
     case "skipped":
+    case "notice":
       return spec("paused", "human");
     case "question":
     case "factoryTalk":

@@ -37,6 +37,13 @@ function shape(icon: TurnIcon) {
           <path d="M12 9.5v4M12 17h.01" />
         </>
       );
+    case "notice": // ベル
+      return (
+        <>
+          <path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15Z" />
+          <path d="M10 20.5a2 2 0 0 0 4 0" />
+        </>
+      );
     case "merge": // 枝の合流
       return (
         <>
