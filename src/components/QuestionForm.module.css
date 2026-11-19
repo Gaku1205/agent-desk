@@ -147,8 +147,12 @@
   text-align: left;
 }
 
-.mock:hover {
-  background: var(--well);
+/* 指を乗せたとき：地の色は変えず、枠だけを少し強くする（地を --well にすると「選んだ案」と同じ灰色になり、
+   指が残った1枚だけが選んだように見える）。指で触る画面では付けない（押したあとも残るため） */
+@media (hover: hover) {
+  .mock:not([aria-checked="true"]):hover {
+    box-shadow: inset 0 0 0 1px var(--edge-focus);
+  }
 }
 
 /* 選んだ案：枠を --bone にして、「選んだ案」の文字も出す（色だけにしない） */

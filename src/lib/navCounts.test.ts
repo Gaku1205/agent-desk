@@ -8,6 +8,7 @@ import {
   NO_NAV_COUNTS,
   slotsInUseOf,
   unreadableMapOf,
+  withPageCounts,
   withRepoCount,
 } from "./navCounts";
 
@@ -133,5 +134,19 @@ describe("isRepoCountPending", () => {
   it("全部が届いた後は「–」にしない", () => {
     expect(isRepoCountPending(false, {}, "o/a")).toBe(false);
     expect(isRepoCountPending(false, undefined, "o/a")).toBe(false);
+  });
+});
+
+describe("withPageCounts", () => {
+  const page = { counts: { byRepo: { "o/a": 1 } }, runningCounts: { byRepo: {} }, unreadable: {}, repoKeys: ["o/a", "o/b"] };
+  it("ページが数えた件数で入れ替える。古い件数は残らない", () => {
+    const old = fullNavCounts({ byRepo: {} }, { byRepo: {} }, ["o/a", "o/b"]);
+    const next = withPageCounts(old, page);
+    expect(next.counts).toEqual({ byRepo: { "o/a": 1 } });
+    expect(next.loaded).toEqual({ "o/a": true, "o/b": true });
+  });
+  it("同じ件数なら同じ物を返す", () => {
+    const once = withPageCounts(NO_NAV_COUNTS, page);
+    expect(withPageCounts(once, page)).toBe(once);
   });
 });

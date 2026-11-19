@@ -5,7 +5,7 @@ import type { Step } from "@/lib/steps";
 import { Dashboard } from "./Dashboard";
 import { Desk, type DeskNav } from "./Desk";
 import { Lanes } from "./Lanes";
-import { useNav } from "./NavContext";
+import { useNav, usePublishPageCounts } from "./NavContext";
 import { NewIssueForm, type NewIssueRepo } from "./NewIssueForm";
 import { RepoList } from "./RepoList";
 import { NewServiceSkeleton } from "./Skeleton";
@@ -88,6 +88,7 @@ function StaleNote({ staleAt, staleBecause, complete }: Omit<LiveValue<unknown>,
  */
 function useLiveNav(nav: DeskNav, complete: boolean): DeskNav {
   const live = useNav();
+  usePublishPageCounts(nav, complete);
   if (complete || !live) return nav;
   return {
     ...nav,
@@ -102,6 +103,7 @@ function useLiveNav(nav: DeskNav, complete: boolean): DeskNav {
 /** ホーム */
 export function DeskLive({ first }: { first: Step<LiveValue<ComponentProps<typeof Desk>>> }) {
   const { props, complete, staleAt, staleBecause } = useSteps(first, isComplete);
+  usePublishPageCounts(props.nav, complete);
   return (
     <>
       <Desk {...props} />
