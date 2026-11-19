@@ -1,4 +1,6 @@
 import type { CommentData, RepoData, RunStepData, WorkflowRunData } from "./github/types";
+import { isFactoryTitle } from "./factoryIssue";
+import { isFactoryRun } from "./factoryStage";
 import { isRelatedRun } from "./lamp";
 import { isLinkedPull, latestFixRun } from "./status";
 
@@ -143,6 +145,14 @@ export function aiActivity(data: RepoData, issueNumber: number, owner: string, r
   return null;
 }
 
+/** 工場の Issue（`新サービス：`）に対する、動いている工場の実行のいちばん新しい1件（Issue 番号では紐づかない。docs/spec.md の「工場の今の段」） */
+function factoryActiveRun(data: RepoData, title: string): WorkflowRunData | undefined {
+  if (!isFactoryTitle(title)) return undefined;
+  return (data.runs ?? [])
+    .filter((run) => run.status === "in_progress" && typeof run.id === "number" && isFactoryRun(run))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+}
+
 /** 1回の同期でステップ名を取りに行く実行の数の上限（リポジトリごと） */
 export const STEP_PROBE_MAX = 3;
 
@@ -156,7 +166,7 @@ export function stepProbeRunIds(data: RepoData): number[] {
     if (ids.length >= STEP_PROBE_MAX) break;
     if (issue.state !== "open") continue;
     const pulls = linkedPulls(data, issue.number);
-    const run = activeRuns(data.runs, issue.number, pulls)[0];
+    const run = activeRuns(data.runs, issue.number, pulls)[0] ?? factoryActiveRun(data, issue.title);
     if (!run || ids.includes(run.id!)) continue;
     if (pickWorkingComment(data.comments, [issue.number, ...pulls.map((pull) => pull.number)], data.runs, pulls)) continue;
     ids.push(run.id!);
@@ -169,12 +179,17 @@ export function currentStepFromJobs(runId: number, raw: unknown): RunStepData | 
   const jobs = (raw as { jobs?: unknown } | null)?.jobs;
   if (!Array.isArray(jobs)) return null;
   for (const job of jobs) {
-    const value = job as { status?: unknown; html_url?: unknown; steps?: unknown } | null;
+    const value = job as { status?: unknown; html_url?: unknown; steps?: unknown; name?: unknown } | null;
     if (value?.status !== "in_progress" || !Array.isArray(value.steps)) continue;
     for (const step of value.steps) {
       const s = step as { status?: unknown; name?: unknown } | null;
       if (s?.status === "in_progress" && typeof s.name === "string" && s.name.trim() !== "") {
-        return { runId, name: s.name.trim(), url: typeof value.html_url === "string" ? value.html_url : null };
+        return {
+          runId,
+          name: s.name.trim(),
+          url: typeof value.html_url === "string" ? value.html_url : null,
+          ...(typeof value.name === "string" ? { jobName: value.name } : {}),
+        };
       }
     }
   }

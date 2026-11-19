@@ -211,3 +211,23 @@ describe("buildConversation（デモのデータ）", () => {
     for (const m of only) expect(m.repo).toBe("todo-app");
   });
 });
+
+describe("工場の Issue の「いまの様子」（Issue #659）", () => {
+  const results = buildDemoResults(NOW, startPlayback(NOW));
+  const messages = buildConversation(results, buildTrailEvents(results, NOW), NOW);
+
+  it("工場が作業中のデモの Issue は、相談待ちと出ず、段の文と経過時間が出る", () => {
+    const message = messages.find((m) => m.key === "demo/landing-page#24");
+    expect(message?.speaker).toBe("工場");
+    expect(message?.text).toBe("作っています（12分）");
+    expect(message?.text).not.toContain("相談待ち");
+  });
+
+  it("chatLine：工場の段が相談待ちのときだけ相談待ち、段が無いとき（ラベルも実行も無い）は中立な文", () => {
+    const notStarted = status({ stage: "notStarted" });
+    const text = (kind: "waiting" | "unknown") =>
+      chatLine(notStarted, { factory: { kind, text: null, startedAt: null }, now: NOW }).text;
+    expect(text("waiting")).toBe("工場の担当・相談待ち");
+    expect(text("unknown")).toBe("工場が受け付けています");
+  });
+});
