@@ -6,6 +6,7 @@ import { repoChangeKey, type ChangeMarks } from "../changeMarks";
 import { getSettingsRepo, getWatchedRepos, parseRepoList, type Env, type WatchedRepo } from "../config";
 import { decideRefetch, isSettledChange, refetchPeriod, type RefetchRecord } from "../refetchLimit";
 import { shareInFlight } from "../inFlight";
+import { unpackMemoized, type UnpackMemo } from "../unpackMemo";
 import { shouldRememberSnapshot } from "../staleSnapshot";
 import { repoTag, urgentTag } from "../webhook";
 import { resolveAppAccess } from "./appToken";
@@ -162,6 +163,9 @@ export function unpackCached<T>(packed: string): T {
   return JSON.parse(gunzipSync(Buffer.from(packed, "base64")).toString("utf8")) as T;
 }
 
+/** 同じインスタンスで、前に展開した覚えているデータ（`unpackMemoized`） */
+const unpackedRepoData: UnpackMemo<RepoData> = new Map();
+
 /** 同じインスタンスで、同じ印のデータを同時に取りに行っている物（リクエストをまたいで1回にまとめる） */
 const loadingRepoData = new Map<string, Promise<RepoData>>();
 
@@ -186,17 +190,17 @@ export async function cachedRepoData(
   const data = await shareInFlight(loadingRepoData, keyParts.join("|"), async () => {
     // この呼び出しで GitHub から読んだとき（覚えた物でなかったとき）だけ入る
     const loaded: { value: RepoData | null } = { value: null };
-    const result = unpackCached<RepoData>(
-      await unstable_cache(
-        async () => {
-          loaded.value = await load();
-          return packCached(loaded.value);
-        },
-        keyParts,
-        // 裏の全部読みの後に、この入れ物だけを捨てられるようにする（「変わった」印は動かさない）
-        { revalidate: REPO_CACHE_SECONDS, tags: [fullReadTag(repo)] },
-      )(),
-    );
+    const packed = await unstable_cache(
+      async () => {
+        loaded.value = await load();
+        return packCached(loaded.value);
+      },
+      keyParts,
+      // 裏の全部読みの後に、この入れ物だけを捨てられるようにする（「変わった」印は動かさない）
+      { revalidate: REPO_CACHE_SECONDS, tags: [fullReadTag(repo)] },
+    )();
+    // 変わっていないリポジトリは、作り直しのたびに展開し直さず、前に展開した物を使い回す（同じ中身のときだけ）
+    const result = loaded.value ?? unpackMemoized(unpackedRepoData, keyParts.join("|"), packed, unpackCached<RepoData>);
     // 差分の元を、5分より長く覚える（`unstable_cache` の中では覚えられないので、外で）
     if (loaded.value) await writeStoredDeltaBase(repo, loaded.value).catch(() => undefined);
     return result;
