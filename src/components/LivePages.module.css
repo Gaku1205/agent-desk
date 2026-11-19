@@ -1,0 +1,17 @@
+/* 古い結果を出している間の1行（レイアウトを動かさないよう、画面の下に固定する） */
+.staleNote {
+  position: fixed;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  z-index: 5;
+  margin: 0;
+  padding: 4px 12px;
+  max-width: calc(100vw - 24px);
+  color: var(--mute);
+  font-size: 13px;
+  background: var(--bg);
+  border: 1px solid var(--mute);
+  border-radius: 999px;
+  pointer-events: none;
+}

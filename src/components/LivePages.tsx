@@ -7,6 +7,8 @@ import { Desk, type DeskNav } from "./Desk";
 import { Lanes } from "./Lanes";
 import { useNav } from "./NavContext";
 import { RepoList } from "./RepoList";
+import { formatStaleTime, shouldHoldPrevious } from "@/lib/staleSnapshot";
+import styles from "./LivePages.module.css";
 
 // 全部のリポジトリを使うページの入れ物（docs/spec.md の「全部のリポジトリを待つページ」）。
 // サーバーが先に返した段（覚えている最後の結果・読めた分）をすぐ描き、次の段が届くたびに、同じ部品の中身だけを入れ替える
@@ -16,11 +18,20 @@ import { RepoList } from "./RepoList";
  * 段の列の、いま届いている最後の段の中身。次の段が届いたら、トランジションで入れ替える。
  * サーバーが描き直して新しい列（`first`）を渡したら、その最初の段からやり直す
  */
-export function useSteps<T>(first: Step<T>): T {
+export function useSteps<T>(first: Step<T>, isFinal: (value: T) => boolean = () => false): T {
   const [reached, setReached] = useState<{ first: Step<T>; step: Step<T> }>({ first, step: first });
-  const step = reached.first === first ? reached.step : first;
+  // 一度出した中身は、新しい列（自動の取り直し）の最後の段がそろうまで消さない。
+  // 新しい列の最初の段は、覚えていた古い結果や一部のリポジトリだけのことがあり、描くと席・行が減って見えてチカチカする
+  const [shown, setShown] = useState<{ first: Step<T>; value: T }>({ first, value: first.value });
+  const current = reached.first === first ? reached.step : first;
+  const holdPrevious = shouldHoldPrevious(shown.first, first, current.value, isFinal);
+  const value = holdPrevious ? shown.value : current.value;
+  if (!holdPrevious && (shown.first !== first || shown.value !== current.value)) {
+    // 描画の中で、出す中身を覚え直す（React の「前の値と比べて state を直す」書き方）
+    setShown({ first, value: current.value });
+  }
   useEffect(() => {
-    const next = step.next;
+    const next = current.next;
     if (!next) return;
     let alive = true;
     next.then(
@@ -33,12 +44,26 @@ export function useSteps<T>(first: Step<T>): T {
     return () => {
       alive = false;
     };
-  }, [first, step]);
-  return step.value;
+  }, [first, current]);
+  return value;
 }
 
-/** ページの中身と、全部のリポジトリの新しい結果がそろった最後の段か */
-export type LiveValue<P> = { props: P; complete: boolean };
+/** ページの中身と、全部のリポジトリの新しい結果がそろった最後の段か。`staleAt` は、覚えている古い結果を出しているときの、その内容の時刻（ISO） */
+export type LiveValue<P> = { props: P; complete: boolean; staleAt?: string | null };
+
+const isComplete = (value: { complete: boolean }): boolean => value.complete;
+
+/** 古い結果を出している間の1行（`HH:MM 時点の内容です。新しい内容を読んでいます…`。日本時間） */
+function StaleNote({ staleAt, complete }: { staleAt?: string | null; complete: boolean }) {
+  if (complete || !staleAt) return null;
+  const time = formatStaleTime(staleAt);
+  if (!time) return null;
+  return (
+    <p className={styles.staleNote} role="status">
+      {time} 時点の内容です。新しい内容を読んでいます…
+    </p>
+  );
+}
 
 /**
  * 左のバーの件数：全部がそろう前の段では、ページが数えた件数（読めた分だけ）ではなく、
@@ -58,24 +83,47 @@ function useLiveNav(nav: DeskNav, complete: boolean): DeskNav {
 
 /** ホーム */
 export function DeskLive({ first }: { first: Step<LiveValue<ComponentProps<typeof Desk>>> }) {
-  const { props } = useSteps(first);
-  return <Desk {...props} />;
+  const { props, complete, staleAt } = useSteps(first, isComplete);
+  return (
+    <>
+      <Desk {...props} />
+      <StaleNote staleAt={staleAt} complete={complete} />
+    </>
+  );
 }
 
 /** Slots & Queue */
 export function LanesLive({ first }: { first: Step<LiveValue<ComponentProps<typeof Lanes>>> }) {
-  const { props, complete } = useSteps(first);
-  return <Lanes {...props} nav={useLiveNav(props.nav, complete)} />;
+  const { props, complete, staleAt } = useSteps(first, isComplete);
+  const nav = useLiveNav(props.nav, complete);
+  return (
+    <>
+      <Lanes {...props} nav={nav} />
+      <StaleNote staleAt={staleAt} complete={complete} />
+    </>
+  );
 }
 
 /** Dashboard */
 export function DashboardLive({ first }: { first: Step<LiveValue<ComponentProps<typeof Dashboard>>> }) {
-  const { props, complete } = useSteps(first);
-  return <Dashboard {...props} nav={useLiveNav(props.nav, complete)} />;
+  const { props, complete, staleAt } = useSteps(first, isComplete);
+  const nav = useLiveNav(props.nav, complete);
+  return (
+    <>
+      <Dashboard {...props} nav={nav} />
+      <StaleNote staleAt={staleAt} complete={complete} />
+    </>
+  );
 }
 
 /** すべてのリポジトリ */
 export function RepoListLive({ first }: { first: Step<LiveValue<ComponentProps<typeof RepoList>>> }) {
-  const { props, complete } = useSteps(first);
-  return <RepoList {...props} nav={useLiveNav(props.nav, complete)} />;
+  const { props, complete, staleAt } = useSteps(first, isComplete);
+  const nav = useLiveNav(props.nav, complete);
+  return (
+    <>
+      <RepoList {...props} nav={nav} />
+      <StaleNote staleAt={staleAt} complete={complete} />
+    </>
+  );
 }
