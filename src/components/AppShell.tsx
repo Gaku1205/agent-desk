@@ -17,6 +17,8 @@ import { callAction } from "@/lib/actionCall";
 import { requestedAtAfterSync, SYNC_WAIT_LIMIT_MS, syncAfterPlan } from "@/lib/syncWait";
 import {
   changesPollIntervalMs,
+  mayRefreshForChange,
+  mergeUrgentMarks,
   parseChangeMarks,
   shouldRequestRefresh,
   startChangeWatch,
@@ -30,6 +32,8 @@ import {
   startResumeRefresh,
   type PausedBy,
 } from "@/lib/refresh";
+import { startIdleWatch } from "@/lib/idleWatch";
+import { IdleBand } from "./IdleBand";
 import { KeyboardHelp } from "./KeyboardHelp";
 
 export type ShellState = {
@@ -184,7 +188,11 @@ async function loadChangeMarks(repos: string[]): Promise<ChangeMarksResult> {
   const response = await fetch(`/api/changes?${query}`, { cache: "no-store" });
   if (response.status === 404) return "unavailable";
   if (!response.ok) return null;
-  return parseChangeMarks(await response.json());
+  const body: unknown = await response.json();
+  const changes = parseChangeMarks(body);
+  if (!changes) return null;
+  // 急ぎの印（Your turn に入りうる変化）も一緒に受け取る
+  return mergeUrgentMarks(changes, (body as { urgent?: unknown }).urgent);
 }
 
 /** 自動更新・更新ボタン・スマホのメニューの開閉を、画面全体で共有する */
@@ -233,6 +241,8 @@ export function AppShell({
   const [refreshCount, setRefreshCount] = useState({ pathname, count: 0 });
   // `/api/changes` が 404 だった（Webhook を使わない設定）。今までどおりの間隔に戻す
   const [changesUnavailable, setChangesUnavailable] = useState(false);
+  // 30分以上操作が無いタブ（自動の取り直しを止めて、「最新にする」の帯を出す）
+  const [idle, setIdle] = useState(false);
   // 取り直しのたびに配列は新しくなるので、中身が同じなら見張りを続ける
   const changeReposKey = changeRepos.join(",");
   const watching = changeReposKey !== "" && !changesUnavailable;
@@ -300,6 +310,8 @@ export function AppShell({
   }
 
   useEffect(() => {
+    // 操作が無いタブは、自動では取り直さない（「最新にする」の帯を押すまで）
+    if (idle) return;
     if (intervalMs === null) {
       // 回数制限で止めている間は、再開する時刻に1回だけ取り直す
       if (resumeAt === null) return;
@@ -310,18 +322,18 @@ export function AppShell({
       });
     }
     return startAutoRefresh({ refresh: autoRefresh, source: document, intervalMs });
-  }, [autoRefresh, intervalMs, resumeAt]);
+  }, [autoRefresh, intervalMs, resumeAt, idle]);
 
   // 猶予が終わる時刻の直後に1回だけ取り直す（猶予の終わりは Webhook が来ない）。
   // 取り直したあとに新しい時刻が渡されたら、また同じようにする
   useEffect(() => {
-    if (graceRefreshAt === null) return;
+    if (graceRefreshAt === null || idle) return;
     return startResumeRefresh({
       refresh: autoRefresh,
       source: document,
       resumeAt: new Date(graceRefreshAt),
     });
-  }, [autoRefresh, graceRefreshAt]);
+  }, [autoRefresh, graceRefreshAt, idle]);
 
   // 見張りが使うリポジトリと反映済みの印は、取り直しのたびに新しくなる。見張りを作り直さずに最新の物を読めるよう ref で持つ
   const changeReposRef = useRef(changeReposKey);
@@ -333,16 +345,33 @@ export function AppShell({
 
   // 見えている間、5秒ごと（AIの番の作業がある間は2.5秒ごと）に「変わった」印を見て、反映済みより新しいリポジトリがあるときだけ取り直す。
   // 止めている間は見ない。作り直すのは見るかどうか・見に行く間隔が変わるときだけ（反映済みの印が新しくなっても作り直さない）
-  const watchActive = watching && refreshIntervalMs !== null;
+  const watchActive = watching && refreshIntervalMs !== null && !idle;
   // 印を見て頼んだ取り直しの結果（新しい計画）が届くまでは、重ねて頼まない
   const watchRefreshAtRef = useRef<number | null>(null);
   useEffect(() => {
     watchRefreshAtRef.current = null;
   }, [plan.loadedAt]);
-  const watchRefresh = useCallback(() => {
-    const now = Date.now();
-    if (!shouldRequestRefresh({ requestedAt: watchRefreshAtRef.current, now })) return;
-    watchRefreshAtRef.current = now;
+  // 変化による作り直しは60秒に1回まで（Your turn に入る急ぎの変化は除く）
+  const lastChangeRefreshRef = useRef<number | null>(null);
+  const watchRefresh = useCallback(
+    (urgent: boolean) => {
+      const now = Date.now();
+      if (!shouldRequestRefresh({ requestedAt: watchRefreshAtRef.current, now })) return;
+      if (!mayRefreshForChange({ lastAt: lastChangeRefreshRef.current, now, urgent })) return;
+      watchRefreshAtRef.current = now;
+      lastChangeRefreshRef.current = now;
+      autoRefresh();
+    },
+    [autoRefresh],
+  );
+  // 30分以上操作が無いタブは、作り直しを止めて「最新にする」の帯を出す（押すと1回作り直して再開する）
+  useEffect(() => {
+    if (idle) return;
+    return startIdleWatch({ source: window, onIdle: () => setIdle(true) });
+  }, [idle]);
+  const refreshFromIdle = useCallback(() => {
+    setIdle(false);
+    lastChangeRefreshRef.current = Date.now();
     autoRefresh();
   }, [autoRefresh]);
   const pollMs = changesPollIntervalMs(isFastRefresh(refreshIntervalMs));
@@ -398,6 +427,7 @@ export function AppShell({
     <ShellContext.Provider value={value}>
       <SetPlanContext.Provider value={setPlan}>
         {children}
+        {idle ? <IdleBand onRefresh={refreshFromIdle} /> : null}
         <KeyboardHelp />
       </SetPlanContext.Provider>
     </ShellContext.Provider>

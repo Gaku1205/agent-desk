@@ -5,6 +5,16 @@ import type { RepoData } from "@/lib/github/types";
 // Next.js のキャッシュの代わり：キーごとに覚え、タグを無効にしたら捨てる
 const store = vi.hoisted(() => ({
   entries: new Map<string, { value: unknown; tags: string[] }>(),
+  /** 無効にしたタグの回数 */
+  revalidated: [] as string[],
+  /** 返事の後に動かす物（`after`。テストでは動かさず、数だけ見る） */
+  afterTasks: [] as unknown[],
+}));
+
+vi.mock("next/server", () => ({
+  after: (task: unknown) => {
+    store.afterTasks.push(task);
+  },
 }));
 
 vi.mock("next/cache", () => ({
@@ -19,6 +29,7 @@ vi.mock("next/cache", () => ({
       return value;
     },
   revalidateTag: (tag: string) => {
+    store.revalidated.push(tag);
     for (const [key, entry] of store.entries) {
       if (entry.tags.includes(tag)) store.entries.delete(key);
     }
@@ -60,6 +71,8 @@ function emptyData(label: string): RepoData {
 describe("POST /api/github/webhook", () => {
   beforeEach(() => {
     store.entries.clear();
+    store.revalidated.length = 0;
+    store.afterTasks.length = 0;
     vi.stubEnv("GITHUB_WEBHOOK_SECRET", SECRET);
     vi.stubEnv("WATCHED_REPOS", "owner/repo");
     vi.stubEnv("SETTINGS_REPO", "");
@@ -69,7 +82,7 @@ describe("POST /api/github/webhook", () => {
   it("正しい署名なら、そのリポジトリのタグが無効になり、次の表示で取り直される", async () => {
     let calls = 0;
     const load = async () => emptyData(`v${++calls}`);
-    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout"] });
     vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
     try {
       expect((await cachedRepoData(REPO, load)).data.mainDeployedAt).toBe("v1");
@@ -91,9 +104,35 @@ describe("POST /api/github/webhook", () => {
       expect((await POST(webhookRequest(BODY))).status).toBe(202);
       expect(await getChangeMark(REPO)).toBe(markAfter);
       expect((await cachedRepoData(REPO, load)).data.mainDeployedAt).toBe("v2");
+      // 30秒の区切りでまとめた分は、次の区切りの頭で1回だけ無効になる（返事の後の予約を動かす）
+      expect(store.afterTasks).toHaveLength(1);
+      const flush = (store.afterTasks[0] as () => Promise<void>)();
+      await vi.advanceTimersByTimeAsync(30_000);
+      await flush;
+      expect(store.revalidated.filter((tag) => tag.startsWith("repo:"))).toHaveLength(2);
       vi.setSystemTime(new Date("2026-01-01T00:01:00Z"));
       expect(await getChangeMark(REPO)).not.toBe(markAfter);
       expect((await cachedRepoData(REPO, load)).data.mainDeployedAt).toBe("v3");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("同じリポジトリの急ぎでない知らせが30秒に何回来ても、無効にするのは1回（残りは次の区切りにまとめる）", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+    try {
+      for (let i = 0; i < 12; i += 1) {
+        vi.setSystemTime(Date.now() + 2_000);
+        expect((await POST(webhookRequest(BODY))).status).toBe(202);
+      }
+      expect(store.revalidated.filter((tag) => tag.startsWith("repo:"))).toHaveLength(1);
+      expect(store.afterTasks).toHaveLength(1);
+      // 急ぎの知らせは、同じ区切りの中でも遅れない
+      const labeled = JSON.stringify({ action: "labeled", repository: { full_name: "Owner/Repo" } });
+      await POST(webhookRequest(labeled, { event: "issues" }));
+      expect(store.revalidated.filter((tag) => tag.startsWith("urgent:"))).toHaveLength(1);
+      expect(store.revalidated.filter((tag) => tag.startsWith("repo:"))).toHaveLength(2);
     } finally {
       vi.useRealTimers();
     }

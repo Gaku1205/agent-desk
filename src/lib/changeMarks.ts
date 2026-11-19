@@ -2,14 +2,61 @@ import type { WatchedRepo } from "./config";
 
 // 画面が見る「変わった」印（docs/spec.md の「更新」）。ブラウザでも使うので、サーバーだけの物は import しない
 
-/** 画面が「変わった」印を見に行く間隔 */
-export const CHANGES_POLL_INTERVAL_MS = 5_000;
-/** AIの番の作業がある間の、印を見に行く間隔（動いている間は早く出す。GitHub には問い合わせない） */
-export const CHANGES_POLL_BUSY_INTERVAL_MS = 2_500;
+/** 画面が「変わった」印を見に行く間隔（サーバーの CPU を使い切らないため15秒。動いている物があるときも同じ） */
+export const CHANGES_POLL_INTERVAL_MS = 15_000;
+/** AIの番の作業がある間の、印を見に行く間隔（動いている間も15秒） */
+export const CHANGES_POLL_BUSY_INTERVAL_MS = 15_000;
 
-/** 印を見に行く間隔：AIの番の作業がある間（速い更新の間）は2.5秒、無ければ5秒 */
+/** 印を見に行く間隔：動いている物があってもなくても15秒 */
 export function changesPollIntervalMs(busy: boolean): number {
   return busy ? CHANGES_POLL_BUSY_INTERVAL_MS : CHANGES_POLL_INTERVAL_MS;
+}
+
+/** 変化による作り直しの最短の間隔（Your turn に入る急ぎの変化は除く） */
+export const CHANGE_REFRESH_MIN_INTERVAL_MS = 60_000;
+
+/** 急ぎの印を、画面の中で通常の印と同じ入れ物に入れるときのキーの頭（`/api/changes` の返事の `urgent`） */
+export const URGENT_MARK_PREFIX = "!urgent:";
+
+/** `/api/changes` の返事の `urgent`（リポジトリごとの「最後に急ぎの知らせが来た時刻」）を、印の入れ物に混ぜる */
+export function mergeUrgentMarks(changes: ChangeMarks, urgent: unknown): ChangeMarks {
+  if (typeof urgent !== "object" || urgent === null || Array.isArray(urgent)) return changes;
+  const merged: ChangeMarks = { ...changes };
+  for (const [key, at] of Object.entries(urgent)) {
+    if (typeof at === "string") merged[`${URGENT_MARK_PREFIX}${key}`] = at;
+  }
+  return merged;
+}
+
+/** 印のうち、急ぎの印を除いた物 */
+function plainMarks(marks: ChangeMarks): [string, string][] {
+  return Object.entries(marks).filter(([key]) => !key.startsWith(URGENT_MARK_PREFIX));
+}
+
+/**
+ * 取り直す変化に、急ぎの知らせ（Your turn に入りうる物）が含まれるか：
+ * 印が反映済みより新しいリポジトリで、急ぎの知らせの時刻も反映済みの印より新しい
+ */
+export function hasUrgentChange(applied: ChangeMarks, marks: ChangeMarks): boolean {
+  return plainMarks(marks).some(([key, at]) => {
+    const urgentAt = marks[`${URGENT_MARK_PREFIX}${key}`];
+    if (urgentAt === undefined) return false;
+    const appliedAt = applied[key];
+    if (appliedAt === undefined || !isBehindChangeMarks({ [key]: appliedAt }, { [key]: at })) return false;
+    const appliedMs = Date.parse(appliedAt);
+    const urgentMs = Date.parse(urgentAt);
+    return !Number.isNaN(urgentMs) && urgentMs > appliedMs;
+  });
+}
+
+/**
+ * 変化による作り直しを、今してよいか。急ぎの変化はいつでもよい。そうでなければ、前の作り直しから60秒たっているとき
+ * （前の時刻が時計より先なら、時計が戻ったとみなしてよい）
+ */
+export function mayRefreshForChange(input: { lastAt: number | null; now: number; urgent: boolean }): boolean {
+  const { lastAt, now, urgent } = input;
+  if (urgent || lastAt === null || now < lastAt) return true;
+  return now - lastAt >= CHANGE_REFRESH_MIN_INTERVAL_MS;
 }
 
 /** 監視リポジトリごとの「最後に変わった時刻」（キーは `owner/repo` の小文字、値は ISO 文字列） */
@@ -38,7 +85,7 @@ export function parseChangeMarks(value: unknown): ChangeMarks | null {
  * 反映済みの印が無い・読めないリポジトリは比べない（取り直し続けないため）
  */
 export function isBehindChangeMarks(applied: ChangeMarks, marks: ChangeMarks): boolean {
-  return Object.entries(marks).some(([key, at]) => {
+  return plainMarks(marks).some(([key, at]) => {
     const appliedAt = applied[key];
     if (appliedAt === undefined) return false;
     const markMs = Date.parse(at);
@@ -84,7 +131,8 @@ export type ChangesVisibilitySource = {
 export function startChangeWatch(options: {
   load: () => Promise<ChangeMarksResult>;
   getApplied: () => ChangeMarks;
-  refresh: () => void;
+  /** 取り直しを頼む。急ぎの変化（Your turn に入りうる）かどうかを渡す */
+  refresh: (urgent: boolean) => void;
   onUnavailable: () => void;
   source: ChangesVisibilitySource;
   intervalMs?: number;
@@ -95,7 +143,8 @@ export function startChangeWatch(options: {
   let loading = false;
 
   const check = async () => {
-    if (loading) return;
+    // 隠れているタブでは聞かない
+    if (loading || source.hidden) return;
     loading = true;
     let result: ChangeMarksResult;
     try {
@@ -105,14 +154,16 @@ export function startChangeWatch(options: {
     } finally {
       loading = false;
     }
-    if (stopped) return;
+    // 返事を待つ間に隠れたなら、作り直さない（見えるようになったら1回聞く）
+    if (stopped || source.hidden) return;
     if (result === "unavailable") {
       dispose();
       onUnavailable();
       return;
     }
     if (result === null) return;
-    if (isBehindChangeMarks(getApplied(), result)) refresh();
+    const applied = getApplied();
+    if (isBehindChangeMarks(applied, result)) refresh(hasUrgentChange(applied, result));
   };
   const stopTimer = () => {
     if (timer === null) return;

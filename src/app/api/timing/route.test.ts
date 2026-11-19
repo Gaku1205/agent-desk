@@ -61,6 +61,7 @@ describe("GET /api/timing", () => {
       "marks",
       "first-repo",
       "repos",
+      "build",
       "slowest-repo",
       "gh-graphql",
       "gh-rest",

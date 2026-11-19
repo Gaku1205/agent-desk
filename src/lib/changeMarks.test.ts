@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  CHANGE_REFRESH_MIN_INTERVAL_MS,
   CHANGE_REFRESH_WAIT_MS,
   CHANGES_POLL_BUSY_INTERVAL_MS,
   CHANGES_POLL_INTERVAL_MS,
   changesPollIntervalMs,
+  hasUrgentChange,
   isBehindChangeMarks,
+  mayRefreshForChange,
+  mergeUrgentMarks,
   parseChangeMarks,
   repoChangeKey,
   shouldRequestRefresh,
@@ -175,10 +179,87 @@ describe("startChangeWatch", () => {
 });
 
 describe("changesPollIntervalMs", () => {
-  it("AIの番の作業がある間は2.5秒、無ければ5秒", () => {
-    expect(changesPollIntervalMs(true)).toBe(CHANGES_POLL_BUSY_INTERVAL_MS);
-    expect(changesPollIntervalMs(false)).toBe(CHANGES_POLL_INTERVAL_MS);
-    expect(CHANGES_POLL_BUSY_INTERVAL_MS).toBe(2500);
+  it("動いている物があるときも、無いときも15秒", () => {
+    expect(changesPollIntervalMs(true)).toBe(15_000);
+    expect(changesPollIntervalMs(false)).toBe(15_000);
+    expect(CHANGES_POLL_BUSY_INTERVAL_MS).toBe(15_000);
+    expect(CHANGES_POLL_INTERVAL_MS).toBe(15_000);
+  });
+});
+
+describe("隠れているタブ", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("最初から隠れていれば聞かず、見えるようになったら1回だけ聞く", async () => {
+    const load = vi.fn(async (): Promise<ChangeMarksResult> => ({ "o/r": T1 }));
+    const source = new FakeDocument();
+    source.hidden = true;
+    const stop = startChangeWatch({ load, getApplied: () => ({}), refresh: vi.fn(), onUnavailable: vi.fn(), source });
+    await vi.advanceTimersByTimeAsync(CHANGES_POLL_INTERVAL_MS * 4);
+    expect(load).not.toHaveBeenCalled();
+    source.setHidden(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(load).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it("返事を待つ間に隠れたら、作り直さない", async () => {
+    const source = new FakeDocument();
+    const refresh = vi.fn();
+    const load = vi.fn(async (): Promise<ChangeMarksResult> => {
+      source.setHidden(true);
+      return { "o/r": T2 };
+    });
+    const stop = startChangeWatch({
+      load,
+      getApplied: () => ({ "o/r": T1 }),
+      refresh,
+      onUnavailable: vi.fn(),
+      source,
+    });
+    await vi.advanceTimersByTimeAsync(CHANGES_POLL_INTERVAL_MS * 3);
+    expect(refresh).not.toHaveBeenCalled();
+    stop();
+  });
+});
+
+describe("急ぎの印・作り直しの間隔", () => {
+  it("反映済みより新しい印で、急ぎの時刻も反映済みより新しいときだけ急ぎ", () => {
+    const applied = { "o/r": T1 };
+    expect(hasUrgentChange(applied, mergeUrgentMarks({ "o/r": T2 }, { "o/r": T2 }))).toBe(true);
+    expect(hasUrgentChange(applied, mergeUrgentMarks({ "o/r": T2 }, { "o/r": T1 }))).toBe(false);
+    expect(hasUrgentChange(applied, mergeUrgentMarks({ "o/r": T1 }, { "o/r": T2 }))).toBe(false);
+    expect(hasUrgentChange(applied, { "o/r": T2 })).toBe(false);
+  });
+
+  it("急ぎの印は、取り直すかどうかの判定には混ざらない", () => {
+    expect(isBehindChangeMarks({ "o/r": T2 }, mergeUrgentMarks({ "o/r": T1 }, { "o/r": T2 }))).toBe(false);
+  });
+
+  it("変化による作り直しは、60秒に1回まで。急ぎは除く", () => {
+    expect(mayRefreshForChange({ lastAt: null, now: 1_000, urgent: false })).toBe(true);
+    expect(mayRefreshForChange({ lastAt: 1_000, now: 30_000, urgent: false })).toBe(false);
+    expect(mayRefreshForChange({ lastAt: 1_000, now: 30_000, urgent: true })).toBe(true);
+    expect(mayRefreshForChange({ lastAt: 1_000, now: 1_000 + CHANGE_REFRESH_MIN_INTERVAL_MS, urgent: false })).toBe(
+      true,
+    );
+  });
+
+  it("見張りは急ぎかどうかを渡して取り直しを頼む", async () => {
+    vi.useFakeTimers();
+    const refresh = vi.fn();
+    const stop = startChangeWatch({
+      load: async () => mergeUrgentMarks({ "o/r": T2 }, { "o/r": T2 }),
+      getApplied: () => ({ "o/r": T1 }),
+      refresh,
+      onUnavailable: vi.fn(),
+      source: new FakeDocument(),
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(refresh).toHaveBeenCalledWith(true);
+    stop();
+    vi.useRealTimers();
   });
 });
 
