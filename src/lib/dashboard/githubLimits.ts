@@ -94,10 +94,10 @@ export function limitsSummary(
 ): string {
   const hours = observedHours(pipeline, reads);
   if (hours === 0) {
-    return "使った量の履歴がまだありません。サーバーが GitHub を読むたびにたまります。";
+    return "使った量の履歴はまだありません";
   }
   // 記録が24時間に満たないときは、何時間分を見たかを言う（記録の無い時間を「超えていない」と言い切らない）
-  const seen = hours < starts.length ? `記録があるのは直近 ${hours} 時間分だけです。` : "";
+  const seen = hours < starts.length ? `記録は直近 ${hours} 時間分。` : "";
   const parts: string[] = [];
   const over = (name: string, series: (number | null)[]) => {
     const slots = exceededSlots(series);
@@ -106,8 +106,8 @@ export function limitsSummary(
   over("Pipeline", pipeline);
   over("agent-desk reads", reads);
   const limit = RATE_LIMIT.toLocaleString("en-US");
-  if (parts.length === 0) return `${seen ? `${seen}その間、` : "この24時間、"}上限 ${limit} を超えた時間帯はありません。`;
-  return `${seen}上限 ${limit} を超えた時間帯があります：${parts.join("、")}。`;
+  if (parts.length === 0) return `${seen}上限 ${limit} 超えの時間帯：なし`;
+  return `${seen}上限 ${limit} 超えの時間帯：${parts.join("、")}`;
 }
 
 /** 記録のある最初の枠から「今」の枠までの枠の数。記録が全く無ければ 0 */

@@ -109,12 +109,12 @@ describe("limitsSummary", () => {
   const none = Array<number | null>(24).fill(null);
 
   it("履歴が無ければその旨", () => {
-    expect(limitsSummary(starts, none, none)).toContain("履歴がまだありません");
+    expect(limitsSummary(starts, none, none)).toContain("履歴はまだありません");
   });
 
   it("超えた時間帯が無ければそう書く", () => {
     const series = Array<number | null>(24).fill(300);
-    expect(limitsSummary(starts, series, none)).toBe("この24時間、上限 5,000 を超えた時間帯はありません。");
+    expect(limitsSummary(starts, series, none)).toBe("上限 5,000 超えの時間帯：なし");
   });
 
   it("超えた時間帯を書く", () => {
@@ -122,7 +122,7 @@ describe("limitsSummary", () => {
     series[23] = 5200;
     series[22] = 5100;
     expect(limitsSummary(starts, series, none)).toBe(
-      "上限 5,000 を超えた時間帯があります：Pipeline 10時台・11時台。",
+      "上限 5,000 超えの時間帯：Pipeline 10時台・11時台",
     );
   });
 });
