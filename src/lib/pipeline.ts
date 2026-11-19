@@ -81,7 +81,7 @@ export function buildPipelineRows(data: RepoData, now: Date, repo = ""): Pipelin
     return {
       issue: { number: issue.number, title: issue.title, url: issue.url, state: issue.state },
       status,
-      description: queuePosition === null ? describeStatus(status).short : `順番待ち ${queuePosition}番目`,
+      description: queuePosition === null ? describeStatus(status).short : `順番待ち ⧗ ${queuePosition}`,
       progress: getProgress(status),
       queuePosition,
       queueReason: queuePosition === null ? null : queueReasonText(getQueueReason(issue.number, data.comments), repo),
