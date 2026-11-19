@@ -1,6 +1,7 @@
 import { LanesLive } from "@/components/LivePages";
 import { getSignedInLogin } from "@/lib/auth";
 import { buildLanesSource } from "@/lib/lanes/source";
+import { lanesReadMode } from "@/lib/lanes/readMode";
 import { buildUsageSource } from "@/lib/lanes/usage";
 import { loadTurnSteps } from "@/lib/loadTurnSteps";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
@@ -16,9 +17,11 @@ export const metadata = { title: "Slots & Queue" };
  */
 export default async function LanesPage() {
   const login = (await getSignedInLogin()) ?? undefined;
-  const first = await loadTurnSteps(({ results, items, now, repos, complete, errors }) => ({
+  const first = await loadTurnSteps(({ results, items, now, repos, complete, errors, canSayEmpty, sync }) => ({
     complete,
     props: {
+      // 読めなかったときの出し方（全部読めなかったときは数を `–` に、一部のときは「空」の文を出さない）
+      readMode: lanesReadMode({ canSayEmpty: canSayEmpty ?? true, sync: sync ?? "ok", results }),
       source: buildLanesSource(results, now),
       usage: buildUsageSource(results, now),
       items,
