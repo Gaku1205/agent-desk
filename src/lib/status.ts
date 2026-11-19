@@ -1,3 +1,4 @@
+import { countCiChecks } from "./ciProgress";
 import { FIX_MAX } from "./flowBranch";
 import { isFactoryIssue } from "./factoryIssue";
 import { isFactoryAnswered } from "./factoryTalk";
@@ -64,8 +65,11 @@ export type IssueStatus = {
   retry: RetryRecord | null;
   /** 紐づくPR（無ければ null） */
   pull: PullData | null;
-  /** CIのチェック（Claude Reviewを除く）の通過数と全数 */
-  ci: { passed: number; total: number };
+  /**
+   * CIのチェック（Claude Reviewを除く）の通過数と全数。
+   * 内訳（実行中・枠待ち・失敗の件数。`src/lib/ciProgress.ts`）は、判定で作った物には必ず入る
+   */
+  ci: { passed: number; total: number; running?: number; queued?: number; failed?: number };
   /** マージ待ちのときだけ */
   mergeWait: MergeWait | null;
   /** 実装AIがエラーで止まった（PR作成待ちのとき） */
@@ -664,6 +668,7 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
   const pull = findLinkedPull(input.pulls, issue.number);
   const checks = pull ? (input.pullChecks[pull.number] ?? { checkRuns: [], statuses: [] }) : null;
   const ci = checks ? ciState(checks.checkRuns) : { state: "running" as const, passed: 0, total: 0 };
+  const breakdown = countCiChecks((checks?.checkRuns ?? []).filter((check) => !isClaudeReviewCheck(check)));
   const fixes = pull ? fixCount(input.comments, pull) : 0;
   const pushedFix = pull ? hasPushedFix(input.comments, pull) : false;
   const result = (
@@ -673,7 +678,13 @@ function baseStatus(issue: IssueData, input: StatusInput, now: Date): BaseStatus
     stage,
     turn: TURN_BY_STAGE[stage],
     pull,
-    ci: { passed: ci.passed, total: ci.total },
+    ci: {
+      passed: ci.passed,
+      total: ci.total,
+      running: breakdown.running,
+      queued: breakdown.queued,
+      failed: breakdown.failed,
+    },
     mergeWait: null,
     implementError: false,
     deployUnknown: false,
