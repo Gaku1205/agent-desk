@@ -23,8 +23,9 @@ import { judgePipelineState, type PipelineProbe, type PipelineState } from "../p
 import type { WatchdogLastRun } from "../watchdogState";
 import { cachedRepoData, cachedUserCanRead, snapshotRepoData, type AppRepoData } from "./repoCache";
 import { PIPELINE_WORKFLOW_PATH } from "./settings";
-import type { CommitStatusData, RepoData, RepoResult, RepoSyncInfo, RunStepData, WorkflowRunData } from "./types";
+import type { CommitStatusData, RepoData, RepoResult, RepoSyncInfo, RunJobsData, RunStepData, WorkflowRunData } from "./types";
 import { currentStepFromJobs, stepProbeRunIds } from "../aiActivity";
+import { countInProgressJobs, isSleepingRun } from "../lanes/sleeping";
 
 const WINDOW_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -66,8 +67,13 @@ export async function fetchRepoData(
     sync: read.sync,
   };
   rememberDeltaBase(baseKey, data);
-  const runSteps = await fetchRunSteps(client, base, stepProbeRunIds(data));
-  return runSteps.length > 0 ? { ...data, runSteps } : data;
+  const { runSteps, runJobs } = await fetchRunJobs(client, base, data);
+  if (runSteps.length === 0 && runJobs.length === 0) return data;
+  return {
+    ...data,
+    ...(runSteps.length > 0 ? { runSteps } : {}),
+    ...(runJobs.length > 0 ? { runJobs } : {}),
+  };
 }
 
 /** 差分の読みの元（前に読んだ結果）を覚えておく件数の上限（超えたら古い物から捨てる） */
@@ -235,21 +241,39 @@ async function fetchDeltaNodes(
 }
 
 /**
- * 動いている実行の今のステップ名（「AIが今していること」。作業中のコメントが無い物だけ）。
+ * 動いている実行のジョブ（`actions/runs/{run_id}/jobs`）を読み、2つを取る：
+ * 今のステップ名（「AIが今していること」。`stepProbeRunIds` の実行だけ）と、動いているジョブの数
+ * （寝ている目覚ましを除く、実行中の実行すべて。Slots & Queue の `Actions jobs`）。同じ実行は1回だけ読む。
  * ETag つきで取る（変わっていなければ回数制限に数えられない）。取れなかった物は捨てる（ほかは落とさない）
  */
-async function fetchRunSteps(client: GitHubClient, base: string, runIds: number[]): Promise<RunStepData[]> {
-  const steps = await Promise.all(
-    runIds.map(async (runId) => {
+async function fetchRunJobs(
+  client: GitHubClient,
+  base: string,
+  data: RepoData,
+): Promise<{ runSteps: RunStepData[]; runJobs: RunJobsData[] }> {
+  const probe = new Set(stepProbeRunIds(data));
+  const ids = new Set(probe);
+  for (const run of data.runs ?? []) {
+    if (run.status === "in_progress" && typeof run.id === "number" && !isSleepingRun(run)) ids.add(run.id);
+  }
+  const read = await Promise.all(
+    [...ids].map(async (runId) => {
       try {
-        const raw = await client.get<unknown>(`${base}/actions/runs/${runId}/jobs?filter=latest&per_page=30`);
-        return currentStepFromJobs(runId, raw);
+        const raw = await client.get<unknown>(`${base}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
+        const inProgress = countInProgressJobs(raw);
+        return {
+          step: probe.has(runId) ? currentStepFromJobs(runId, raw) : null,
+          jobs: inProgress === null ? null : { runId, inProgress },
+        };
       } catch {
-        return null;
+        return { step: null, jobs: null };
       }
     }),
   );
-  return steps.filter((step): step is RunStepData => step !== null);
+  return {
+    runSteps: read.map((item) => item.step).filter((step): step is RunStepData => step !== null),
+    runJobs: read.map((item) => item.jobs).filter((jobs): jobs is RunJobsData => jobs !== null),
+  };
 }
 
 /**

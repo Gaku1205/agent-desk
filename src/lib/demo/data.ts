@@ -8,8 +8,10 @@ import type {
   PullData,
   RepoData,
   RepoResult,
+  RunJobsData,
   WorkflowRunData,
 } from "../github/types";
+import { isSleepingRun } from "../lanes/sleeping";
 import { pickAutoAddRepos } from "../autoAdd";
 import { isRunningStage } from "../runningPipeline";
 import { getFlow } from "../flow";
@@ -842,9 +844,17 @@ export function buildDemoResults(base: Date, playback: DemoPlayback, withOlder =
   const landingData = applyDemoOps(landingPage(base, placer), playback.ops, landing.owner, landing.repo);
   const notesData = notesApi(base, placer);
   const results: RepoResult[] = [
-    { ...todo, ok: true, data: { ...todoData, runs: [...demoRuns(todoData, base), ...demoOtherRuns(base)] } },
-    { ...landing, ok: true, data: { ...landingData, runs: demoRuns(landingData, base, DEMO_STALLED) } },
-    { ...notes, ok: true, data: { ...notesData, runs: demoRuns(notesData, base) } },
+    {
+      ...todo,
+      ok: true,
+      data: withDemoRuns(todoData, [...demoRuns(todoData, base), ...demoOtherRuns(base), ...demoRetryTimers(base, 0)]),
+    },
+    {
+      ...landing,
+      ok: true,
+      data: withDemoRuns(landingData, [...demoRuns(landingData, base, DEMO_STALLED), ...demoRetryTimers(base, 1)]),
+    },
+    { ...notes, ok: true, data: withDemoRuns(notesData, [...demoRuns(notesData, base), ...demoRetryTimers(base, 2)]) },
   ];
   addUsageHistory(results, base);
   return results;
@@ -1028,6 +1038,55 @@ function demoOtherRuns(base: Date): WorkflowRunData[] {
     name,
     startedAt: new Date(base.getTime() - startedMinutes * MINUTE_MS).toISOString(),
   }));
+}
+
+/**
+ * Slots & Queue の Sleeping の見本（Issue #584）：目覚まし（`Retry Timer`）。題名は本物と同じ `やり直しの目覚まし {unix 時刻（秒）}`。
+ * repoIndex のリポジトリに置く物だけを返す。起きるまでの分は、2件だけ45分より先（`Long`）
+ */
+const DEMO_RETRY_TIMERS: { repoIndex: number; wakeMinutes: number; startedMinutes: number }[] = [
+  { repoIndex: 0, wakeMinutes: 6, startedMinutes: 34 },
+  { repoIndex: 1, wakeMinutes: 9, startedMinutes: 51 },
+  { repoIndex: 2, wakeMinutes: 14, startedMinutes: 26 },
+  { repoIndex: 0, wakeMinutes: 18, startedMinutes: 42 },
+  { repoIndex: 1, wakeMinutes: 23, startedMinutes: 37 },
+  { repoIndex: 2, wakeMinutes: 27, startedMinutes: 15 },
+  { repoIndex: 0, wakeMinutes: 31, startedMinutes: 29 },
+  { repoIndex: 1, wakeMinutes: 38, startedMinutes: 22 },
+  { repoIndex: 2, wakeMinutes: 95, startedMinutes: 64 },
+  { repoIndex: 0, wakeMinutes: 160, startedMinutes: 118 },
+];
+
+function demoRetryTimers(base: Date, repoIndex: number): WorkflowRunData[] {
+  const updatedAt = new Date(base.getTime() - MINUTE_MS).toISOString();
+  return DEMO_RETRY_TIMERS.flatMap((timer, index) =>
+    timer.repoIndex !== repoIndex
+      ? []
+      : [
+          {
+            id: 920_001 + index,
+            status: "in_progress",
+            headBranch: "main",
+            displayTitle: `やり直しの目覚まし ${Math.floor((base.getTime() + timer.wakeMinutes * MINUTE_MS) / 1000)}`,
+            pullNumbers: [],
+            updatedAt,
+            name: "Retry Timer",
+            startedAt: new Date(base.getTime() - timer.startedMinutes * MINUTE_MS).toISOString(),
+          },
+        ],
+  );
+}
+
+/** デモの動いているジョブの数（Issue #584）：CI は1回で9ジョブ、ほかは1ジョブ（寝ている目覚ましは数えない） */
+function demoRunJobs(runs: readonly WorkflowRunData[]): RunJobsData[] {
+  return runs
+    .filter((run) => run.status === "in_progress" && typeof run.id === "number" && !isSleepingRun(run))
+    .map((run) => ({ runId: run.id!, inProgress: run.name === "CI" ? 9 : 1 }));
+}
+
+/** デモの1リポジトリの実行と、そのジョブの数を載せる */
+function withDemoRuns(data: RepoData, runs: WorkflowRunData[]): RepoData {
+  return { ...data, runs, runJobs: demoRunJobs(runs) };
 }
 
 /** デモの実行のワークフローの名前（段階ごと） */

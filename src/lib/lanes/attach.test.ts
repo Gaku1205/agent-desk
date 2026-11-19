@@ -32,6 +32,9 @@ function run(id: string, issueNumber: number | null, startedMs: number | null = 
     elapsedMs: null,
     logUrl: null,
     startedMs,
+    sleeping: false,
+    wakeAtMs: null,
+    jobs: null,
   };
 }
 

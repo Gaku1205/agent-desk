@@ -92,6 +92,9 @@ describe("assignSlots", () => {
       elapsedMs: null,
       logUrl: null,
       startedMs: 1,
+      sleeping: false,
+      wakeAtMs: null,
+      jobs: null,
     });
     const lanes = assignSlots({ works: [work(1), work(2)], queue: [], runs: [run("a", 1), run("b", null), run("c", 7)], paused: [] }, 3);
     const [first, second, free] = lanes.slots;
