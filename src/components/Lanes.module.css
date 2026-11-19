@@ -457,7 +457,7 @@
 /* Queue */
 .rank {
   display: inline-flex;
-  gap: 4px;
+  gap: 3px;
   align-items: center;
   color: var(--wait);
   font-size: 14px;
