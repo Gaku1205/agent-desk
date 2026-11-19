@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { AddedNotice } from "@/lib/autoAdd";
 import { applyRepoCount, fullNavCounts, NO_NAV_COUNTS, type NavCounts, type RepoCountFeed } from "@/lib/navCounts";
 import { parseSavedRepos, reposToShow, WATCHED_REPOS_CHANNEL, type SavedRepos } from "@/lib/savedRepos";
+import type { DriftSummary } from "@/lib/selfCheck";
 import type { TurnCounts } from "@/lib/turn";
 import type { NewIssueRepo } from "./NewIssueForm";
 import type { DeskNav } from "./Desk";
@@ -19,6 +20,8 @@ export type StreamedNav = {
   /** 読めなかったリポジトリ（`owner/repo` の小文字）。札は残し、数は「–」にする */
   unreadableRepos: string[];
   addedNotices: AddedNotice[];
+  /** 開いている表示のずれの Issue の数と、いちばん新しい1件の URL（上のバーの「表示のずれ N」） */
+  drift: DriftSummary;
   /** この結果を作った描画の時刻（ISO文字列）。リポジトリごとの件数（`RepoCountFeed`）と比べる */
   renderedAt: string;
 };
@@ -108,7 +111,7 @@ export function NavProvider({ base, children }: { base: DeskNav; children: React
  * 左のバー用の情報。全部の件数がまだ届いていなければ `countsPending` が true で、
  * 届いたリポジトリ（`countsLoaded`）だけ件数を出す
  */
-export function useNav(): (DeskNav & { countsPending: boolean }) | null {
+export function useNav(): (DeskNav & { countsPending: boolean; drift: DriftSummary | null }) | null {
   // `countsUnreadable`：読めなかったリポジトリ。札は残し、数は「–」
   const state = useContext(NavContext);
   return useMemo(() => {
@@ -122,6 +125,8 @@ export function useNav(): (DeskNav & { countsPending: boolean }) | null {
       countsLoaded: live.loaded,
       countsUnreadable: live.unreadable,
       countsPending: streamed === null,
+      // 全部を読み終えるまでは出さない（読み終えてから、取り込み済みの Issue で数える）
+      drift: streamed?.drift ?? null,
     };
   }, [state]);
 }
