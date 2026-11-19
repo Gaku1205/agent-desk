@@ -1,6 +1,7 @@
 import type { RepoResult } from "./github/types";
 import { loadErrorsOf, type LoadError } from "./loadErrors";
 import { oldestReadAt } from "./staleSnapshot";
+import { findUnreadableWork } from "./unreadableWork";
 
 // 読めなかったリポジトリがあるときに、何を出し、何を言ってよいかの判定（docs/spec.md の「全部のリポジトリを待つページ」の
 // 「取り直しが失敗で終わったリポジトリ」、「読めなかったリポジトリは、空ではなく読めなかったと出す」、「更新」）。
@@ -43,7 +44,7 @@ function okData(result: RepoResult | null): { data: Extract<RepoResult, { ok: tr
  * - 新しい結果が失敗した所は、覚えている結果（中身のある物）があればそれを、無ければ失敗の結果を出す
  * - 新しい結果がまだの所は、覚えている結果があればそれを、無ければ無し
  */
-export function resolveLoadState(loads: RepoLoad[]): LoadState {
+export function resolveLoadState(loads: RepoLoad[], now: Date = new Date()): LoadState {
   const shown: (RepoResult | null)[] = [];
   const from: ShownFrom[] = [];
   let unreadableStale = false;
@@ -66,14 +67,24 @@ export function resolveLoadState(loads: RepoLoad[]): LoadState {
   const arrived = loads.filter(({ fresh }) => fresh !== null).length;
   const sync: SyncReadState =
     failed.length === 0 ? "ok" : failed.length === arrived && arrived === loads.length ? "failed" : "partial";
+  // 読めたが、どの区画にも出せない作業は、黙って落とさず `状態が読めない` の行にする
+  const unreadableWork: LoadError[] = shown.flatMap((result) =>
+    result?.ok
+      ? findUnreadableWork(result.owner, result.repo, result.data, now).map(({ repo, message }) => ({
+          repo,
+          message,
+          work: true as const,
+        }))
+      : [],
+  );
   return {
     shown,
     from,
     staleRepos: staleShown.flatMap((result) => (result ? [`${result.owner}/${result.repo}`] : [])),
     staleAt: oldestReadAt(staleShown.flatMap((result) => okData(result) ?? [])),
     staleBecause: staleShown.length === 0 ? null : unreadableStale ? "unreadable" : "loading",
-    errors: loadErrorsOf(failed),
-    canSayEmpty: failed.length === 0,
+    errors: [...loadErrorsOf(failed), ...unreadableWork],
+    canSayEmpty: failed.length === 0 && unreadableWork.length === 0,
     sync,
   };
 }

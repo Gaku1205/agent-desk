@@ -9,7 +9,11 @@ describe("isPipelineMaintenanceIssue", () => {
   });
 
   it("本文に印があれば true", () => {
-    expect(isPipelineMaintenanceIssue({ ...base, body: "説明\n<!-- pipeline-maintenance -->" })).toBe(true);
+    expect(isPipelineMaintenanceIssue({ ...base, body: "<!-- pipeline-maintenance -->\n説明" })).toBe(true);
+  });
+
+  it("本文の途中で印の文字を説明しているだけなら false", () => {
+    expect(isPipelineMaintenanceIssue({ ...base, body: "説明\n`<!-- pipeline-maintenance -->` は保守の印" })).toBe(false);
   });
 
   it("題名が「AIの許可が足りない：」で始まれば true", () => {

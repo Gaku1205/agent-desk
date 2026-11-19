@@ -23,6 +23,11 @@ export function isPipelineNotice(issue: Pick<IssueData, "state" | "labels" | "au
   );
 }
 
+/** 印は本文の頭に入る（パイプラインが書く）。本文の途中で印の文字を説明しているだけの Issue は保守の Issue にしない */
+function hasMaintenanceMark(body: string): boolean {
+  return body.trimStart().startsWith(MAINTENANCE_MARK);
+}
+
 /**
  * パイプラインが自動で作る保守の Issue か（オーナーが押す物が無いので、画面に出さない）。
  * ラベル `pipeline`・本文の印・題名 `AIの許可が足りない：` のどれか
@@ -30,7 +35,7 @@ export function isPipelineNotice(issue: Pick<IssueData, "state" | "labels" | "au
 export function isPipelineMaintenanceIssue(issue: Pick<IssueData, "title" | "body" | "labels">): boolean {
   return (
     issue.labels.includes(PIPELINE_LABEL) ||
-    issue.body.includes(MAINTENANCE_MARK) ||
+    hasMaintenanceMark(issue.body) ||
     MAINTENANCE_TITLE.test(issue.title)
   );
 }

@@ -813,6 +813,8 @@ describe("shouldShowIssue", () => {
   it("パイプラインの保守のIssueは出さない（閉じてマージ済みでも）。普通の保留は出す", () => {
     expect(shouldShowIssue(issue({ labels: ["ai:skip", "pipeline"] }), [])).toBe(false);
     expect(shouldShowIssue(issue({ body: "<!-- pipeline-maintenance -->" }), [])).toBe(false);
+    // 保守の印や pipeline ラベルがあっても、実装AIが動いている作業は隠さない
+    expect(shouldShowIssue(issue({ labels: ["pipeline", "ai:implement"] }), [])).toBe(true);
     expect(shouldShowIssue(issue({ title: "AIの許可が足りない：x" }), [])).toBe(false);
     expect(shouldShowIssue(issue({ state: "closed", labels: ["pipeline"] }), [mergedPull()])).toBe(false);
     expect(shouldShowIssue(issue({ labels: ["ai:skip"] }), [])).toBe(true);
@@ -1551,5 +1553,54 @@ describe("getIssueStatus：パイプラインの知らせ", () => {
       NOW,
     );
     expect(status.stage).not.toBe("notice");
+  });
+});
+
+describe("getIssueStatus：エラーで終わったあとにPRができた作業（Issue #649）", () => {
+  const implementing = issue({ labels: ["ai:implement"] });
+  const err = comment({
+    body: "**Claude encountered an error after 4m 52s**",
+    createdAt: "2026-10-25T09:05:00Z",
+  });
+  const fixRequest = comment({
+    issueNumber: 11,
+    createdAt: "2026-10-25T11:00:00Z",
+    body: "@claude 直して\n\n<!-- auto-fix -->\n<!-- auto-fix-sha: c0ffee -->",
+  });
+  const failedCheck = {
+    checkRuns: [
+      {
+        name: "test",
+        status: "completed",
+        conclusion: "failure",
+        appSlug: "github-actions",
+        completedAt: "2026-10-25T10:30:00Z",
+      } as CheckRunData,
+    ],
+  };
+
+  it("エラーのまま PR が無い：PR作成待ち（エラーの印つき）", () => {
+    const status = getIssueStatus(implementing, input([], {}, [err]), NOW);
+    expect(status.stage).toBe("prWaiting");
+    expect(status.implementError).toBe(true);
+  });
+
+  it("エラーのあと PR あり（CI失敗）：PR の段（CI失敗）を出す", () => {
+    const status = getIssueStatus(implementing, input([pull()], { 11: failedCheck }, [err]), NOW);
+    expect(status.stage).toBe("ciFailed");
+    expect(status.pull?.number).toBe(11);
+  });
+
+  it("エラー→PR→finished→CI失敗→修正依頼：修正中", () => {
+    const finished = comment({
+      body: "**Claude finished @Gaku1205's task in 5m**",
+      createdAt: "2026-10-25T10:10:00Z",
+    });
+    const status = getIssueStatus(
+      implementing,
+      input([pull()], { 11: failedCheck }, [err, finished, fixRequest]),
+      NOW,
+    );
+    expect(status.stage).toBe("fixing");
   });
 });
