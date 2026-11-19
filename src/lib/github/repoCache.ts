@@ -6,6 +6,7 @@ import { repoChangeKey, type ChangeMarks } from "../changeMarks";
 import { getSettingsRepo, getWatchedRepos, parseRepoList, type Env, type WatchedRepo } from "../config";
 import { decideRefetch, isSettledChange, refetchPeriod, type RefetchRecord } from "../refetchLimit";
 import { shareInFlight } from "../inFlight";
+import { shouldRememberSnapshot } from "../staleSnapshot";
 import { repoTag, urgentTag } from "../webhook";
 import { resolveAppAccess } from "./appToken";
 import { GitHubClient } from "./client";
@@ -202,13 +203,25 @@ export const SNAPSHOT_REWRITE_SECONDS = 1;
  * 覚えている物が無いときは `fresh` を待って返す。`fresh` が失敗したら、覚えている物はそのまま残る（無ければ null）
  */
 export async function snapshotRepoData(repo: WatchedRepo, fresh: Promise<AppRepoData>): Promise<AppRepoData | null> {
+  const keyParts = ["repo-snapshot-gz", DEPLOY_KEY, repoChangeKey(repo)];
+  // 同じ入れ物を、中身を作る関数だけ替えて読む（`unstable_cache` は関数の文字列もキーに使うので、この1か所を通す）
+  const entry = (produce: () => Promise<string>): Promise<string> =>
+    unstable_cache(async () => produce(), keyParts, { revalidate: SNAPSHOT_REWRITE_SECONDS })();
+  // 覚えている物を見るだけ（無ければ投げる。投げた結果は覚えられない）
+  const previous = await entry(async () => {
+    throw new Error(NO_RECORD);
+  }).then(
+    (packed) => unpackCached<AppRepoData>(packed),
+    () => null,
+  );
   try {
-    // 縮めて覚える（2MB を超えると Next.js が覚えないため。`packCached`）
-    const packed = await unstable_cache(
-      async () => packCached(await fresh),
-      ["repo-snapshot-gz", DEPLOY_KEY, repoChangeKey(repo)],
-      { revalidate: SNAPSHOT_REWRITE_SECONDS },
-    )();
+    // 縮めて覚える（2MB を超えると Next.js が覚えないため。`packCached`）。
+    // 中身が空になった読みは、覚えている物を上書きしない（`shouldRememberSnapshot`）。投げれば前の物が残る
+    const packed = await entry(async () => {
+      const next = await fresh;
+      if (!shouldRememberSnapshot(previous?.data ?? null, next.data)) throw new Error("not worth remembering");
+      return packCached(next);
+    });
     return unpackCached<AppRepoData>(packed);
   } catch {
     return null;
