@@ -28,6 +28,7 @@ export function Switch({ checked, onChange, label, disabled }: Props) {
       aria-checked={checked}
       aria-label={label}
       className={styles.button}
+      data-pre-tap=""
       disabled={disabled}
       onClick={() => onChange(!checked)}
     >

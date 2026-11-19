@@ -68,6 +68,7 @@ function Choices({ busy, onChoose }: { busy: boolean; onChoose: (choice: Paralle
           aria-checked={choice === selected}
           tabIndex={choice === selected ? 0 : -1}
           className={styles.choice}
+          data-pre-tap=""
           disabled={busy}
           onClick={() => {
             if (choice !== selected) onChoose(choice);
@@ -155,6 +156,7 @@ function Folded({ inUse }: { inUse: number | null }) {
       <button
         type="button"
         className={styles.foldedButton}
+        data-pre-tap=""
         aria-expanded={open}
         aria-label={description}
         title={description}
