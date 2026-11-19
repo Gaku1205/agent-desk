@@ -3,6 +3,7 @@
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ACTION_UNREACHABLE_MESSAGE } from "@/lib/actionCall";
 import { PLAY_BUTTON_LABEL } from "@/lib/demo/playback";
 import { formatPausedNote, formatSyncTime, getDisplayedSyncTime } from "@/lib/refresh";
 import { shouldCloseMenuOnPick, shouldRestoreMenuFocus } from "@/lib/menuFocus";
@@ -298,9 +299,11 @@ function LanesUsage() {
  * 自動更新を止めている理由の1行は、`title`（と読み上げ）に入れる。スマホでは点とアイコンだけ
  */
 export function SyncStatus() {
-  const { syncedAt, refreshing, fastRefresh, pausedUntil, pausedBy, refresh } = useShell();
+  const { syncedAt, refreshing, fastRefresh, pausedUntil, pausedBy, syncFailed, refresh } = useShell();
   const time = formatSyncTime(getDisplayedSyncTime(syncedAt));
-  const note = pausedUntil ? formatPausedNote(pausedBy, pausedUntil.getTime() / 1000) : null;
+  // 手で押した同期が届かなかった知らせは、止めている理由より先に出す（次に取り直せたら消える）
+  const pausedNote = pausedUntil ? formatPausedNote(pausedBy, pausedUntil.getTime() / 1000) : null;
+  const note = syncFailed && !refreshing ? ACTION_UNREACHABLE_MESSAGE : pausedNote;
   const state = refreshing ? "busy" : note ? "paused" : "ok";
   return (
     <div className={styles.syncGroup} title={note ?? undefined}>
