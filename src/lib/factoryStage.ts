@@ -73,6 +73,13 @@ function buildText(jobName: string | null | undefined): string {
   }
 }
 
+/** 動いている本番（`Factory`）の実行の、今のジョブ名（`plan`・`design`・`build`・`deploy`。無ければ null） */
+export function factoryBuildJob(runs: WorkflowRunData[] | null | undefined, steps: RunStepData[] | undefined): string | null {
+  const build = newest((runs ?? []).filter((run) => isActive(run) && run.name === FACTORY_BUILD_RUN));
+  if (!build) return null;
+  return (stepOf(build, steps)?.jobName ?? "").trim() || null;
+}
+
 export function factoryStage(input: FactoryStageInput): FactoryPhase {
   const waiting = input.labels.includes(FACTORY_WAIT_LABEL);
   if (!input.runs) {

@@ -18,7 +18,7 @@ import { getFlow } from "../flow";
 import { getIssueStatus, shouldShowIssue, type Stage } from "../status";
 import type { OperationKind } from "../turn";
 import { isFactoryTitle } from "../factoryIssue";
-import { FACTORY_BOT } from "../factoryTalk";
+import { encodeBase64, FACTORY_BOT } from "../factoryTalk";
 import { demoFactoryBody, demoFactoryState } from "./factory";
 import { applyDemoOps } from "./ops";
 import { advancePlayback, PLAY_STEPS, playStep, type DemoPlayback, type PlayStep } from "./playback";
@@ -852,6 +852,13 @@ function landingPage(base: Date, placer: Placer): RepoData {
     createdAt: ago(ctx, 30),
     labels: ["factory", "factory:talk"],
   });
+  // 案と見た目の方向は答え済み：進捗図に、済んだ段の時刻と所要時間（相談の待ちと AI の作業）が出る
+  const demoAnswer = (action: string, choice: string) =>
+    `答えました\n\n<!-- factory-answer:${encodeBase64(JSON.stringify({ action, choice, answers: [], note: "" }))} -->`;
+  addComment(ctx, 24, demoFactoryBody(demoFactoryState("ideas")), ago(ctx, 26), FACTORY_BOT);
+  addComment(ctx, 24, demoAnswer("pick", "1"), ago(ctx, 22), "demo");
+  addComment(ctx, 24, demoFactoryBody(demoFactoryState("looks", { round: 1 })), ago(ctx, 15), FACTORY_BOT);
+  addComment(ctx, 24, demoAnswer("pick", "1"), ago(ctx, 12), "demo");
 
   // 企画中だが動いていない（ランプの赤の見本。上端の帯の件数が、あなたの番の数と同じにならないように）。枠は使っていない
   addIssue(ctx, 16, "お知らせの帯を足す", { createdAt: ago(ctx, 12), labels: ["ai:plan"] });

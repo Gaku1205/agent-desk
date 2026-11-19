@@ -1,5 +1,20 @@
 import { isExternalUrl } from "@/lib/externalUrl";
-import { FLOW_STATE_LABEL, flowStepLabel, isSolidLink, type Flow, type FlowState, type FlowStep } from "@/lib/flow";
+import {
+  factoryStepLabel,
+  factoryStepSub,
+  type FactoryProgress,
+  type FactoryStepKey,
+  type FactoryStepState,
+} from "@/lib/factoryProgress";
+import {
+  FLOW_STATE_LABEL,
+  flowStepLabel,
+  isSolidLink,
+  type Flow,
+  type FlowState,
+  type FlowStep,
+  type FlowStepKey,
+} from "@/lib/flow";
 import { fixLabel } from "@/lib/flowBranch";
 import {
   DESIGN_SKIPPED_LABEL,
@@ -189,6 +204,80 @@ function Step({
   );
 }
 
+/** 工場の段のアイコンは、通常の工程のアイコンを使う（新しい絵は足さない） */
+const FACTORY_ICON: Record<FactoryStepKey, FlowStepKey> = {
+  ideas: "plan",
+  looks: "design",
+  mocks: "design",
+  confirm: "review",
+  repo: "implement",
+  design: "design",
+  build: "implement",
+  deploy: "deploy",
+};
+
+function FactoryMark({ state }: { state: FactoryStepState }) {
+  return (
+    <span className={styles.mark} data-state={state === "waiting" ? "you" : state === "pending" ? "waiting" : state} aria-hidden="true">
+      {state === "done" ? (
+        <CheckIcon />
+      ) : state === "running" ? (
+        <span className={styles.spin}>
+          <SpinnerIcon />
+        </span>
+      ) : (
+        "…"
+      )}
+    </span>
+  );
+}
+
+/** 工場の Issue の進捗図：工場の段を縦に並べる（docs/design.md の「工場の進捗図」） */
+function FactorySteps({ factory, inline }: { factory: FactoryProgress; inline: boolean }) {
+  return (
+    <ol className={`${styles.steps} ${inline ? styles.inlineSteps : ""}`} aria-label="進捗図：工場の段" data-factory="">
+      {factory.steps.map((step, index) => {
+        const next = factory.steps[index + 1];
+        const last = next === undefined;
+        const sub = factoryStepSub(step);
+        const current = step.state === "running" || step.state === "waiting";
+        return (
+          <li
+            key={step.key}
+            className={styles.step}
+            data-current={current ? "" : undefined}
+            data-state={step.state === "waiting" ? "you" : step.state}
+            data-solid={!last && next.state !== "pending" ? "" : undefined}
+            data-last={last ? "" : undefined}
+            aria-current={current ? "step" : undefined}
+          >
+            <div className={styles.row} role="img" aria-label={factoryStepLabel(step)}>
+              <span className={styles.icon} aria-hidden="true">
+                <FlowStepIcon step={FACTORY_ICON[step.key]} />
+              </span>
+              <span className={styles.text} aria-hidden="true">
+                <span className={styles.name}>{step.name}</span>
+                <span className={`${styles.model} num`}>{sub ?? " "}</span>
+              </span>
+              <span className={styles.side} aria-hidden="true">
+                {step.started && <span className={`${styles.time} num`}>{step.started}</span>}
+                <FactoryMark state={step.state} />
+              </span>
+            </div>
+            {step.key === "repo" && factory.repo && (
+              <div className={styles.ci}>
+                <a className={styles.repoLink} href={factory.repo.url} target="_blank" rel="noreferrer noopener">
+                  {factory.repo.name} ↗
+                </a>
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function ciOf(target: FlowTarget): CiProgress | null {
   return target.extra ? chatCi(target.extra.status) : null;
 }
@@ -212,6 +301,13 @@ export function FlowMap({
     // スマホ：「いまの様子」の行の下に開く。見出しは行にあるので付けない。図だけが横にスクロールする
     const extras = extrasOf(target);
     const ci = ciOf(target);
+    if (target.factory) {
+      return (
+        <div className={styles.inlineScroll} role="region" aria-label="進捗図" tabIndex={0}>
+          <FactorySteps factory={target.factory} inline />
+        </div>
+      );
+    }
     return (
       <div className={styles.inlineScroll} role="region" aria-label="進捗図" tabIndex={0}>
         <ol className={`${styles.steps} ${styles.inlineSteps}`} aria-label={`進捗図：${target.label}`}>
@@ -247,11 +343,15 @@ export function FlowMap({
           {target.title}
         </a>
       </div>
-      <ol className={styles.steps} aria-label={`進捗図：${target.label}`}>
-        {target.flow.steps.map((step, index) => (
-          <Step key={step.key} step={step} flow={target.flow} index={index} extras={extras} ci={ci} />
-        ))}
-      </ol>
+      {target.factory ? (
+        <FactorySteps factory={target.factory} inline={false} />
+      ) : (
+        <ol className={styles.steps} aria-label={`進捗図：${target.label}`}>
+          {target.flow.steps.map((step, index) => (
+            <Step key={step.key} step={step} flow={target.flow} index={index} extras={extras} ci={ci} />
+          ))}
+        </ol>
+      )}
     </section>
   );
 }

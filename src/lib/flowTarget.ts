@@ -1,4 +1,5 @@
 import type { ChatMessage } from "./conversation";
+import type { FactoryProgress } from "./factoryProgress";
 import { getFlow, type Flow } from "./flow";
 import type { FlowExtraSource } from "./flowExtraBranches";
 import type { StepInfo } from "./stepLog";
@@ -18,10 +19,12 @@ export type FlowTargetData = {
   extra?: FlowExtraSource;
   /** 読めた進捗ログ（読んでいない・読めないときは無し） */
   stepLog?: readonly StepInfo[] | null;
+  /** 工場の Issue：工場の段の進捗図（あれば `flow` の代わりにこちらを描く） */
+  factory?: FactoryProgress;
 };
 
 type MessageLike = Pick<ChatMessage, "key" | "owner" | "repo" | "number" | "title" | "url" | "running" | "flow"> &
-  Partial<Pick<ChatMessage, "flowExtra">>;
+  Partial<Pick<ChatMessage, "flowExtra" | "factoryFlow">>;
 
 /**
  * 進捗図に描く1件（docs/spec.md の「進捗図」）：「いまの様子」で選んだ行（`selected` は `owner/repo#番号`）があれば、その1件。
@@ -44,6 +47,7 @@ export function pickFlowTarget(
     url: message.url,
     flow: message.flow,
     ...(message.flowExtra ? { extra: message.flowExtra } : {}),
+    ...(message.factoryFlow ? { factory: message.factoryFlow } : {}),
   });
   const chosen = selected === null ? undefined : messages.find((message) => message.key === selected);
   if (chosen) return fromMessage(chosen);

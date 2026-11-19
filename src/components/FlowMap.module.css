@@ -196,6 +196,30 @@
   line-height: 1;
 }
 
+/* 工場の進捗図：相談待ち（Your turn）の色は、Answer の --attention */
+.mark[data-state="you"] {
+  color: var(--attention);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.step[data-state="you"] .icon {
+  color: var(--attention);
+}
+
+.repoLink {
+  color: var(--bone-2);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.repoLink:hover {
+  color: var(--bone);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .spin {
   display: inline-flex;
   animation: flow-spin 1.1s linear infinite;
