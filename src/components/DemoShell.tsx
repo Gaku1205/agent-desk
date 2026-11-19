@@ -22,7 +22,7 @@ import {
   startPlayback,
   type PlayButtonState,
 } from "@/lib/demo/playback";
-import { formatParallelOverride, planParallelToggle, resolveParallelState } from "@/lib/parallel";
+import { formatParallelOverride, nextPeriodSwitch, resolveParallelState } from "@/lib/parallel";
 import { buildTurnItems, type OperationKind } from "@/lib/turn";
 import { ShellProvider, useMenuState, type ShellState } from "./AppShell";
 import { DemoProvider, type DemoState } from "./DemoContext";
@@ -161,9 +161,15 @@ export function DemoShell({
       settings: DEMO_PARALLEL_SETTINGS,
       busy: false,
       error: null,
-      toggle: () => {
-        const plan = planParallelToggle(demo.now, DEMO_PARALLEL_SETTINGS, parallelOverride);
-        setParallelOverride(plan.mode === "clear" ? null : formatParallelOverride(plan.override));
+      choose: (choice) => {
+        setParallelOverride(
+          choice === "auto"
+            ? null
+            : formatParallelOverride({
+                period: choice,
+                until: nextPeriodSwitch(demo.now, choice, DEMO_PARALLEL_SETTINGS.nightHours),
+              }),
+        );
       },
     }),
     [demo.now, parallelOverride],

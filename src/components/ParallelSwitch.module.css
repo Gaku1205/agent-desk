@@ -1,0 +1,194 @@
+/* 「同時に動かす」（docs/design.md の「同時に動かす」）。新しい色は使わない */
+.wrap {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 10px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--hair);
+}
+
+/* PCの左のバー：ユーザーの行のすぐ上 */
+.side {
+  margin-bottom: 8px;
+}
+
+/* スマホのメニュー：項目と同じ左右 */
+.menu {
+  margin: 8px 0;
+  padding: 14px 12px;
+}
+
+.head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  color: var(--mute);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.badge {
+  padding: 1px 7px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--hair);
+  color: var(--bone-2);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+/* 手動のときだけ、注意の色の地 */
+.badge[data-manual] {
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--accent-ink);
+}
+
+.big {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin: 0;
+  color: var(--bone-2);
+  font-size: 12.5px;
+}
+
+.big b {
+  color: var(--bone);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.cells {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cell {
+  flex: 1;
+  min-width: 0;
+  max-width: 28px;
+  height: 8px;
+  border-radius: 2px;
+  box-sizing: border-box;
+}
+
+.cell[data-cell="used"] {
+  background: var(--ok);
+}
+
+.cell[data-cell="free"] {
+  box-shadow: inset 0 0 0 1px var(--edge-strong);
+}
+
+.cell[data-cell="unavailable"] {
+  border: 1px dashed var(--edge);
+}
+
+.usage {
+  margin: 0;
+  color: var(--mute);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* 3択：設定の切り替えボタンと同じ形 */
+.choices {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--well);
+}
+
+.choice {
+  flex: 1;
+  height: 30px;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: var(--bone-2);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.choice:hover {
+  color: var(--bone);
+}
+
+.choice[aria-checked="true"] {
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--hair);
+  color: var(--bone);
+  font-weight: 600;
+}
+
+/* 書いている間 */
+.choice:disabled {
+  opacity: 0.7;
+  cursor: default;
+  transition: opacity 0s 0.22s;
+}
+
+.error {
+  margin: 0;
+  color: var(--bone-2);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* 1行に縮めた形 */
+.folded {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.foldedButton {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--hair);
+  color: var(--bone-2);
+}
+
+.foldedButton:hover {
+  background: var(--hair-2);
+}
+
+.foldedButton[data-manual] {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.foldedButton .cell {
+  flex: none;
+  width: 8px;
+}
+
+.foldedCount {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 8;
+  width: 240px;
+  margin: 0;
+  background: var(--raise);
+}
+
+/* 畳んだ形は、PCでは左のバーを畳んだときだけ、スマホでは上のバーに出す（TopBar.module.css が出し分ける） */

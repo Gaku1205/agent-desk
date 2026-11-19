@@ -21,11 +21,11 @@ import {
   applySavedParallelSettings,
   PARALLEL_SETTINGS_CHANNEL,
   parseSavedParallelMessage,
-  planParallelToggle,
   resolveParallelState,
   type ParallelSettings,
   type ParallelState,
 } from "@/lib/parallel";
+import { parallelChoiceValue, type ParallelChoice } from "@/lib/parallelSwitch";
 
 /** 帯（PCは左のバー・スマホはメニュー）の並列のボタンが使う物 */
 export type ParallelView = {
@@ -37,8 +37,8 @@ export type ParallelView = {
   busy: boolean;
   /** 切り替えに失敗した理由（次に押すまで出す） */
   error: string | null;
-  /** 押す：今と反対へ切り替える。上書き中なら消して時間帯の決まりに戻す */
-  toggle: () => void;
+  /** 3択を押す：`auto` は上書きを消して時間帯の決まりに戻す。`night`・`day` は次の切り替わりまでの上書きを書く */
+  choose: (choice: ParallelChoice) => void;
 };
 
 const ParallelContext = createContext<ParallelView | null>(null);
@@ -106,11 +106,10 @@ export function ParallelProvider({ children }: { children: ReactNode }) {
       ? resolveParallelState(new Date(minute * 60_000), snapshot.settings, snapshot.override)
       : null;
 
-  const toggle = useCallback(() => {
+  const choose = useCallback((choice: ParallelChoice) => {
     if (!snapshot) return;
     setError(null);
-    const plan = planParallelToggle(new Date(), snapshot.settings, snapshot.override);
-    const value = plan.mode === "clear" ? "clear" : plan.override.period;
+    const value = parallelChoiceValue(choice);
     startBusy(async () => {
       const result = await callAction<ParallelOverrideResult>(
         () => setParallelOverride(value),
@@ -144,7 +143,7 @@ export function ParallelProvider({ children }: { children: ReactNode }) {
 
   return (
     <ParallelSavedContext.Provider value={applySaved}>
-      <ParallelContext.Provider value={{ state, settings: state ? (snapshot?.settings ?? null) : null, busy, error, toggle }}>{children}</ParallelContext.Provider>
+      <ParallelContext.Provider value={{ state, settings: state ? (snapshot?.settings ?? null) : null, busy, error, choose }}>{children}</ParallelContext.Provider>
     </ParallelSavedContext.Provider>
   );
 }
