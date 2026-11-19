@@ -670,6 +670,15 @@ CSSカスタムプロパティとして `globals.css` に定義し、コード�
 - 読み上げは `role="alert"`
 - 仮に決めた所：場所・上16px・最後の1行の文
 
+## 古い結果を出している間の1行
+
+2026年11月19日、Issue #557（挙動は `docs/spec.md` の「全部のリポジトリを待つページ」）。ホーム・Slots & Queue・Dashboard・すべてのリポジトリで、覚えている古い結果を出している間だけ出す（`src/components/LivePages.tsx`）。新しい色・文字は使わない。
+
+- 文：`HH:MM 時点の内容です。新しい内容を読んでいます…`（日本時間）。13px・`--mute`・`role="status"`
+- 場所：画面の下に固定、左右中央（下12px）。地 `--bg`、縁 1px `--mute`、角丸 999px、左右12px・上下4px。ページの中身の位置を動かさず、押す邪魔にならない（`pointer-events: none`）
+- 新しい結果がそろって中身が入れ替わったら消える
+- 仮に決めた所：場所・形
+
 ## 導入（`/setup`）
 
 2026年11月18日、Issue #517（挙動は `docs/spec.md` の「導入」）。`src/components/Setup.tsx`（見た目は `Setup.module.css`。白い面と行は設定と同じ考え）。新しい色は使わない。

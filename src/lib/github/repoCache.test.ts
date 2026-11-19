@@ -62,7 +62,7 @@ const api = await loadInstance();
 const { repoTag, urgentTag } = await import("../webhook");
 
 function data(label: string): RepoData {
-  return { mainDeployedAt: label } as unknown as RepoData;
+  return { mainDeployedAt: label, issues: [{ number: 1 }], pulls: [] } as unknown as RepoData;
 }
 
 const START = new Date("2026-01-01T00:00:00Z").getTime();
@@ -509,6 +509,18 @@ describe("覚えている最後の結果（古くてよい）を、新しい結�
     await Promise.all(store.background);
     at(10_000);
     expect(await page.snapshotRepoData(repo, failed)).toEqual(app("v1", "m1"));
+  });
+
+  it("空になった読みは、覚えている最後の良い結果を上書きしない（回数制限の時間帯の後に開いても空を出さない）", async () => {
+    const emptyApp = { data: { mainDeployedAt: "empty", issues: [], pulls: [] } as unknown as RepoData, changeMark: "m0" };
+    // 覚えている物が無いときの空の読みは、覚えない
+    expect(await page.snapshotRepoData(repo, Promise.resolve(emptyApp))).toBeNull();
+    await page.snapshotRepoData(repo, Promise.resolve(app("v1", "m1")));
+    at(5000);
+    expect(await page.snapshotRepoData(repo, Promise.resolve(emptyApp))).toEqual(app("v1", "m1"));
+    await Promise.all(store.background);
+    at(10_000);
+    expect(await page.snapshotRepoData(repo, pending<ReturnType<typeof app>>().promise)).toEqual(app("v1", "m1"));
   });
 
   it("手で押す「同期」（タグの無効化）でも、覚えている物は消えない（取り直している間に出すため）", async () => {
