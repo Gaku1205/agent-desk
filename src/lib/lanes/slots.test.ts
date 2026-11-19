@@ -110,8 +110,8 @@ describe("freeRowText：空きの席をまとめた1行", () => {
     expect(freeRowText(4)).toEqual({ waiting: 4, text: "下の作業が終わるのを待っている" });
   });
 
-  it("Queue が無ければ「待っている作業はありません」", () => {
-    expect(freeRowText(0)).toEqual({ waiting: null, text: "待っている作業はありません" });
+  it("Queue が無ければ「順番待ちなし」", () => {
+    expect(freeRowText(0)).toEqual({ waiting: null, text: "順番待ちなし" });
   });
 });
 

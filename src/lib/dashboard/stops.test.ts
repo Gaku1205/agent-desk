@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { CommentData, IssueEventData, PullData, RepoResult } from "../github/types";
+import type { CommentData, IssueData, IssueEventData, PullData, RepoResult } from "../github/types";
 import { classifyStop, reasonRatios, stops } from "./stops";
+import { summarize } from "./summary";
 
 const NOW = new Date("2026-11-18T02:00:00Z");
 const MIN = 60 * 1000;
@@ -125,6 +126,74 @@ describe("stops", () => {
     expect(value.ciFailures).toBe(2);
     expect(value.autoFixed).toBe(1);
     expect(value.retries).toBe(1);
+  });
+
+  describe("同じ作業は1回に数える", () => {
+    const issue = (number: number): IssueData => ({
+      number,
+      title: "i",
+      body: "",
+      state: "open",
+      labels: [],
+      url: "",
+      createdAt: ago(20 * HOUR),
+      updatedAt: ago(20 * HOUR),
+      closedAt: null,
+    });
+    const why = "⏸ 自動で進めるのを止めました：CIが通りませんでした";
+
+    it("Issue と PR が両方止まっても1行。番号は Issue、PR の番号を添える", () => {
+      const data = {
+        issues: [issue(1)],
+        pulls: [pull(10, 1, null)],
+        comments: [comment(10, why, 3 * HOUR)],
+        events: [event("labeled", 1, 3 * HOUR), event("labeled", 10, 3 * HOUR - MIN), event("unlabeled", 10, HOUR), event("unlabeled", 1, HOUR)],
+      };
+      const value = stops([result(data)], NOW, "24h");
+      expect(value.recent).toHaveLength(1);
+      expect(value.recent[0]).toMatchObject({ number: 1, pull: 10, times: 1, kind: "ci", durationMs: 2 * HOUR });
+      expect(value.counts).toEqual({ ci: 1, permission: 0, queue: 0, human: 0 });
+    });
+
+    it("PR だけが止まっても、紐づく Issue の行になる", () => {
+      const data = { issues: [issue(1)], pulls: [pull(10, 1, null)], events: [event("labeled", 10, HOUR)] };
+      expect(stops([result(data)], NOW, "24h").recent[0]).toMatchObject({ number: 1, pull: 10 });
+    });
+
+    it("同じ PR が外れて、また止まったら1行にまとめ、回数・合計の時間・最新の状態を出す", () => {
+      const data = {
+        issues: [issue(1)],
+        pulls: [pull(10, 1, null)],
+        events: [
+          event("labeled", 10, 6 * HOUR),
+          event("unlabeled", 10, 5 * HOUR),
+          event("labeled", 10, 2 * HOUR),
+          event("unlabeled", 10, HOUR),
+          event("labeled", 10, 30 * MIN),
+        ],
+      };
+      const value = stops([result(data)], NOW, "24h");
+      expect(value.recent).toHaveLength(1);
+      expect(value.recent[0]).toMatchObject({ number: 1, times: 3, durationMs: HOUR + HOUR + 30 * MIN, ongoing: true, fixed: false, startedAt: NOW.getTime() - 30 * MIN });
+      expect(value.counts?.human).toBe(1);
+    });
+
+    it("分類が違う止まりは別々に数える", () => {
+      const data = {
+        issues: [issue(1)],
+        pulls: [pull(10, 1, null)],
+        comments: [comment(10, why, 6 * HOUR), comment(10, "⏸ 自動で進めるのを止めました：権限がありません", 2 * HOUR)],
+        events: [event("labeled", 10, 6 * HOUR), event("unlabeled", 10, 5 * HOUR), event("labeled", 10, 2 * HOUR)],
+      };
+      const value = stops([result(data)], NOW, "24h");
+      expect(value.recent.map((item) => [item.kind, item.times])).toEqual([["permission", 1], ["ci", 1]]);
+      expect(value.counts).toEqual({ ci: 1, permission: 1, queue: 0, human: 0 });
+    });
+
+    it("まとめの `Stopped` も同じ数え方", () => {
+      const data = { issues: [issue(1)], pulls: [pull(10, 1, null)], events: [event("labeled", 1, 3 * HOUR), event("labeled", 10, 3 * HOUR)] };
+      expect(summarize([result(data)], NOW, "24h").stopped).toBe(1);
+    });
   });
 
   it("リポジトリ名は owner/ を省いた名前、読めなかったリポジトリは数えない", () => {

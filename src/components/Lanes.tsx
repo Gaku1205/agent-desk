@@ -285,7 +285,7 @@ function SlotRow({ slot }: { slot: RunningSlot }) {
 /** 空きの席をまとめた1行：`○ Free × 3`・`Waiting 4 · 下の作業が終わるのを待っている`（Issue #586） */
 function FreeRow({ count, queue, canSayEmpty }: { count: number; queue: number; canSayEmpty: boolean }) {
   const { waiting, text } = freeRowText(queue);
-  // 読めなかったリポジトリがあるとき、Queue が0件でも「待っている作業はありません」とは言わない
+  // 読めなかったリポジトリがあるとき、Queue が0件でも「順番待ちなし」とは言わない
   const shownText = waiting === null && !canSayEmpty ? null : text;
   return (
     <li className={`${styles.seat} ${styles.row}`} data-tone="free" data-kind="free">

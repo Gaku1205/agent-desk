@@ -3,7 +3,8 @@
 import type { RepoData, RepoResult } from "../github/types";
 import { isLinkedPull, isSyncPull } from "../status";
 import { isStepLogComment, STEP_LOG_MARKER } from "../stepLog";
-import { inRange, PERIOD_KEYS, periodRange, type PeriodKey } from "./period";
+import { inRange, PERIOD_KEYS, periodRange, time, type PeriodKey } from "./period";
+import { STOP_REASONS, stops } from "./stops";
 
 export type Summary = {
   /** 期間内にマージされたPRの数。読めたリポジトリが1つも無ければ null（`—`） */
@@ -40,11 +41,7 @@ export function p90(sorted: readonly number[]): number | null {
   return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.9) - 1)];
 }
 
-export function time(value: string | null): number | null {
-  if (value === null) return null;
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? null : parsed;
-}
+export { time };
 
 /** マージされた配布のPR（`pipeline-sync/`）のマージ時刻。`Merged` から外した分を数えるための物 */
 export function mergedSyncTimes(data: RepoData): number[] {
@@ -126,7 +123,9 @@ export function summarize(results: readonly RepoResult[], now: Date, key: Period
   let merged = 0;
   let mergedPrev = 0;
   let mergedSyncExcluded = 0;
-  let stopped = 0;
+  // 止まりは作業（Issue とその PR）ごと。Stops と同じ数え方（`stops`）
+  const stopCounts = stops(results, now, key).counts;
+  const stopped = stopCounts === null ? 0 : STOP_REASONS.reduce((sum, reason) => sum + stopCounts[reason], 0);
   let aiTimeMs = 0;
   let runs = 0;
   const leads: number[] = [];
@@ -141,12 +140,6 @@ export function summarize(results: readonly RepoResult[], now: Date, key: Period
     }
     for (const at of mergedSyncTimes(data)) {
       if (inRange(at, start, end)) mergedSyncExcluded += 1;
-    }
-    for (const event of data.events) {
-      const at = time(event.createdAt);
-      if (event.event === "labeled" && event.labelName === "ai:stuck" && at !== null && inRange(at, start, end)) {
-        stopped += 1;
-      }
     }
     for (const comment of data.comments) {
       if (!comment.body.includes(STEP_LOG_MARKER) || !isStepLogComment(comment.body)) continue;
