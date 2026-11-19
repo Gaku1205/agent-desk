@@ -301,38 +301,73 @@
   transform: scale(0.96);
 }
 
-.sync {
+/* 上のバーの右端の同期：点＋時刻＋更新のアイコンのボタン（docs/design.md の「上端の帯」） */
+.syncGroup {
   display: flex;
-  gap: 7px;
+  gap: 8px;
   align-items: center;
-  height: 30px;
-  padding: 0 6px;
-  border-radius: 6px;
+  flex-shrink: 0;
   color: var(--mute);
   font-size: 12px;
   white-space: nowrap;
 }
 
-.sync:hover {
+.syncText {
+  min-width: 0;
+}
+
+.syncBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--edge);
   color: var(--bone-2);
 }
 
-.dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--mute);
+.syncBtn:hover {
+  background: var(--hair-2);
+  color: var(--bone);
 }
 
-/* 10秒ごとに取り直している間：青でゆっくり明滅。取り直し中：青で脈打つ（こちらが優先） */
-.dot[data-fast] {
-  background: var(--bone-2);
+.syncBtn:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+/* 状態の点：緑＝最新、止めているとき＝注意の色、読み込み中＝回る印 */
+.syncDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.syncDot[data-state="paused"] {
+  background: var(--accent);
+}
+
+.syncDot[data-state="busy"] {
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--edge-strong);
+  border-top-color: var(--bone-2);
+  background: none;
+  animation: sync-spin 0.8s linear infinite;
+}
+
+/* 10秒ごとに取り直している間は、点をゆっくり明滅（取り直し中の回る印が優先） */
+.syncDot[data-fast]:not([data-state="busy"]) {
   animation: sync-blink 2s ease-in-out infinite;
 }
 
-.dot[data-busy] {
-  background: var(--bone-2);
-  animation: sync-pulse 0.8s ease-in-out infinite;
+@keyframes sync-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes sync-blink {
@@ -345,6 +380,7 @@
   }
 }
 
+/* 押した札の点の脈打ち（上の .counts[data-pending]） */
 @keyframes sync-pulse {
   0%,
   100% {
@@ -357,17 +393,22 @@
   }
 }
 
-.paused {
-  color: var(--mute);
-  font-size: 12px;
-  white-space: normal;
+/* 同時に動かすの1行の置き場。PCは左のバーを畳んだときだけ、スマホはいつも（下の @media） */
+.foldedSlot {
+  display: none;
 }
 
-.pausedTop {
-  max-width: 320px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.pageName {
+  display: none;
+}
+
+/* PCの左のバーの Slots & Queue の右の `1/1` */
+.lanesUsage {
+  margin-left: auto;
+  color: var(--mute);
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 500;
 }
 
 .menuBtn {
@@ -462,11 +503,21 @@
   scrollbar-width: thin;
 }
 
-/* 下の段：新サービス・並列の状態・ユーザー名。スクロールせず、いつも下端に見える */
+/* 上：新サービス・Dashboard・Slots & Queue（間2px）。スクロールしない */
+.sideTop {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 16px;
+}
+
+/* 下の段：同時に動かす・ユーザー名。スクロールせず、いつも下端に見える */
 .sideFoot {
   display: flex;
   flex: none;
   flex-direction: column;
+  padding-top: 8px;
 }
 
 /* 隠れた札があるときだけ、境目に1pxの線（高さは変えない） */
@@ -480,7 +531,6 @@
   align-items: center;
   flex-shrink: 0;
   height: 36px;
-  margin: 12px 0;
   padding: 0 10px;
   border-radius: 6px;
   color: var(--mute);
@@ -492,9 +542,11 @@
     background 0.15s var(--ease);
 }
 
-/* Dashboard・Slots & Queue は新サービスのすぐ上（それぞれの間4px） */
-.sideDash {
-  margin: 12px 0 -8px;
+/* 新サービス：縁つきのボタン（下の Dashboard との間は6px足す） */
+.sideAdd {
+  margin-bottom: 6px;
+  box-shadow: inset 0 0 0 1px var(--edge);
+  color: var(--bone-2);
 }
 
 .sideNew:hover {
@@ -511,44 +563,15 @@
   color: var(--accent);
 }
 
-/* 左のバーのいちばん下：並列の状態のボタンとユーザー名のボタン（余白は上に寄せず、ここへ押し下げる） */
-.sideBottom {
-  display: flex;
-  flex-direction: column;
-  margin-top: auto;
-}
-
-/* 同期：ユーザーの行のすぐ上（間4px）。見た目は帯の同期のまま、幅いっぱい・高さ36px・左右10px */
-.sideSync {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 4px;
-}
-
-.sideSync .sync {
-  width: 100%;
-  height: 36px;
-  padding: 0 10px;
-}
-
-.sideSync .sync:hover {
-  background: var(--hair-2);
-}
-
-.sideSync .paused {
-  padding: 0 10px 4px;
-}
-
 /* 3ペインのページでは、帯に札を出さない（左の一覧と同じ物を2か所に置かない） */
 @media (min-width: 900px) {
   :global(body:has([data-panes])) .top .repos {
     display: none;
   }
 
-  /* 左のバーが開いているあいだは、同期（と自動更新を止めている知らせ）は左のバーに出す。畳んだら帯に戻す */
-  :global(:root:not([data-side="closed"]) body:has([data-panes])) .top .syncTop,
-  :global(:root:not([data-side="closed"]) body:has([data-panes])) .top .pausedTop {
-    display: none;
+  /* 左のバーを畳んでいる間は、「同時に動かす」を1行に縮めて帯に出す */
+  :global(:root[data-side="closed"] body:has([data-panes])) .top .foldedSlot {
+    display: block;
   }
 }
 
@@ -563,10 +586,32 @@
   }
 
   .top .repos,
-  .top .syncTop,
-  .top .pausedTop,
-  .top .demo {
+  .top .demo,
+  .top .syncText {
     display: none;
+  }
+
+  /* 上のバー：今のページ名・マスと 1/1・同期（点とアイコンだけ） */
+  .top .mark {
+    display: none;
+  }
+
+  .top .pageName {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 15px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .top .foldedSlot {
+    display: block;
+  }
+
+  .top .right {
+    gap: 10px;
   }
 
   .sheet {
@@ -692,14 +737,7 @@
   }
 
   /* 中身の左端は上の項目のアイコンの左端（29px）。押せる範囲は今のまま（内側の余白で合わせる） */
-  .foot .demo,
-  .foot .paused {
+  .foot .demo {
     padding-left: 7px;
   }
-
-  .foot .sync {
-    height: 44px;
-    padding: 0 0 0 7px;
-  }
-
 }

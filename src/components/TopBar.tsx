@@ -8,14 +8,16 @@ import { formatPausedNote, formatSyncTime, getDisplayedSyncTime } from "@/lib/re
 import { shouldCloseMenuOnPick, shouldRestoreMenuFocus } from "@/lib/menuFocus";
 import { isRepoCountPending } from "@/lib/navCounts";
 import { newIssueHref } from "@/lib/issueRepo";
+import { pageTitle } from "@/lib/pageTitle";
 import { hasHiddenBelow } from "@/lib/sideScroll";
 import { revealScrollLeft } from "@/lib/tabScroll";
 import { currentRepoFromPath, visibleRepos } from "@/lib/visibleRepos";
 import type { TurnCounts } from "@/lib/turn";
 import { useShell } from "./AppShell";
 import { useDemo } from "./DemoContext";
-import { ChartIcon, GridIcon, LanesIcon, PlayIcon, PlusIcon, RepoIcon, WriteIcon } from "./icons";
-import { ParallelToggle } from "./ParallelToggle";
+import { ChartIcon, GridIcon, LanesIcon, PlayIcon, PlusIcon, RefreshIcon, RepoIcon, WriteIcon } from "./icons";
+import { useParallelView } from "./ParallelContext";
+import { ParallelSwitch, useSlotsInUse } from "./ParallelSwitch";
 import { SideUser } from "./SideUser";
 import styles from "./TopBar.module.css";
 
@@ -232,6 +234,37 @@ export function SideRepos(
   }, [props.repos.length, props.counts, props.runningCounts]);
   return (
     <aside className={styles.side} aria-label="リポジトリの一覧">
+      <div className={styles.sideTop}>
+        <Link
+          href={newServiceHref}
+          className={`${styles.sideNew} ${styles.sideAdd}`}
+          aria-label="新しいサービスを作る"
+          aria-current={pathname.toLowerCase() === newServiceHref ? "page" : undefined}
+        >
+          <PlusIcon />
+          <span aria-hidden="true">新サービス</span>
+          <PendingMark />
+        </Link>
+        <Link
+          href={dashboardHref}
+          className={styles.sideNew}
+          aria-current={pathname.toLowerCase() === dashboardHref ? "page" : undefined}
+        >
+          <ChartIcon />
+          <span>Dashboard</span>
+          <PendingMark />
+        </Link>
+        <Link
+          href={lanesHref}
+          className={styles.sideNew}
+          aria-current={pathname.toLowerCase() === lanesHref ? "page" : undefined}
+        >
+          <LanesIcon />
+          <span>Slots &amp; Queue</span>
+          <LanesUsage />
+          <PendingMark />
+        </Link>
+      </div>
       <div className={styles.sideList} ref={listRef}>
         <span className={styles.sideLbl}>
           <RepoIcon />
@@ -241,80 +274,61 @@ export function SideRepos(
         <RepoTabs {...props} />
       </div>
       <div className={styles.sideFoot} data-more={hiddenBelow ? "true" : undefined}>
-        <Link
-          href={dashboardHref}
-          className={`${styles.sideNew} ${styles.sideDash}`}
-          aria-current={pathname.toLowerCase() === dashboardHref ? "page" : undefined}
-        >
-          <ChartIcon />
-          <span>Dashboard</span>
-          <PendingMark />
-        </Link>
-        <Link
-          href={lanesHref}
-          className={`${styles.sideNew} ${styles.sideDash}`}
-          aria-current={pathname.toLowerCase() === lanesHref ? "page" : undefined}
-        >
-          <LanesIcon />
-          <span>Slots &amp; Queue</span>
-          <PendingMark />
-        </Link>
-        <Link
-          href={newServiceHref}
-          className={styles.sideNew}
-          aria-label="新しいサービスを作る"
-          aria-current={pathname.toLowerCase() === newServiceHref ? "page" : undefined}
-        >
-          <PlusIcon />
-          <span aria-hidden="true">新サービス</span>
-          <PendingMark />
-        </Link>
-        <div className={styles.sideBottom}>
-          <ParallelToggle variant="side" />
-          <div className={styles.sideSync}>
-            <SyncButton />
-            <PausedNote />
-          </div>
-          <SideUser login={props.login} logout={props.logout} basePath={props.basePath} />
-        </div>
+        <ParallelSwitch variant="side" />
+        <SideUser login={props.login} logout={props.logout} basePath={props.basePath} />
       </div>
     </aside>
   );
 }
 
-/** 同期の時刻（押すと取り直す）。更新中は点が脈打ち、速い更新の間は点が明滅する */
-export function SyncButton({ className }: { className?: string }) {
-  const { syncedAt, refreshing, fastRefresh, refresh } = useShell();
+/** `Slots & Queue` の右に小さく出す `1/1`（使用中 / 今の上限）。まだ分からないときは何も出さない */
+function LanesUsage() {
+  const view = useParallelView();
+  const inUse = useSlotsInUse();
+  if (!view?.state) return null;
   return (
-    <button
-      type="button"
-      className={`${styles.sync} num ${className ?? ""}`}
-      onClick={refresh}
-      disabled={refreshing}
-      aria-busy={refreshing}
-      aria-label={`更新（最後に取り直した時刻 ${formatSyncTime(getDisplayedSyncTime(syncedAt))}）`}
-      title="更新"
-    >
-      <span
-        className={styles.dot}
-        data-busy={refreshing ? "true" : undefined}
-        data-fast={fastRefresh ? "true" : undefined}
-        aria-hidden="true"
-      />
-      {refreshing ? "同期中" : "同期"} {formatSyncTime(getDisplayedSyncTime(syncedAt))}
-    </button>
+    <i className={`${styles.lanesUsage} num`} title={`${inUse ?? "–"} / ${view.state.limit} 使用中`}>
+      {inUse ?? "–"}/{view.state.limit}
+    </i>
   );
 }
 
-/** 回数制限で自動更新を止めている間だけ出す1行 */
-export function PausedNote({ className }: { className?: string }) {
-  const { pausedUntil, pausedBy } = useShell();
-  if (!pausedUntil) return null;
-  const note = formatPausedNote(pausedBy, pausedUntil.getTime() / 1000);
+/**
+ * 上のバーの右端の同期：状態の点（緑＝最新・読み込み中は回る印・止めているときは注意の色）＋ `同期 02:19:46` ＋ 更新のアイコンのボタン。
+ * 自動更新を止めている理由の1行は、`title`（と読み上げ）に入れる。スマホでは点とアイコンだけ
+ */
+export function SyncStatus() {
+  const { syncedAt, refreshing, fastRefresh, pausedUntil, pausedBy, refresh } = useShell();
+  const time = formatSyncTime(getDisplayedSyncTime(syncedAt));
+  const note = pausedUntil ? formatPausedNote(pausedBy, pausedUntil.getTime() / 1000) : null;
+  const state = refreshing ? "busy" : note ? "paused" : "ok";
   return (
-    <span className={`${styles.paused} ${className ?? ""}`} title={note}>
-      {note}
-    </span>
+    <div className={styles.syncGroup} title={note ?? undefined}>
+      <span className={styles.syncDot} data-state={state} data-fast={fastRefresh ? "true" : undefined} aria-hidden="true" />
+      <span className={`${styles.syncText} num`}>
+        {refreshing ? "同期中" : "同期"} {time}
+      </span>
+      <button
+        type="button"
+        className={styles.syncBtn}
+        onClick={refresh}
+        disabled={refreshing}
+        aria-busy={refreshing}
+        aria-label={`更新（最後に取り直した時刻 ${time}）${note ? `。${note}` : ""}`}
+        title={note ?? "更新"}
+      >
+        <RefreshIcon size={14} />
+      </button>
+    </div>
+  );
+}
+
+/** 上のバーの「同時に動かす」の1行の置き場：PCは左のバーを畳んだときだけ、スマホはいつも出る（出し分けは CSS） */
+function FoldedSlot() {
+  return (
+    <div className={styles.foldedSlot}>
+      <ParallelSwitch variant="folded" />
+    </div>
   );
 }
 
@@ -386,11 +400,12 @@ export function TopBar(props: Props) {
         <Link href={props.basePath || "/"} className={styles.mark}>
           agent-desk
         </Link>
+        <span className={styles.pageName}>{pageTitle(pathname, props.basePath ?? "")}</span>
         <RepoTabs {...props} />
         <div className={styles.right}>
           <DemoControls />
-          <PausedNote className={styles.pausedTop} />
-          <SyncButton className={styles.syncTop} />
+          <FoldedSlot />
+          <SyncStatus />
         </div>
       </header>
       <MenuSheet {...props} />
@@ -424,13 +439,6 @@ function MenuSheet(props: Props) {
       <div className={styles.scrim} onClick={closeMenu} aria-hidden="true" />
       <div className={styles.pane} role="dialog" aria-modal="true" aria-label="メニュー" ref={paneRef}>
         <span className={styles.mark}>agent-desk</span>
-        <span className={`${styles.lbl} ${styles.lblRow}`}>
-          <RepoIcon />
-          リポジトリ
-          <CountsKey />
-        </span>
-        <RepoTabs {...props} onPick={closeMenu} />
-        <span className={styles.lbl}>ほか</span>
         <Link
           href={newServiceHref}
           className={styles.lnk}
@@ -470,11 +478,15 @@ function MenuSheet(props: Props) {
           <PendingMark />
         </Link>
         {props.extraLinks}
-        <ParallelToggle variant="menu" />
+        <span className={`${styles.lbl} ${styles.lblRow}`}>
+          <RepoIcon />
+          リポジトリ
+          <CountsKey />
+        </span>
+        <RepoTabs {...props} onPick={closeMenu} />
         <div className={styles.foot}>
           {demo && <span className={styles.demo}>デモ（サンプルのデータ）</span>}
-          <SyncButton />
-          <PausedNote />
+          <ParallelSwitch variant="menu" />
           <SideUser login={props.login} logout={props.logout} basePath={props.basePath} onPick={closeMenu} />
         </div>
       </div>

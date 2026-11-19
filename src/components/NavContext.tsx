@@ -14,6 +14,8 @@ export type StreamedNav = {
   counts: TurnCounts;
   runningCounts: TurnCounts;
   newIssueRepos: NewIssueRepo[];
+  /** 枠を使っている作業の数（Slots & Queue の「使用中」と同じ数え方）。「同時に動かす」の `1 / 1` に使う */
+  slotsInUse: number;
   addedNotices: AddedNotice[];
   /** この結果を作った描画の時刻（ISO文字列）。リポジトリごとの件数（`RepoCountFeed`）と比べる */
   renderedAt: string;

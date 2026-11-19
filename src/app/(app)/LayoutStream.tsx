@@ -4,6 +4,7 @@ import { RepoFeed } from "@/components/RepoFeed";
 import { isAuthExpired, SESSION_EXPIRED_PATH } from "@/lib/authExpired";
 import type { WatchedRepo } from "@/lib/config";
 import { getRepoResult } from "@/lib/github/fetch";
+import { buildLanesSource } from "@/lib/lanes/source";
 import { loadTurns } from "@/lib/loadTurns";
 import { newIssueRepos } from "@/lib/newIssue";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
@@ -38,6 +39,7 @@ export async function LayoutStream({ renderedAt }: { renderedAt: string }) {
         counts: countTurnItems(loaded.items),
         runningCounts: countRunningPipelineRows(loaded.results, loaded.now),
         newIssueRepos: newIssueRepos(repos, loaded.results),
+        slotsInUse: buildLanesSource(loaded.results, loaded.now).works.length,
         addedNotices: loaded.addedNotices,
         renderedAt,
       }}

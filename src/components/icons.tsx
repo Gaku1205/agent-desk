@@ -371,6 +371,16 @@ export function PlusIcon({ size = LABEL }: IconProps) {
   );
 }
 
+/** 更新＝回る矢印（Lucide の rotate-cw） */
+export function RefreshIcon({ size = LABEL }: IconProps) {
+  return (
+    <LineIcon size={size}>
+      <path d="M21 12a9 9 0 1 1-3-6.7" />
+      <path d="M21 4v5h-5" />
+    </LineIcon>
+  );
+}
+
 /** 左のバーを畳む・開く＝左に縦線のある四角（Lucide の panel-left） */
 export function PanelLeftIcon({ size = LABEL }: IconProps) {
   return (
