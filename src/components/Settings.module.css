@@ -710,6 +710,11 @@
     inset: -2px 0 -16px;
     content: "";
   }
+
+  /* 「今」の縦線は、z-index: 1 のますより手前に描く（押せる範囲には影響しない） */
+  .nowMark {
+    z-index: 2;
+  }
 }
 
 @container (max-width: 760px) {
