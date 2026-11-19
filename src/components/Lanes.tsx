@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
-import { ciStepText, type CiKind, type CiProgress } from "@/lib/ciProgress";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
 import { assignSlots, freeRowText, lanesHeadline, overLimitNote, type Slot } from "@/lib/lanes/slots";
@@ -26,6 +25,7 @@ import { getBrowserStorage } from "@/lib/motion";
 import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import dashboardStyles from "./Dashboard.module.css";
 import { getSidebarSnapshot, subscribeSidebar, type DeskError, type DeskNav } from "./Desk";
+import { CiLine, CiText } from "./CiProgress";
 import { LoadErrors } from "./LoadErrors";
 import type { UsageSource } from "@/lib/lanes/usage";
 import {
@@ -188,63 +188,6 @@ function StepLine({ at }: { at: number }) {
           data-state={index < at ? "done" : index === at ? "now" : "todo"}
         />
       ))}
-    </span>
-  );
-}
-
-/** CI の段の間だけ、7工程の線の代わりに出す、CI のチェックの割合の線（左から 通過・実行中・枠待ち・失敗） */
-function CiLine({ ci }: { ci: CiProgress }) {
-  return (
-    <span className={styles.ciLine} role="img" aria-label={ci.label}>
-      {ci.segments.map((segment) => (
-        <span
-          key={segment.kind}
-          className={styles.ciSeg}
-          data-kind={segment.kind}
-          style={{ "--n": segment.count } as CSSProperties}
-        />
-      ))}
-    </span>
-  );
-}
-
-function CiMark({ kind }: { kind: CiKind }) {
-  switch (kind) {
-    case "passed":
-      return <span>✓</span>;
-    case "running":
-      return (
-        <span className={styles.spin}>
-          <SpinnerIcon size={12} />
-        </span>
-      );
-    case "queued":
-      return <QueueIcon size={12} />;
-    case "failed":
-      return <span>×</span>;
-  }
-}
-
-/** CI の段の間の1段目の文：`4/7 CI ✓4 ⧗6 枠待ち`（数は記号ごとに線と同じ色） */
-function CiText({ at, ci }: { at: number; ci: CiProgress }) {
-  return (
-    <span className={styles.ciText}>
-      <span className={styles.srOnly}>{ciStepText(at, FLOW_STEPS.length, ci)}</span>
-      <span className={styles.ciStep} aria-hidden="true">
-        <span className="num">
-          {at + 1}/{FLOW_STEPS.length}
-        </span>{" "}
-        CI
-      </span>
-      {ci.segments.map((segment) => (
-        <span key={segment.kind} className={styles.ciCount} data-kind={segment.kind} aria-hidden="true">
-          <CiMark kind={segment.kind} />
-          <span className="num">{segment.count}</span>
-        </span>
-      ))}
-      <span className={styles.ciWord} aria-hidden="true">
-        {ci.word}
-      </span>
     </span>
   );
 }

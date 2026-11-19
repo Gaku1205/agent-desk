@@ -8,6 +8,7 @@ import { splitQueue } from "@/lib/queueGroup";
 import { applyStepLog, hideUnknownModels } from "@/lib/flow";
 import type { StepInfo } from "@/lib/stepLog";
 import { formatWait } from "@/lib/turn";
+import { CiLine, CiText } from "./CiProgress";
 import { FlowMap } from "./FlowMap";
 import { CheckIcon, CrossIcon, SpinnerIcon } from "./icons";
 import { lampLabel } from "@/lib/lamp";
@@ -330,7 +331,12 @@ export function Conversation({
           <SmartLink href={message.url}>{message.title}</SmartLink>
         </p>
         {mark === null ? (
-          <p className={styles.text}>{message.text}</p>
+          <>
+            <p className={styles.text}>
+              {message.ci ? <CiText at={message.flow.at} ci={message.ci} /> : message.text}
+            </p>
+            {message.ci && <CiLine ci={message.ci} />}
+          </>
         ) : (
           <>
             <p className={`${styles.text} ${styles.status}`}>
@@ -343,8 +349,9 @@ export function Conversation({
                   <CrossIcon />
                 )}
               </span>
-              <span>{message.text}</span>
+              {message.ci ? <CiText at={message.flow.at} ci={message.ci} /> : <span>{message.text}</span>}
             </p>
+            {message.ci && <CiLine ci={message.ci} />}
             {message.activity && <ActivityLine activity={message.activity} />}
           </>
         )}

@@ -1,0 +1,104 @@
+/* CI のチェックの割合の線と数（Issue #583・#585）。Slots・「いまの様子」・進捗図で共有する */
+.ciLine {
+  display: flex;
+  gap: 1px;
+  width: 100%;
+  height: 3px;
+  margin-top: 6px;
+  border-radius: 2px;
+}
+
+/* チェックがまだ1つも無いときは、まだの色の1本 */
+.ciLine:empty {
+  background: var(--hair);
+}
+
+.ciSeg {
+  flex: var(--n) 1 0;
+  min-width: 2px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.ciSeg[data-kind="passed"] {
+  background: var(--ok);
+}
+
+.ciSeg[data-kind="running"] {
+  background: var(--accent);
+}
+
+.ciSeg[data-kind="queued"] {
+  background: var(--wait);
+}
+
+.ciSeg[data-kind="failed"] {
+  background: var(--fail);
+}
+
+/* 1段目の文：`4/7 CI ✓4 ⧗6 枠待ち` */
+.ciText {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--bone-2);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.ciStep {
+  color: var(--mute);
+}
+
+.ciCount {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 3px;
+  align-items: center;
+}
+
+.ciCount[data-kind="passed"] {
+  color: var(--ok);
+}
+
+.ciCount[data-kind="running"] {
+  color: var(--accent);
+}
+
+.ciCount[data-kind="queued"] {
+  color: var(--wait);
+}
+
+.ciCount[data-kind="failed"] {
+  color: var(--fail-soft);
+}
+
+.ciWord {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spin {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--accent);
+  animation: ci-spin 1.1s linear infinite;
+}
+
+@keyframes ci-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

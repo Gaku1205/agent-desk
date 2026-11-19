@@ -222,6 +222,16 @@ describe("getIssueStatus：表の各段階", () => {
     expect(status.ci).toEqual({ passed: 1, total: 5, running: 1, queued: 3, failed: 0 });
   });
 
+  it("CI中：未報告の必須チェック（missingRequired）は、枠待ちと全数に足す。段階は変えない", () => {
+    const status = getIssueStatus(
+      issue(),
+      input([pull()], { 11: { checkRuns: [check(), ciRunning], missingRequired: 2 } }),
+      NOW,
+    );
+    expect(status.stage).toBe("ciRunning");
+    expect(status.ci).toEqual({ passed: 1, total: 4, running: 1, queued: 2, failed: 0 });
+  });
+
   it("CI失敗：内訳の失敗に、failure・cancelled を数える（通過・全数は今までどおり）", () => {
     const cancelled = check({ conclusion: "cancelled" });
     const status = getIssueStatus(

@@ -10,6 +10,9 @@ import {
   type FlowExtras,
 } from "@/lib/flowExtraBranches";
 import type { FlowTargetData as FlowTarget } from "@/lib/flowTarget";
+import type { CiProgress } from "@/lib/ciProgress";
+import { chatCi } from "@/lib/conversation";
+import { CiLine, CiText } from "./CiProgress";
 import { CheckIcon, CrossIcon, FlowStepIcon, SpinnerIcon } from "./icons";
 import { QueueIcon } from "./QueueIcon";
 import styles from "./FlowMap.module.css";
@@ -124,11 +127,14 @@ function Step({
   flow,
   index,
   extras,
+  ci,
 }: {
   step: FlowStep;
   flow: Flow;
   index: number;
   extras: FlowExtras;
+  /** CI の段の間だけ、CI のチェックの線と数 */
+  ci: CiProgress | null;
 }) {
   const last = index === flow.steps.length - 1;
   // デザインの行：画面案ありは成功、通らなかったときは「飛ばした」（docs/spec.md の「ほかの分岐」）
@@ -169,12 +175,22 @@ function Step({
           </span>
         )}
       </div>
+      {step.key === "ci" && ci && (
+        <div className={styles.ci}>
+          <CiText at={flow.at} ci={ci} />
+          <CiLine ci={ci} />
+        </div>
+      )}
       {step.key === "ci" && <Branch flow={flow} />}
       {branches.map((branch) => (
         <ExtraBranchBox key={branch.kind} branch={branch} />
       ))}
     </li>
   );
+}
+
+function ciOf(target: FlowTarget): CiProgress | null {
+  return target.extra ? chatCi(target.extra.status) : null;
 }
 
 function extrasOf(target: FlowTarget): FlowExtras {
@@ -186,11 +202,12 @@ export function FlowMap({ target, inline = false }: { target: FlowTarget | null;
   if (inline && target) {
     // スマホ：「いまの様子」の行の下に開く。見出しは行にあるので付けない。図だけが横にスクロールする
     const extras = extrasOf(target);
+    const ci = ciOf(target);
     return (
       <div className={styles.inlineScroll} role="region" aria-label="進捗図" tabIndex={0}>
         <ol className={`${styles.steps} ${styles.inlineSteps}`} aria-label={`進捗図：${target.label}`}>
           {target.flow.steps.map((step, index) => (
-            <Step key={step.key} step={step} flow={target.flow} index={index} extras={extras} />
+            <Step key={step.key} step={step} flow={target.flow} index={index} extras={extras} ci={ci} />
           ))}
         </ol>
       </div>
@@ -205,6 +222,7 @@ export function FlowMap({ target, inline = false }: { target: FlowTarget | null;
   }
   const external = isExternalUrl(target.url);
   const extras = extrasOf(target);
+  const ci = ciOf(target);
   return (
     <section className={styles.flow} aria-label="進捗図">
       <div className={styles.head}>
@@ -220,7 +238,7 @@ export function FlowMap({ target, inline = false }: { target: FlowTarget | null;
       </div>
       <ol className={styles.steps} aria-label={`進捗図：${target.label}`}>
         {target.flow.steps.map((step, index) => (
-          <Step key={step.key} step={step} flow={target.flow} index={index} extras={extras} />
+          <Step key={step.key} step={step} flow={target.flow} index={index} extras={extras} ci={ci} />
         ))}
       </ol>
     </section>
