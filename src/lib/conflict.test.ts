@@ -30,6 +30,6 @@ describe("conflictKind", () => {
 describe("conflictText", () => {
   it("文言", () => {
     expect(conflictText("waiting")).toBe("main とぶつかっています");
-    expect(conflictText("fixing")).toBe("main とぶつかっています。AIが解消します");
+    expect(conflictText("fixing")).toBe("main とぶつかり・AIが解消中");
   });
 });
