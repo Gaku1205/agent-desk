@@ -22,7 +22,8 @@ async function openAndClose(page: Page) {
   await expect(page.locator("header[inert], main[inert]")).toHaveCount(0);
 }
 
-test("開いた直後でも、メニューが開いて閉じる", async ({ page }) => {
+// ボタンが出てから押す。ハイドレーション前のタップは確かめていない（別Issueで扱う）
+test("読み込みの直後でも、メニューが開いて閉じる", async ({ page }) => {
   await page.goto(PAGE, { waitUntil: "commit" });
   await menuButton(page).waitFor();
   await openAndClose(page);
