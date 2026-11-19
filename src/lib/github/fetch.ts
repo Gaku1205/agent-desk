@@ -210,7 +210,12 @@ export const backgroundFullForTest = {
  * 差分で返したあと、返事を返し終えてから（`after`）全部を読み直し、差分の元（メモリ・覚えている所）に入れ替える。
  * 失敗しても画面には影響させない。リクエストの外（`after` が使えない所）では何もしない
  */
-function readFullInBackground(client: GitHubClient, repo: WatchedRepo, store: DeltaBaseStore | undefined): void {
+function readFullInBackground(
+  client: GitHubClient,
+  repo: WatchedRepo,
+  store: DeltaBaseStore | undefined,
+  now: Date | undefined,
+): void {
   const key = deltaBaseKey(client, `/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}`);
   if (backgroundFullReads.has(key)) return;
   const startedAt = backgroundFullStartedAt.get(key);
@@ -220,7 +225,7 @@ function readFullInBackground(client: GitHubClient, repo: WatchedRepo, store: De
       shareInFlight(backgroundFullReads, key, async () => {
         backgroundFullStartedAt.set(key, Date.now());
         try {
-          const data = await fetchRepoData(client, repo, new Date(), { forceFull: true });
+          const data = await fetchRepoData(client, repo, now ?? new Date(), { forceFull: true });
           await store?.write(repo, data);
           store?.expireData(repo);
         } catch {
@@ -681,7 +686,7 @@ export async function fetchAllRepos(
       try {
         if (!access) {
           const data = await fetchRepoData(userClient, repo, options.now);
-          if (data.sync?.mode === "delta+bg-full") readFullInBackground(userClient, repo, undefined);
+          if (data.sync?.mode === "delta+bg-full") readFullInBackground(userClient, repo, undefined, options.now);
           return { owner, repo: name, ok: true, data, readSource };
         }
         const client = new GitHubClient(access.token, options.fetcher, {
@@ -693,13 +698,13 @@ export async function fetchAllRepos(
         await loadStoredBase(client, repo, options.store);
         if (!options.readAppData) {
           const data = await load();
-          if (data.sync?.mode === "delta+bg-full") readFullInBackground(client, repo, options.store);
+          if (data.sync?.mode === "delta+bg-full") readFullInBackground(client, repo, options.store, options.now);
           return { owner, repo: name, ok: true, data, readSource };
         }
         const { data, changeMark } = await options.readAppData(repo, load);
         // キャッシュから受け取った物（ほかのインスタンスが読んだ物もある）も、次の差分の読みの元にする
         rememberRepoData(client, repo, data);
-        if (data.sync?.mode === "delta+bg-full") readFullInBackground(client, repo, options.store);
+        if (data.sync?.mode === "delta+bg-full") readFullInBackground(client, repo, options.store, options.now);
         return { owner, repo: name, ok: true, data, readSource, changeMark };
       } catch (error) {
         // App の鍵で権限なし・見つからないなら、記憶を消して、ログインした人のトークンで1回だけ読み直す

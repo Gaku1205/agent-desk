@@ -1,8 +1,23 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// 返事を返し終えてから動かす物（`after`）：ためておいて、テストが動かす
+const afterQueue = vi.hoisted(() => [] as Array<() => unknown>);
+vi.mock("next/server", () => ({
+  after: (run: () => unknown) => {
+    afterQueue.push(run);
+  },
+}));
+
 import { etagCacheForTest } from "./client";
 import { FULL_READ_INTERVAL_MS } from "./delta";
 import { fakeGitHub, gqlIssue, gqlPull, jsonResponse, type FakeCall, type FakeRepo } from "./fakeGitHub";
-import { actionsCacheForTest, deltaBaseCacheForTest, fetchAllRepos, mainDeployedCacheForTest } from "./fetch";
+import {
+  actionsCacheForTest,
+  backgroundFullForTest,
+  deltaBaseCacheForTest,
+  fetchAllRepos,
+  mainDeployedCacheForTest,
+} from "./fetch";
 import { deltaQueryCost, type GqlComment, type GqlIssue, type GqlPull } from "./graphql";
 import type { RepoData, RepoResult } from "./types";
 
@@ -20,7 +35,16 @@ beforeEach(() => {
   mainDeployedCacheForTest.clear();
   actionsCacheForTest.clear();
   deltaBaseCacheForTest.clear();
+  backgroundFullForTest.clear();
+  afterQueue.length = 0;
 });
+
+/** `after` に預けた裏の読みを、全部動かして終わりを待つ */
+async function runAfter(): Promise<void> {
+  const runs = afterQueue.splice(0);
+  await Promise.all(runs.map((run) => run()));
+  await backgroundFullForTest.pending();
+}
 
 function comments(number: number, createdMs: number, count = 3): { nodes: GqlComment[] } {
   return {
@@ -244,16 +268,60 @@ describe("差分の読み（docs/spec.md の「データの取得」の「差分
     expect(later.calls.length).toBe(1);
   });
 
-  it("全部を読み直すと、削除された物は消える（差分のままだと残る）", async () => {
+  it("裏の全部読みで、削除された物が片づく（差分のままだと残る）。同時に1つだけ", async () => {
     const before = bigRepo();
     await read(before, T0);
+    const gone = before.issues[0].number;
     const removed = { issues: before.issues.slice(1), pulls: before.pulls };
-    const delta = await read(removed, T0 + 8 * HOUR);
-    expect(delta.result.ok && delta.result.data.issues.some((i) => i.number === before.issues[0].number)).toBe(true);
-    // 裏の全部読みは、差分の元を使わずに読む（`forceFull`）
-    deltaBaseCacheForTest.clear();
-    const full = await read(removed, T0 + 8 * HOUR);
-    expect(full.result.ok && full.result.data.issues.some((i) => i.number === before.issues[0].number)).toBe(false);
+    const later = T0 + 8 * HOUR;
+    const delta = await read(removed, later);
+    expect(delta.result.ok && delta.result.data.sync?.mode).toBe("delta+bg-full");
+    expect(delta.result.ok && delta.result.data.issues.some((i) => i.number === gone)).toBe(true);
+    expect(delta.calls).toHaveLength(1);
+    // もう一度表示しても、裏の読みは同時に1つだけ（2つ預けても、全部読みは1回分）
+    const again = await read(removed, later);
+    expect(afterQueue).toHaveLength(2);
+    expect(again.calls).toHaveLength(1);
+    await runAfter();
+    // 読んだあとの次の表示では、消えた物が無く、全部読みの時刻に入れ替わっている
+    const next = await read(removed, later + MIN);
+    expect(next.result.ok && next.result.data.issues.some((i) => i.number === gone)).toBe(false);
+    expect(next.result.ok && next.result.data.sync).toMatchObject({ mode: "delta", fullAt: at(later) });
+  });
+
+  it("裏の全部読みが失敗しても画面には影響せず、5分に1回より多くは始めない", async () => {
+    const before = bigRepo();
+    await read(before, T0);
+    const later = T0 + 8 * HOUR;
+    let failing = false;
+    const { fetcher } = fakeGitHub({ "o/r": before });
+    const flaky: typeof fetch = async (input, init) => {
+      const body = init?.body ? (JSON.parse(String(init.body)) as { variables?: Record<string, unknown> }) : null;
+      const isFull = String(input).endsWith("/graphql") && body?.variables && !("withRecentIssues" in body.variables);
+      if (failing && isFull) return jsonResponse({ message: "boom" }, { status: 502 });
+      return fetcher(input, init);
+    };
+    const clock = vi.spyOn(Date, "now");
+    const show = async (nowMs: number) => {
+      clock.mockReturnValue(nowMs);
+      return (await fetchAllRepos(TOKEN, REPOS, { fetcher: flaky, now: new Date(nowMs) }))[0];
+    };
+    failing = true;
+    const first = await show(later);
+    expect(first.ok && first.data.sync?.mode).toBe("delta+bg-full");
+    await expect(runAfter()).resolves.toBeUndefined();
+    // 失敗したので、差分の元は前のまま
+    // 5分たたないうちは、始めない
+    await show(later + MIN);
+    expect(afterQueue).toHaveLength(0);
+    // 5分たったら、やり直す
+    failing = false;
+    await show(later + 6 * MIN);
+    expect(afterQueue).toHaveLength(1);
+    await runAfter();
+    const done = await show(later + 7 * MIN);
+    expect(done.ok && done.data.sync).toMatchObject({ mode: "delta", fullAt: at(later + 6 * MIN) });
+    clock.mockRestore();
   });
 
   it("差分の読みが失敗したら、その回のうちに全部を読み直す", async () => {
