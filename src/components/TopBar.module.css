@@ -667,8 +667,20 @@
       visibility 0s;
   }
 
+  /* ホームへのリンク（Issue #613）：押せる範囲は高さ44px。文字の位置は今のまま（左の −12px と内側の 12px で合わせる） */
   .sheet .mark {
-    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    height: 44px;
+    margin: -8px 0 6px -12px;
+    padding: 0 12px;
+    border-radius: 6px;
+  }
+
+  /* 押した印：ほかの項目と同じ（押している間だけ「今いる」の見た目） */
+  .sheet .mark:has([data-pending]) {
+    background: var(--well);
+    color: var(--bone);
   }
 
   .sheet .repos {

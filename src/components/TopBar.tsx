@@ -419,6 +419,7 @@ function MenuSheet(props: Props) {
   const demo = useDemo();
   const pathname = usePathname();
   const newIssueLink = newIssueHref(props.basePath ?? "", currentRepoFromPath(pathname));
+  const homeHref = props.basePath || "/";
   const newServiceHref = `${props.basePath ?? ""}/new/service`;
   const dashboardHref = `${props.basePath ?? ""}/dashboard`;
   const lanesHref = `${props.basePath ?? ""}/lanes`;
@@ -438,7 +439,16 @@ function MenuSheet(props: Props) {
     >
       <div className={styles.scrim} onClick={closeMenu} aria-hidden="true" />
       <div className={styles.pane} role="dialog" aria-modal="true" aria-label="メニュー" ref={paneRef}>
-        <span className={styles.mark}>agent-desk</span>
+        {/* 先頭のワードマークはホームへのリンク（Issue #613）。読み上げは「ホーム」。今ホームにいるときは閉じるだけ */}
+        <Link
+          href={homeHref}
+          className={styles.mark}
+          aria-label="ホーム"
+          onClick={shouldCloseMenuOnPick(pathname, homeHref) ? closeMenu : undefined}
+        >
+          agent-desk
+          <PendingMark />
+        </Link>
         <Link
           href={newServiceHref}
           className={styles.lnk}

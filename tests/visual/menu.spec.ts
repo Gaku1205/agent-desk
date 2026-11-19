@@ -67,6 +67,15 @@ test("取り直しの後でも開閉できる", async ({ page }) => {
   await openAndClose(page);
 });
 
+// メニューの先頭の agent-desk は、ホーム（デモでは /demo）へのリンク（Issue #613）
+test("スマホのメニューからホームへ戻れる", async ({ page }) => {
+  await page.goto(PAGE);
+  await menuButton(page).tap();
+  await page.getByRole("dialog", { name: "メニュー" }).getByRole("link", { name: "ホーム" }).tap();
+  await expect(page).toHaveURL(/\/demo$/);
+  await expect(menuButton(page)).toHaveAttribute("aria-expanded", "false");
+});
+
 test("ページを移った後でも開閉でき、inert が残らない", async ({ page }) => {
   await page.goto(PAGE);
   await menuButton(page).tap();
