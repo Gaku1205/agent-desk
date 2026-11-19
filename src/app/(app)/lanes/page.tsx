@@ -8,6 +8,8 @@ import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
 import { logout } from "../logout";
 
+export const metadata = { title: "Slots & Queue" };
+
 /**
  * Slots & Queue：いまの並列の枠・動いている物・順番待ち。
  * 取得はほかのページと同じ（GitHub を読む回数は増やさない）。全部のリポジトリがそろうのを待たず、
