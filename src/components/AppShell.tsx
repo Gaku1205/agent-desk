@@ -133,6 +133,15 @@ export function useMenuState(): Pick<ShellState, "menuOpen" | "openMenu" | "clos
   const openMenu = useCallback(() => setMenuPathname(pathname), [pathname]);
   const closeMenu = useCallback(() => setMenuPathname(null), []);
 
+  // ハイドレーション前に押されて開いていたら、その状態を引き継ぐ（先行スクリプトが DOM だけ開いている）
+  useEffect(() => {
+    if (!window.__menuPreOpen) return;
+    window.__menuPreOpen = false;
+    document.body.style.overflow = "";
+    queueMicrotask(() => setMenuPathname(pathname));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!menuOpen) return;
     function onKeyDown(event: KeyboardEvent) {
