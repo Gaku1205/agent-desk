@@ -9,6 +9,8 @@ import { countTurnItems } from "@/lib/turn";
 import { logout } from "../logout";
 import { loadExtendedPeriod } from "./actions";
 
+export const metadata = { title: "Dashboard" };
+
 /**
  * Dashboard：期間で振り返る。`24h`・`7d` は取得がほかのページと同じ（`loadTurns` の分だけ。GitHub を読む回数は増やさない）。
  * `30d` は、選んだときだけ Server Action（`loadExtendedPeriod`）が60日分を専用に取る（5分覚える）

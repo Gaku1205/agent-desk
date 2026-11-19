@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { loadStepLog } from "@/app/actions";
 import { DeskLive } from "@/components/LivePages";
@@ -13,6 +14,16 @@ import { buildWatchdogNotices } from "@/lib/watchdogState";
 import { logout } from "../../../logout";
 
 const NO_COUNTS = { byRepo: {} };
+
+/** タブの題名はリポジトリ名（docs/spec.md の「タブの題名」） */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ owner: string; repo: string }>;
+}): Promise<Metadata> {
+  const { repo } = await params;
+  return { title: repo };
+}
 
 /**
  * そのリポジトリの中身（あなたの番・いまの様子）は、そのリポジトリの取得だけで描く。

@@ -243,7 +243,7 @@ export function Conversation({
           type="button"
           className={styles.noteToggle}
           aria-expanded={isNoteOpen}
-          aria-controls={noteId}
+          aria-controls={isNoteOpen ? noteId : undefined}
           onClick={() => toggleNote(message.key)}
         >
           {isNoteOpen ? "理由を閉じる" : "理由を見る"}
@@ -372,7 +372,7 @@ export function Conversation({
           type="button"
           className={styles.queueToggle}
           aria-expanded={queueOpen}
-          aria-controls="queue-list"
+          aria-controls={queueOpen ? "queue-list" : undefined}
           onClick={() => setQueueOpen((open) => !open)}
         >
           <span className={styles.queueIcon}>
