@@ -4,10 +4,20 @@ import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, 
 import { ciStepText, type CiKind, type CiProgress } from "@/lib/ciProgress";
 import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
-import { assignSlots, lanesHeadline, overLimitNote,type QueueEntry, type Slot } from "@/lib/lanes/slots";
-import { queueLine } from "@/lib/lanes/queueLine";
+import { assignSlots, freeRowText, lanesHeadline, overLimitNote, type Slot } from "@/lib/lanes/slots";
+import {
+  multiWaitText,
+  NEXT_FREE_TEXT,
+  queueGroups,
+  queueRowMeta,
+  queueRowTitle,
+  targetLabel,
+  workStepText,
+  type QueueGroup,
+  type QueueGroupRow,
+} from "@/lib/lanes/queueGroups";
 import { isLongSleep, jobGauge, sleepingCountText, sortByWake, wakeTimeText, type JobGauge } from "@/lib/lanes/sleeping";
-import type { LanesSource, RunEntry } from "@/lib/lanes/source";
+import type { LanesSource, RunEntry, WaitTarget } from "@/lib/lanes/source";
 import { lanesTurnRows, mergeOrdinals } from "@/lib/lanes/turnRows";
 import { heldIndex, withHeldRows, type HeldRow } from "@/lib/operationResult";
 import { turnItemKey, turnSig, type TurnItem } from "@/lib/turn";
@@ -263,10 +273,11 @@ function HangRow({ run }: { run: RunEntry }) {
   );
 }
 
-function SlotRow({ slot }: { slot: Slot }) {
-  if (slot.kind === "running") {
-    const { work } = slot;
-    return (
+type RunningSlot = Extract<Slot, { kind: "running" }>;
+
+function SlotRow({ slot }: { slot: RunningSlot }) {
+  const { work } = slot;
+  return (
       <li className={styles.seat}>
       <div className={styles.row} data-tone="running" data-kind="slot">
         <div className={styles.left}>
@@ -306,31 +317,26 @@ function SlotRow({ slot }: { slot: Slot }) {
         </ul>
       )}
       </li>
-    );
-  }
+  );
+}
+
+/** 空きの席をまとめた1行：`○ Free × 3`・`Waiting 4 · 下の作業が終わるのを待っている`（Issue #586） */
+function FreeRow({ count, queue }: { count: number; queue: number }) {
+  const { waiting, text } = freeRowText(queue);
   return (
-    <li className={`${styles.seat} ${styles.row}`} data-tone="free" data-kind="slot">
-      <div className={styles.left}>
-        <span className={styles.slotName} data-tone="free">
-          <CircleIcon size={12} />
-          Slot {slot.index} · Free
-        </span>
-        <span className={styles.ref}>空いています</span>
-      </div>
-      <p className={styles.reason} title={slot.reason}>
-        {slot.reason}
-      </p>
-      <div className={styles.right}>
-        {slot.next && (
-          <span className={styles.next}>
-            <QueueIcon size={12} />
-            <span className={styles.nextWord}>次</span>
-            <span className="num">
-              {slot.next.repo}#{slot.next.number}
-            </span>
-          </span>
+    <li className={`${styles.seat} ${styles.row}`} data-tone="free" data-kind="free">
+      <span className={styles.slotName} data-tone="free">
+        <CircleIcon size={12} />
+        Free ×<span className="num">{count}</span>
+      </span>
+      <p className={styles.freeText}>
+        {waiting !== null && (
+          <>
+            <span className="num">Waiting {waiting}</span> ·{" "}
+          </>
         )}
-      </div>
+        {text}
+      </p>
     </li>
   );
 }
@@ -518,59 +524,84 @@ function BackgroundSection({ id, other, all, now }: { id: string; other: RunEntr
   );
 }
 
-function QueueWhy({ entry, basePath }: { entry: QueueEntry; basePath: string }) {
-  const line = queueLine(entry);
-  if (line.kind === "text") {
-    return (
-      <span className={styles.why} title={entry.reason}>
-        {line.text}
-      </span>
-    );
-  }
-  const { target, more } = line;
-  const label = target.kind === "pull" ? `${entry.repo} PR #${target.number}` : `${entry.repo}#${target.number}`;
-  // 進捗図は、その作業のあるリポジトリのページで見る（Issue が分からない PR は GitHub の PR）
+/** 親の行の相手の番号（`#553`・`PR #36`）。進捗図は、その作業のあるリポジトリのページで見る（Issue が分からない PR は GitHub の PR） */
+function TargetLink({ target, group, basePath }: { target: WaitTarget; group: QueueGroup; basePath: string }) {
   const inApp = target.issueNumber !== null;
-  const href = inApp ? `${basePath}/repos/${entry.owner}/${entry.repo}` : target.url;
+  const href = inApp ? `${basePath}/repos/${group.owner}/${group.repo}` : target.url;
   return (
-    <span className={`${styles.why} ${styles.whyFlex}`} title={entry.reason}>
-      <span className={styles.whyHead}>待ち：</span>
-      <a
-        className={styles.waitFor}
-        href={href}
-        {...(inApp ? {} : { target: "_blank", rel: "noreferrer" })}
-      >
-        {label}
-      </a>
-      {target.title !== "" && <span className={styles.whyTitle}>{target.title}</span>}
-      {more > 0 && <span className={styles.whyMore}>ほか{more}件</span>}
-    </span>
+    <a className={styles.groupRef} href={href} {...(inApp ? {} : { target: "_blank", rel: "noreferrer" })}>
+      {targetLabel(target)}
+    </a>
   );
 }
 
-function QueueRow({ entry, basePath }: { entry: QueueEntry; basePath: string }) {
+/** まとまりの親の行（1行・40px）：待つ相手 → 相手の題名（または文） → 相手の今の工程 */
+function GroupHead({ group, basePath }: { group: QueueGroup; basePath: string }) {
+  if (group.kind === "next") {
+    return (
+      <div className={styles.groupHead} data-kind="next">
+        <span className={styles.groupLeft}>
+          <CircleIcon size={12} />
+          Next free slot
+        </span>
+        <span className={styles.groupText}>{NEXT_FREE_TEXT}</span>
+      </div>
+    );
+  }
+  const middle =
+    group.kind === "multi" ? multiWaitText(group.targets.length) : group.work?.title ?? group.targets[0].title;
   return (
-    <li className={styles.row} data-tone="queue" data-kind="queue">
-      <div className={styles.left}>
-        <span className={styles.rank}>
-          <QueueIcon size={13} />
-          <span className="num">{entry.rank}</span>
+    <div className={styles.groupHead} data-kind={group.kind} data-tone={group.tone}>
+      <span className={styles.groupLeft}>
+        {group.tone === "running" ? <PlayIcon size={12} /> : group.kind === "multi" ? <CircleIcon size={12} /> : null}
+        <span className={`${styles.groupRefs} num`}>
+          {group.targets.map((target, index) => (
+            <span key={`${target.kind}:${target.number}`}>
+              {index > 0 && <span className={styles.groupPlus}> + </span>}
+              <TargetLink target={target} group={group} basePath={basePath} />
+            </span>
+          ))}
         </span>
-      </div>
-      <div className={styles.middle}>
-        <span className={styles.queueTop}>
-          <span className={`${styles.ref} num`}>
-            {entry.repo}#{entry.number}
-          </span>
-          <a className={styles.queueTitle} href={entry.url} target="_blank" rel="noreferrer" title={entry.title}>
-            {entry.title}
-          </a>
-        </span>
-        <QueueWhy entry={entry} basePath={basePath} />
-      </div>
-      <div className={styles.right}>
-        {entry.waitingMs !== null && <span className={`${styles.time} num`}>{formatSpan(entry.waitingMs)}</span>}
-      </div>
+      </span>
+      <span
+        className={styles.groupText}
+        data-muted={group.kind === "work" ? undefined : ""}
+        title={group.kind === "multi" ? undefined : middle}
+      >
+        {middle}
+      </span>
+      {group.work && <span className={styles.groupStep}>{workStepText(group.work)}</span>}
+    </div>
+  );
+}
+
+/** まとまりの子の行（1行・28px）：`⧗ 1`・題名・`agent-desk#556 · TopBar.tsx`・待ち時間 */
+function QueueChildRow({ row }: { row: QueueGroupRow }) {
+  const { entry } = row;
+  return (
+    <li className={styles.qRow} data-depth={row.depth} title={queueRowTitle(entry)}>
+      <span className={styles.qRank}>
+        <QueueIcon size={12} />
+        <span className="num">{row.order}</span>
+      </span>
+      <a className={styles.qTitle} href={entry.url} target="_blank" rel="noreferrer" title={entry.title}>
+        {entry.title}
+      </a>
+      <span className={`${styles.qMeta} num`}>{queueRowMeta(row)}</span>
+      <span className={`${styles.qTime} num`}>{entry.waitingMs !== null ? formatSpan(entry.waitingMs) : ""}</span>
+    </li>
+  );
+}
+
+function QueueGroupView({ group, basePath }: { group: QueueGroup; basePath: string }) {
+  return (
+    <li className={styles.group} data-tone={group.kind === "next" ? "idle" : group.tone}>
+      <GroupHead group={group} basePath={basePath} />
+      <ol className={styles.groupRows}>
+        {group.rows.map((row) => (
+          <QueueChildRow key={row.entry.key} row={row} />
+        ))}
+      </ol>
     </li>
   );
 }
@@ -582,6 +613,9 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
   const limit = parallel?.state?.limit ?? null;
   const lanes = assignSlots(source, limit);
   const overLimit = overLimitNote(lanes.counts.running, limit);
+  const runningSlots = lanes.slots.filter((slot): slot is RunningSlot => slot.kind === "running");
+  const freeCount = lanes.slots.length - runningSlots.length;
+  const groups = queueGroups(lanes.queue, source.works);
   const at = new Date(now);
   const slotsId = useId();
   const runsId = useId();
@@ -671,9 +705,10 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
             <p className={styles.empty}>動いている作業はありません</p>
           ) : (
             <ul className={`${styles.list} ${styles.seatList}`}>
-              {lanes.slots.map((slot) => (
-                <SlotRow key={slot.kind === "running" ? slot.work.key : `free-${slot.index}`} slot={slot} />
+              {runningSlots.map((slot) => (
+                <SlotRow key={slot.work.key} slot={slot} />
               ))}
+              {freeCount > 0 && <FreeRow count={freeCount} queue={lanes.queue.length} />}
             </ul>
           )}
         </section>
@@ -688,11 +723,11 @@ export function Lanes({ source, usage, items, now, nav, errors }: Props) {
           {lanes.queue.length === 0 ? (
             <p className={styles.empty}>順番待ちの作業はありません</p>
           ) : (
-            <ol className={styles.list}>
-              {lanes.queue.map((entry) => (
-                <QueueRow key={entry.key} entry={entry} basePath={nav.basePath ?? ""} />
+            <ul className={`${styles.list} ${styles.groupList}`}>
+              {groups.map((group) => (
+                <QueueGroupView key={group.key} group={group} basePath={nav.basePath ?? ""} />
               ))}
-            </ol>
+            </ul>
           )}
         </section>
 
