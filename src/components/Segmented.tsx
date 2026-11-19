@@ -40,6 +40,7 @@ export function Segmented<T extends string>({ options, value, onChange, label }:
           aria-checked={option.value === value}
           tabIndex={option.value === value ? 0 : -1}
           className={styles.segment}
+          data-pre-tap=""
           onKeyDown={(event) => onKeyDown(event, index)}
           onClick={() => onChange(option.value)}
         >

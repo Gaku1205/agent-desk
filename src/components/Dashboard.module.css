@@ -45,6 +45,10 @@
 }
 
 .tab {
+  /* `<a>`（URL のリンク）でも、ボタンだったときと同じ見た目 */
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
   padding: 0 14px;
   border-radius: 8px;
   color: var(--bone-2);

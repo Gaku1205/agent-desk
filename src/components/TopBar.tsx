@@ -324,6 +324,7 @@ export function SyncStatus() {
       <button
         type="button"
         className={styles.syncBtn}
+        data-pre-tap=""
         onClick={refresh}
         disabled={refreshing}
         aria-busy={refreshing}

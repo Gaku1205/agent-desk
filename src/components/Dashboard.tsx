@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useState, useSyncExternalStore } from "react";
 import { barRatios, USAGE_MODELS, type AiUsage, type UsageModel } from "@/lib/dashboard/aiUsage";
 import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
@@ -43,7 +43,14 @@ type Props = {
   nav: DeskNav;
   /** 読めなかったリポジトリ（あれば、見出しの下に出す。数には入っていない） */
   errors?: DeskError[];
+  /** 最初に出す期間（URL の `?period=`。サーバーが決める）。無ければ `24h` */
+  initialPeriod?: PeriodKey;
 };
+
+/** 期間のリンク先：既定の `24h` は付けない（`?period=7d` など） */
+function periodHref(base: string, key: PeriodKey): string {
+  return key === "24h" ? base : `${base}?period=${key}`;
+}
 
 const DASH = "—";
 
@@ -383,11 +390,14 @@ function GithubLimitsSection({ limits }: { limits: GithubLimits }) {
 }
 
 /** Dashboard（`/dashboard`、デモは `/demo/dashboard`）：期間で振り返る。見出し・期間の切り替え・まとめ・AI usage・GitHub limits */
-export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav, errors }: Props) {
-  const [period, setPeriod] = useState<PeriodKey>("24h");
+export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav, errors, initialPeriod = "24h" }: Props) {
+  const [period, setPeriod] = useState<PeriodKey>(initialPeriod);
   // `loadPeriod` で取った期間（5分覚えるのはサーバー側。画面では開いている間だけ持つ）
   const [loaded, setLoaded] = useState<Partial<Record<PeriodKey, PeriodBundle>>>({});
-  const [pending, setPending] = useState<PeriodKey | null>(null);
+  // URL が数字の無い期間（`30d`）のときは、サーバーが「読んでいます…」で描き、動き出したらすぐ読む
+  const [pending, setPending] = useState<PeriodKey | null>(
+    !bundles[initialPeriod] && loadPeriod ? initialPeriod : null,
+  );
   const [failed, setFailed] = useState<PeriodKey | null>(null);
   const tabsId = useId();
   // まだ数字が無い期間（読み込み中・失敗）は、数字を全部 `—` にする（作り物の数字を出さない）
@@ -395,12 +405,8 @@ export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav, er
   const summary = bundle.summary;
   const at = new Date(bundle.now);
 
-  const selectPeriod = (key: PeriodKey) => {
-    setPeriod(key);
-    setFailed(null);
-    if (bundles[key] || loaded[key] || !loadPeriod) return;
-    setPending(key);
-    loadPeriod(key)
+  const readPeriod = (key: PeriodKey) => {
+    loadPeriod?.(key)
       .then((result) => {
         if (result) setLoaded((current) => ({ ...current, [key]: result }));
         else setFailed(key);
@@ -408,6 +414,21 @@ export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav, er
       .catch(() => setFailed(key))
       .finally(() => setPending((current) => (current === key ? null : current)));
   };
+  const selectPeriod = (key: PeriodKey) => {
+    setPeriod(key);
+    setFailed(null);
+    // 今の URL の期間に揃える（移動はしない。読み込み済みの期間は取り直さない）
+    window.history.replaceState(window.history.state, "", periodHref(window.location.pathname, key));
+    if (bundles[key] || loaded[key] || !loadPeriod) return;
+    setPending(key);
+    readPeriod(key);
+  };
+  // URL が `?period=30d` で開いたとき、動き出した直後に読む（サーバーは「読んでいます…」まで描いてある）
+  useEffect(() => {
+    if (pending !== null && pending === initialPeriod) readPeriod(initialPeriod);
+    // 最初の1回だけ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const sideCollapsed = useSyncExternalStore(subscribeSidebar, getSidebarSnapshot, () => false);
   const toggleSide = useCallback(() => {
     const next = !getSidebarSnapshot();
@@ -439,16 +460,22 @@ export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav, er
           </div>
           <div className={styles.tabs} role="tablist" aria-label="期間">
             {PERIOD_KEYS.map((key, index) => (
-              <button
+              <a
                 key={key}
-                type="button"
+                // URL のリンク：JS が動く前に押せば、そのまま移動して期間が替わる（Issue #615）
+                href={periodHref(`${nav.basePath ?? ""}/dashboard`, key)}
                 role="tab"
                 id={`${tabsId}-${key}`}
                 aria-selected={period === key}
                 aria-controls={`${tabsId}-panel`}
                 tabIndex={period === key ? 0 : -1}
                 className={`${styles.tab} num`}
-                onClick={() => selectPeriod(key)}
+                onClick={(event) => {
+                  // 新しいタブ・修飾キーつきはブラウザに任せる
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+                  event.preventDefault();
+                  selectPeriod(key);
+                }}
                 onKeyDown={(event) => {
                   const next = nextTabIndex(event.key, index, PERIOD_KEYS.length);
                   if (next === null) return;
@@ -458,7 +485,7 @@ export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav, er
                 }}
               >
                 {key}
-              </button>
+              </a>
             ))}
           </div>
         </header>
