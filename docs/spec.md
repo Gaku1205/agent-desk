@@ -742,6 +742,25 @@ CIが失敗したとき、CIの行の下に字下げした枠が開き、中に�
 - レート制限（`rate_limited`）で取れなかったときのエラーの文言は、回復する時刻が分かれば「GitHubのレート制限に達しました。HH:MM（日本時間）ごろに回復します」。`HH:MM` は返事の `X-RateLimit-Reset` を日本時間にして秒を落とした物（`src/lib/refresh.ts` の `formatResetTime`）。時刻が分からないときは「GitHubのレート制限に達しました。しばらくしてからもう一度試してください」
 - App の鍵で読んでいて制限に当たったときだけ、「GitHubのレート制限」のあとに「（パイプラインのApp）」を付ける（どちらの鍵の残りか分かるように）。「GitHubのレート制限（パイプラインのApp）に達しました。HH:MM（日本時間）ごろに回復します」／時刻が分からないとき「GitHubのレート制限（パイプラインのApp）に達しました。しばらくしてからもう一度試してください」。ログインした人のトークンで読んでいるとき、ボタンの操作のときは今までどおりの文言
 
+### 自己点検（`/api/selfcheck`）（Issue #650）
+
+AI を使わずに、「GitHub の状態」と「画面に出す物」を突き合わせて、食い違い（ずれ）を機械的に見つける入口。11/19 に見つかった嘘の表示（Slots 0 / 5 なのに作業が動いている、工場の相談が来ているのに Your turn 0件、工場が作業中なのに「相談待ち」、取り消された修正AIが「直しています」、読めないのに「何も無い」）は、どれも突き合わせれば見つけられた。見つけるだけで、画面の表示・判定は変えない。ずれを Issue にするのは #651、上のバーに出すのは #652（`表示のずれ`）、呼ぶ側（ai-dev-template の見張り役）はテンプレート側の別の Issue。見た目は変えない。
+
+- 入口：`POST /api/selfcheck`（`src/app/api/selfcheck/route.ts`）。ログイン（Cookie）は要らない。呼ぶ側が、パイプラインの GitHub App のインストールの鍵を `Authorization: Bearer <鍵>` で付ける。追加の環境変数・秘密情報は使わない（使うのは既存の `PIPELINE_APP_ID`・`PIPELINE_APP_PRIVATE_KEY`・`WATCHED_REPOS`・`SETTINGS_REPO`）
+- 受け付ける条件（`src/lib/selfcheck/auth.ts` の `decideSelfcheckAuth`。入力：`GET /installation/repositories` の返事・監視リポジトリ・`PIPELINE_APP_ID`・鍵の App の ID。出力：受け付けるか）：(a) その鍵で読めたリポジトリに、監視しているリポジトリが含まれる、(b) その鍵の App の ID が `PIPELINE_APP_ID` と同じ、の両方。App の ID は、`PIPELINE_APP_ID`・`PIPELINE_APP_PRIVATE_KEY` で作る JWT で `GET /repos/{owner}/{repo}/installation`（(a) で見つけた監視リポジトリ）を呼び、返事の `app_id` を見る。どれかを満たさない（鍵が無い・違う App の鍵・監視していないリポジトリの鍵・`PIPELINE_APP_ID` が無い・GitHub が答えない）ときは **401**（本文なし）。受け付けた後にだけ中身を読む。鍵はログにも返事にも出さず、覚えない
+- 監視リポジトリ：環境変数 `WATCHED_REPOS` と、設定の Variable（`SETTINGS_REPO` の `AGENT_DESK_WATCHED_REPOS`。呼ばれた鍵で読む。読めなければ無いものとする）を、`chooseWatchedRepos` で選ぶ。ログインに頼る `loadWatchedRepos` は使わない
+- 読み方：各リポジトリは、呼ばれた鍵で `getRepoResult`（`src/lib/github/fetch.ts`）を使って読む。読めなかったリポジトリは `ok: false` の結果のまま扱い、ずれの判定からは外す（`unreadable` に入れる）
+- 返事（JSON、`Cache-Control: no-store`）：`{ checkedAt, repoCount, unreadable: ["owner/repo", …], drifts: [{ repo, number, rule, shown, actual }] }`。`checkedAt` は点検した時刻（ISO）、`repoCount` は監視リポジトリの数、`repo` は `owner/repo`、`number` は Issue か PR の番号（リポジトリ全体のずれは 0）、`rule` は決まりの名前（下の英字）、`shown` は「画面ではこう」、`actual` は「GitHub ではこう」（どちらも日本語の1行）
+- 5分の記憶：結果（返事の中身だけ。鍵は入れない）をサーバーのメモリに5分覚える（`src/lib/selfcheck/run.ts`）。5分のうちに何度呼ばれても、リポジトリは読み直さない。同時に呼ばれたときは1回にまとめる。読み方は画面と同じキャッシュ（`getRepoResult`）を通す
+- 決まり：1つずつの関数にして、`src/lib/selfcheck/rules/` に1ファイル1決まりで並べる（`rules/index.ts` の `SELFCHECK_RULES` に足せば増やせる）。入力は、読めたリポジトリの結果・読めなかったリポジトリ・今の時刻・画面の側の材料（`screen`）。出力はずれの一覧。画面の側は、画面が使っている関数の結果をそのまま使う（`src/lib/selfcheck/screen.ts`）：Your turn は `buildTurnItems`、いまの様子は `buildConversation`、Slots & Queue は `buildLanesSource`
+  1. `all-sections`：`ai:*`・`factory*` のラベルが付いた開いている Issue（`shouldShowIssue` で出す物）と、ブランチ名が `claude/` で始まる開いている PR が、Your turn・Slots & Queue（Slots・Queue・Paused・Running）・いまの様子のどの区画にも出ていない。PR は、PR の行（Issue に紐づかない「マージしてよいPR」）か、紐づく Issue が出ていれば出ているとみなす
+  2. `slots-count`：パイプラインが動いている作業として数える物（`ai:implement`・`ai:review` が付いた開いている Issue で、段階が実装中・CI中・レビュー中・修正中、またはPRを作成中）が、Slots の使用中に入っていない（使用中の数と違う。#649 の形）
+  3. `your-turn-count`：人間の番になっている物（`ai:stuck`、質問［`ai:question`］、工場の相談［`factory:wait`］、`ai:hold` のマージ待ち。答え済みの物は除く）があるのに、その物が Your turn に出ていない（Your turn が 0件のときも含む）
+  4. `ai-working`：（a）いまの様子で「AI が作業中」（実装中・企画中・レビュー中・修正中）と出している Issue に、関わる動いている（`queued`・`in_progress`）Actions の実行が無く、ラベル・コメント・Issue・PR の最後の更新から30分以上たっている。（b）Your turn で質問・工場の相談として「待っている」と出している Issue に、関わる `in_progress` の実行があり、人間の番になってから5分以上たっている。Actions の実行が取れていないリポジトリ（`runs` が無い・`null`）は判定しない
+  5. `unreadable-hidden`：読めなかったリポジトリがあるのに、画面が「読めなかった」を出していない（画面に渡す結果に、読めなかったリポジトリの行が入っていない。#612 の形）。リポジトリごとではなく全体の1件（`repo` は読めなかった最初のリポジトリ、`number` は 0）
+- 決まりの名前は上の英字を返す。題名に使う日本語の名前は #651 で決める
+- 限り：鍵の App の ID は、JWT で呼ぶ `GET /repos/{owner}/{repo}/installation` が返す、**パイプラインの App の**インストールの `app_id` で確かめる（GitHub は、インストールの鍵そのものからは App の ID を教えない）。そのため、監視リポジトリを読める別の App の鍵でも、パイプラインの App がそのリポジトリに入っていれば受け付ける。受け付けても返すのは、その鍵でもともと読めるリポジトリの点検結果だけ
+
 ### 表示のずれ（上のバー）（Issue #652）
 
 - 「表示のずれ」は、画面に取り込み済みの Issue（`RepoData` の `issues`）のうち、**開いていて**、題名が `表示のずれ：`（全角のコロン）で始まる物の数。新しく GitHub を呼ばない。数えるのは `src/lib/selfCheck.ts` の `summarizeDriftIssues`（入力：リポジトリごとの結果。出力：数と、作られた時刻がいちばん新しい1件の URL。0件なら URL は null）
