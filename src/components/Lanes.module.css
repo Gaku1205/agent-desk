@@ -151,37 +151,42 @@
   border-top: 1px solid var(--hair-2);
 }
 
-/* 席の行の下にぶら下がる、その席の処理（高さ40px）。左に薄い緑の縦線、左端に枝の線 */
+/* 席のまとまり（Issue #588）：席の行と処理の行を1つにし、席の左の縦線を処理の行の一番下まで続ける。席と席の間は10px（地を切る。線は引かない） */
+.seatList > .seat + .seat {
+  margin-top: 10px;
+  border-top: 0;
+}
+
+/* 席の下にぶら下がる処理の行：まとまりの一番下に6pxの余白（地は行と同じ）。縦線は席の線と同じ（2px・--ok） */
+.hangList {
+  margin: 0;
+  padding: 0 0 6px;
+  list-style: none;
+  box-shadow: inset 2px 0 0 var(--ok);
+}
+
 .hang {
   position: relative;
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr) 150px 52px 64px;
+  grid-template-columns: 110px minmax(0, 1fr) 150px 52px 64px;
   gap: 16px;
   align-items: center;
-  height: 40px;
+  height: 28px;
   padding: 0 0 0 40px;
-  background: var(--hair-2);
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--ok) 35%, transparent);
 }
 
+.hangList > .hang + .hang {
+  border-top: 1px solid var(--hair);
+}
+
+/* 内側の縦線（2px・--accent）：行の左端から26px */
 .hang::before {
   position: absolute;
   top: 0;
-  bottom: 50%;
-  left: 14px;
-  width: 16px;
-  border-bottom: 1px solid var(--edge-line);
-  border-bottom-left-radius: 4px;
-  border-left: 1px solid var(--edge-line);
-  content: "";
-}
-
-.hang:not([data-last])::after {
-  position: absolute;
-  top: 50%;
   bottom: 0;
-  left: 14px;
-  border-left: 1px solid var(--edge-line);
+  left: 26px;
+  width: 2px;
+  background: var(--accent);
   content: "";
 }
 
@@ -208,7 +213,7 @@
   grid-column: 3;
   overflow: hidden;
   color: var(--mute);
-  font-size: 12.5px;
+  font-size: 12px;
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -216,12 +221,16 @@
 
 .hang .time {
   grid-column: 4;
+  color: var(--bone-2);
+  font-size: 12.5px;
   text-align: right;
 }
 
 .hangLog {
   grid-column: 5;
+  font-size: 12px;
   text-align: right;
+  text-decoration: underline;
 }
 
 @container (max-width: 620px) {
@@ -237,7 +246,13 @@
   .hang {
     grid-template-columns: 110px minmax(0, 1fr) 52px;
     gap: 12px;
-    padding-left: 34px;
+    padding-left: 36px;
+  }
+}
+
+@media (max-width: 899px) {
+  .hang {
+    height: 36px;
   }
 }
 
