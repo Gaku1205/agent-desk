@@ -11,6 +11,7 @@ import { slotsInUseOf } from "@/lib/navCounts";
 import { loadTurns } from "@/lib/loadTurns";
 import { newIssueRepos } from "@/lib/newIssue";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
+import { summarizeDriftIssues } from "@/lib/selfCheck";
 import { buildTurnItems, countTurnItems } from "@/lib/turn";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
 
@@ -49,6 +50,7 @@ export async function LayoutStream({ renderedAt }: { renderedAt: string }) {
         slotsInUse: slotsInUseOf(buildLanesSource(loaded.results, loaded.now).works.length, unreadableRepos.length),
         unreadableRepos,
         addedNotices: loaded.addedNotices,
+        drift: summarizeDriftIssues(loaded.results),
         renderedAt,
       }}
     />
