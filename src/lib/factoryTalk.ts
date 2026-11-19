@@ -50,13 +50,31 @@ export type FactoryChoice = {
 /** 最終確認のまとめ */
 export type FactoryConfirm = {
   facts: { label: string; value: string }[];
+  /** 決まった事（質問ごとに1行の表にする） */
+  decided: { q: string; a: string }[];
   images: FactoryImage[];
+};
+
+/** 審査の合格の点（これに届かないと「合格に届かなかった」と出す） */
+export const FACTORY_JUDGE_PASS = 7.5;
+
+/** 審査の結果（印の `ask.judge`）。点も指摘も読めなければ作らない */
+export type FactoryJudge = {
+  score: number | null;
+  /** 合格したか（工場が書いていれば。無ければ点と 7.5 から決める） */
+  passed: boolean;
+  /** 残った指摘 */
+  issues: string[];
 };
 
 export type FactoryTalk = {
   /** 工場の相談のコメントの id と時刻 */
   commentId: number;
   createdAt: string;
+  /** 相談の回数（印の `round`。読めなければ null） */
+  round: number | null;
+  /** 審査の結果（印の `ask.judge`。無ければ null） */
+  judge: FactoryJudge | null;
   /** 今の段階（読めなければ null：「答えを書く」の欄だけ出す） */
   stage: FactoryStage | null;
   /** 工場からのお知らせ（作れなかった・読み取れなかったときの1行目。無ければ空） */
@@ -201,6 +219,77 @@ function image(
   return src === null ? [] : [{ src, alt, device }];
 }
 
+/** 工場の道具の言葉 `（draw.mjs …）` の括弧 */
+const TOOL_PAREN = /[（(][^）)\n]*\bdraw\.mjs\b[^）)\n]*[）)]/g;
+/** `配られた方向：…（draw.mjs …）` の1文 */
+const DEALT_DIRECTION = /配られた方向[：:][^\n]*?[（(][^）)\n]*\bdraw\.mjs\b[^）)\n]*[）)][。.]?/g;
+
+/** 表示のときだけ、説明から道具の言葉（`配られた方向：…（draw.mjs …）`）を取り除く。元のコメントは変えない */
+export function stripToolWords(text: string): string {
+  return text
+    .replace(DEALT_DIRECTION, "")
+    .replace(TOOL_PAREN, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+/** カードの頭に出す短い名前（段階の名前）。最終確認は回数を付けない */
+const STAGE_NAMES: Record<FactoryStage, string> = {
+  ideas: "案",
+  looks: "見た目の方向",
+  mocks: "画面",
+  confirm: "最終確認",
+};
+
+/** カードの頭：`相談 2 · 見た目の方向`・`最終確認`。回数が読めないときは段階の名前だけ */
+export function factoryStageLabel(stage: FactoryStage, round: number | null): string {
+  if (stage === "confirm" || round === null) return STAGE_NAMES[stage];
+  return `相談 ${round} · ${STAGE_NAMES[stage]}`;
+}
+
+function parseRound(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 1 ? value : null;
+}
+
+/** `ask.judge` を読む。点（数）・合格か（`pass`・`passed`）・指摘（`issues`・`remaining`・`problems` の文の並び）に対応 */
+function parseJudge(value: unknown): FactoryJudge | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return { score: value, passed: value >= FACTORY_JUDGE_PASS, issues: [] };
+  }
+  if (!isObject(value)) return null;
+  const rawScore = value.score ?? value.total;
+  const score = typeof rawScore === "number" && Number.isFinite(rawScore) ? rawScore : null;
+  const flag = typeof value.passed === "boolean" ? value.passed : typeof value.pass === "boolean" ? value.pass : null;
+  const issues = [...strings(value.issues), ...strings(value.remaining), ...strings(value.problems)].map(stripToolWords);
+  if (score === null && flag === null && issues.length === 0) return null;
+  const passed = flag ?? (score !== null ? score >= FACTORY_JUDGE_PASS : issues.length === 0);
+  return { score, passed, issues: issues.filter((s) => s !== "") };
+}
+
+/** 審査の点の行（カードの下に小さく出す）。合格に届かなかったときはその旨を足す */
+export function judgeLine(judge: FactoryJudge): string {
+  const points = judge.score === null ? "" : `${Math.round(judge.score * 10) / 10} 点`;
+  if (judge.passed) return points === "" ? "審査：合格" : `審査：${points}（合格 ${FACTORY_JUDGE_PASS}）`;
+  return points === ""
+    ? "審査：合格に届きませんでした"
+    : `審査：${points}（合格の ${FACTORY_JUDGE_PASS} に届きませんでした）`;
+}
+
+/** 質問ごとに、おすすめ（`recommended`）の選択肢を選ぶ。おすすめが無い質問は今のまま */
+export function answerWithRecommended(
+  questions: QuestionItem[],
+  current: FactoryInput["answers"],
+): FactoryInput["answers"] {
+  const next = { ...current };
+  for (const item of questions) {
+    const rec = item.options.find((o) => o.recommended);
+    if (rec) next[item.number] = { choice: rec.letter, note: current[item.number]?.note ?? "" };
+  }
+  return next;
+}
+
 function emptyChoice(value: string, mark: string, title: string): FactoryChoice {
   return { value, mark, title, sub: "", text: "", facts: [], colors: [], fonts: "", images: [] };
 }
@@ -222,7 +311,7 @@ function ideaChoices(state: Json): FactoryChoice[] {
       {
         ...emptyChoice(n, n, str(raw.title) || name || `案${n}`),
         sub: [name, stack].filter((s) => s !== "").join("・"),
-        text: str(raw.pitch),
+        text: stripToolWords(str(raw.pitch)),
         facts: IDEA_FACTS.map(([label, key]) => ({ label, value: str(raw[key]) })).filter((f) => f.value !== ""),
       },
     ];
@@ -236,7 +325,7 @@ function lookChoices(state: Json, images: Map<string, string>, assets: Json, rep
     return [
       {
         ...emptyChoice(n, n, str(raw.title) || `方向${n}`),
-        text: str(raw.idea),
+        text: stripToolWords(str(raw.idea)),
         colors: strings(raw.colors).filter((c) => /^#[0-9A-Fa-f]{6}$/.test(c)),
         fonts: str(raw.fonts),
         images: image(images, `方向${n}`, str(assets.looks), `look-${n}-1440.png`, repo, "pc"),
@@ -262,7 +351,7 @@ function mockChoices(state: Json, images: Map<string, string>, assets: Json, rep
     return [
       {
         ...emptyChoice(key, letter, str(raw.title) || letter),
-        text: str(raw.note),
+        text: stripToolWords(str(raw.note)),
         images: mockImages(images, assets, key, repo, [`${letter} PC`, `${letter} スマホ`]),
       },
     ];
@@ -285,14 +374,13 @@ function confirmSummary(state: Json, images: Map<string, string>, assets: Json, 
     add(price, strings(c.paid).join("・"));
   }
   add("最初に作る画面", strings(c.pages).join("・"));
-  const answers = list(state.answers)
+  const decided = list(state.answers)
     .filter(isObject)
-    .map((a) => (str(a.q) && str(a.a) ? `${str(a.q)} → ${str(a.a)}` : ""))
-    .filter((s) => s !== "");
-  add("決まった事", answers.join("／"));
+    .map((a) => ({ q: str(a.q), a: str(a.a) }))
+    .filter((a) => a.q !== "" && a.a !== "");
   const mock = str(state.mock).toLowerCase();
   const shots = mock === "a" || mock === "b" ? mockImages(images, assets, mock, repo, ["選んだ画面", "選んだ画面 スマホ"]) : [];
-  return { facts, images: shots };
+  return { facts, decided, images: shots };
 }
 
 function factoryQuestions(state: Json): QuestionItem[] {
@@ -321,11 +409,13 @@ function factoryQuestions(state: Json): QuestionItem[] {
 function noticeOf(body: string): string {
   const first = body.trimStart().split(/\r?\n/)[0] ?? "";
   if (!/^(🤔|⚠️|⚠)/u.test(first)) return "";
-  return first
-    .replace(TALK_MARK_PATTERN, "")
-    .replace(/^(🤔|⚠️|⚠)\s*/u, "")
-    .replace(/\*\*/g, "")
-    .trim();
+  return stripToolWords(
+    first
+      .replace(TALK_MARK_PATTERN, "")
+      .replace(/^(🤔|⚠️|⚠)\s*/u, "")
+      .replace(/\*\*/g, "")
+      .trim(),
+  );
 }
 
 /** そのIssueのいちばん新しい工場の相談を読む（無ければ null）。repo は `owner/repo`（画像のURLを作る） */
@@ -351,6 +441,8 @@ export function parseFactoryTalk(comments: CommentData[], issueNumber: number, r
   return {
     commentId: comment.id,
     createdAt: comment.createdAt,
+    round: parseRound(state.round),
+    judge: parseJudge(isObject(state.ask) ? state.ask.judge : undefined),
     stage: readable ? stage : null,
     notice: noticeOf(comment.body),
     choices: readable ? choices : [],

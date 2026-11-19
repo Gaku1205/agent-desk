@@ -41,7 +41,7 @@ const IDEAS = [
 ];
 
 const LOOKS = [
-  { n: 1, title: "夜明け", idea: "暗い青の地に、日の出の黄色を少しだけ", colors: ["#1D2433", "#F2C46B", "#9AA3B5", "#EFE9DC"], fonts: "明朝の見出し＋ゴシックの本文" },
+  { n: 1, title: "夜明け", idea: "暗い青の地に、日の出の黄色を少しだけ。配られた方向：夜明け（draw.mjs --seed 3 --slot 1）", colors: ["#1D2433", "#F2C46B", "#9AA3B5", "#EFE9DC"], fonts: "明朝の見出し＋ゴシックの本文" },
   { n: 2, title: "新聞", idea: "白い紙に黒の文字、罫線で区切る", colors: ["#FFFFFF", "#1A1A1A", "#6B6B6B", "#C8402F"], fonts: "太い明朝" },
   { n: 3, title: "まるい", idea: "深い緑に、丸い形と明るい差し色", colors: ["#164036", "#7BE0B6", "#FFB35C", "#F6F3EA"], fonts: "丸ゴシック" },
 ];
@@ -70,6 +70,17 @@ const QUESTIONS: Record<FactoryStage, { q: string; options: string[]; recommend:
 
 const NEXT: Record<FactoryStage, FactoryStage | null> = { ideas: "looks", looks: "mocks", mocks: "confirm", confirm: null };
 
+/** 審査の点（`ask.judge`）の見本：案は合格、見た目の方向は合格に届かず指摘が残る、画面は合格 */
+const JUDGES: Partial<Record<FactoryStage, { score: number; pass: boolean; issues: string[] }>> = {
+  ideas: { score: 8.2, pass: true, issues: [] },
+  looks: {
+    score: 6.9,
+    pass: false,
+    issues: ["方向2と方向3の色の組み合わせが近い", "文字の指定が方向ごとに違いすぎて比べにくい"],
+  },
+  mocks: { score: 7.8, pass: true, issues: [] },
+};
+
 /** 段階の物と質問を入れた state（前の state の選んだ物・決まった事は残す） */
 export function demoFactoryState(stage: FactoryStage, base: State = {}): State {
   const round = (typeof base.round === "number" ? base.round : 0) + 1;
@@ -79,7 +90,7 @@ export function demoFactoryState(stage: FactoryStage, base: State = {}): State {
     stage,
     round,
     assets: { ...(typeof base.assets === "object" && base.assets !== null ? base.assets : {}), [stage]: `issue-19/r${round}-${stage}` },
-    ask: { questions: QUESTIONS[stage] },
+    ask: { questions: QUESTIONS[stage], ...(JUDGES[stage] ? { judge: JUDGES[stage] } : {}) },
   };
   if (stage === "ideas") state.ideas = IDEAS;
   if (stage === "looks") state.looks = LOOKS;

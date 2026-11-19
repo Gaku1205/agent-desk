@@ -20,6 +20,7 @@ import flowStyles from "./FlowMap.module.css";
 import { emptyAnswer, QuestionForm } from "./QuestionForm";
 import { FactoryForm } from "./FactoryForm";
 import {
+  FACTORY_GO,
   composeFactoryAnswer,
   emptyFactoryInput,
   factoryAnswerText,
@@ -132,8 +133,7 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
     value: emptyFactoryInput(),
   }));
   const factoryInput = factoryState.id === talkId ? factoryState.value : emptyFactoryInput();
-  const factoryTalk = item.factory ?? { stage: null, choices: [], questions: [] };
-  const answerText = asking
+  const factoryTalk = item.factory ?? { stage: null, choices: [], questions: [] };  const answerText = asking
     ? composeAnswer(item.question ?? { questions: [], mockups: [] }, answer)
     : talking
       ? factoryAnswerText(factoryTalk, factoryInput)
@@ -233,9 +233,17 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
     setOp((prev) => (prev ? { ...prev, phase: "done" } : prev));
   }
 
-  function run(kind: OperationKind) {
+  /** 最終確認の「作る」：選んだ答えと一緒に、そのまま送る（「答えを送る」をもう一度押させない） */
+  function sendGo() {
+    const body = composeFactoryAnswer(factoryTalk, { ...factoryInput, pick: FACTORY_GO });
+    setFactoryState({ id: talkId, value: { ...factoryInput, pick: FACTORY_GO } });
+    run("answer", body);
+  }
+
+  function run(kind: OperationKind, bodyOverride?: string) {
     if (blocked) return;
-    if (kind === "answer" && answerText.trim() === "") {
+    const sendBody = bodyOverride ?? answerBody;
+    if (kind === "answer" && (bodyOverride ?? answerText).trim() === "") {
       // 何も選んでいない・書いていない答えは送らない
       setError(EMPTY_ANSWER_MESSAGE);
       return;
@@ -246,7 +254,7 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
     setOp({ kind, phase: "busy" });
     if (demo) {
       // デモ：サンプルのデータの上で本当に段階を進める（0.42秒遅れて。その間は「〜中…」）
-      demo.operate({ owner, repo, number: issue.number }, kind, kind === "answer" ? answerBody : undefined);
+      demo.operate({ owner, repo, number: issue.number }, kind, kind === "answer" ? sendBody : undefined);
       return;
     }
     startAction(async () => {
@@ -258,7 +266,7 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
             owner,
             repo,
             issueNumber: issue.number,
-            ...(kind === "answer" ? { answer: answerBody } : {}),
+            ...(kind === "answer" ? { answer: sendBody } : {}),
           }),
         () => ({ ok: false, changed: false, message: ACTION_UNREACHABLE_MESSAGE }),
       );
@@ -491,6 +499,8 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
                 }}
                 idPrefix={`turn-${owner}-${repo}-${issue.number}`}
                 preview={answerText}
+                onGo={sendGo}
+                disabled={blocked}
               />
             </div>
           )}

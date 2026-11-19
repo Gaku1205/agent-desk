@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { CommentData } from "./github/types";
 import {
+  answerWithRecommended,
+  factoryStageLabel,
+  judgeLine,
+  stripToolWords,
   composeFactoryAnswer,
   decodeBase64,
   decodeFactoryMark,
@@ -209,8 +213,8 @@ describe("工場の相談のコメントを読む", () => {
       { label: "無料", value: "予定3件" },
       { label: "有料（月 500 円）", value: "予定無制限・通知" },
       { label: "最初に作る画面", value: "トップ・料金" },
-      { label: "決まった事", value: "主に使う端末は？ → スマホが中心" },
     ]);
+    expect(talk?.confirm?.decided).toEqual([{ q: "主に使う端末は？", a: "スマホが中心" }]);
     expect(talk?.confirm?.images.map((i) => i.src)).toEqual([
       `${ROOT}/issue-5/r3-mocks/mock-b-1440.png`,
       `${ROOT}/issue-5/r3-mocks/mock-b-390.png`,
@@ -346,6 +350,66 @@ describe("答えを組み立てる", () => {
   it("注文は400文字で切る", () => {
     const body = composeFactoryAnswer(ideas, input({ pick: "redo", redoNote: "あ".repeat(500) }));
     expect((decodeAnswerMark(body) as { note: string }).note).toHaveLength(400);
+  });
+});
+
+describe("カードの頭・審査の点・道具の言葉・おすすめ", () => {
+  it("カードの頭：相談の回数と段階。最終確認は回数なし。回数が読めなければ段階だけ", () => {
+    expect(factoryStageLabel("looks", 2)).toBe("相談 2 · 見た目の方向");
+    expect(factoryStageLabel("ideas", 1)).toBe("相談 1 · 案");
+    expect(factoryStageLabel("confirm", 3)).toBe("最終確認");
+    expect(factoryStageLabel("mocks", null)).toBe("画面");
+  });
+
+  it("round を印から読む（数でなければ null）", () => {
+    const read = (state: Record<string, unknown>) =>
+      parseFactoryTalk([comment(1, encodeFactoryMark(state), "2026-11-05T10:00:00Z")], 5, REPO);
+    expect(read(IDEAS_STATE)?.round).toBe(1);
+    expect(read({ ...IDEAS_STATE, round: "2" })?.round).toBeNull();
+    expect(read({ ...IDEAS_STATE, round: 0 })?.round).toBeNull();
+  });
+
+  it("審査：ask.judge が無ければ null。合格に届かなければ旨と指摘", () => {
+    const read = (judge?: unknown) => {
+      const ask = judge === undefined ? ASK : { ...ASK, judge };
+      return parseFactoryTalk(
+        [comment(1, encodeFactoryMark({ ...IDEAS_STATE, ask }), "2026-11-05T10:00:00Z")],
+        5,
+        REPO,
+      );
+    };
+    expect(read()?.judge).toBeNull();
+    const ok = read({ score: 8.2 })?.judge;
+    expect(ok).toEqual({ score: 8.2, passed: true, issues: [] });
+    expect(judgeLine(ok!)).toBe("審査：8.2 点（合格 7.5）");
+    const ng = read({ score: 6.9, issues: ["色が近い"] })?.judge;
+    expect(ng).toEqual({ score: 6.9, passed: false, issues: ["色が近い"] });
+    expect(judgeLine(ng!)).toBe("審査：6.9 点（合格の 7.5 に届きませんでした）");
+    expect(read({ score: 7.5 })?.judge?.passed).toBe(true);
+    expect(read("x")?.judge).toBeNull();
+  });
+
+  it("道具の言葉 `配られた方向：…（draw.mjs …）` を表示から取り除く", () => {
+    expect(stripToolWords("暗い青の地。配られた方向：夜明け（draw.mjs --seed 3）")).toBe("暗い青の地。");
+    expect(stripToolWords("配られた方向：新聞（draw.mjs 2）\n白い紙に黒の文字")).toBe("白い紙に黒の文字");
+    expect(stripToolWords("白い紙に黒の文字")).toBe("白い紙に黒の文字");
+    const idea = { name: "a", stack: "nextjs", title: "A", pitch: "良い案。配られた方向：x（draw.mjs 1）" };
+    const state = { ...IDEAS_STATE, ideas: [idea] };
+    const talk = parseFactoryTalk([comment(1, encodeFactoryMark(state), "2026-11-05T10:00:00Z")], 5, REPO);
+    expect(talk?.choices[0].text).toBe("良い案。");
+  });
+
+  it("全部おすすめ：おすすめを選び、おすすめの無い質問と書いた文は変えない", () => {
+    const opt = (letter: string, text: string, recommended: boolean) => ({ letter, text, recommended });
+    const questions = [
+      { number: 1, text: "端末は？", options: [opt("A", "スマホ", true), opt("B", "PC", false)] },
+      { number: 2, text: "色は？", options: [opt("A", "明", false)] },
+      { number: 3, text: "数は？", options: [opt("A", "1", false), opt("B", "2", true)] },
+    ];
+    const next = answerWithRecommended(questions, { 1: { choice: "B", note: "メモ" }, 2: { choice: null, note: "" } });
+    expect(next[1]).toEqual({ choice: "A", note: "メモ" });
+    expect(next[2]).toEqual({ choice: null, note: "" });
+    expect(next[3]).toEqual({ choice: "B", note: "" });
   });
 });
 
