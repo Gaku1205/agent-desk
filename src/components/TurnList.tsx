@@ -46,7 +46,7 @@ export function TurnList({ items, now, showRepo, onPick }: Props) {
           type="button"
           className={styles.fold}
           aria-expanded={open}
-          aria-controls="turn-list-rows"
+          aria-controls={open ? "turn-list-rows" : undefined}
           onClick={() => setOpen((prev) => !prev)}
         >
           <span>
