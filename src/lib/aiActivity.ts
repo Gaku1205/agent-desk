@@ -1,6 +1,6 @@
 import type { CommentData, RepoData, RunStepData, WorkflowRunData } from "./github/types";
 import { isRelatedRun } from "./lamp";
-import { isLinkedPull } from "./status";
+import { isLinkedPull, latestFixRun } from "./status";
 
 /**
  * 「AIが今していること」（docs/spec.md の「いまの様子」の「AIが今していること」）。
@@ -63,7 +63,12 @@ function touched(comment: CommentData): string {
  * この Issue（と紐づく PR）の、いちばん新しく更新された作業中のコメント。
  * いちばん新しい物が完了していれば null（完了したコメントは出さない）
  */
-export function pickWorkingComment(comments: CommentData[], numbers: number[]): CommentData | null {
+export function pickWorkingComment(
+  comments: CommentData[],
+  numbers: number[],
+  runs?: WorkflowRunData[] | null,
+  pulls: { number: number; headRef: string }[] = [],
+): CommentData | null {
   let latest: CommentData | null = null;
   for (const comment of comments) {
     if (!numbers.includes(comment.issueNumber) || !isTrackingComment(comment)) continue;
@@ -72,7 +77,25 @@ export function pickWorkingComment(comments: CommentData[], numbers: number[]): 
     }
   }
   if (latest === null || isFinishedComment(latest.body)) return null;
+  if (isFromBrokenFixRun(latest, runs, pulls)) return null;
   return latest;
+}
+
+/** 取り消し・失敗・時間切れで終わった修正AIの実行が書いた、終わっていない（`Claude finished` にならなかった）コメントか */
+function isFromBrokenFixRun(
+  comment: CommentData,
+  runs: WorkflowRunData[] | null | undefined,
+  pulls: { number: number; headRef: string }[],
+): boolean {
+  const pull = pulls.find((item) => item.number === comment.issueNumber);
+  if (!pull) return false;
+  const run = latestFixRun(runs, pull.headRef);
+  if (!run || run.status !== "completed" || !["cancelled", "failure", "timed_out"].includes(run.conclusion ?? "")) {
+    return false;
+  }
+  // その実行が始まる前のコメントは、別の実行の物
+  const started = Date.parse(run.startedAt ?? run.updatedAt);
+  return Number.isNaN(started) || Date.parse(touched(comment)) >= started;
 }
 
 /** コメントへのリンク。型に URL が無ければ、Issue のページのコメントの位置を作る（PR は GitHub が移してくれる） */
@@ -110,7 +133,7 @@ function activeRuns(runs: WorkflowRunData[] | null | undefined, issueNumber: num
  */
 export function aiActivity(data: RepoData, issueNumber: number, owner: string, repo: string): AiActivity | null {
   const pulls = linkedPulls(data, issueNumber);
-  const comment = pickWorkingComment(data.comments, [issueNumber, ...pulls.map((pull) => pull.number)]);
+  const comment = pickWorkingComment(data.comments, [issueNumber, ...pulls.map((pull) => pull.number)], data.runs, pulls);
   if (comment) return todoActivity(comment, owner, repo);
   const steps = new Map((data.runSteps ?? []).map((step) => [step.runId, step]));
   for (const run of activeRuns(data.runs, issueNumber, pulls)) {
@@ -135,7 +158,7 @@ export function stepProbeRunIds(data: RepoData): number[] {
     const pulls = linkedPulls(data, issue.number);
     const run = activeRuns(data.runs, issue.number, pulls)[0];
     if (!run || ids.includes(run.id!)) continue;
-    if (pickWorkingComment(data.comments, [issue.number, ...pulls.map((pull) => pull.number)])) continue;
+    if (pickWorkingComment(data.comments, [issue.number, ...pulls.map((pull) => pull.number)], data.runs, pulls)) continue;
     ids.push(run.id!);
   }
   return ids;

@@ -25,7 +25,7 @@ describe("ciFailureState", () => {
     expect(ciFailureState({ stage: "fixing", stuck: false, fixCount: 1 })).toBeNull();
   });
 
-  it("文は 「AIが直しています（n回目/3）」", () => {
-    expect(ciFixingText(2)).toBe("AIが直しています（2回目/3）");
+  it("文は 「AIが直しています（n/3 回目）」", () => {
+    expect(ciFixingText(2)).toBe("AIが直しています（2/3 回目）");
   });
 });

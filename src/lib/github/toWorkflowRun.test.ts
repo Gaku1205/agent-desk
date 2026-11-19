@@ -3,6 +3,13 @@ import { toWorkflowRun } from "./fetch";
 
 const base = { status: "in_progress", updated_at: "2026-11-18T08:00:00Z" };
 
+describe("toWorkflowRun（終わり方）", () => {
+  it("conclusion を読む。null・文字でないときは持たない", () => {
+    expect(toWorkflowRun({ ...base, status: "completed", conclusion: "cancelled" })?.conclusion).toBe("cancelled");
+    expect(toWorkflowRun({ ...base, conclusion: null })).not.toHaveProperty("conclusion");
+  });
+});
+
 describe("toWorkflowRun（名前と始まった時刻）", () => {
   it("run_started_at があればそれを startedAt に使う", () => {
     const run = toWorkflowRun({

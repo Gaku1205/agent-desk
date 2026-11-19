@@ -449,6 +449,7 @@ export function toWorkflowRun(raw: unknown): WorkflowRunData | null {
   const run = raw as {
     id?: unknown;
     status?: unknown;
+    conclusion?: unknown;
     head_branch?: unknown;
     display_title?: unknown;
     pull_requests?: unknown;
@@ -471,6 +472,7 @@ export function toWorkflowRun(raw: unknown): WorkflowRunData | null {
   return {
     ...(typeof run.id === "number" ? { id: run.id } : {}),
     status: run.status,
+    ...(typeof run.conclusion === "string" && run.conclusion !== "" ? { conclusion: run.conclusion } : {}),
     headBranch: typeof run.head_branch === "string" ? run.head_branch : null,
     displayTitle: typeof run.display_title === "string" ? run.display_title : "",
     pullNumbers,
