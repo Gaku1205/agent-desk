@@ -291,6 +291,24 @@
     align-items: center;
     min-height: 44px;
   }
+
+  /* 押せる範囲を高さ44pxに（見た目は変えない。Issue #616）。リンクは行の高さの中で上下に広げる */
+  .setup,
+  .links a {
+    position: relative;
+  }
+
+  .setup::after {
+    position: absolute;
+    inset: -4px 0;
+    content: "";
+  }
+
+  .links a::after {
+    position: absolute;
+    inset: -13px -6px;
+    content: "";
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

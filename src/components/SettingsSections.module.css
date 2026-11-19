@@ -193,7 +193,15 @@
   }
 
   .button {
+    position: relative;
     height: 36px;
+  }
+
+  /* 押せる範囲を高さ44pxに（見た目は36pxのまま。Issue #616） */
+  .button::after {
+    position: absolute;
+    inset: -4px 0;
+    content: "";
   }
 
   .toggle {
