@@ -150,6 +150,21 @@ export function Desk({
   }, []);
 
   const rowsRef = useRef<HTMLDivElement>(null);
+  // 入力欄の高さを測って --composer-h に入れる（html の scroll-padding-bottom が使う）。離れたら消す
+  const composerRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const apply = () => root.style.setProperty("--composer-h", `${el.offsetHeight}px`);
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty("--composer-h");
+    };
+  }, []);
   // 操作が通って片づけた1件。取り直しを待たずに次の1件に替え、件数を減らす（取り直しで消えたら自然に数えなくなる）
   const [leaving, setLeaving] = useState<ReadonlySet<string>>(() => new Set());
   // 押してから片づけるまでの1件（押した時点の中身と位置）。取り直しで消えても、結果を見せ終えるまで同じ場所に残す
@@ -418,7 +433,7 @@ export function Desk({
       </div>
       <div className={styles.center}>
         {column}
-        <div className={styles.composer}>
+        <div className={styles.composer} ref={composerRef}>
           <NewIssueForm
             variant="bar"
             newServiceHref={`${nav.basePath ?? ""}/new/service`}
