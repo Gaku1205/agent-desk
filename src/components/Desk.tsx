@@ -345,7 +345,7 @@ export function Desk({
       >
         <div className={styles.head}>
           <h1 className={styles.h1} id="turn-title" tabIndex={-1}>
-            {current ? "あなたの番" : "今はAIの番です"}
+            {current ? "Your turn" : "いまは AI が進めています"}
           </h1>
           {current && shown.length >= 2 && (
             <ul className={styles.legend} aria-label="色の見方">

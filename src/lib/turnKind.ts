@@ -51,7 +51,7 @@ export function turnKind(status: Pick<IssueStatus, "stage"> & Partial<Pick<Issue
     case "skipped":
       return { label: "On hold", group: "start", icon: "onHold" };
     default:
-      return { label: "あなたの番", group: "start", icon: "pending" };
+      return { label: "Your turn", group: "start", icon: "pending" };
   }
 }
 

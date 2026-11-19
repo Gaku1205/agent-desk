@@ -1,5 +1,5 @@
 import { formatEventTime } from "../events";
-import type { ParallelSettings, ParallelState } from "../parallel";
+import { currentPeriod, type ParallelSettings, type ParallelState } from "../parallel";
 import { attachRuns } from "./attach";
 import type { LanesSource, QueueCause, QueueSource, RunEntry, SlotWork } from "./source";
 
@@ -58,7 +58,7 @@ export function queueReasonText(kind: QueueReasonKind, file: string | null): str
     case "unknownInflight":
       return "動いている作業の触るファイルが分からないので、終わるまで待つ";
     case "full":
-      return "枠が空くのを待っている";
+      return "席が空くのを待っている";
     case "ready":
       return "次の見直しで入る";
   }
@@ -66,7 +66,7 @@ export function queueReasonText(kind: QueueReasonKind, file: string | null): str
 
 /** 空きの枠の理由 */
 export function freeSlotReason(queue: readonly QueueEntry[]): string {
-  if (queue.length === 0) return "待っている作業はありません";
+  if (queue.length === 0) return "順番待ちの作業はありません";
   const ready = queue.find((entry) => entry.reasonKind === "ready");
   if (ready) return `パイプラインが次に順番待ちを見るときに、${ready.repo}#${ready.number} が入ります。`;
   const head = queue.length === 1 ? "待っている1件は、" : `待っている${queue.length}件は、どれも`;
@@ -119,21 +119,26 @@ export function overLimitNote(running: number, limit: number | null): string | n
   return `上限（${limit}件）より多く動いています。上限は、新しく始める数だけを決めます。もう動いている作業は止めません。`;
 }
 
-/** 数を `3件まで`・`1件ずつ`（夜だけ、1のとき）に */
-function countText(n: number, night: boolean): string {
-  return night && n === 1 ? "1件ずつ" : `${n}件まで`;
+/** 数を `3件まで同時に`・`1件ずつ`（1のとき）に */
+function countText(n: number): string {
+  return n === 1 ? "1件ずつ" : `${n}件まで同時に`;
 }
 
 /**
- * 見出しの下の一文：`いま 11:13 · 昼（7:00〜23:00）は 3件まで、夜は 1件ずつ`。
- * 夜の時間帯が無ければ `いま 11:13 · 3件まで`、設定が分からなければ `いま 11:13`。上書き中は ` · 手動で切り替え中`
+ * 見出しの下の一文。今どうか → 次にいつ変わるか の順：
+ * 昼 `14:10 · 5件まで同時に · 23:00 から 1件ずつ`、夜 `02:33 · 夜は 1件ずつ · 7:00 から 5件まで同時に`。
+ * 夜の時間帯が無ければ `14:10 · 5件まで同時に`、設定が分からなければ `14:10`。上書き中は ` · 手動`。
+ * 昼か夜かは今の状態（上書きを含む）に従い、無ければ時間帯の決まりで決める
  */
 export function lanesHeadline(now: Date, settings: ParallelSettings | null, state: ParallelState | null): string {
-  const at = `いま ${formatEventTime(now.toISOString())}`;
+  const at = formatEventTime(now.toISOString());
   if (!settings) return at;
-  const manual = state?.override ? " · 手動で切り替え中" : "";
-  if (!settings.nightHours) return `${at} · ${countText(settings.day, false)}${manual}`;
+  const manual = state?.override ? " · 手動" : "";
+  if (!settings.nightHours) return `${at} · ${countText(settings.day)}${manual}`;
   const { start, end } = settings.nightHours;
-  const day = `昼（${end % 24}:00〜${start % 24}:00）は ${countText(settings.day, false)}`;
-  return `${at} · ${day}、夜は ${countText(settings.night, true)}${manual}`;
+  const period = state?.period ?? currentPeriod(now, settings.nightHours);
+  if (period === "night") {
+    return `${at} · 夜は ${countText(settings.night)} · ${end % 24}:00 から ${countText(settings.day)}${manual}`;
+  }
+  return `${at} · ${countText(settings.day)} · ${start % 24}:00 から ${countText(settings.night)}${manual}`;
 }

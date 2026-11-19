@@ -79,7 +79,7 @@ export function LanesUsage({ usage, settings, headingId }: Props) {
             viewBox={`0 0 ${W} ${H}`}
             preserveAspectRatio="none"
             role="img"
-            aria-label={`直近24時間の枠の使われ方。${summary}`}
+            aria-label={`直近24時間の席の使われ方。${summary}`}
           >
             {used && (
               <>
@@ -118,13 +118,13 @@ export function LanesUsage({ usage, settings, headingId }: Props) {
         {used && (
           <li>
             <span className={styles.keyUsed} aria-hidden="true" />
-            使っていた枠
+            使っていた席
           </li>
         )}
         {limits && (
           <li>
             <span className={styles.keyLimit} aria-hidden="true" />
-            枠の上限
+            席の上限
             {chart.limits && (
               <span className={`${styles.legendSub} num`}>
                 昼{chart.limits.day}

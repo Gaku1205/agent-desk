@@ -72,9 +72,9 @@ describe("assignSlots", () => {
     expect(free?.kind === "free" && free.reason).toBe("パイプラインが次に順番待ちを見るときに、r#6 が入ります。");
   });
 
-  it("空きが無ければ、理由の無い物は「枠が空くのを待っている」", () => {
+  it("空きが無ければ、理由の無い物は「席が空くのを待っている」", () => {
     const lanes = assignSlots(source([work(1)], [waiting(5)]), 1);
-    expect(lanes.queue[0].reason).toBe("枠が空くのを待っている");
+    expect(lanes.queue[0].reason).toBe("席が空くのを待っている");
   });
 
   it("処理を席にぶら下げ、残りを other に。処理の合計は両方の和", () => {
@@ -107,8 +107,8 @@ function entry(kind: QueueEntry["reasonKind"]): QueueEntry {
 }
 
 describe("freeSlotReason", () => {
-  it("待つ物が無ければ「待っている作業はありません」", () => {
-    expect(freeSlotReason([])).toBe("待っている作業はありません");
+  it("待つ物が無ければ「順番待ちの作業はありません」", () => {
+    expect(freeSlotReason([])).toBe("順番待ちの作業はありません");
   });
 
   it("全部が触るファイルの重なりなら、そう言う", () => {
@@ -142,23 +142,26 @@ describe("lanesHeadline", () => {
   const settings: ParallelSettings = { day: 3, night: 1, nightHours: { start: 23, end: 7 } };
   const state: ParallelState = { period: "day", limit: 3, override: null };
 
-  it("昼の時間帯と、昼・夜の数", () => {
-    expect(lanesHeadline(now, settings, state)).toBe("いま 11:13 · 昼（7:00〜23:00）は 3件まで、夜は 1件ずつ");
-    expect(lanesHeadline(now, { ...settings, night: 2 }, state)).toBe(
-      "いま 11:13 · 昼（7:00〜23:00）は 3件まで、夜は 2件まで",
-    );
+  it("昼：今の数 → 夜になる時刻と夜の数", () => {
+    expect(lanesHeadline(now, settings, state)).toBe("11:13 · 3件まで同時に · 23:00 から 1件ずつ");
+    expect(lanesHeadline(now, { ...settings, night: 2 }, state)).toBe("11:13 · 3件まで同時に · 23:00 から 2件まで同時に");
+  });
+
+  it("夜：今の数 → 昼になる時刻と昼の数。状態が無ければ時間帯の決まりで決める", () => {
+    const night = new Date("2026-11-18T17:33:00Z"); // 日本時間 02:33
+    const nightState: ParallelState = { period: "night", limit: 1, override: null };
+    expect(lanesHeadline(night, settings, nightState)).toBe("02:33 · 夜は 1件ずつ · 7:00 から 3件まで同時に");
+    expect(lanesHeadline(night, settings, null)).toBe("02:33 · 夜は 1件ずつ · 7:00 から 3件まで同時に");
   });
 
   it("夜の時間帯が無ければ昼の数だけ。設定が分からなければ時刻だけ", () => {
-    expect(lanesHeadline(now, { ...settings, nightHours: null }, state)).toBe("いま 11:13 · 3件まで");
-    expect(lanesHeadline(now, null, null)).toBe("いま 11:13");
+    expect(lanesHeadline(now, { ...settings, nightHours: null }, state)).toBe("11:13 · 3件まで同時に");
+    expect(lanesHeadline(now, null, null)).toBe("11:13");
   });
 
-  it("手の上書きが効いていれば添える", () => {
+  it("手の上書きが効いていれば、その時間帯の文に「手動」を添える", () => {
     const manual: ParallelState = { period: "night", limit: 1, override: { period: "night", until: new Date() } };
-    expect(lanesHeadline(now, settings, manual)).toBe(
-      "いま 11:13 · 昼（7:00〜23:00）は 3件まで、夜は 1件ずつ · 手動で切り替え中",
-    );
+    expect(lanesHeadline(now, settings, manual)).toBe("11:13 · 夜は 1件ずつ · 7:00 から 3件まで同時に · 手動");
   });
 });
 

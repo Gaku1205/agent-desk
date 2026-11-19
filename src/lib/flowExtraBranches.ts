@@ -186,7 +186,7 @@ function stuckBranch(status: IssueStatus): ExtraBranch | null {
     kind: "stuck",
     anchor: flow.steps[flow.at].key,
     head: "止まった",
-    rows: [{ label: "あなたの番", state: "waiting" }],
+    rows: [{ label: "Your turn", state: "waiting" }],
     returnLine: false,
   };
 }

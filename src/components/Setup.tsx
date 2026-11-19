@@ -63,7 +63,7 @@ const STEP_DESCRIPTIONS: Record<SetupStepId, string> = {
   app: "AIがラベル・PR・マージを進めるための鍵です。GitHub の画面では Create を押すだけです",
   claude: "AIが、あなたの Claude のサブスクで動くようにします",
   settings: "マージしたあとのブランチを、自動で消すようにします",
-  check: "足りない物が無いか、Actions の Doctor で確かめます",
+  check: "足りない設定が無いか、Actions の Doctor で確かめます",
 };
 
 const VISIBILITY = [

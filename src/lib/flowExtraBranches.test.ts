@@ -228,7 +228,7 @@ describe("getFlowExtras", () => {
     const s = status({ stage: "stuck", stageBeforeStuck: "ciFailed", pull: pull({ labels: ["ai:stuck"] }), fixCount: 2 });
     const result = getFlowExtras({ status: s, facts: facts(), stepLog: null });
     expect(result.branches).toEqual([
-      { kind: "stuck", anchor: "ci", head: "止まった", rows: [{ label: "あなたの番", state: "waiting" }], returnLine: false },
+      { kind: "stuck", anchor: "ci", head: "止まった", rows: [{ label: "Your turn", state: "waiting" }], returnLine: false },
     ]);
     // CI失敗時の分岐（getFlow）は変えない
     expect(getFlow(s).branch).toEqual({ n: 3, fixState: "failed", branch: "active", returnLine: true });

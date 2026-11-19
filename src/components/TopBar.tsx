@@ -58,7 +58,7 @@ export function Counts({
   /** 件数がまだ届いていない。数の代わりに「–」を出す */
   pending?: boolean;
 }) {
-  const text = countsPending ? "件数を読み込み中" : `あなたの番 ${turn}件、AIが動いている ${running}件`;
+  const text = countsPending ? "件数を読み込み中" : `Your turn ${turn}件、AIが動いている ${running}件`;
   // 押した札の点：次の画面が出るまで脈打つ（動きを減らすときは色だけ）。<Link> の子の部品の中で使う
   const { pending } = useLinkStatus();
   return (
@@ -71,7 +71,7 @@ export function Counts({
       data-pending={pending ? "" : undefined}
     >
       <b className={styles.countTurn} aria-hidden="true">
-        {labeled && <span className={styles.countName}>あなたの番</span>}
+        {labeled && <span className={styles.countName}>Your turn</span>}
         {countsPending ? "–" : turn}
       </b>
       <b className={styles.countRunning} aria-hidden="true">
@@ -95,7 +95,7 @@ function PendingMark() {
 export function CountsKey({ className }: { className?: string }) {
   return (
     <span className={className ? `${styles.key} ${className}` : styles.key} aria-hidden="true">
-      <span className={styles.keyTurn}>あなたの番</span>
+      <span className={styles.keyTurn}>Your turn</span>
       <span className={styles.keyRunning}>AI</span>
     </span>
   );
@@ -235,7 +235,7 @@ export function SideRepos(
       <div className={styles.sideList} ref={listRef}>
         <span className={styles.sideLbl}>
           <RepoIcon />
-          リポジトリ
+          Repositories
           <CountsKey />
         </span>
         <RepoTabs {...props} />
@@ -426,7 +426,7 @@ function MenuSheet(props: Props) {
         <span className={styles.mark}>agent-desk</span>
         <span className={`${styles.lbl} ${styles.lblRow}`}>
           <RepoIcon />
-          リポジトリ
+          Repositories
           <CountsKey />
         </span>
         <RepoTabs {...props} onPick={closeMenu} />
