@@ -183,12 +183,70 @@ export async function cachedRepoData(
   // 縮めて覚える（`packCached`。キーの名前は、縮める前に覚えた物を読まないように変えてある）
   const keyParts = ["repo-data-gz", DEPLOY_KEY, repoChangeKey(repo), String(mark)];
   // 同時に来た別のリクエスト（取り直しの途中のページ移動・別のタブ）が同じ印を読むときは、取得を1回にまとめる
-  const data = await shareInFlight(loadingRepoData, keyParts.join("|"), async () =>
-    unpackCached<RepoData>(
-      await unstable_cache(async () => packCached(await load()), keyParts, { revalidate: REPO_CACHE_SECONDS })(),
-    ),
-  );
+  const data = await shareInFlight(loadingRepoData, keyParts.join("|"), async () => {
+    // この呼び出しで GitHub から読んだとき（覚えた物でなかったとき）だけ入る
+    const loaded: { value: RepoData | null } = { value: null };
+    const result = unpackCached<RepoData>(
+      await unstable_cache(
+        async () => {
+          loaded.value = await load();
+          return packCached(loaded.value);
+        },
+        keyParts,
+        // 裏の全部読みの後に、この入れ物だけを捨てられるようにする（「変わった」印は動かさない）
+        { revalidate: REPO_CACHE_SECONDS, tags: [fullReadTag(repo)] },
+      )(),
+    );
+    // 差分の元を、5分より長く覚える（`unstable_cache` の中では覚えられないので、外で）
+    if (loaded.value) await writeStoredDeltaBase(repo, loaded.value).catch(() => undefined);
+    return result;
+  });
   return { data, changeMark: new Date(mark).toISOString() };
+}
+
+/** 裏の全部読みの後に、覚えているデータ（`repo-data-gz`）だけを捨てるためのタグ */
+function fullReadTag(repo: WatchedRepo): string {
+  return `full-read:${repoChangeKey(repo)}`;
+}
+
+/**
+ * 裏の全部読みを置いたあと：覚えているデータを捨てる。`after` の中で呼ぶ。「変わった」印のタグは動かさないので、
+ * 画面の取り直しは起きない。次に読むとき、全部読みの結果が差分の元になり、差分で速く返る
+ */
+export function expireRepoDataAfterFullRead(repo: WatchedRepo): void {
+  revalidateTag(fullReadTag(repo), { expire: 0 });
+}
+
+/**
+ * 差分の元（`RepoData`。`sync` つき）を覚える入れ物。キャッシュの寿命（`REPO_CACHE_SECONDS`）とは別で、
+ * 寿命を過ぎても古い物のまま残り、読めば返る（`snapshotRepoData` と同じ作り。作り直しは読むたびに新しい物で書き直す）。
+ * キーはリポジトリだけ（印を入れない）。データの形が変わったときのために `DEPLOY_KEY` を入れる。縮めて覚える（2MB を超えると覚えないため）
+ */
+function deltaBaseEntry(repo: WatchedRepo, produce: () => Promise<string>): Promise<string> {
+  return unstable_cache(async () => produce(), ["repo-delta-base-gz", DEPLOY_KEY, repoChangeKey(repo)], {
+    revalidate: SNAPSHOT_REWRITE_SECONDS,
+  })();
+}
+
+/** 覚えている差分の元を読む。無ければ null */
+export async function readStoredDeltaBase(repo: WatchedRepo): Promise<RepoData | null> {
+  try {
+    const packed = await deltaBaseEntry(repo, async () => {
+      throw new Error(NO_RECORD);
+    });
+    return unpackCached<RepoData>(packed);
+  } catch {
+    return null;
+  }
+}
+
+/** 差分の元を覚える。覚えている物のほうが新しく読んだ物、または中身が空の読みのときは、上書きしない */
+export async function writeStoredDeltaBase(repo: WatchedRepo, data: RepoData): Promise<void> {
+  if (!data.sync) return;
+  const previous = await readStoredDeltaBase(repo);
+  if (previous?.sync && Date.parse(previous.sync.readAt) >= Date.parse(data.sync.readAt)) return;
+  if (!shouldRememberSnapshot(previous, data)) return;
+  await deltaBaseEntry(repo, async () => packCached(data)).catch(() => undefined);
 }
 
 /** 覚えている最後の結果を、書き直してよくなるまでの秒数（読むたびに、その時の新しい結果で書き直す） */

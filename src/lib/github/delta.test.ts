@@ -6,6 +6,7 @@ import {
   planRepoRead,
   RECENT_REREAD_MS,
   shouldReadFullAfterDeltaError,
+  shouldReadFullInBackground,
   shouldReadMorePulls,
 } from "./delta";
 import type { RepoParts } from "./graphql";
@@ -35,9 +36,17 @@ describe("planRepoRead（差分か全部か）", () => {
     expect(planRepoRead(sync(readAgo), NOW, CUTOFF)).toEqual({ mode: "delta", sinceMs: NOW - readAgo - DELTA_OVERLAP_MS });
   });
 
-  it("最後に全部を読んでから6時間たったら全部（6時間に1回）", () => {
+  it("最後に全部を読んでから6時間以上たっていても、前の結果があれば差分（全部の読み直しは裏で）", () => {
     expect(planRepoRead(sync(60_000, FULL_READ_INTERVAL_MS - 1), NOW, CUTOFF).mode).toBe("delta");
-    expect(planRepoRead(sync(60_000, FULL_READ_INTERVAL_MS), NOW, CUTOFF)).toEqual({ mode: "full" });
+    expect(planRepoRead(sync(60_000, FULL_READ_INTERVAL_MS), NOW, CUTOFF).mode).toBe("delta");
+    expect(planRepoRead(sync(8 * 60 * 60_000), NOW, CUTOFF)).toEqual({
+      mode: "delta",
+      sinceMs: NOW - 8 * 60 * 60_000 - DELTA_OVERLAP_MS,
+    });
+  });
+
+  it("8時間前でも、さかのぼる時刻が14日の境目より前（15日開いていない）なら全部", () => {
+    expect(planRepoRead(sync(15 * DAY), NOW, CUTOFF)).toEqual({ mode: "full" });
   });
 
   it("時刻が読めない・未来・全部を読んだ時刻が読んだ時刻より後なら全部", () => {
@@ -48,6 +57,23 @@ describe("planRepoRead（差分か全部か）", () => {
 
   it("さかのぼる時刻が直近14日の境目より前なら全部", () => {
     expect(planRepoRead(sync(60_000), NOW, NOW - 30 * 60_000)).toEqual({ mode: "full" });
+  });
+});
+
+describe("shouldReadFullInBackground（差分で返したあと、裏で全部を読み直すか）", () => {
+  it("最後に全部を読んでから6時間以上たったら true", () => {
+    expect(shouldReadFullInBackground(sync(60_000, FULL_READ_INTERVAL_MS), NOW)).toBe(true);
+    expect(shouldReadFullInBackground(sync(60_000, 8 * 60 * 60_000), NOW)).toBe(true);
+  });
+
+  it("6時間たっていなければ false", () => {
+    expect(shouldReadFullInBackground(sync(60_000, FULL_READ_INTERVAL_MS - 1), NOW)).toBe(false);
+  });
+
+  it("前の結果が無い・時刻が読めないときは false（そもそも全部を読む）", () => {
+    expect(shouldReadFullInBackground(undefined, NOW)).toBe(false);
+    expect(shouldReadFullInBackground(null, NOW)).toBe(false);
+    expect(shouldReadFullInBackground({ ...sync(60_000), fullAt: "x" }, NOW)).toBe(false);
   });
 });
 
