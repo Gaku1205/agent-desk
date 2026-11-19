@@ -17,6 +17,7 @@ import { isRunningStage } from "../runningPipeline";
 import { getFlow } from "../flow";
 import { getIssueStatus, shouldShowIssue, type Stage } from "../status";
 import type { OperationKind } from "../turn";
+import { isFactoryTitle } from "../factoryIssue";
 import { FACTORY_BOT } from "../factoryTalk";
 import { demoFactoryBody, demoFactoryState } from "./factory";
 import { applyDemoOps } from "./ops";
@@ -704,6 +705,8 @@ function todoApp(base: Date, playback: DemoPlayback, withOlder: boolean, placer:
 /** landing-page：公開失敗・公開中・PR作成待ち（エラーあり）・マージ待ち（AI）・企画中・修正の確認中・公開済み */
 function landingPage(base: Date, placer: Placer): RepoData {
   const ctx = createCtx(DEMO_REPOS[1], base, 2000, placer);
+  // テンプレートリポジトリ：工場が受け持つ `新サービス：` の Issue は「あなたの番」に出さない
+  ctx.data.isTemplate = true;
 
   // 公開失敗
   const deployFailed = addIssue(ctx, 9, "トップの画像を軽くする", {
@@ -843,6 +846,12 @@ function landingPage(base: Date, placer: Placer): RepoData {
 
   // 企画中（上端の帯の件数が、あなたの番の数と同じにならないように）
   addIssue(ctx, 20, "お問い合わせに自動で返事を送る", { createdAt: ago(ctx, 3), labels: ["ai:plan"] });
+
+  // 工場が作業中（`factory:wait` が無く、`Factory talk` の実行が動いている：AIの番。「いまの様子」に作業中の文が出る。Issue #659）
+  addIssue(ctx, 24, "新サービス：犬の散歩の時間を教えるページ", {
+    createdAt: ago(ctx, 30),
+    labels: ["factory", "factory:talk"],
+  });
 
   // 企画中だが動いていない（ランプの赤の見本。上端の帯の件数が、あなたの番の数と同じにならないように）。枠は使っていない
   addIssue(ctx, 16, "お知らせの帯を足す", { createdAt: ago(ctx, 12), labels: ["ai:plan"] });
@@ -1041,7 +1050,20 @@ const DEMO_STALLED = [16];
  */
 function demoRuns(data: RepoData, base: Date, stalled: number[] = []): WorkflowRunData[] {
   const updatedAt = new Date(base.getTime() - MINUTE_MS).toISOString();
-  return data.issues
+  // 工場が作業中の見本（`factory:wait` が無い開いた `新サービス：` の Issue）：工場の相談の実行。Issue 番号の手がかりは持たない
+  const factoryRuns: WorkflowRunData[] = data.issues
+    .filter((issue) => issue.state === "open" && isFactoryTitle(issue.title) && !issue.labels.includes("factory:wait"))
+    .map((issue) => ({
+      id: 930_000 + issue.number,
+      status: "in_progress",
+      headBranch: "main",
+      displayTitle: "Factory talk",
+      pullNumbers: [],
+      updatedAt,
+      name: "Factory talk",
+      startedAt: new Date(base.getTime() - 12 * MINUTE_MS).toISOString(),
+    }));
+  const pipelineRuns = data.issues
     .filter((issue) => shouldShowIssue(issue, data.pulls) && !stalled.includes(issue.number))
     .map((issue) => ({ issue, status: getIssueStatus(issue, data, base) }))
     .filter(
@@ -1059,6 +1081,7 @@ function demoRuns(data: RepoData, base: Date, stalled: number[] = []): WorkflowR
       name: DEMO_RUN_NAMES[status.stage] ?? "Pipeline",
       startedAt: new Date(demoRunStartedMs(data, issue.number, base)).toISOString(),
     }));
+  return [...pipelineRuns, ...factoryRuns];
 }
 
 /**

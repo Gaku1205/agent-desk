@@ -60,6 +60,8 @@ export type RunStepData = {
   name: string;
   /** そのジョブのページ（無ければ null） */
   url: string | null;
+  /** そのジョブの名前（`plan` など。無ければ無し） */
+  jobName?: string;
 };
 
 /** 動いている実行の、動いているジョブの数（`actions/runs/{run_id}/jobs` の `in_progress` の数。Issue #584） */

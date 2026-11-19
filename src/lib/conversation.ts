@@ -6,6 +6,8 @@ import type { DeployLink } from "./deployStatus";
 import { describeStatus, failureLogUrl } from "./describe";
 import { groupTrails } from "./eventGroups";
 import type { TrailEvent } from "./events";
+import { isFactoryTitle } from "./factoryIssue";
+import { factoryChatText, factoryStage, type FactoryPhase } from "./factoryStage";
 import { FLOW_STEPS, getFlow, type Flow } from "./flow";
 import { flowFacts, type FlowExtraSource } from "./flowExtraBranches";
 import type { IssueData, RepoData, RepoResult } from "./github/types";
@@ -26,6 +28,9 @@ export type ChatLine = { speaker: string; text: string };
 export type ChatLineOptions = {
   /** 順番待ちで、理由に書かれた前の Issue の番号（無ければ null） */
   queueAfter?: number | null;
+  /** 工場の Issue の今の段（`factoryStage`）。経過時間の計算に `now` を使う */
+  factory?: FactoryPhase | null;
+  now?: Date;
 };
 
 /**
@@ -97,7 +102,11 @@ export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): Ch
         return { speaker: "パイプライン", text: "受付が企画に回すか判断中" };
       }
       // 会話に出る未着手は、工場が受け持つ「新サービス：」の Issue だけ（ほかは「あなたの番」に出る）
-      return { speaker: "工場", text: "工場の担当・相談待ち" };
+      // 相談待ちと決め打ちせず、工場の今の段から決める（Issue #659）。段が渡されなければ今までどおり
+      return {
+        speaker: "工場",
+        text: options.factory ? factoryChatText(options.factory, options.now ?? new Date()) : "工場の担当・相談待ち",
+      };
     case "prWaiting":
       if (status.grace === "creatingPull") {
         return { speaker: "パイプライン", text: "AIの作業完了・PRを作成中" };
@@ -216,7 +225,16 @@ export function buildConversation(
       if (row.status.paused) continue;
       const key = `${full}#${row.issue.number}`;
       const trail = trails.get(key);
-      const line = chatLine(row.status, { queueAfter: queueAfterNumber(row.queueReason) });
+      const factory =
+        row.status.stage === "notStarted" && isFactoryTitle(issue.title)
+          ? factoryStage({
+              labels: issue.labels,
+              state: issue.state,
+              runs: result.data.runs,
+              runSteps: result.data.runSteps,
+            })
+          : null;
+      const line = chatLine(row.status, { queueAfter: queueAfterNumber(row.queueReason), factory, now });
       const failure = ciFailureState({ stage: row.status.stage, stuck: false, fixCount: row.status.fixCount });
       lampTargets.push(lampTarget(issue, result.data, now, failure?.kind === "fixing"));
       messages.push({
