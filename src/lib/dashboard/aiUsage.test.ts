@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CommentData, IssueData, PullData, RepoResult } from "../github/types";
-import { aiUsage, aiUsageAll, barRatios, usageModel } from "./aiUsage";
+import { aiUsage, aiUsageAll, barRatios, parallelLabel, usageModel } from "./aiUsage";
 
 const NOW = new Date("2026-11-18T02:00:00Z");
 const MIN = 60 * 1000;
@@ -187,6 +187,13 @@ describe("Parallel 3 と Serial", () => {
     expect(day.serialMs).toBeNull();
     expect(day.parallelMs).toBeNull();
     expect(aiUsage([result(data)], NOW, "7d").serialMs).toBe(10 * HOUR);
+  });
+});
+
+describe("parallelLabel", () => {
+  it("数は今の昼の上限。読めなければ Parallel だけ", () => {
+    expect(parallelLabel(3)).toBe("Parallel 3");
+    expect(parallelLabel(null)).toBe("Parallel");
   });
 });
 

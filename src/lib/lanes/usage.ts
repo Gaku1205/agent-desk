@@ -30,6 +30,8 @@ export type UsageSource = {
   /** 使っていた枠の数。進捗ログが1つも無ければ null（出さない） */
   used: number[] | null;
   queued: number[];
+  /** 順番待ちの内訳（ラベルごとの、その15分で最も多かった数）。`queue`＝ファイルの重なり待ち（`ai:queue`）、`blocked`＝前の作業待ち（`ai:blocked`） */
+  queuedBy: { queue: number[]; blocked: number[] };
 };
 
 type Interval = { from: number; to: number };
@@ -84,6 +86,7 @@ export function buildUsageSource(results: readonly RepoResult[], now: Date): Usa
 
   const used: Interval[] = [];
   const queued: Interval[] = [];
+  const byLabel: Record<"ai:queue" | "ai:blocked", Interval[]> = { "ai:queue": [], "ai:blocked": [] };
   let hasLog = false;
 
   for (const { owner, repo, data } of loaded) {
@@ -117,28 +120,45 @@ export function buildUsageSource(results: readonly RepoResult[], now: Date): Usa
         return [{ issue: event.issueNumber, label, on: event.event === "labeled", at }];
       })
       .sort((a, b) => a.at - b.at);
-    const state = new Map<number, { on: Set<string>; since: number | null }>();
+    const state = new Map<number, { on: Map<string, number>; since: number | null }>();
     for (const event of events) {
-      const item = state.get(event.issue) ?? { on: new Set<string>(), since: null };
+      const item = state.get(event.issue) ?? { on: new Map<string, number>(), since: null };
       state.set(event.issue, item);
       if (event.on) {
         if (item.on.size === 0) item.since = event.at;
-        item.on.add(event.label);
-      } else if (item.on.delete(event.label) && item.on.size === 0 && item.since !== null) {
-        queued.push({ from: item.since, to: event.at });
-        item.since = null;
+        if (!item.on.has(event.label)) item.on.set(event.label, event.at);
+      } else {
+        const labelSince = item.on.get(event.label);
+        if (labelSince === undefined) continue;
+        item.on.delete(event.label);
+        byLabel[event.label as keyof typeof byLabel].push({ from: labelSince, to: event.at });
+        if (item.on.size === 0 && item.since !== null) {
+          queued.push({ from: item.since, to: event.at });
+          item.since = null;
+        }
       }
     }
     for (const [issue, item] of state) {
       if (item.on.size > 0 && item.since !== null && waitingNow.has(issue)) {
         queued.push({ from: item.since, to: now.getTime() });
+        for (const [label, labelSince] of item.on) {
+          byLabel[label as keyof typeof byLabel].push({ from: labelSince, to: now.getTime() });
+        }
       }
     }
   }
 
   const queuedLevels = peakLevels(queued, startMs, count);
   if (!hasLog && queuedLevels.every((level) => level === 0)) return null;
-  return { startMs, used: hasLog ? peakLevels(used, startMs, count) : null, queued: queuedLevels };
+  return {
+    startMs,
+    used: hasLog ? peakLevels(used, startMs, count) : null,
+    queued: queuedLevels,
+    queuedBy: {
+      queue: peakLevels(byLabel["ai:queue"], startMs, count),
+      blocked: peakLevels(byLabel["ai:blocked"], startMs, count),
+    },
+  };
 }
 
 export type UsageBucket = {
@@ -164,6 +184,8 @@ export type UsageChart = {
   ticks: { index: number; label: string }[];
   /** 空きの枠があるのに順番待ちだった時間（ミリ秒）。上限か使った数が分からなければ null */
   blockedMs: number | null;
+  /** そのうち、ファイルの重なり待ち（`ai:queue`）と前の作業待ち（`ai:blocked`）の時間。両方付いていた段はどちらにも数える。`blockedMs` が null なら null */
+  blockedBy: { queueMs: number; blockedMs: number } | null;
   /** 使っていた枠のいちばん多かった数。分からなければ null */
   maxUsed: number | null;
   /** 昼・夜の上限（設定が読めなければ null） */
@@ -218,8 +240,12 @@ export function buildUsageChart(source: UsageSource, settings: ParallelSettings 
   });
 
   const canJudge = settings !== null && source.used !== null;
-  const blockedMs = canJudge
-    ? buckets.filter((bucket) => bucket.queued > 0 && (bucket.used ?? 0) < (bucket.limit ?? 0)).length * USAGE_BUCKET_MS
+  const isOpenWait = (bucket: UsageBucket) => bucket.queued > 0 && (bucket.used ?? 0) < (bucket.limit ?? 0);
+  const blockedMs = canJudge ? buckets.filter(isOpenWait).length * USAGE_BUCKET_MS : null;
+  const countBy = (levels: readonly number[]) =>
+    buckets.filter((bucket, index) => isOpenWait(bucket) && (levels[index] ?? 0) > 0).length * USAGE_BUCKET_MS;
+  const blockedBy = canJudge
+    ? { queueMs: countBy(source.queuedBy.queue), blockedMs: countBy(source.queuedBy.blocked) }
     : null;
   const maxUsed = source.used ? Math.max(0, ...source.used) : null;
   const top = Math.max(
@@ -238,17 +264,22 @@ export function buildUsageChart(source: UsageSource, settings: ParallelSettings 
     peak,
     ticks,
     blockedMs,
+    blockedBy,
     maxUsed,
     limits: settings ? { day: settings.day, night: hours ? settings.night : null } : null,
   };
 }
 
-/** グラフの下の1行 */
+/** 下の1行の内訳（`title` に入れる）：`ファイルの重なり待ち 5h 0m · 前の作業待ち 3h 15m`。待ちが無い・分からなければ null */
+export function usageSummaryDetail(chart: UsageChart, formatSpan: (ms: number) => string): string | null {
+  if (chart.blockedMs === null || chart.blockedMs <= 0 || chart.blockedBy === null) return null;
+  return `席が空いているのに始まらなかった時間の内訳：ファイルの重なり待ち ${formatSpan(chart.blockedBy.queueMs)} · 前の作業待ち ${formatSpan(chart.blockedBy.blockedMs)}`;
+}
+
+/** グラフの下の1行：`空き席の待ち 8h 15m`（無いとき `空き席の待ち なし`） */
 export function usageSummary(chart: UsageChart, formatSpan: (ms: number) => string): string {
   if (chart.blockedMs !== null) {
-    return chart.blockedMs > 0
-      ? `席が空いているのに始まらなかった時間は、合計 ${formatSpan(chart.blockedMs)}`
-      : "席が空いているのに始まらなかった時間は、ありませんでした";
+    return chart.blockedMs > 0 ? `空き席の待ち ${formatSpan(chart.blockedMs)}` : "空き席の待ち なし";
   }
   const parts: string[] = [];
   if (chart.maxUsed !== null) parts.push(`使っていた席は最大 ${chart.maxUsed}件`);

@@ -1,7 +1,7 @@
 "use client";
 
 import { formatSpan } from "@/lib/dashboard/duration";
-import { buildUsageChart, usageSummary, type UsageSource } from "@/lib/lanes/usage";
+import { buildUsageChart, usageSummary, usageSummaryDetail, type UsageSource } from "@/lib/lanes/usage";
 import type { ParallelSettings } from "@/lib/parallel";
 import styles from "./LanesUsage.module.css";
 
@@ -48,6 +48,7 @@ export function LanesUsage({ usage, settings, headingId }: Props) {
   const limits = chart.limits === null ? null : chart.buckets.map((bucket) => bucket.limit ?? 0);
   const queued = chart.buckets.map((bucket) => bucket.queued);
   const summary = usageSummary(chart, formatSpan);
+  const summaryDetail = usageSummaryDetail(chart, formatSpan);
   const yLabels = chart.yTicks;
   const peak = chart.peak;
   const firstNight = chart.nightSpans[0];
@@ -138,7 +139,9 @@ export function LanesUsage({ usage, settings, headingId }: Props) {
           順番待ち
         </li>
       </ul>
-      <figcaption className={`${styles.summary} num`}>{summary}</figcaption>
+      <figcaption className={`${styles.summary} num`} title={summaryDetail ?? undefined}>
+        {summary}
+      </figcaption>
     </figure>
   );
 }

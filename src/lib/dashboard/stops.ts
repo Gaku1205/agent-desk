@@ -3,8 +3,7 @@
 import { failureReasonText, parseFailureReason } from "../failureReason";
 import type { CommentData, RepoData, RepoResult } from "../github/types";
 import { AUTO_FIX_MARK, findLinkedPull, isLinkedPull, RETRY_COUNT_PATTERN, RETRY_MARK, stuckReasonFor } from "../status";
-import { inRange, PERIOD_KEYS, periodRange, type PeriodKey } from "./period";
-import { time } from "./summary";
+import { inRange, PERIOD_KEYS, periodRange, time, type PeriodKey } from "./period";
 
 /** 止まった理由の分類（画面に出す順） */
 export const STOP_REASONS = ["ci", "permission", "queue", "human"] as const;
@@ -36,18 +35,22 @@ export function classifyStop(reason: string | null): StopReason {
 export type StopItem = {
   /** `repo`（`owner/` を省いた名前） */
   repo: string;
-  /** 止まったIssue／PRの番号 */
+  /** 止まった作業の Issue の番号（PR が止まったときも、紐づく Issue の番号。紐づく Issue が無ければ PR の番号） */
   number: number;
-  /** 理由の文（取れなければ null） */
+  /** 紐づく PR の番号（無ければ null）。行に小さく `PR #604` と出す */
+  pull: number | null;
+  /** 同じ作業が同じ分類で続いた止まりをまとめた回数（1なら出さない） */
+  times: number;
+  /** 理由の文（最新の止まりの。取れなければ null） */
   reason: string | null;
   kind: StopReason;
-  /** 止まっていた時間（止まり中は「今」まで） */
+  /** 止まっていた時間（まとめた分の合計。止まり中は「今」まで） */
   durationMs: number;
-  /** まだ止まっている */
+  /** 最新の止まりが、まだ止まっている */
   ongoing: boolean;
-  /** `ai:stuck` が外れた */
+  /** 最新の止まりは `ai:stuck` が外れた */
   fixed: boolean;
-  /** 止まった時刻（並べ替え用） */
+  /** 最新の止まりの時刻（並べ替え用） */
   startedAt: number;
 };
 
@@ -105,9 +108,64 @@ function stuckSpans(data: RepoData, now: number): { number: number; from: number
   return spans.map((span) => ({ ...span, to: span.to ?? now }));
 }
 
+/** 止まり1回分（まとめる前）。Issue の番号にそろえてある */
+export type RawStop = {
+  issue: number;
+  pull: number | null;
+  reason: string | null;
+  kind: StopReason;
+  from: number;
+  to: number;
+  ongoing: boolean;
+};
+
+/**
+ * 同じリポジトリ・同じ Issue・同じ分類の止まりを1つにまとめる。
+ * 時間が重なる止まり（Issue と PR が同時に止まった）は1回、離れていれば別の回（外れて、また付いた）。
+ * 時間は重ならない分の合計、理由・状態・時刻は最新の止まりの物
+ */
+export function mergeStops(repo: string, raws: readonly RawStop[]): StopItem[] {
+  const groups = new Map<string, RawStop[]>();
+  for (const raw of raws) {
+    const key = `${raw.issue}:${raw.kind}`;
+    groups.set(key, [...(groups.get(key) ?? []), raw]);
+  }
+  const items: StopItem[] = [];
+  for (const group of groups.values()) {
+    const sorted = [...group].sort((a, b) => a.from - b.from);
+    const runs: { from: number; to: number; ongoing: boolean; reason: string | null; pull: number | null }[] = [];
+    for (const raw of sorted) {
+      const last = runs.at(-1);
+      if (last && raw.from <= last.to) {
+        last.to = Math.max(last.to, raw.to);
+        last.ongoing = last.ongoing || raw.ongoing;
+        last.pull = raw.pull ?? last.pull;
+        if (last.reason === null) last.reason = raw.reason;
+      } else {
+        runs.push({ from: raw.from, to: raw.to, ongoing: raw.ongoing, reason: raw.reason, pull: raw.pull });
+      }
+    }
+    const latest = runs[runs.length - 1];
+    const pull = [...runs].reverse().find((run) => run.pull !== null)?.pull ?? null;
+    items.push({
+      repo,
+      number: sorted[0].issue,
+      pull,
+      times: runs.length,
+      reason: latest.reason,
+      kind: sorted[0].kind,
+      durationMs: runs.reduce((sum, run) => sum + Math.max(0, run.to - run.from), 0),
+      ongoing: latest.ongoing,
+      fixed: !latest.ongoing,
+      startedAt: latest.from,
+    });
+  }
+  return items;
+}
+
 function stuckItems(result: Extract<RepoResult, { ok: true }>, now: number, start: number, end: number): StopItem[] {
   const data = result.data;
-  const items: StopItem[] = [];
+  const raws: RawStop[] = [];
   for (const span of stuckSpans(data, now)) {
     if (!inRange(span.from, start, end)) continue;
     const { issue, pull } = resolveNumbers(data, span.number);
@@ -117,18 +175,17 @@ function stuckItems(result: Extract<RepoResult, { ok: true }>, now: number, star
     });
     const raw = stuckReasonFor(before, issue, pull);
     const reason = raw === null ? null : failureReasonText(parseFailureReason(raw, `${result.owner}/${result.repo}`));
-    items.push({
-      repo: result.repo,
-      number: span.number,
+    raws.push({
+      issue,
+      pull: pull === issue ? null : pull,
       reason,
       kind: classifyStop(reason),
-      durationMs: Math.max(0, (span.to ?? now) - span.from),
+      from: span.from,
+      to: span.to ?? now,
       ongoing: span.ongoing,
-      fixed: !span.ongoing,
-      startedAt: span.from,
     });
   }
-  return items;
+  return mergeStops(result.repo, raws);
 }
 
 /** 1つの期間の Stops。読めたリポジトリ（`ok`）だけを数える */

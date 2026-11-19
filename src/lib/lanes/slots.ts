@@ -63,10 +63,10 @@ export function queueReasonText(kind: QueueReasonKind, file: string | null): str
 
 /**
  * 空きの席をまとめた1行の真ん中（Issue #586）：Queue があれば `Waiting 4 · 下の作業が終わるのを待っている`、
- * 無ければ `待っている作業はありません`（`waiting` は null）
+ * 無ければ `順番待ちなし`（Queue の空と同じ言い方。`waiting` は null）
  */
 export function freeRowText(queueCount: number): { waiting: number | null; text: string } {
-  if (queueCount === 0) return { waiting: null, text: "待っている作業はありません" };
+  if (queueCount === 0) return { waiting: null, text: "順番待ちなし" };
   return { waiting: queueCount, text: "下の作業が終わるのを待っている" };
 }
 

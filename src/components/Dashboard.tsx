@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
-import { barRatios, USAGE_MODELS, type AiUsage, type UsageModel } from "@/lib/dashboard/aiUsage";
+import { useParallelView } from "./ParallelContext";
+import { barRatios, parallelLabel, USAGE_MODELS, type AiUsage, type UsageModel } from "@/lib/dashboard/aiUsage";
 import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
 import { formatPeriodLabel, PERIOD_KEYS, periodWord, type PeriodKey } from "@/lib/dashboard/period";
@@ -103,6 +104,7 @@ function LeadBar({ label, ms, ratio }: { label: string; ms: number | null; ratio
 /** AI usage：左に 工程×モデルの表、右に `Usage limit hits` と 1件あたりの時間の横棒 */
 function AiUsageSection({ usage }: { usage: AiUsage }) {
   const headingId = useId();
+  const dayLimit = useParallelView()?.settings?.day ?? null;
   const ratios = barRatios(usage.parallelMs, usage.serialMs);
   return (
     <section className={styles.usage} aria-labelledby={headingId}>
@@ -158,10 +160,10 @@ function AiUsageSection({ usage }: { usage: AiUsage }) {
           )}
           <div>
             <p className={styles.label} title="Issueの作成 → PRのマージ">
-              1件あたりの時間
+              1件あたりの時間 <span className={styles.stopSub}>同時に動かした時／1件ずつの時</span>
             </p>
             <dl className={styles.bars}>
-              <LeadBar label="Parallel 3" ms={usage.parallelMs} ratio={ratios.parallel} />
+              <LeadBar label={parallelLabel(dayLimit)} ms={usage.parallelMs} ratio={ratios.parallel} />
               <LeadBar label="Serial" ms={usage.serialMs} ratio={ratios.serial} />
             </dl>
           </div>
@@ -236,6 +238,8 @@ function StopsSection({ stops }: { stops: Stops }) {
                 <li key={`${item.repo}#${item.number}@${item.startedAt}`} className={styles.stop}>
                   <span className={`${styles.stopId} num`}>
                     {item.repo}#{item.number}
+                    {item.pull !== null && <span className={styles.stopSub}> PR #{item.pull}</span>}
+                    {item.times >= 2 && <span className={styles.stopSub}> ×{item.times}</span>}
                   </span>
                   <span className={styles.stopState} data-fixed={item.fixed ? "" : undefined}>
                     {item.fixed ? <CheckIcon size={14} /> : <CrossIcon size={14} />}

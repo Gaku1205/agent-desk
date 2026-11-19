@@ -129,6 +129,11 @@ export function aiUsageAll(results: readonly RepoResult[], now: Date): Record<Pe
   return Object.fromEntries(PERIOD_KEYS.map((key) => [key, aiUsage(results, now, key)])) as Record<PeriodKey, AiUsage>;
 }
 
+/** 横棒のラベル `Parallel 3`：数は今の昼の上限。読めなければ `Parallel` だけ */
+export function parallelLabel(dayLimit: number | null): string {
+  return dayLimit === null ? "Parallel" : `Parallel ${dayLimit}`;
+}
+
 /** 横棒の長さ（0〜1）。2つの中央値の比で、長い方を1とする。値が無ければ null（棒なし） */
 export function barRatios(parallelMs: number | null, serialMs: number | null): { parallel: number | null; serial: number | null } {
   const max = Math.max(parallelMs ?? 0, serialMs ?? 0);
