@@ -81,9 +81,10 @@ describe("デモで押した操作", () => {
       "/mockups/b-pc.svg",
       "/mockups/b-mobile.svg",
     ]);
-    expect(factoryItem(playback)?.factory?.confirm?.facts.find((f) => f.label === "決まった事")?.value).toBe(
-      "主に使う端末は？ → スマホが中心",
-    );
+    expect(factoryItem(playback)?.factory?.confirm?.decided).toContainEqual({
+      q: "主に使う端末は？",
+      a: "スマホが中心",
+    });
     answer({ ...empty, pick: "go" });
     expect(stages).toEqual(["ideas", "looks", "looks", "mocks", "confirm"]);
     expect(factoryItem(playback)).toBeUndefined();

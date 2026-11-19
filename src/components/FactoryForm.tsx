@@ -4,9 +4,11 @@ import { useState, type SyntheticEvent } from "react";
 import { viewerSlides, type ViewerSlide } from "@/lib/imageViewer";
 import {
   FACTORY_FIX,
-  FACTORY_GO,
   FACTORY_REDO,
   MAX_FACTORY_NOTE,
+  answerWithRecommended,
+  factoryStageLabel,
+  judgeLine,
   type FactoryChoice,
   type FactoryImage,
   type FactoryInput,
@@ -28,6 +30,10 @@ type Props = {
   idPrefix: string;
   /** 送る文の見本（印は入れない。空なら出さない） */
   preview: string;
+  /** 最終確認の「作る」を確かめたとき：答えをそのまま送る */
+  onGo: () => void;
+  /** 送っている間など、押せない間 */
+  disabled?: boolean;
 };
 
 /** 段階の見出し（docs/design.md の「工場の相談に答える欄」） */
@@ -261,15 +267,19 @@ function Confirm({
   talk,
   selected,
   onSelect,
+  onGo,
+  disabled,
   idPrefix,
 }: {
   talk: FactoryTalk;
   selected: string | null;
   onSelect: (value: string | null) => void;
+  onGo: () => void;
+  disabled: boolean;
   idPrefix: string;
 }) {
-  const values = [FACTORY_GO, FACTORY_FIX];
-  const roving = useRoving(values, selected, onSelect);
+  // 「作る」を押したあとの確認の文（押すとそのまま送る）
+  const [asking, setAsking] = useState(false);
   const labelId = `${idPrefix}-factory`;
   const [head, ask] = HEADINGS.confirm;
   const confirm = talk.confirm;
@@ -290,28 +300,70 @@ function Confirm({
           ))}
         </dl>
       )}
+      {confirm && confirm.decided.length > 0 && (
+        <table className={styles.decided} aria-label="決まった事">
+          <thead>
+            <tr>
+              <th scope="col">決まった事（質問）</th>
+              <th scope="col">答え</th>
+            </tr>
+          </thead>
+          <tbody>
+            {confirm.decided.map((row, i) => (
+              <tr key={`${i}-${row.q}`}>
+                <th scope="row">{row.q}</th>
+                <td>{row.a}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       {confirm && <Shots images={confirm.images} label="選んだ画面" slide={0} onOpen={viewer.open} />}
       {viewer.node}
-      <div className={q.options} role="radiogroup" aria-labelledby={labelId}>
-        {values.map((value, i) => (
-          <button
-            key={value}
-            ref={(el) => {
-              roving.refs.current[i] = el;
-            }}
-            type="button"
-            role="radio"
-            aria-checked={selected === value}
-            tabIndex={roving.tabIndexOf(i)}
-            className={q.option}
-            onClick={() => roving.onClick(value)}
-            onKeyDown={(event) => roving.onKeyDown(event, i)}
-          >
-            {value === FACTORY_GO ? <PlayIcon /> : <WrenchIcon />}
-            <span>{value === FACTORY_GO ? "作る" : "直す"}</span>
-          </button>
-        ))}
+      <div className={q.options} aria-labelledby={labelId} role="group">
+        <button
+          type="button"
+          className={styles.goBtn}
+          aria-expanded={asking}
+          disabled={disabled}
+          onClick={() => setAsking(true)}
+        >
+          <PlayIcon />
+          <span>作る</span>
+        </button>
+        <button
+          type="button"
+          className={styles.goBtn}
+          aria-pressed={selected === FACTORY_FIX}
+          disabled={disabled}
+          onClick={() => {
+            setAsking(false);
+            onSelect(FACTORY_FIX);
+          }}
+        >
+          <WrenchIcon />
+          <span>直す</span>
+        </button>
       </div>
+      {asking && (
+        <p className={styles.goConfirm} role="group" aria-label="作る前の確認">
+          <span>作り始めます。押すとすぐ送ります。</span>
+          <button
+            type="button"
+            className={styles.goBtn}
+            disabled={disabled}
+            onClick={() => {
+              setAsking(false);
+              onGo();
+            }}
+          >
+            作り始める
+          </button>
+          <button type="button" className={styles.goBtn} onClick={() => setAsking(false)}>
+            やめる
+          </button>
+        </p>
+      )}
     </div>
   );
 }
@@ -320,12 +372,17 @@ function Confirm({
  * 工場の相談に答える欄（docs/design.md の「工場の相談に答える欄」）。選択肢のカード（全部ちがう）・最終確認の
  * 作る／直す・質問（企画AIの質問と同じ部品）・ほかに伝えたいこと、と、送る文の見本。送るのは行の「答えを送る」
  */
-export function FactoryForm({ talk, value, onChange, idPrefix, preview }: Props) {
+export function FactoryForm({ talk, value, onChange, idPrefix, preview, onGo, disabled = false }: Props) {
   const stage = talk?.stage ?? null;
   const redo = value.pick === FACTORY_REDO || value.pick === FACTORY_FIX;
   const select = (pick: string | null) => onChange({ ...value, pick });
+  const questions = talk?.questions ?? [];
+  const judge = talk?.judge ?? null;
   return (
     <div className={q.form}>
+      {talk && stage !== null && (
+        <p className={`${styles.stageHead} num`}>{factoryStageLabel(stage, talk.round)}</p>
+      )}
       {talk?.notice && (
         <p className={styles.notice}>
           <span className={`${q.qno} num`}>工場から</span>
@@ -333,7 +390,14 @@ export function FactoryForm({ talk, value, onChange, idPrefix, preview }: Props)
         </p>
       )}
       {talk && stage === "confirm" && (
-        <Confirm talk={talk} selected={value.pick} onSelect={select} idPrefix={idPrefix} />
+        <Confirm
+          talk={talk}
+          selected={value.pick}
+          onSelect={select}
+          onGo={onGo}
+          disabled={disabled}
+          idPrefix={idPrefix}
+        />
       )}
       {talk && stage !== null && stage !== "confirm" && (
         <Choices stage={stage} choices={talk.choices} selected={value.pick} onSelect={select} idPrefix={idPrefix} />
@@ -349,7 +413,16 @@ export function FactoryForm({ talk, value, onChange, idPrefix, preview }: Props)
           onChange={(event) => onChange({ ...value, redoNote: event.target.value })}
         />
       )}
-      {(talk?.questions ?? []).map((item) => (
+      {questions.some((item) => item.options.some((o) => o.recommended)) && (
+        <button
+          type="button"
+          className={styles.recAll}
+          onClick={() => onChange({ ...value, answers: answerWithRecommended(questions, value.answers) })}
+        >
+          全部おすすめで答える
+        </button>
+      )}
+      {questions.map((item) => (
         <QuestionBlock
           key={item.number}
           item={item}
@@ -368,6 +441,18 @@ export function FactoryForm({ talk, value, onChange, idPrefix, preview }: Props)
           value={value.note}
           onChange={(event) => onChange({ ...value, note: event.target.value })}
         />
+      )}
+      {judge && (
+        <div className={styles.judge} data-failed={judge.passed ? undefined : ""}>
+          <span>{judgeLine(judge)}</span>
+          {!judge.passed && judge.issues.length > 0 && (
+            <ul className={styles.judgeIssues} aria-label="残った指摘">
+              {judge.issues.map((issue, i) => (
+                <li key={`${i}-${issue}`}>{issue}</li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
       <p className={q.preview} aria-live="polite">
         {preview === "" ? (
