@@ -76,7 +76,7 @@ function usageCount(value: number): string {
   return value > 0 ? String(value) : DASH;
 }
 
-const USAGE_NOTE = "数字は AI が動いた回数。Total は動いていた時間の合計";
+const USAGE_NOTE = "数字は回数、Total は時間";
 
 /** 1件あたりの時間の横棒：ラベル → 棒 → 値。数える物が無い方は `—` と棒なし */
 function LeadBar({ label, ms, ratio }: { label: string; ms: number | null; ratio: number | null }) {
@@ -150,7 +150,9 @@ function AiUsageSection({ usage }: { usage: AiUsage }) {
             </dl>
           )}
           <div>
-            <p className={styles.label}>1件あたりの時間（Issueの作成 → PRのマージ）</p>
+            <p className={styles.label} title="Issueの作成 → PRのマージ">
+              1件あたりの時間
+            </p>
             <dl className={styles.bars}>
               <LeadBar label="Parallel 3" ms={usage.parallelMs} ratio={ratios.parallel} />
               <LeadBar label="Serial" ms={usage.serialMs} ratio={ratios.serial} />
@@ -469,7 +471,7 @@ export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav, er
         >
           {(pending === period || failed === period) && (
             <p className={styles.periodNote} role="status">
-              {pending === period ? `${periodWord(period)}分を読んでいます…` : `${periodWord(period)}分を読めませんでした。もう一度押すと読み直します。`}
+              {pending === period ? `${periodWord(period)}分を読んでいます…` : `${periodWord(period)}分を読めません（もう一度押す）`}
             </p>
           )}
           <p className={styles.sentence}>{summarySentence(summary, periodWord(period))}</p>

@@ -156,21 +156,21 @@ describe("記録が24時間に満たないときのまとめの文", () => {
 
   it("5時間分なら、何時間分を見たかを言う", () => {
     expect(limitsSummary(starts, series(5), none)).toBe(
-      "記録があるのは直近 5 時間分だけです。その間、上限 5,000 を超えた時間帯はありません。",
+      "記録は直近 5 時間分。上限 5,000 超えの時間帯：なし",
     );
   });
 
   it("超えた枠があれば、見た時間の後に書く", () => {
     expect(limitsSummary(starts, series(5, 6000), none)).toBe(
-      "記録があるのは直近 5 時間分だけです。上限 5,000 を超えた時間帯があります：Pipeline 07時台・08時台・09時台・10時台・11時台。",
+      "記録は直近 5 時間分。上限 5,000 超えの時間帯：Pipeline 07時台・08時台・09時台・10時台・11時台",
     );
   });
 
   it("24時間ぶんそろっていれば今までの文", () => {
-    expect(limitsSummary(starts, series(24), none)).toBe("この24時間、上限 5,000 を超えた時間帯はありません。");
+    expect(limitsSummary(starts, series(24), none)).toBe("上限 5,000 超えの時間帯：なし");
   });
 
   it("記録が全く無ければ履歴がまだありません", () => {
-    expect(limitsSummary(starts, none, none)).toContain("履歴がまだありません");
+    expect(limitsSummary(starts, none, none)).toContain("履歴はまだありません");
   });
 });

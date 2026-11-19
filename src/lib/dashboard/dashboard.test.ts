@@ -111,7 +111,7 @@ describe("30d のまとめ", () => {
     const summary = summarize([result(data)], NOW, "30d");
     expect(summary.merged).toBe(2);
     expect(summary.mergedPrev).toBe(3);
-    expect(summarySentence(summary, periodWord("30d"))).toBe("この30日で、2件マージして、止まったのは 0回でした。");
+    expect(summarySentence(summary, periodWord("30d"))).toBe("この30日：2件マージ、止まり 0回");
   });
   it("配布のPR（pipeline-sync/）は merged・mergedPrev に入れず、期間内の外した数だけ数える", () => {
     const day = 24 * HOUR;
@@ -237,10 +237,10 @@ describe("summarySentence", () => {
   it("期間の言い方で文が替わる", () => {
     const s = summarize([result({})], NOW, "24h");
     expect(summarySentence({ ...s, merged: 14, stopped: 3 }, "24時間")).toBe(
-      "この24時間で、14件マージして、止まったのは 3回でした。",
+      "この24時間：14件マージ、止まり 3回",
     );
     expect(summarySentence({ ...s, merged: 2, stopped: 0 }, "7日")).toBe(
-      "この7日で、2件マージして、止まったのは 0回でした。",
+      "この7日：2件マージ、止まり 0回",
     );
   });
 });
