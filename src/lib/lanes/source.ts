@@ -131,6 +131,9 @@ export function occupiesSlot(status: IssueStatus): boolean {
     case "reviewing":
     case "fixing":
       return true;
+    case "mergeWaiting":
+      // CI が通ってレビュー・自動マージを待つ物。`ai:hold`（人間のマージ待ち）は数えない
+      return status.mergeWait === "needsReview" || status.mergeWait === "autoMerge";
     case "ciFailed":
       return ciFailureState({ stage: status.stage, stuck: false, fixCount: status.fixCount })?.kind === "fixing";
     default:
@@ -148,6 +151,8 @@ export function slotStepText(status: IssueStatus): string {
       return status.verifyingFix ? "直した結果を確かめています" : "CIが確かめています";
     case "reviewing":
       return status.verifyingFix ? "直した結果を確かめています" : "レビューしています";
+    case "mergeWaiting":
+      return status.mergeWait === "autoMerge" ? "まもなく自動でマージします" : "CIが通りました。レビュー待ちです";
     default:
       return "直しています";
   }
