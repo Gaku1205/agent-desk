@@ -22,7 +22,21 @@ async function openAndClose(page: Page) {
   await expect(page.locator("header[inert], main[inert]")).toHaveCount(0);
 }
 
-// ボタンが出てから押す。ハイドレーション前のタップは確かめていない（別Issueで扱う）
+// JS を止めて（ハイドレーション前を真似て）押しても開閉する。先行スクリプトが DOM を直接開閉する
+test("ハイドレーション前のタップでも、メニューが開いて閉じる", async ({ page }) => {
+  await page.route("**/_next/static/chunks/**", (route) => route.abort());
+  await page.goto(PAGE, { waitUntil: "commit" });
+  const button = menuButton(page);
+  await button.waitFor();
+  await button.tap();
+  await expect(button).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#menu-sheet[data-open]")).toHaveCount(1);
+  await page.evaluate(() => (document.getElementById("menu-sheet")?.firstElementChild as HTMLElement).click());
+  await expect(button).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#menu-sheet[data-open]")).toHaveCount(0);
+});
+
+// ボタンが出てから押す
 test("読み込みの直後でも、メニューが開いて閉じる", async ({ page }) => {
   await page.goto(PAGE, { waitUntil: "commit" });
   await menuButton(page).waitFor();

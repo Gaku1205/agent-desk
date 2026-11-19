@@ -358,7 +358,7 @@ export function repoTurnItems(owner: string, repo: string, repoData: RepoData, n
           ? {
               pullNumber: status.pull.number,
               base: PULL_BASE,
-              ci: status.ci,
+              ci: { passed: status.ci.passed, total: status.ci.total },
               review: reviewOutcome(data.comments, status.pull.number),
             }
           : null,

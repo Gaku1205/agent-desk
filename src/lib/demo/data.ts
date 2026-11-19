@@ -371,7 +371,8 @@ function addPlayIssue(ctx: Ctx, playback: DemoPlayback) {
   let checkRuns: CheckRunData[];
   switch (step) {
     case "ciRunning":
-      checkRuns = ciRuns(1, ciStart);
+      // Actions の席が空かず、まだ始まっていないチェック（queued）を混ぜる：`4/7 CI ✓1 ◌1 ⧗2 枠待ち`
+      checkRuns = ciRuns(1, ciStart).map((check, index) => (index >= 2 ? { ...check, status: "queued" } : check));
       break;
     case "reviewing":
       labels = ["ai:review"];

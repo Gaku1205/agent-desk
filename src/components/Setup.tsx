@@ -59,11 +59,11 @@ const STEP_NAMES: Record<SetupStepId, string> = {
 };
 
 const STEP_DESCRIPTIONS: Record<SetupStepId, string> = {
-  repo: "パイプラインの入ったテンプレートから、新しいリポジトリを作ります",
-  app: "AIがラベル・PR・マージを進めるための鍵です。GitHub の画面では Create を押すだけです",
-  claude: "AIが、あなたの Claude のサブスクで動くようにします",
-  settings: "マージしたあとのブランチを、自動で消すようにします",
-  check: "足りない設定が無いか、Actions の Doctor で確かめます",
+  repo: "テンプレートから新しいリポジトリを作る",
+  app: "AI用の鍵。Create を押すだけ",
+  claude: "AIを Claude のサブスクで動かす",
+  settings: "マージ後のブランチを自動で消す",
+  check: "Doctor で足りない設定を確かめる",
 };
 
 const VISIBILITY = [
@@ -348,7 +348,7 @@ export function Setup({ login, facts: serverFacts, notTarget, canWrite, template
   function relogin(): ReactNode {
     return (
       <div className={styles.line}>
-        <p className={styles.sub}>Secret を書くには、GitHub の repo の権限が要ります</p>
+        <p className={styles.sub}>Secret には repo の権限が要ります</p>
         <form action={reloginWithRepoScope.bind(null, repo ?? "")}>
           <button type="submit" className={styles.primary}>
             権限を足してログインし直す
@@ -440,7 +440,7 @@ export function Setup({ login, facts: serverFacts, notTarget, canWrite, template
       const href = facts.appSlug && repo ? appInstallUrl(facts.appSlug, repo) : "https://github.com/settings/installations";
       return (
         <>
-          <p className={styles.sub}>App ができました。続けて、このリポジトリに入れます</p>
+          <p className={styles.sub}>App ができました。次はリポジトリへ</p>
           <div className={styles.line}>
             {demo ? (
               <button type="button" className={styles.primary} onClick={confirmInstalled}>
@@ -548,7 +548,7 @@ export function Setup({ login, facts: serverFacts, notTarget, canWrite, template
               {copied ? "コピーしました" : "コピー"}
             </button>
           </div>
-          <p className={styles.hint}>手元のターミナルで打つと、トークンが出てきます</p>
+          <p className={styles.hint}>ターミナルで打つと、トークンが出ます</p>
           <div className={styles.line}>
             <label className={styles.field} data-size="token">
               <input
@@ -673,7 +673,7 @@ export function Setup({ login, facts: serverFacts, notTarget, canWrite, template
         <span className={styles.h1En}>Setup</span>
         <span className={styles.h1Ja}>導入</span>
       </h1>
-      <p className={styles.lead}>上から順に押すと、Issue を書くだけで開発が進みます</p>
+      <p className={styles.lead}>上から順に押す。あとは Issue を書くだけ</p>
       {notice && (
         <p className={styles.notice} role="alert">
           {notice}
@@ -719,7 +719,7 @@ export function Setup({ login, facts: serverFacts, notTarget, canWrite, template
         <section className={styles.done} aria-label="Done">
           <div className={styles.doneHead}>
             <span className={styles.doneEn}>Done</span>
-            <span className={styles.doneJa}>監視に足しました。Issue を書くと開発が進みます</span>
+            <span className={styles.doneJa}>監視に足しました。あとは Issue を書くだけ</span>
           </div>
           {watchError && (
             <p className={styles.error} role="alert">

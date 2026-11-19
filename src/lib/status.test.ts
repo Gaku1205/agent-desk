@@ -194,19 +194,43 @@ describe("getIssueStatus：表の各段階", () => {
     const status = getIssueStatus(issue(), input([pull()], { 11: { checkRuns: [check(), ciRunning] } }), NOW);
     expect(status.stage).toBe("ciRunning");
     expect(status.turn).toBe("ai");
-    expect(status.ci).toEqual({ passed: 1, total: 2 });
+    expect(status.ci).toEqual({ passed: 1, total: 2, running: 1, queued: 0, failed: 0 });
   });
 
   it("CI中：Vercelのチェックだけで、GitHub ActionsのCIチェックが無い", () => {
     const status = getIssueStatus(issue(), input([pull()], { 11: { checkRuns: [vercelCheck] } }), NOW);
     expect(status.stage).toBe("ciRunning");
-    expect(status.ci).toEqual({ passed: 1, total: 1 });
+    expect(status.ci).toEqual({ passed: 1, total: 1, running: 0, queued: 0, failed: 0 });
   });
 
   it("CI中：チェックがまだ1つも無い", () => {
     const status = getIssueStatus(issue(), input([pull()]), NOW);
     expect(status.stage).toBe("ciRunning");
-    expect(status.ci).toEqual({ passed: 0, total: 0 });
+    expect(status.ci).toEqual({ passed: 0, total: 0, running: 0, queued: 0, failed: 0 });
+  });
+
+  it("CI中：内訳に、実行中・枠待ち（queued・waiting・pending）を分けて数える。Claude Review は数えない", () => {
+    const queued = check({ status: "queued", conclusion: null, completedAt: null });
+    const waiting = check({ status: "waiting", conclusion: null, completedAt: null });
+    const pending = check({ status: "pending", conclusion: null, completedAt: null });
+    const status = getIssueStatus(
+      issue(),
+      input([pull()], { 11: { checkRuns: [check(), ciRunning, queued, waiting, pending, reviewRunning] } }),
+      NOW,
+    );
+    expect(status.stage).toBe("ciRunning");
+    expect(status.ci).toEqual({ passed: 1, total: 5, running: 1, queued: 3, failed: 0 });
+  });
+
+  it("CI失敗：内訳の失敗に、failure・cancelled を数える（通過・全数は今までどおり）", () => {
+    const cancelled = check({ conclusion: "cancelled" });
+    const status = getIssueStatus(
+      issue(),
+      input([pull()], { 11: { checkRuns: [check(), ciFailed, cancelled, ciRunning] } }),
+      NOW,
+    );
+    expect(status.stage).toBe("ciFailed");
+    expect(status.ci).toEqual({ passed: 1, total: 4, running: 1, queued: 0, failed: 2 });
   });
 
   it("CI失敗：CIのチェックが失敗", () => {
@@ -431,7 +455,7 @@ describe("getIssueStatus：マージ待ちの誰の番", () => {
     expect(status.stage).toBe("mergeWaiting");
     expect(status.mergeWait).toBe("hold");
     expect(status.turn).toBe("human");
-    expect(status.ci).toEqual({ passed: 2, total: 2 });
+    expect(status.ci).toEqual({ passed: 2, total: 2, running: 0, queued: 0, failed: 0 });
   });
 
   it("レビューしていない → AI（レビューに回す）", () => {

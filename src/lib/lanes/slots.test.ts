@@ -15,6 +15,7 @@ function work(number: number): SlotWork {
     stepAt: 2,
     stepName: "実装",
     elapsedMs: null,
+    ci: null,
     touches: null,
   };
 }
@@ -30,6 +31,7 @@ function waiting(number: number, cause: QueueSource["cause"] = null, file: strin
     cause,
     file,
     waitFor: null,
+    waitFors: [],
     waitingMs: null,
   };
 }

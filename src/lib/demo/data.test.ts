@@ -97,6 +97,12 @@ describe("デモのサンプル", () => {
     }
   });
 
+  it("再生で進む1件の CI の段では、枠待ち（queued）のチェックが数えられる", () => {
+    const ci = playbackStatuses().filter((status) => status.stage === "ciRunning" && !status.verifyingFix);
+    expect(ci.length).toBeGreaterThan(0);
+    expect(ci.some((status) => (status.ci.queued ?? 0) > 0)).toBe(true);
+  });
+
   it("枠を使う段階の Issue は、全部のリポジトリを合わせて昼の上限以内。Slots が埋まり、Queue が3件以上ある", () => {
     const results = buildDemoResults(NOW, startPlayback(NOW));
     const lanes = assignSlots(buildLanesSource(results, NOW), DEMO_PARALLEL_SETTINGS.day);

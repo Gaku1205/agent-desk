@@ -47,7 +47,7 @@ export function AutoAddSetting({ initialEnabled }: { initialEnabled: boolean }) 
   return (
     <SettingsRow
       name="Auto-add"
-      description="テンプレートから作った新しいサービスを、自動で監視に足します（外したリポジトリは足し直しません）"
+      description={<span title="外したリポジトリは足し直しません">新しいサービスを自動で監視に足す</span>}
       busy={saving}
       error={error}
     >

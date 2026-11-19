@@ -163,11 +163,18 @@ set_retry_timer() {
   # 順番待ちがあるとき、並列の上限が変わる次の時刻（夜の始まり／終わり・上書きの期限）の1分後にも起こす。
   # 上限を全部のリポジトリで数えるとき（PARALLEL_SCOPE=global）は、ほかのリポジトリの順番待ちも数える（夜が明けて空きができたら、
   # このリポジトリの見張り役が、ほかのリポジトリの順番待ちも始める）
-  local queued_all boundary=""
-  queued_all=$(( ${queued:-0} + $(global_other_queued 2> /dev/null || echo 0) ))
-  if [ "$queued_all" -gt 0 ]; then
+  # 自分に順番待ちが無く、ほかのリポジトリの順番待ちしか無いときは、テンプレートだけがかける（距離に関係なく。全部で枠1つ）。
+  # 開発していないリポジトリが、ほかのリポジトリのために目覚ましをかけて枠を食わないようにする
+  local boundary="" other_only=0 other
+  if [ "${queued:-0}" -gt 0 ]; then
     t=$(parallel_next_change "$now_s")
     [ -n "$t" ] && boundary=$(( t + 60 ))
+  else
+    other=$(global_other_queued 2> /dev/null || echo 0)
+    if [ "${other:-0}" -gt 0 ] && timer_clock_repo; then
+      t=$(parallel_next_change "$now_s")
+      [ -n "$t" ] && { boundary=$(( t + 60 )); other_only=1; }
+    fi
   fi
   # 目覚ましは、待つ間ずっと Actions の枠（同時に動けるジョブの数。無料のアカウントは全部で20）を1つ使う。
   # 並列の上限が変わる時刻（夜の始まり・夜明け）は全部のリポジトリで同じなので、全部のリポジトリが遠い先の目覚ましをかけると、
@@ -177,7 +184,7 @@ set_retry_timer() {
   local far="${RETRY_TIMER_FAR_MIN:-45}"
   [[ "$far" =~ ^[0-9]+$ ]] && [ "$far" -ge 1 ] || far=45
   if [ -n "$boundary" ]; then
-    if [ $(( boundary - now_s )) -le $(( far * 60 )) ] || timer_clock_repo; then
+    if [ "$other_only" = 1 ] || [ $(( boundary - now_s )) -le $(( far * 60 )) ] || timer_clock_repo; then
       if [ -z "$earliest" ] || [ "$boundary" -lt "$earliest" ]; then earliest="$boundary"; fi
     fi
   fi
@@ -259,6 +266,12 @@ open_prs=$(open_pulls_json)
 # 実装AIのブランチ（claude/issue-N-...）のPRがopenであるか
 has_open_pr_for_issue() {
   printf '%s' "$open_prs" | jq -e --arg p "claude/issue-$1-" 'any(.[]; .head.ref | startswith($p))' > /dev/null
+}
+
+# Issue に紐づく（ブランチ claude/issue-N-）マージ済みのPRの番号（新しい順）。linked_issue の逆引き
+merged_prs_for_issue() {
+  gh api "repos/$REPO/pulls?state=closed&sort=updated&direction=desc&per_page=100" 2> /dev/null |
+    jq -r --arg p "claude/issue-$1-" '[.[] | select((.head.ref | startswith($p)) and .merged_at != null)] | sort_by(.merged_at) | reverse | .[].number' 2> /dev/null || true
 }
 
 # ---- 1. ai:retry が付いた物をやり直す ----
@@ -458,6 +471,13 @@ for n in $(open_numbers_with_label "ai:implement"); do
   has_open_pr_for_issue "$n" && continue
   m=$(issue_idle_min "$n") || { echo "#$n：更新時刻を読めないので、今回は見ません"; continue; }
   [ "$m" -lt "$IDLE_IMPLEMENT_MIN" ] && continue
+  # 一部だけ直したPR（Refs #N）がもうマージされている：AIが止まったのではないので、やり直さず、残りつきで順番待ちに戻す（取りこぼしの拾い直し）。
+  # 前に戻したPRは印があって何もしないので、続きの実装AIが止まったときは、下の判定に進む
+  requeued=""
+  for mpr in $(merged_prs_for_issue "$n"); do
+    if requeue_issue_after_partial_merge "$mpr"; then requeued=1; break; fi
+  done
+  [ -z "$requeued" ] || continue
   # 確実に止まった時間（HARD）未満では、実装の実行が動いている間・一覧を読めない間は触らない。
   # HARD 以上は、実行が動いていても（ジョブの上限を過ぎているので）止まったとみなす
   if [ "$m" -lt "$IDLE_IMPLEMENT_HARD_MIN" ]; then

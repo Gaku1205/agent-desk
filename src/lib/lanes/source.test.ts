@@ -110,6 +110,27 @@ describe("buildLanesSource：枠を使う作業", () => {
       NOW,
     );
     expect(source.works.map((work) => [work.number, work.stepText])).toEqual([[8, "CIが通りました。レビュー待ちです"]]);
+    expect(source.works[0].ci).toBeNull();
+  });
+
+  it("CI の段の作業には、CI のチェックの進み具合（枠待ちを含む）を付ける", () => {
+    const ciPull = pull(21, { body: "Closes #8" });
+    const run = (status: string, conclusion: string | null) => ({
+      name: "check",
+      status,
+      conclusion,
+      appSlug: "github-actions",
+      completedAt: null,
+    });
+    const checks = {
+      21: { checkRuns: [run("completed", "success"), run("queued", null), run("queued", null)], statuses: [] },
+    };
+    const source = buildLanesSource(
+      [result(data({ issues: [issue(8, ["ai:implement"])], pulls: [ciPull], pullChecks: checks }))],
+      NOW,
+    );
+    expect(source.works[0].ci?.counts).toEqual({ passed: 1, running: 0, queued: 2, failed: 0, total: 3 });
+    expect(source.works[0].ci?.word).toBe("枠待ち");
   });
 
   it("取れなかったリポジトリは飛ばす", () => {
@@ -220,6 +241,84 @@ describe("buildLanesSource：順番待ちの理由と相手", () => {
       NOW,
     );
     expect(source.queue[0]).toMatchObject({ cause: "unknownInflight", waitFor: { label: "#1" } });
+  });
+
+  it("重なる作業すべてを waitFors に入れ、重ならない作業は入れない", () => {
+    const source = buildLanesSource(
+      [
+        result(
+          data({
+            issues: [
+              issue(1, ["ai:implement"], touches("src/a.ts")),
+              issue(2, ["ai:implement"], touches("src/b.ts")),
+              issue(3, ["ai:implement"], touches("lib/c.ts")),
+              issue(9, ["ai:queue"], touches("src/")),
+            ],
+          }),
+        ),
+      ],
+      NOW,
+    );
+    expect(source.queue[0].waitFors.map((target) => target.number)).toEqual([1, 2]);
+    expect(source.queue[0].waitFors[0]).toMatchObject({
+      kind: "issue",
+      title: "Issue 1",
+      running: true,
+      issueNumber: 1,
+      url: "https://github.com/o/r/issues/1",
+    });
+  });
+
+  it("unknownInflight の waitFors は、触るファイルが分からない作業だけ", () => {
+    const source = buildLanesSource(
+      [
+        result(
+          data({
+            issues: [
+              issue(1, ["ai:implement"]),
+              issue(2, ["ai:implement"], touches("lib/x.ts")),
+              issue(9, ["ai:queue"], touches("src/a.ts")),
+            ],
+          }),
+        ),
+      ],
+      NOW,
+    );
+    expect(source.queue[0].waitFors.map((target) => target.number)).toEqual([1]);
+  });
+
+  it("blocked の waitFors は、後の Issue の題名と動いているかを持つ", () => {
+    const reason: CommentData = { id: 1, issueNumber: 9, author: "claude[bot]", body: "#7 が終わってから始めます", createdAt: "2026-11-18T01:00:00Z" };
+    const running = buildLanesSource(
+      [result(data({ issues: [issue(7, ["ai:implement"]), issue(9, ["ai:blocked"])], comments: [reason] }))],
+      NOW,
+    );
+    expect(running.queue[0].waitFors).toEqual([
+      { kind: "issue", number: 7, title: "Issue 7", running: true, issueNumber: 7, url: "https://github.com/o/r/issues/7" },
+    ]);
+    const idle = buildLanesSource([result(data({ issues: [issue(9, ["ai:blocked"])], comments: [reason] }))], NOW);
+    expect(idle.queue[0].waitFors).toEqual([
+      { kind: "issue", number: 7, title: "", running: false, issueNumber: 7, url: "https://github.com/o/r/issues/7" },
+    ]);
+  });
+
+  it("hold の waitFors は PR。running は false で、Issue が分からなければ issueNumber は null", () => {
+    const mark: CommentData = { id: 1, issueNumber: 20, author: "github-actions[bot]", body: "<!-- hold-blocking: #9 -->", createdAt: "2026-11-18T01:00:00Z" };
+    const source = buildLanesSource(
+      [
+        result(
+          data({
+            issues: [issue(9, ["ai:queue"], touches("src/a.ts"))],
+            pulls: [pull(20, { labels: ["ai:hold"], files: ["src/a.ts"] })],
+            comments: [mark],
+          }),
+        ),
+      ],
+      NOW,
+    );
+    expect(source.queue[0].waitFors).toEqual([
+      { kind: "pull", number: 20, title: "PR 20", running: false, issueNumber: null, url: "https://github.com/o/r/pull/20" },
+    ]);
   });
 
   it("次に入る順：リポジトリの並び → 急ぎ → ほかの ai:queue → ai:blocked、それぞれ番号の小さい順", () => {
