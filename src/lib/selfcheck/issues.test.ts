@@ -100,6 +100,17 @@ describe("publishDriftIssues", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("一覧が読めなかった（GET が 500）ときは Issue を立てない", async () => {
+    await publishDriftIssues("t", settings, "s", report([drift("slots-count")]), makeFetcher([]).fetcher);
+    const calls: Call[] = [];
+    const failing = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(input), method: init?.method ?? "GET" });
+      return new Response("{}", { status: 500 });
+    }) as unknown as typeof fetch;
+    await publishDriftIssues("t", settings, "s", report([drift("slots-count")]), failing);
+    expect(writes(calls)).toHaveLength(0);
+  });
+
   it("SETTINGS_REPO が無ければ何もしない", async () => {
     const none = makeFetcher([]);
     await publishDriftIssues("t", null, "s", report([drift("slots-count")]), none.fetcher);

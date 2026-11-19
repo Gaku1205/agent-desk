@@ -20,29 +20,32 @@ function base(repo: WatchedRepo): string {
   return `${API_BASE}/repos/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}`;
 }
 
-/** 同じ題名の開いている Issue の番号を探す（PR は除く）。見つからない・読めないは null */
+/** 探した結果。読めなかったとき（ok: false）は「見つからない」（ok: true, number: null）と分ける */
+export type FindIssueResult = { ok: true; number: number | null } | { ok: false };
+
+/** 同じ題名の開いている Issue の番号を探す（PR は除く）。読めなかったら { ok: false } */
 export async function findOpenIssueByTitle(
   token: string,
   repo: WatchedRepo,
   title: string,
   fetcher: Fetcher = fetch,
-): Promise<number | null> {
+): Promise<FindIssueResult> {
   try {
     for (let page = 1; page <= ISSUE_PAGES; page++) {
       const response = await fetcher(`${base(repo)}/issues?state=open&per_page=100&page=${page}`, {
         headers: headers(token),
         cache: "no-store",
       });
-      if (!response.ok) return null;
+      if (!response.ok) return { ok: false };
       const list = (await response.json()) as { number?: unknown; title?: unknown; pull_request?: unknown }[];
-      if (!Array.isArray(list)) return null;
+      if (!Array.isArray(list)) return { ok: false };
       const found = list.find((issue) => !issue.pull_request && issue.title === title && typeof issue.number === "number");
-      if (found) return found.number as number;
+      if (found) return { ok: true, number: found.number as number };
       if (list.length < 100) break;
     }
-    return null;
+    return { ok: true, number: null };
   } catch {
-    return null;
+    return { ok: false };
   }
 }
 

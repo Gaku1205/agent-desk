@@ -29,12 +29,15 @@ export async function publishDriftIssues(
       const title = driftIssueTitle(rule);
       const body = formatDriftList(rule, report.drifts, report.checkedAt);
       const existing = await findOpenIssueByTitle(token, settingsRepo, title, fetcher);
-      if (existing !== null) await commentIssue(token, settingsRepo, existing, body, fetcher);
+      if (!existing.ok) continue; // 一覧が読めなかったら、二重に立てないよう何もしない
+      if (existing.number !== null) await commentIssue(token, settingsRepo, existing.number, body, fetcher);
       else await createIssue(token, settingsRepo, title, body, fetcher);
     }
     for (const rule of fixed) {
       const existing = await findOpenIssueByTitle(token, settingsRepo, driftIssueTitle(rule), fetcher);
-      if (existing !== null) await commentIssue(token, settingsRepo, existing, formatFixedComment(report.checkedAt), fetcher);
+      if (existing.ok && existing.number !== null) {
+        await commentIssue(token, settingsRepo, existing.number, formatFixedComment(report.checkedAt), fetcher);
+      }
     }
   } catch {
     // 書けなくても点検の返事は返す
