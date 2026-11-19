@@ -14,6 +14,7 @@ export function AppTopBar() {
       runningCounts={nav.runningCounts}
       countsPending={nav.countsPending}
       countsLoaded={nav.countsLoaded}
+      countsUnreadable={nav.countsUnreadable}
       login={nav.login}
       logout={nav.logout}
     />

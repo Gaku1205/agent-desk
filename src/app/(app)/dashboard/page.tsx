@@ -4,6 +4,7 @@ import { loadGithubLimits } from "@/lib/github/limits";
 import { buildLocalBundles } from "@/lib/dashboard/bundle";
 import { parsePeriodParam } from "@/lib/dashboard/period";
 import { loadTurnSteps } from "@/lib/loadTurnSteps";
+import { unreadableMapOf } from "@/lib/navCounts";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems } from "@/lib/turn";
 import { logout } from "../logout";
@@ -47,6 +48,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           repos,
           counts: countTurnItems(items),
           runningCounts: countRunningPipelineRows(results, now),
+          countsUnreadable: unreadableMapOf(errors),
           login,
           logout,
         },

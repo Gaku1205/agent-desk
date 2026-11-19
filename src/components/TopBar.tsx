@@ -7,7 +7,7 @@ import { ACTION_UNREACHABLE_MESSAGE } from "@/lib/actionCall";
 import { PLAY_BUTTON_LABEL } from "@/lib/demo/playback";
 import { formatPausedNote, formatSyncTime, getDisplayedSyncTime } from "@/lib/refresh";
 import { shouldCloseMenuOnPick, shouldRestoreMenuFocus } from "@/lib/menuFocus";
-import { isRepoCountPending } from "@/lib/navCounts";
+import { countText, isRepoCountPending } from "@/lib/navCounts";
 import { newIssueHref } from "@/lib/issueRepo";
 import { pageTitle } from "@/lib/pageTitle";
 import { hasHiddenBelow } from "@/lib/sideScroll";
@@ -34,6 +34,8 @@ type Props = {
   countsPending?: boolean;
   /** 全部が届く前に、件数が届いたリポジトリ（`owner/repo` の小文字）。届いた物は件数を出す */
   countsLoaded?: Record<string, true>;
+  /** 読めなかったリポジトリ（`owner/repo` の小文字）。札は残し、数は 0 ではなく「–」で出す */
+  countsUnreadable?: Record<string, true>;
   /** リンクの頭（デモでは `/demo`） */
   basePath?: string;
   /** ログイン中のユーザー名（デモでは無し） */
@@ -54,14 +56,18 @@ export function Counts({
   running,
   labeled,
   pending: countsPending = false,
+  unreadable = false,
 }: {
   turn: number;
   running: number;
   labeled: boolean;
   /** 件数がまだ届いていない。数の代わりに「–」を出す */
   pending?: boolean;
+  /** 読めなかったリポジトリ。数の代わりに「–」を出す（0 にしない） */
+  unreadable?: boolean;
 }) {
-  const text = countsPending ? "件数を読み込み中" : `Your turn ${turn}件、AIが動いている ${running}件`;
+  const dash = countsPending || unreadable;
+  const text = unreadable ? READ_FAILED_NOTE : countsPending ? "件数を読み込み中" : `Your turn ${turn}件、AIが動いている ${running}件`;
   // 押した札の点：次の画面が出るまで脈打つ（動きを減らすときは色だけ）。<Link> の子の部品の中で使う
   const { pending } = useLinkStatus();
   return (
@@ -75,11 +81,11 @@ export function Counts({
     >
       <b className={styles.countTurn} aria-hidden="true">
         {labeled && <span className={styles.countName}>Your turn</span>}
-        {countsPending ? "–" : turn}
+        {countText(turn, dash)}
       </b>
       <b className={styles.countRunning} aria-hidden="true">
         {labeled && <span className={styles.countName}>AI</span>}
-        {countsPending ? "–" : running}
+        {countText(running, dash)}
       </b>
     </i>
   );
@@ -135,9 +141,10 @@ export function RepoTabs({
   runningCounts,
   countsPending = false,
   countsLoaded,
+  countsUnreadable,
   basePath = "",
   onPick,
-}: Pick<Props, "repos" | "counts" | "runningCounts" | "countsPending" | "countsLoaded" | "basePath"> & {
+}: Pick<Props, "repos" | "counts" | "runningCounts" | "countsPending" | "countsLoaded" | "countsUnreadable" | "basePath"> & {
   onPick?: () => void;
 }) {
   const pathname = usePathname();
@@ -145,7 +152,7 @@ export function RepoTabs({
   const allReposHref = `${basePath}/repos`;
   // 動きのあるリポジトリ（あなたの番かAIの番が1件以上）と、今開いているリポジトリだけを出す。全部は「すべてのリポジトリ」で見る。
   // ホームへはワードマークで戻る（ホームにいる間は、どの札も「今いる」にならない）
-  const shown = visibleRepos(repos, counts, runningCounts, currentRepoFromPath(pathname));
+  const shown = visibleRepos(repos, counts, runningCounts, currentRepoFromPath(pathname), countsUnreadable);
   const navRef = useRef<HTMLElement>(null);
   // 札が増えて横にスクロールするとき、今いる札が見える位置に来る（動きは付けない）
   useEffect(() => {
@@ -183,6 +190,7 @@ export function RepoTabs({
               running={runningCounts.byRepo[key] ?? 0}
               labeled={isCurrent(href)}
               pending={isRepoCountPending(countsPending, countsLoaded, key)}
+              unreadable={countsUnreadable?.[key] === true}
             />
           </Link>
         );
@@ -209,7 +217,7 @@ export function RepoTabs({
 export function SideRepos(
   props: Pick<
     Props,
-    "repos" | "counts" | "runningCounts" | "countsPending" | "countsLoaded" | "basePath" | "login" | "logout"
+    "repos" | "counts" | "runningCounts" | "countsPending" | "countsLoaded" | "countsUnreadable" | "basePath" | "login" | "logout"
   >,
 ) {
   const pathname = usePathname();
