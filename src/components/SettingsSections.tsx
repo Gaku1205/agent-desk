@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import type { ParallelSettings } from "@/lib/parallel";
 import { formatSavedAt } from "@/lib/settingsSave";
 import { AppearanceSetting } from "./AppearanceSetting";
@@ -46,6 +46,18 @@ export function SettingsSections({
   const markSaved = useCallback(() => {
     if (!demo) setSavedAt(new Date());
   }, [demo]);
+  // 保存の失敗が残っている行（残っている間は `〜に保存しました` を出さない）
+  const [failedIds, setFailedIds] = useState<ReadonlySet<string>>(new Set());
+  const reportFailure = useCallback((id: string, failed: boolean) => {
+    setFailedIds((prev) => {
+      if (prev.has(id) === failed) return prev;
+      const next = new Set(prev);
+      if (failed) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+  const savedValue = useMemo(() => ({ markSaved, reportFailure }), [markSaved, reportFailure]);
   const listed = new Set(names);
   const shownNotifyRows = notifyRows.filter((row) => listed.has(row.name));
 
@@ -129,10 +141,10 @@ export function SettingsSections({
     setActive(id);
   }
 
-  const savedText = formatSavedAt(savedAt);
+  const savedText = failedIds.size > 0 ? null : formatSavedAt(savedAt);
 
   return (
-    <SettingsSavedContext.Provider value={markSaved}>
+    <SettingsSavedContext.Provider value={savedValue}>
       <main id="main" className={styles.page}>
         <header className={styles.head}>
           <h1 className={styles.h1}>

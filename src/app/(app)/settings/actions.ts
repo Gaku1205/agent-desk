@@ -52,7 +52,16 @@ import {
   repoSettingErrorMessage,
 } from "@/lib/repoSetting";
 
-export type SaveReposResult = { ok: true } | { ok: false; message: string };
+export type SaveReposResult =
+  | { ok: true }
+  | {
+      ok: false;
+      message: string;
+      /** リポジトリごとの失敗（複数のリポジトリに書く保存のとき）。画面が理由ごとに1行にまとめる */
+      failures?: { name: string; message: string }[];
+      /** 書こうとしたリポジトリの数 */
+      attempted?: number;
+    };
 
 /** 「監視するリポジトリ」を `SETTINGS_REPO` の Variable に保存する。トークンはサーバー側だけで使う */
 export async function saveWatchedRepos(value: unknown): Promise<SaveReposResult> {
@@ -146,7 +155,7 @@ export async function saveParallel(value: unknown): Promise<SaveReposResult> {
   if (!checked.ok) return checked;
 
   const client = new GitHubClient(token);
-  const failures: string[] = [];
+  const failures: { name: string; message: string }[] = [];
   let written = 0;
   for (const repo of (await loadWatchedRepos()).repos) {
     const name = `${repo.owner}/${repo.repo}`;
@@ -155,10 +164,17 @@ export async function saveParallel(value: unknown): Promise<SaveReposResult> {
       await writeParallelSettings(client, repo, checked.settings);
       written += 1;
     } catch (error) {
-      failures.push(`${name}：${repoSettingErrorMessage(error)}`);
+      failures.push({ name, message: repoSettingErrorMessage(error) });
     }
   }
-  if (failures.length > 0) return { ok: false, message: failures.join(" / ") };
+  if (failures.length > 0) {
+    return {
+      ok: false,
+      message: failures.map((failure) => `${failure.name}：${failure.message}`).join(" / "),
+      failures,
+      attempted: written + failures.length,
+    };
+  }
   if (written === 0) return { ok: false, message: PARALLEL_MESSAGES.noPipeline };
   return { ok: true };
 }
