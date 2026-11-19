@@ -294,7 +294,8 @@ export function Desk({
     ...notices.map((notice) => ({
       key: `watchdog:${notice.owner}/${notice.repo}`,
       tone: "warn" as const,
-      text: `${scope.kind === "all" ? `${notice.repo}　` : ""}見張り役が ${notice.hours} 時間動いていません。Actions が止まっていないか確認してください`,
+      text: `${scope.kind === "all" ? `${notice.repo}　` : ""}見張り役が ${notice.hours}h 止まっている`,
+      title: "Actions が止まっていないか確認してください",
     })),
     ...errors.map((error) => ({ key: `error:${error.repo}`, tone: "fail" as const, text: `${error.repo}：${error.message}` })),
   ];
