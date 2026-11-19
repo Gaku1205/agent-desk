@@ -5,6 +5,7 @@ import { syncRateHistory } from "./github/rateHistoryStore";
 import type { RepoResult } from "./github/types";
 import { loadTurns } from "./loadTurns";
 import { appendStep, DEFAULT_GATHER, gatherSteps, mapSteps, type Step } from "./steps";
+import { oldestReadAt } from "./staleSnapshot";
 import { buildTurnItems, type TurnItem } from "./turn";
 import { loadWatchedRepos } from "./watchedRepos";
 import type { AddedNotice } from "./autoAdd";
@@ -20,6 +21,8 @@ export type TurnsSoFar = {
   repos: WatchedRepo[];
   /** 全部のリポジトリの新しい結果がそろった最後の段か（`loadTurns` と同じ中身） */
   complete: boolean;
+  /** 覚えている古い結果を出しているときの、その内容の時刻（ISO）。無ければ無し */
+  staleAt?: string | null;
 };
 
 /**
@@ -28,7 +31,9 @@ export type TurnsSoFar = {
  * 最後の段は `loadTurns` の結果（自動で足したリポジトリ・お知らせも入る）。取得は `getRepoResult` を使い回すので、GitHub の呼び出しは増えない。
  * `build` は、段ごとにページの中身（画面の部品に渡す物）を作る
  */
-export async function loadTurnSteps<T>(build: (turns: TurnsSoFar) => T | Promise<T>): Promise<Step<T>> {
+export async function loadTurnSteps<T extends object>(
+  build: (turns: TurnsSoFar) => T | Promise<T>,
+): Promise<Step<T & { staleAt: string | null }>> {
   const token = await getGitHubToken();
   const { repos } = await loadWatchedRepos();
   const last = async (): Promise<TurnsSoFar> => {
@@ -44,7 +49,7 @@ export async function loadTurnSteps<T>(build: (turns: TurnsSoFar) => T | Promise
       complete: true,
     };
   };
-  if (!token || repos.length === 0) return { value: await build(await last()), next: null };
+  if (!token || repos.length === 0) return { value: { ...(await build(await last())), staleAt: null }, next: null };
 
   const gathered = await gatherSteps<RepoResult>(
     repos.map((repo) => ({
@@ -53,13 +58,16 @@ export async function loadTurnSteps<T>(build: (turns: TurnsSoFar) => T | Promise
     })),
     { ...DEFAULT_GATHER, wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) },
   );
-  const partial = await mapSteps(gathered, ({ results }): TurnsSoFar => {
+  const partial = await mapSteps(gathered, ({ results, staleCount }): TurnsSoFar => {
     const now = new Date();
     const loaded = results.filter((result): result is RepoResult => result !== null);
-    return { results: loaded, items: buildTurnItems(loaded, now), addedNotices: [], now, repos, complete: false };
+    // 覚えている古い結果が入っているときだけ、その内容の時刻を持たせる
+    const okResults = loaded.flatMap((result) => (result.ok ? [{ data: result.data, changeMark: result.changeMark }] : []));
+    const staleAt = staleCount > 0 ? oldestReadAt(okResults) : null;
+    return { results: loaded, items: buildTurnItems(loaded, now), addedNotices: [], now, repos, complete: false, staleAt };
   });
   // 全部そろった段のあとに、`loadTurns` の結果（自動で足した物・お知らせ入り）で仕上げる
-  return mapSteps(appendStep(partial, last), build);
+  return mapSteps(appendStep(partial, last), async (turns) => ({ ...(await build(turns)), staleAt: turns.staleAt ?? null }));
 }
 
 /**
