@@ -13,7 +13,8 @@ import { formatWait, turnItemKey, type TurnCounts, type TurnItem } from "@/lib/t
 import type { WatchdogNotice } from "@/lib/watchdogState";
 import { Conversation, type ConversationNotice } from "./Conversation";
 import { PanelLeftIcon } from "./icons";
-import { useNav, useStreamedNav } from "./NavContext";
+import { useLastShown, useNav, useStreamedNav } from "./NavContext";
+import { readLastShown, restToShow, writeLastShown } from "@/lib/lastShown";
 import styles from "./Desk.module.css";
 import { FlowMap } from "./FlowMap";
 import { NewIssueForm, type NewIssueRepo } from "./NewIssueForm";
@@ -51,6 +52,8 @@ type Props = {
   loadStepLog?: (owner: string, repo: string, number: number) => Promise<StepInfo[]>;
   /** デモ：記録が無い工程の「不明」を出さない（本物は出す） */
   hideUnknownModel?: boolean;
+  /** 全部のリポジトリの新しい結果がそろった（無ければそろっている）。そろう前の `ほかに N件` は前に出した数を出し続ける */
+  settled?: boolean;
 };
 
 export type DeskNav = {
@@ -119,6 +122,7 @@ export function Desk({
   newIssueRepos: newIssueReposProp,
   loadStepLog,
   hideUnknownModel = false,
+  settled = true,
 }: Props) {
   // リポジトリのページは中央の中身を先に出すので、件数など他のリポジトリを待つ物は layout が後から流す。
   // 件数は読み終えたリポジトリから順に入る（届くまでは「–」）
@@ -200,7 +204,16 @@ export function Desk({
       turnItemKey(item) !== currentKey &&
       !queueKeys.has(turnItemKey(item)),
   );
-  const rest = others.length;
+  const actualRest = others.length;
+  // 全部のリポジトリがそろう前（ホーム）は、読めた分だけの数を出さず、前に出した数を出し続ける（あとから増えて見えない）。
+  // そろったら実際の数にして、次のために覚える
+  const lastShown = useLastShown();
+  const rest = restToShow(actualRest, settled, lastShown.rest) ?? 0;
+  useEffect(() => {
+    if (!settled || scope.kind !== "all") return;
+    const previous = readLastShown();
+    if (previous.rest !== actualRest) writeLastShown({ ...previous, rest: actualRest });
+  }, [settled, scope.kind, actualRest]);
   // 開いたときの1件はフェードしない。替わった1件だけ短くフェードする
   const [firstKey] = useState(currentKey);
 
