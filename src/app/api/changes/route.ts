@@ -1,5 +1,7 @@
 import { getSignedInLogin } from "@/lib/auth";
+import { filterWatchedRepos } from "@/lib/changeMarks";
 import { parseRepoList } from "@/lib/config";
+import { loadWatchedRepos } from "@/lib/watchedRepos";
 import { getChangeMarks, getUrgentMarks, isWebhookEnabled } from "@/lib/github/repoCache";
 import { formatServerTiming, startStageTimer } from "@/lib/serverTiming";
 import { CHANGES_MAX_REPOS } from "@/lib/webhook";
@@ -14,7 +16,9 @@ export async function GET(request: Request): Promise<Response> {
   const timer = startStageTimer();
   if (!(await timer.time("auth", () => getSignedInLogin()))) return new Response(null, { status: 401 });
   const params = new URL(request.url).searchParams;
-  const repos = parseRepoList(params.getAll("repo").join(",")).slice(0, CHANGES_MAX_REPOS);
+  // 監視していないリポジトリの `repo=` は無視する
+  const { repos: watched } = await loadWatchedRepos();
+  const repos = filterWatchedRepos(parseRepoList(params.getAll("repo").join(",")), watched).slice(0, CHANGES_MAX_REPOS);
   const [changes, urgent] = await timer.time("marks", () => Promise.all([getChangeMarks(repos), getUrgentMarks(repos)]));
   return Response.json(
     { changes, urgent },
