@@ -2,14 +2,22 @@ import type { WatchedRepo } from "./config";
 
 // 画面が見る「変わった」印（docs/spec.md の「更新」）。ブラウザでも使うので、サーバーだけの物は import しない
 
-/** 画面が「変わった」印を見に行く間隔（サーバーの CPU を使い切らないため15秒。動いている物があるときも同じ） */
+/** 画面が「変わった」印を見に行く間隔の基本（サーバーの CPU を使い切らないため15秒。AIの番の作業があるときと同じ） */
 export const CHANGES_POLL_INTERVAL_MS = 15_000;
-/** AIの番の作業がある間の、印を見に行く間隔（動いている間も15秒） */
+/** AIの番の作業がある間の、印を見に行く間隔（15秒） */
 export const CHANGES_POLL_BUSY_INTERVAL_MS = 15_000;
+/** AIの番の作業が無い間の、印を見に行く間隔（60秒。待っているだけの呼び出しを減らすため） */
+export const CHANGES_POLL_IDLE_INTERVAL_MS = 60_000;
 
-/** 印を見に行く間隔：動いている物があってもなくても15秒 */
+/** 印を見に行く間隔：AIの番の作業があれば15秒、無ければ60秒 */
 export function changesPollIntervalMs(busy: boolean): number {
-  return busy ? CHANGES_POLL_BUSY_INTERVAL_MS : CHANGES_POLL_INTERVAL_MS;
+  return busy ? CHANGES_POLL_BUSY_INTERVAL_MS : CHANGES_POLL_IDLE_INTERVAL_MS;
+}
+
+/** `/api/changes` で、監視しているリポジトリ（`watched`）に含まれる物だけを残す（大文字小文字は区別しない） */
+export function filterWatchedRepos(requested: WatchedRepo[], watched: WatchedRepo[]): WatchedRepo[] {
+  const allowed = new Set(watched.map(repoChangeKey));
+  return requested.filter((repo) => allowed.has(repoChangeKey(repo)));
 }
 
 /** 変化による作り直しの最短の間隔（Your turn に入る急ぎの変化は除く） */

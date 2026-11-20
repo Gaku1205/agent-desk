@@ -5,6 +5,7 @@ import {
   CHANGES_POLL_BUSY_INTERVAL_MS,
   CHANGES_POLL_INTERVAL_MS,
   changesPollIntervalMs,
+  filterWatchedRepos,
   hasUrgentChange,
   isBehindChangeMarks,
   mayRefreshForChange,
@@ -179,11 +180,23 @@ describe("startChangeWatch", () => {
 });
 
 describe("changesPollIntervalMs", () => {
-  it("動いている物があるときも、無いときも15秒", () => {
+  it("作業があるときは15秒、無いときは60秒", () => {
     expect(changesPollIntervalMs(true)).toBe(15_000);
-    expect(changesPollIntervalMs(false)).toBe(15_000);
+    expect(changesPollIntervalMs(false)).toBe(60_000);
     expect(CHANGES_POLL_BUSY_INTERVAL_MS).toBe(15_000);
     expect(CHANGES_POLL_INTERVAL_MS).toBe(15_000);
+  });
+});
+
+describe("filterWatchedRepos", () => {
+  it("監視していないリポジトリを除く（大文字小文字は区別しない）", () => {
+    const watched = [{ owner: "Gaku1205", repo: "agent-desk" }];
+    const requested = [
+      { owner: "torvalds", repo: "linux" },
+      { owner: "gaku1205", repo: "Agent-Desk" },
+    ];
+    expect(filterWatchedRepos(requested, watched)).toEqual([{ owner: "gaku1205", repo: "Agent-Desk" }]);
+    expect(filterWatchedRepos(requested, [])).toEqual([]);
   });
 });
 

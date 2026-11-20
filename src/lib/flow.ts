@@ -57,7 +57,22 @@ const REVIEW = 4;
 const FIX = 5;
 const DEPLOY = 6;
 
-function position(status: IssueStatus, stage: BaseStage): { at: number; state: FlowState } {
+/** 進捗図の工程を決めるのに要る項目だけ（画面に渡す細い形でも `getFlow` が使えるようにする） */
+export type FlowStatusInput = Pick<
+  IssueStatus,
+  | "stage"
+  | "stageBeforeStuck"
+  | "stageBeforeRetry"
+  | "fixCount"
+  | "verifyingFix"
+  | "mergeWait"
+  | "reviewedClean"
+  | "grace"
+  | "implementError"
+  | "planned"
+>;
+
+function position(status: FlowStatusInput, stage: BaseStage): { at: number; state: FlowState } {
   const confirmingFix = status.verifyingFix && (stage === "ciRunning" || stage === "ciFailed" || stage === "reviewing");
   if (confirmingFix) return { at: FIX, state: stage === "ciFailed" ? "failed" : "running" };
   switch (stage) {
@@ -98,7 +113,7 @@ function position(status: IssueStatus, stage: BaseStage): { at: number; state: F
 }
 
 /** 今の位置より左の工程で、データから決められない物（待ちにする） */
-function unknownBefore(status: IssueStatus, index: number): boolean {
+function unknownBefore(status: FlowStatusInput, index: number): boolean {
   const key = FLOW_STEPS[index].key;
   if (key === "design") return true;
   if (key === "plan") return !status.planned;
@@ -107,7 +122,7 @@ function unknownBefore(status: IssueStatus, index: number): boolean {
 }
 
 /** 段階から、進捗図の7つの工程の状態と今の位置を決める（docs/spec.md の「進捗図」） */
-export function getFlow(status: IssueStatus): Flow {
+export function getFlow(status: FlowStatusInput): Flow {
   const stage: BaseStage =
     status.stage === "stuck"
       ? (status.stageBeforeStuck ?? "notStarted")

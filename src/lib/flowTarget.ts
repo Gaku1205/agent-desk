@@ -1,7 +1,7 @@
-import type { ChatMessage } from "./conversation";
+import { messageFlow, type ChatMessage } from "./conversation";
 import type { FactoryProgress } from "./factoryProgress";
 import { getFlow, type Flow } from "./flow";
-import type { FlowExtraSource } from "./flowExtraBranches";
+import { slimFlowStatus, type FlowExtraSource } from "./flowExtraBranches";
 import type { StepInfo } from "./stepLog";
 import type { TurnItem } from "./turn";
 
@@ -23,8 +23,8 @@ export type FlowTargetData = {
   factory?: FactoryProgress;
 };
 
-type MessageLike = Pick<ChatMessage, "key" | "owner" | "repo" | "number" | "title" | "url" | "running" | "flow"> &
-  Partial<Pick<ChatMessage, "flowExtra" | "factoryFlow">>;
+type MessageLike = Pick<ChatMessage, "key" | "owner" | "repo" | "number" | "title" | "url" | "running"> &
+  Partial<Pick<ChatMessage, "flow" | "flowExtra" | "factoryFlow">>;
 
 /**
  * 進捗図に描く1件（docs/spec.md の「進捗図」）：「いまの様子」で選んだ行（`selected` は `owner/repo#番号`）があれば、その1件。
@@ -45,7 +45,7 @@ export function pickFlowTarget(
     label: label(message.repo, message.number),
     title: message.title,
     url: message.url,
-    flow: message.flow,
+    flow: messageFlow(message),
     ...(message.flowExtra ? { extra: message.flowExtra } : {}),
     ...(message.factoryFlow ? { factory: message.factoryFlow } : {}),
   });
@@ -60,7 +60,7 @@ export function pickFlowTarget(
       title: current.issue.title,
       url: current.issue.url,
       flow: getFlow(current.status),
-      ...(current.flowFacts ? { extra: { status: current.status, facts: current.flowFacts } } : {}),
+      ...(current.flowFacts ? { extra: { status: slimFlowStatus(current.status), facts: current.flowFacts } } : {}),
       ...(current.factoryFlow ? { factory: current.factoryFlow } : {}),
     };
   }
