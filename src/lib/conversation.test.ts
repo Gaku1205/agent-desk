@@ -199,6 +199,14 @@ describe("buildConversation（デモのデータ）", () => {
     for (const m of messages.filter((m) => m.deployed)) expect(m.lamp).toEqual({ kind: "none" });
   });
 
+  it("CI失敗・修正の上限で止まった行は、修正の実行が動いていても赤・失敗の色・回る印なし（Issue #693）", () => {
+    const stopped = messages.find((m) => m.key === "demo/todo-app#18");
+    expect(stopped?.text).toBe("CI失敗・修正の上限");
+    expect(stopped?.lamp).toEqual({ kind: "needsHuman" });
+    expect(stopped?.failed).toBe(true);
+    expect(stopped?.activity).toBeNull();
+  });
+
   it("理由の印つきの保留（Paused）は「いまの様子」に出さない（Slots & Queue の Paused だけ。Issue #520）", () => {
     const keys = new Set(messages.map((m) => m.key));
     expect(keys.has("demo/todo-app#42")).toBe(false);

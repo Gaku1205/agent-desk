@@ -1,6 +1,6 @@
 import { aiActivity, type AiActivity } from "./aiActivity";
 import { conflictKind, conflictText } from "./conflict";
-import { ciFailureState, ciFixingText } from "./ciFailureState";
+import { ciFailureState, ciFixingText, type CiFailureState } from "./ciFailureState";
 import { ciProgress, ciStepText, type CiProgress } from "./ciProgress";
 import type { DeployLink } from "./deployStatus";
 import { describeStatus, failureLogUrl } from "./describe";
@@ -160,7 +160,7 @@ export type ChatMessage = {
 };
 
 /** ランプを決めるための、1件の入力（Issue と紐づく PR のラベル・お願いのコメント・実行） */
-function lampTarget(issue: IssueData, data: RepoData, now: Date, autoFixing: boolean): LampTarget {
+function lampTarget(issue: IssueData, data: RepoData, now: Date, failure: CiFailureState | null): LampTarget {
   const pull = findLinkedPull(data.pulls, issue.number);
   const linked = data.pulls.filter((candidate) => isLinkedPull(candidate, issue.number));
   const labels = [...issue.labels, ...(pull?.labels ?? [])];
@@ -173,7 +173,8 @@ function lampTarget(issue: IssueData, data: RepoData, now: Date, autoFixing: boo
     runs: runActivity(data.runs, issue.number, linked),
     touchedAt: touchedAt === "" ? null : touchedAt,
     now,
-    autoFixing,
+    autoFixing: failure?.kind === "fixing",
+    ciStopped: failure?.kind === "stopped",
   });
   return { number: issue.number, labels, kind };
 }
@@ -239,7 +240,7 @@ export function buildConversation(
           : null;
       const line = chatLine(row.status, { queueAfter: queueAfterNumber(row.queueReason), factory, now });
       const failure = ciFailureState({ stage: row.status.stage, stuck: false, fixCount: row.status.fixCount });
-      lampTargets.push(lampTarget(issue, result.data, now, failure?.kind === "fixing"));
+      lampTargets.push(lampTarget(issue, result.data, now, failure));
       messages.push({
         key,
         owner: result.owner,
