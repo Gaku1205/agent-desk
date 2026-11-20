@@ -1,5 +1,5 @@
-import { FLOW_STATE_LABEL, getFlow, type FlowState, type FlowStepKey } from "./flow";
-import type { CommentData } from "./github/types";
+import { FLOW_STATE_LABEL, getFlow, type FlowState, type FlowStatusInput, type FlowStepKey } from "./flow";
+import type { CommentData, PullData } from "./github/types";
 import { parseQuestionComment } from "./question";
 import { LABEL, type BaseStage, type IssueStatus } from "./status";
 import type { StepInfo } from "./stepLog";
@@ -19,8 +19,15 @@ export type FlowFacts = {
   reviewFindings: boolean;
 };
 
+/**
+ * 画面に渡す、細い状態（docs/spec.md の「画面へ渡す物」）。進捗図の工程と枝を決める項目だけ。
+ * 紐づく PR は、ラベルと、審査役の節だけを残した本文（`critiqueSection`）だけ。PR の本文・ファイル・SHA は渡さない
+ */
+export type FlowStatus = FlowStatusInput &
+  Pick<IssueStatus, "ci"> & { pull: Pick<PullData, "labels" | "body"> | null };
+
 export type FlowExtrasInput = {
-  status: IssueStatus;
+  status: FlowStatus;
   facts: FlowFacts;
   /** 読めた進捗ログ（読んでいない・読めないときは null） */
   stepLog: readonly StepInfo[] | null;
@@ -74,6 +81,33 @@ export function critiqueScore(body: string): { text: string; value: number } | n
   return Number.isFinite(value) ? { text: match[1], value } : null;
 }
 
+/** PR の本文のうち、審査役の点数を読むのに要る所（`## 審査役…` から点数の行まで）。読めなければ空 */
+export function critiqueSection(body: string): string {
+  const heading = CRITIQUE_HEADING.exec(body);
+  if (!heading) return "";
+  const from = heading.index + heading[0].length;
+  const match = CRITIQUE_SCORE.exec(body.slice(from));
+  return match ? body.slice(heading.index, from + match.index + match[0].length) : "";
+}
+
+/** 画面に渡す前に、状態を細くする（進捗図の工程・枝の判定は変わらない） */
+export function slimFlowStatus(status: IssueStatus): FlowStatus {
+  return {
+    stage: status.stage,
+    stageBeforeStuck: status.stageBeforeStuck,
+    stageBeforeRetry: status.stageBeforeRetry,
+    fixCount: status.fixCount,
+    verifyingFix: status.verifyingFix,
+    mergeWait: status.mergeWait,
+    reviewedClean: status.reviewedClean,
+    grace: status.grace,
+    implementError: status.implementError,
+    planned: status.planned,
+    ci: status.ci,
+    pull: status.pull ? { labels: status.pull.labels, body: critiqueSection(status.pull.body) } : null,
+  };
+}
+
 /** 紐づく PR に、指摘ありのレビューのコメントが1つ以上あるか */
 export function hasReviewFindings(comments: CommentData[], pullNumber: number | null): boolean {
   if (pullNumber === null) return false;
@@ -100,7 +134,7 @@ export function flowFacts(
   };
 }
 
-function baseStage(status: IssueStatus): BaseStage {
+function baseStage(status: FlowStatus): BaseStage {
   if (status.stage === "stuck") return status.stageBeforeStuck ?? "notStarted";
   if (status.stage === "retrying") return status.stageBeforeRetry ?? "notStarted";
   return status.stage;
@@ -117,7 +151,7 @@ function waitBranch(labels: Set<string>, stage: BaseStage): ExtraBranch | null {
   return { kind: "wait", anchor: "plan", head: "企画の待ち", rows, returnLine: false };
 }
 
-function critiqueBranch(status: IssueStatus): ExtraBranch | null {
+function critiqueBranch(status: FlowStatus): ExtraBranch | null {
   const score = status.pull ? critiqueScore(status.pull.body) : null;
   if (!score || score.value >= CRITIQUE_PASS) return null;
   return {
@@ -132,7 +166,7 @@ function critiqueBranch(status: IssueStatus): ExtraBranch | null {
   };
 }
 
-function reviewFixBranch(status: IssueStatus, facts: FlowFacts, stage: BaseStage): ExtraBranch | null {
+function reviewFixBranch(status: FlowStatus, facts: FlowFacts, stage: BaseStage): ExtraBranch | null {
   if (!facts.reviewFindings) return null;
   const stuck = status.stage === "stuck";
   let fix: FlowState;
@@ -179,7 +213,7 @@ function mergeHoldBranch(labels: Set<string>, stage: BaseStage): ExtraBranch | n
   };
 }
 
-function stuckBranch(status: IssueStatus): ExtraBranch | null {
+function stuckBranch(status: FlowStatus): ExtraBranch | null {
   if (status.stage !== "stuck") return null;
   const flow = getFlow(status);
   return {
@@ -191,7 +225,7 @@ function stuckBranch(status: IssueStatus): ExtraBranch | null {
   };
 }
 
-function designMark(status: IssueStatus, facts: FlowFacts, stepLog: readonly StepInfo[] | null): DesignMark {
+function designMark(status: FlowStatus, facts: FlowFacts, stepLog: readonly StepInfo[] | null): DesignMark {
   if (facts.mocks || stepLog?.some((info) => info.key === "design")) return "made";
   // 実装より下まで進んでいて、進捗ログに画面案の記録が無い：画面案を通らなかった
   const implement = 2;
