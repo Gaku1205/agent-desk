@@ -6,7 +6,7 @@ import type { RepoResult } from "./github/types";
 import type { LoadError } from "./loadErrors";
 import { resolveLoadState, type LoadState, type RepoLoad } from "./loadState";
 import { loadTurns } from "./loadTurns";
-import { appendStep, DEFAULT_GATHER, gatherSteps, mapSteps, type Gathered, type Step } from "./steps";
+import { DEFAULT_GATHER, gatherSteps, mapSteps, type Gathered, type Step } from "./steps";
 import { buildTurnItems, type TurnItem } from "./turn";
 import { loadWatchedRepos } from "./watchedRepos";
 import type { AddedNotice } from "./autoAdd";
@@ -40,6 +40,14 @@ export type TurnsSoFar = {
 const isFailedResult = (result: RepoResult): boolean => !result.ok;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * 最初の段で新しい結果がそろわないとき、先の段を組み立てる前に、全部がそろうのを待つ上限（ms）。
+ * 温まったとき（本番の実測で、印・読み込みまで全部で約0.25秒）は、この間にそろって組み立てが1回で済む。
+ * 冷えたとき（GitHub から取り直す）は、先に出す画面がこの分だけ遅れるので、温まったときの倍ほどに留める
+ * （マネージャーの判断、2026-11-21。CPU の上限を守るのを優先し、遅れは最大0.5秒にする）
+ */
+export const FIRST_BUILD_WAIT_MS = 500;
 
 /** 段の中身（取得元ごとの新しい結果・古い結果）から、出す物を決める */
 function stateOf(gathered: Gathered<RepoResult>): LoadState {
@@ -118,7 +126,7 @@ export async function loadTurnSteps<T extends object>(
     })),
     { ...DEFAULT_GATHER, wait: sleep, isFailed: isFailedResult },
   );
-  const partial = await mapSteps(gathered, (step): TurnsSoFar => {
+  const partialOf = (step: Gathered<RepoResult>): TurnsSoFar => {
     const now = new Date();
     const state = stateOf(step);
     const loaded = shownResults(state);
@@ -135,9 +143,42 @@ export async function loadTurnSteps<T extends object>(
       canSayEmpty: state.canSayEmpty,
       sync: state.sync,
     };
-  });
-  // 全部そろった段のあとに、`loadTurns` の結果（自動で足した物・お知らせ入り）で仕上げる
-  return mapSteps(appendStep(partial, last), finish);
+  };
+  // 組み立て（`build`）は重い（全部のリポジトリで約1.4秒）ので、1回の表示で1回にする：
+  // ・最初の段、または `FIRST_BUILD_WAIT_MS` までに全部の新しい結果がそろえば、仕上げの段だけを作る（1回）
+  // ・それより遅いときだけ（GitHub から取り直している）、最初の段（覚えている結果・一部）を先に出し、仕上げと2回。間の段は作らない
+  if (gathered.next === null) {
+    try {
+      return { value: await finish(await last()), next: null };
+    } catch {
+      // 仕上げが投げたときは、そろった分で出す（今までと同じ）
+      return { value: await finish(partialOf(gathered.value)), next: null };
+    }
+  }
+  /** 間の段は飛ばして、最後の段の中身を待つ */
+  const lastGathered = async (step: Step<Gathered<RepoResult>>): Promise<Gathered<RepoResult>> =>
+    step.next === null ? step.value : lastGathered(await step.next);
+  const settling = lastGathered(gathered);
+  // 最初の段の組み立て自体が約1.4秒かかるので、`FIRST_BUILD_WAIT_MS` までに全部の新しい結果がそろえば、
+  // 先の段は作らずに仕上げの1回だけにする（最初に出るまでの時間はほぼ変わらない。キャッシュが温まっていれば、ここでそろう）
+  const settledEarly = await Promise.race([settling.catch(() => null), sleep(FIRST_BUILD_WAIT_MS).then(() => null)]);
+  if (settledEarly !== null) {
+    try {
+      return { value: await finish(await last()), next: null };
+    } catch {
+      return { value: await finish(partialOf(settledEarly)), next: null };
+    }
+  }
+  const firstValue = await finish(partialOf(gathered.value));
+  const final = async (): Promise<Step<typeof firstValue>> => {
+    const settled = await settling;
+    try {
+      return { value: await finish(await last()), next: null };
+    } catch {
+      return { value: await finish(partialOf(settled)), next: null };
+    }
+  };
+  return { value: firstValue, next: final() };
 }
 
 /** リポジトリのページの段の中身：出す結果と、その判定 */
