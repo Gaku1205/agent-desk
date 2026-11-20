@@ -11,6 +11,30 @@ export function isDeployStatus(context: string): boolean {
   return context.startsWith(VERCEL) || context.startsWith(DEPLOY_PREFIX);
 }
 
+/** main の最後に公開が成功した時刻：全 context 共通の時刻、または context ごとの時刻 */
+export type MainDeployedTimes = string | null | Record<string, string>;
+
+function isLater(time: string | null | undefined, base: string | null): boolean {
+  if (!time || !base) return false;
+  const t = Date.parse(time);
+  const b = Date.parse(base);
+  return !Number.isNaN(t) && !Number.isNaN(b) && t > b;
+}
+
+/**
+ * 失敗した公開の context が、あとの公開で解決ずみか（段階の判定と失敗の理由で共通）。
+ * Vercel の context：Vercel で始まるどれかの context が、マージより後に成功していれば解決ずみ。
+ * それ以外（`deploy/` など）：同じ context が、マージより後に成功していれば解決ずみ。
+ * mainDeployed が文字列のときは、どの context にも同じ時刻を使う
+ */
+export function isDeployResolved(context: string, mergedAt: string | null, mainDeployed: MainDeployedTimes): boolean {
+  if (typeof mainDeployed !== "object" || mainDeployed === null) return isLater(mainDeployed, mergedAt);
+  if (context.startsWith(VERCEL)) {
+    return Object.entries(mainDeployed).some(([key, at]) => key.startsWith(VERCEL) && isLater(at, mergedAt));
+  }
+  return isLater(mainDeployed[context], mergedAt);
+}
+
 /** 公開先の種類の名前：`deploy/` の後ろ。Vercel は「Vercel」 */
 export function deployKind(context: string): string {
   return context.startsWith(DEPLOY_PREFIX) ? context.slice(DEPLOY_PREFIX.length) : VERCEL;
