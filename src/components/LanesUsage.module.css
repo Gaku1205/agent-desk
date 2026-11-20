@@ -148,6 +148,13 @@
   font-size: 11.5px;
   line-height: 1;
   transform: translateX(-50%);
+  /* 時刻（`0:00`）を縦に折らない（Issue #720） */
+  white-space: nowrap;
+}
+
+/* 右端の目盛りは、端の内側に寄せて、はみ出さないようにする */
+.xLabel[data-edge] {
+  transform: translateX(-100%);
 }
 
 .legend {

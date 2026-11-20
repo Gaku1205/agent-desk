@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyStepLog, FLOW_STEPS, flowStepLabel, getFlow, isSolidLink, type FlowState } from "./flow";
+import { applyStepLog, FLOW_STEPS, flowStepLabel, getFlow, isSolidLink, stepDetail, type FlowState } from "./flow";
 import type { IssueStatus } from "./status";
 
 function status(overrides: Partial<IssueStatus>): IssueStatus {
@@ -154,9 +154,36 @@ describe("getFlow の分岐", () => {
   });
 });
 
+describe("stepDetail（2行目：モデル名と所要時間。Issue #720）", () => {
+  const base = { state: "done" as const, current: false, model: "opus", duration: "3分12秒" };
+  it("AI の工程はモデル名と所要時間", () => {
+    expect(stepDetail({ key: "implement", ...base })).toBe("opus · 3分12秒");
+  });
+  it("始まっていない工程（待ちで、今の位置でない）は2行目を出さない", () => {
+    expect(stepDetail({ key: "design", state: "waiting", current: false, model: "不明", duration: null })).toBeNull();
+    expect(stepDetail({ key: "implement", state: "waiting", current: false, model: null, duration: null })).toBeNull();
+  });
+  it("待ちでも今の位置の工程は2行目を出す", () => {
+    expect(stepDetail({ key: "review", state: "waiting", current: true, model: "opus", duration: "1分" })).toBe(
+      "opus · 1分",
+    );
+  });
+  it("CI・公開はモデル名を出さず、時間だけ", () => {
+    expect(stepDetail({ key: "ci", ...base, model: "不明", duration: "4分2秒" })).toBe("4分2秒");
+    expect(stepDetail({ key: "deploy", ...base, model: "opus", duration: "2分" })).toBe("2分");
+  });
+  it("モデルが分からない（不明）AI の工程は時間だけ", () => {
+    expect(stepDetail({ key: "plan", ...base, model: "不明" })).toBe("3分12秒");
+  });
+  it("モデルも時間も無ければ null（読み込み中の null も出さない）", () => {
+    expect(stepDetail({ key: "plan", state: "done", current: false, model: "不明", duration: null })).toBeNull();
+    expect(stepDetail({ key: "plan", state: "done", current: false, model: null, duration: null })).toBeNull();
+  });
+});
+
 describe("flowStepLabel", () => {
-  it("工程名・状態・モデル名を文字で言う", () => {
-    expect(flowStepLabel({ name: "企画", state: "done", model: "不明" })).toBe("企画　成功　モデル 不明");
+  it("工程名・状態を文字で言う。記録が無いモデル（不明）は言わない", () => {
+    expect(flowStepLabel({ name: "企画", state: "done", model: "不明" })).toBe("企画　成功");
   });
   it("読み込み中（モデル名が null）は「モデル」を言わない", () => {
     expect(flowStepLabel({ name: "企画", state: "done", model: null })).toBe("企画　成功");

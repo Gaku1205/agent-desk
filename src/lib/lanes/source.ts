@@ -12,6 +12,7 @@ import { pausedMark } from "../paused";
 import { buildPipelineRows } from "../pipeline";
 import { findLinkedPull, isLinkedPull, type IssueStatus } from "../status";
 import { isStepLogComment } from "../stepLog";
+import { backgroundTitle } from "./backgroundTitle";
 import { isSleepingRun, wakeAtFromTitle } from "./sleeping";
 import { parseTouches, touchesOverlap } from "./touches";
 
@@ -325,7 +326,7 @@ function repoRuns(owner: string, repo: string, data: RepoData, now: Date): RunEn
       issueNumber: target.issue,
       pullNumber: target.pull,
       // 工場の行は、真ん中に Issue の題名（実行の題名は `Factory talk` だけで、どの作業か分からない）
-      activity: factoryIssue?.title ?? activityText ?? (run.displayTitle.trim() === "" ? null : run.displayTitle.trim()),
+      activity: factoryIssue?.title ?? activityText ?? backgroundTitle(run.displayTitle, data.pulls),
       detail,
       elapsedMs: startedMs === null ? null : Math.max(0, now.getTime() - startedMs),
       logUrl: typeof run.id === "number" ? `https://github.com/${owner}/${repo}/actions/runs/${run.id}` : null,
