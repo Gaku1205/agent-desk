@@ -245,6 +245,11 @@
   color: var(--mute);
 }
 
+/* まだ始まっていない工程は、名前だけ薄く（2行目は出さない。Issue #720） */
+.step[data-notstarted] .name {
+  color: var(--mute);
+}
+
 /* CI の段の間：工程名の左端に揃えて、CI のチェックの線と数（Issue #585。席の行と同じ部品） */
 .ci {
   position: relative;

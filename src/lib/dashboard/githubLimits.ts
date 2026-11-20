@@ -126,6 +126,33 @@ export function remainingRatio(remaining: number | null, limit: number = RATE_LI
   return Math.min(Math.max(remaining / limit, 0), 1);
 }
 
+/** 上限の線を出す「近い」の倍率：上限が、いちばん大きい値の2倍以内なら近い（Issue #720。あとで直しやすい数） */
+export const LIMIT_NEAR_RATIO = 2;
+
+/** 線グラフの値のいちばん大きい物（取れた値だけ。無ければ 0） */
+export function peakValue(...seriesList: (number | null)[][]): number {
+  let peak = 0;
+  for (const series of seriesList) {
+    for (const value of series) {
+      if (value !== null && value > peak) peak = value;
+    }
+  }
+  return peak;
+}
+
+/** 上限の線を出すか：いちばん大きい値があって、上限がその `LIMIT_NEAR_RATIO` 倍以内（近い）のときだけ。遠いときは凡例の `上限 5,000` だけ */
+export function showLimitLine(peak: number, limit: number = RATE_LIMIT): boolean {
+  return peak > 0 && limit <= peak * LIMIT_NEAR_RATIO;
+}
+
+/**
+ * 線グラフの縦の上端（いちばん大きい値の1.1倍。上限の線を出すときは上限の1.1倍）。値が無ければ 1
+ */
+export function chartTop(peak: number, limit: number = RATE_LIMIT): number {
+  const base = showLimitLine(peak, limit) ? Math.max(peak, limit) : peak;
+  return base > 0 ? base * 1.1 : 1;
+}
+
 /** 画面に渡す、小さな値だけの形（トークンは入れない） */
 export type LimitGauge = { remaining: number | null; limit: number; resetAt: number | null };
 

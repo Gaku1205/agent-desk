@@ -1,15 +1,39 @@
 import { describe, expect, it } from "vitest";
 import {
+  chartTop,
   exceededSlots,
   formatResetAt,
   hourLabel,
   hourlyUsed,
   hourStarts,
   limitsSummary,
+  peakValue,
   remainingRatio,
+  showLimitLine,
   sumSeries,
   type RateSample,
 } from "./githubLimits";
+
+describe("線グラフの縦の目盛り（Issue #720）", () => {
+  it("いちばん大きい値を取る（null は数えない）", () => {
+    expect(peakValue([180, null, 331], [null, 250])).toBe(331);
+    expect(peakValue([null], [])).toBe(0);
+  });
+  it("上限が最大値の2倍以内なら上限の線を出す（近い）", () => {
+    expect(showLimitLine(3000)).toBe(true);
+    expect(showLimitLine(2500)).toBe(true);
+  });
+  it("上限が最大値の2倍より遠いなら線は出さない（凡例だけ）", () => {
+    expect(showLimitLine(331)).toBe(false);
+    expect(showLimitLine(2499)).toBe(false);
+    expect(showLimitLine(0)).toBe(false);
+  });
+  it("遠いときは最大値の少し上（1.1倍）まで。近いときは上限も入る", () => {
+    expect(chartTop(331)).toBeCloseTo(364.1);
+    expect(chartTop(3000)).toBeCloseTo(5500);
+    expect(chartTop(0)).toBe(1);
+  });
+});
 
 const HOUR = 3_600_000;
 // 2026-11-18 02:30 UTC = 11:30 JST
