@@ -1,6 +1,7 @@
 import { aiActivity, factoryRunsByIssue } from "../aiActivity";
 import { ciProgress, type CiProgress } from "../ciProgress";
 import { ciFailureState } from "../ciFailureState";
+import { factoryStage } from "../factoryStage";
 import { queueAfterNumber } from "../conversation";
 import { usageModel } from "../dashboard/aiUsage";
 import { parseRunRows } from "../dashboard/summary";
@@ -278,11 +279,15 @@ function repoRuns(owner: string, repo: string, data: RepoData, now: Date): RunEn
     buildPipelineRows(data, now, `${owner}/${repo}`).map((row) => [row.issue.number, row.status]),
   );
   const jobCounts = new Map((data.runJobs ?? []).map((entry) => [entry.runId, entry.inProgress]));
-  // 工場の実行は Issue 番号で結びつかないので、開いている `新サービス：` の Issue ごとの、動いている工場の実行で結びつける（Issue #692）
+  // 工場の実行は Issue 番号で結びつかないので、開いている `新サービス：` の Issue ごとの、動いている工場の実行で結びつける（Issue #692）。
+  // 結びつけるのは段が `作業中`・`本番を作っている`（`factoryStage`）の Issue だけ。相談待ち（`factory:wait`）の Issue には結びつけない
   const factoryIssueByRun = new Map<number, IssueData>();
   for (const [number, run] of [...factoryRunsByIssue(data)].sort((a, b) => a[0] - b[0])) {
     const issue = data.issues.find((candidate) => candidate.number === number);
-    if (issue && run.id !== undefined && !factoryIssueByRun.has(run.id)) factoryIssueByRun.set(run.id, issue);
+    if (!issue || run.id === undefined || factoryIssueByRun.has(run.id)) continue;
+    const phase = factoryStage({ labels: issue.labels, state: issue.state, runs: data.runs, runSteps: data.runSteps });
+    if (phase.kind !== "working" && phase.kind !== "building") continue;
+    factoryIssueByRun.set(run.id, issue);
   }
   for (const run of data.runs ?? []) {
     if (run.status !== "in_progress") continue;
