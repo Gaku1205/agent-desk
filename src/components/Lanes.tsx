@@ -67,6 +67,17 @@ type Props = {
 
 const DASH = "–";
 
+/** 空の区画の文。まだ「空」と言えない間も、同じ高さの場所を取っておく（入れ替えで下の欄がずれない） */
+function EmptyNote({ text, canSay }: { text: string; canSay: boolean }) {
+  return canSay ? (
+    <p className={styles.empty}>{text}</p>
+  ) : (
+    <p className={styles.empty} data-reserve="" aria-hidden="true">
+      {text}
+    </p>
+  );
+}
+
 /** 片づけた1件を隠しておく長さ */
 const TURN_LEAVE_MS = 8000;
 
@@ -150,7 +161,7 @@ function TurnSection({
         ))}
       </ul>
       {shown.length === 0 ? (
-        canSayEmpty ? <p className={styles.empty}>あなたが答えることはありません</p> : null
+        <EmptyNote text="あなたが答えることはありません" canSay={canSayEmpty} />
       ) : (
         <ul className={styles.list}>
           {shown.map((item, index) => (
@@ -473,7 +484,7 @@ function BackgroundSection({
         <JobGaugeView gauge={gauge} />
       </div>
       {active.length === 0 && sleeping.length === 0 ? (
-        canSayEmpty ? <p className={styles.empty}>いまは CI や公開の作業はありません</p> : null
+        <EmptyNote text="いまは CI や公開の作業はありません" canSay={canSayEmpty} />
       ) : (
         <>
           {active.length > 0 && (
@@ -696,8 +707,10 @@ export function Lanes({ source, usage, items, now, nav, errors, readMode = "ok" 
               {overLimit}
             </p>
           ) : null}
-          {unreadable ? null : lanes.slots.length === 0 ? (
-            canSayEmpty ? <p className={styles.empty}>動いている作業はありません</p> : null
+          {unreadable ? (
+            <EmptyNote text="動いている作業はありません" canSay={false} />
+          ) : lanes.slots.length === 0 ? (
+            <EmptyNote text="動いている作業はありません" canSay={canSayEmpty} />
           ) : (
             <ul className={`${styles.list} ${styles.seatList}`}>
               {runningSlots.map((slot) => (
@@ -722,7 +735,7 @@ export function Lanes({ source, usage, items, now, nav, errors, readMode = "ok" 
             sub="席が空いたら上から始まります"
           />
           {lanes.queue.length === 0 ? (
-            canSayEmpty ? <p className={styles.empty}>順番待ちの作業はありません</p> : null
+            <EmptyNote text="順番待ちの作業はありません" canSay={canSayEmpty} />
           ) : (
             <ul className={`${styles.list} ${styles.groupList}`}>
               {groups.map((group) => (
