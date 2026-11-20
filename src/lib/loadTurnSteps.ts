@@ -6,7 +6,7 @@ import type { RepoResult } from "./github/types";
 import type { LoadError } from "./loadErrors";
 import { resolveLoadState, type LoadState, type RepoLoad } from "./loadState";
 import { loadTurns } from "./loadTurns";
-import { appendStep, DEFAULT_GATHER, gatherSteps, mapSteps, type Gathered, type Step } from "./steps";
+import { DEFAULT_GATHER, gatherSteps, mapSteps, type Gathered, type Step } from "./steps";
 import { buildTurnItems, type TurnItem } from "./turn";
 import { loadWatchedRepos } from "./watchedRepos";
 import type { AddedNotice } from "./autoAdd";
@@ -118,7 +118,7 @@ export async function loadTurnSteps<T extends object>(
     })),
     { ...DEFAULT_GATHER, wait: sleep, isFailed: isFailedResult },
   );
-  const partial = await mapSteps(gathered, (step): TurnsSoFar => {
+  const partialOf = (step: Gathered<RepoResult>): TurnsSoFar => {
     const now = new Date();
     const state = stateOf(step);
     const loaded = shownResults(state);
@@ -135,9 +135,31 @@ export async function loadTurnSteps<T extends object>(
       canSayEmpty: state.canSayEmpty,
       sync: state.sync,
     };
-  });
-  // 全部そろった段のあとに、`loadTurns` の結果（自動で足した物・お知らせ入り）で仕上げる
-  return mapSteps(appendStep(partial, last), finish);
+  };
+  // 組み立て（`build`）は重い（全部のリポジトリで約1.4秒）ので、1回の表示で2回までにする：
+  // ・最初の段で全部の新しい結果がそろっていれば、途中の段は作らず、仕上げの段だけを作る（1回）
+  // ・そろっていなければ、最初の段（覚えている結果・一部）と仕上げの段だけを作り、間の段は作らない
+  if (gathered.next === null) {
+    try {
+      return { value: await finish(await last()), next: null };
+    } catch {
+      // 仕上げが投げたときは、そろった分で出す（今までと同じ）
+      return { value: await finish(partialOf(gathered.value)), next: null };
+    }
+  }
+  const firstValue = await finish(partialOf(gathered.value));
+  /** 間の段は飛ばして、最後の段の中身を待つ */
+  const lastGathered = async (step: Step<Gathered<RepoResult>>): Promise<Gathered<RepoResult>> =>
+    step.next === null ? step.value : lastGathered(await step.next);
+  const final = async (): Promise<Step<typeof firstValue>> => {
+    const settled = await lastGathered(gathered);
+    try {
+      return { value: await finish(await last()), next: null };
+    } catch {
+      return { value: await finish(partialOf(settled)), next: null };
+    }
+  };
+  return { value: firstValue, next: final() };
 }
 
 /** リポジトリのページの段の中身：出す結果と、その判定 */
