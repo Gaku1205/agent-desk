@@ -6,7 +6,7 @@ import { buildTrailEvents } from "@/lib/events";
 import { loadTurnSteps } from "@/lib/loadTurnSteps";
 import { unreadableMapOf } from "@/lib/navCounts";
 import { newIssueRepos } from "@/lib/newIssue";
-import { countRunningPipelineRows } from "@/lib/runningPipeline";
+import { getBuildMemo } from "@/lib/buildMemo";
 import { countTurnItems } from "@/lib/turn";
 import { buildWatchdogNotices } from "@/lib/watchdogState";
 import { logout } from "../logout";
@@ -40,7 +40,7 @@ export default async function Home() {
         ? {
             repos,
             counts: countTurnItems(items),
-            runningCounts: countRunningPipelineRows(results, now),
+            runningCounts: getBuildMemo().runningCounts(results, now),
             countsUnreadable: unreadableMapOf(errors),
             login,
             logout,

@@ -9,7 +9,7 @@ import { buildLocalBundles } from "@/lib/dashboard/bundle";
 import { parsePeriodParam } from "@/lib/dashboard/period";
 import { loadTurnSteps } from "@/lib/loadTurnSteps";
 import { unreadableMapOf } from "@/lib/navCounts";
-import { countRunningPipelineRows } from "@/lib/runningPipeline";
+import { getBuildMemo } from "@/lib/buildMemo";
 import { countTurnItems } from "@/lib/turn";
 import { logout } from "../logout";
 import { loadExtendedPeriod } from "./actions";
@@ -61,7 +61,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         nav: {
           repos,
           counts: countTurnItems(items),
-          runningCounts: countRunningPipelineRows(results, now),
+          runningCounts: getBuildMemo().runningCounts(results, now),
           countsUnreadable: unreadableMapOf(errors),
           login,
           logout,

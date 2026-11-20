@@ -4,15 +4,14 @@ import { RepoFeed } from "@/components/RepoFeed";
 import { isAuthExpired, SESSION_EXPIRED_PATH } from "@/lib/authExpired";
 import type { WatchedRepo } from "@/lib/config";
 import { getRepoResult } from "@/lib/github/fetch";
-import { buildLanesSource } from "@/lib/lanes/source";
+import { buildLayoutNumbers, getBuildMemo, getRequestNow } from "@/lib/buildMemo";
 import { loadErrorsOf } from "@/lib/loadErrors";
 import { resolveLoadState } from "@/lib/loadState";
 import { slotsInUseOf } from "@/lib/navCounts";
 import { loadTurns } from "@/lib/loadTurns";
 import { newIssueRepos } from "@/lib/newIssue";
-import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { summarizeDriftIssues } from "@/lib/selfCheck";
-import { buildTurnItems, countTurnItems } from "@/lib/turn";
+import { countTurnItems } from "@/lib/turn";
 import { loadWatchedRepos } from "@/lib/watchedRepos";
 
 /**
@@ -28,6 +27,8 @@ export async function LayoutStream({ renderedAt }: { renderedAt: string }) {
   const { repos } = await loadWatchedRepos();
   // 読めなかったリポジトリ：札は残し、数と「使用中」は 0 ではなく「–」にする
   const unreadableRepos = loadErrorsOf(loaded.results).map((error) => error.repo.toLowerCase());
+  // ページと同じ結果からの組み立ては、同じリクエストの中で1回だけ（覚えを使い回す）
+  const numbers = buildLayoutNumbers(getBuildMemo(), loaded.results, loaded.now);
 
   return (
     <LayoutFeed
@@ -44,10 +45,10 @@ export async function LayoutStream({ renderedAt }: { renderedAt: string }) {
         readFailed: resolveLoadState(loaded.results.map((result) => ({ fresh: result, stale: null }))).sync === "failed",
       }}
       streamed={{
-        counts: countTurnItems(loaded.items),
-        runningCounts: countRunningPipelineRows(loaded.results, loaded.now),
+        counts: numbers.counts,
+        runningCounts: numbers.runningCounts,
         newIssueRepos: newIssueRepos(repos, loaded.results),
-        slotsInUse: slotsInUseOf(buildLanesSource(loaded.results, loaded.now).works.length, unreadableRepos.length),
+        slotsInUse: slotsInUseOf(numbers.works, unreadableRepos.length),
         unreadableRepos,
         addedNotices: loaded.addedNotices,
         drift: summarizeDriftIssues(loaded.results),
@@ -65,13 +66,15 @@ export async function LayoutStream({ renderedAt }: { renderedAt: string }) {
  */
 export async function RepoStream({ token, repo, renderedAt }: { token: string; repo: WatchedRepo; renderedAt: string }) {
   const result = await getRepoResult(token, repo);
-  const now = new Date();
+  // 時刻はリクエストで1つ。全部の組み立て（`buildLayoutNumbers`）がリポジトリごとに覚えた物を、ここでも使う（読み終えた順に入れ替わる動きはそのまま）
+  const now = getRequestNow();
+  const memo = getBuildMemo();
   const key = `${repo.owner}/${repo.repo}`.toLowerCase();
   return (
     <RepoFeed
       repoKey={key}
-      turn={countTurnItems(buildTurnItems([result], now)).byRepo[key] ?? 0}
-      running={countRunningPipelineRows([result], now).byRepo[key] ?? 0}
+      turn={countTurnItems(memo.turnItems([result], now)).byRepo[key] ?? 0}
+      running={memo.runningCounts([result], now).byRepo[key] ?? 0}
       renderedAt={renderedAt}
       unreadable={!result.ok}
     />
