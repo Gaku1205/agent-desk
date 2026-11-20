@@ -52,6 +52,8 @@ export type LampInput = {
   now: Date;
   /** CI失敗のあと、パイプラインが自動で直している途中（`ciFailureState` が動いている）。実行が見えなくても緑 */
   autoFixing?: boolean;
+  /** 工場の Issue の段が `作業中`・`本番を作っている`（`factoryStage`）。工場の実行は Issue 番号で結びつかないので、実行が見えなくても緑。相談待ちは false */
+  factoryRunning?: boolean;
   /** CI失敗で、修正の上限に達して止まった（`ciFailureState` が `stopped`）。関わる実行が動いていても赤（文・印・線を合わせる） */
   ciStopped?: boolean;
 };
@@ -66,6 +68,7 @@ export function judgeLamp(input: LampInput): LampKind {
   if (input.done) return "none";
   if (labels.has(RETRY_LABEL)) return "running";
   if (input.autoFixing) return "running";
+  if (input.factoryRunning) return "running";
   if (HUMAN_LABELS.some((label) => labels.has(label)) || input.humanRequest) return "needsHuman";
   if (input.runs !== null && PROGRESS_LABELS.some((label) => labels.has(label)) && isStale(input)) {
     return "needsHuman";

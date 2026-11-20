@@ -160,7 +160,13 @@ export type ChatMessage = {
 };
 
 /** ランプを決めるための、1件の入力（Issue と紐づく PR のラベル・お願いのコメント・実行） */
-function lampTarget(issue: IssueData, data: RepoData, now: Date, failure: CiFailureState | null): LampTarget {
+function lampTarget(
+  issue: IssueData,
+  data: RepoData,
+  now: Date,
+  failure: CiFailureState | null,
+  factory: FactoryPhase | null = null,
+): LampTarget {
   const pull = findLinkedPull(data.pulls, issue.number);
   const linked = data.pulls.filter((candidate) => isLinkedPull(candidate, issue.number));
   const labels = [...issue.labels, ...(pull?.labels ?? [])];
@@ -175,6 +181,7 @@ function lampTarget(issue: IssueData, data: RepoData, now: Date, failure: CiFail
     now,
     autoFixing: failure?.kind === "fixing",
     ciStopped: failure?.kind === "stopped",
+    factoryRunning: factory?.kind === "working" || factory?.kind === "building",
   });
   return { number: issue.number, labels, kind };
 }
@@ -240,7 +247,7 @@ export function buildConversation(
           : null;
       const line = chatLine(row.status, { queueAfter: queueAfterNumber(row.queueReason), factory, now });
       const failure = ciFailureState({ stage: row.status.stage, stuck: false, fixCount: row.status.fixCount });
-      lampTargets.push(lampTarget(issue, result.data, now, failure));
+      lampTargets.push(lampTarget(issue, result.data, now, failure, factory));
       messages.push({
         key,
         owner: result.owner,
@@ -257,7 +264,8 @@ export function buildConversation(
         logUrl: failureLogUrl(row.status, full),
         links: row.deployLinks,
         activity: null,
-        latestAt: trail?.latestAt ?? null,
+        // 工場の行は足あとが無いので、動いている実行の始まった時刻を出来事の時刻にする（取れなければ null）
+        latestAt: trail?.latestAt ?? (factory?.text ? factory.startedAt : null),
         deployed: row.status.stage === "deployed",
         doneAt: trail?.latestAt ?? findLinkedPull(result.data.pulls, row.issue.number)?.mergedAt ?? null,
         running: isRunningStage(row.status.stage, row.status.grace),

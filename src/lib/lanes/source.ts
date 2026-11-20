@@ -1,11 +1,12 @@
-import { aiActivity } from "../aiActivity";
+import { aiActivity, factoryRunsByIssue } from "../aiActivity";
 import { ciProgress, type CiProgress } from "../ciProgress";
 import { ciFailureState } from "../ciFailureState";
+import { factoryStage } from "../factoryStage";
 import { queueAfterNumber } from "../conversation";
 import { usageModel } from "../dashboard/aiUsage";
 import { parseRunRows } from "../dashboard/summary";
 import { FLOW_STEPS, getFlow, type FlowStepKey } from "../flow";
-import type { RepoData, RepoResult, WorkflowRunData } from "../github/types";
+import type { IssueData, RepoData, RepoResult, WorkflowRunData } from "../github/types";
 import { parseHoldBlocking } from "../holdBlocking";
 import { pausedMark } from "../paused";
 import { buildPipelineRows } from "../pipeline";
@@ -278,6 +279,16 @@ function repoRuns(owner: string, repo: string, data: RepoData, now: Date): RunEn
     buildPipelineRows(data, now, `${owner}/${repo}`).map((row) => [row.issue.number, row.status]),
   );
   const jobCounts = new Map((data.runJobs ?? []).map((entry) => [entry.runId, entry.inProgress]));
+  // 工場の実行は Issue 番号で結びつかないので、開いている `新サービス：` の Issue ごとの、動いている工場の実行で結びつける（Issue #692）。
+  // 結びつけるのは段が `作業中`・`本番を作っている`（`factoryStage`）の Issue だけ。相談待ち（`factory:wait`）の Issue には結びつけない
+  const factoryIssueByRun = new Map<number, IssueData>();
+  for (const [number, run] of [...factoryRunsByIssue(data)].sort((a, b) => a[0] - b[0])) {
+    const issue = data.issues.find((candidate) => candidate.number === number);
+    if (!issue || run.id === undefined || factoryIssueByRun.has(run.id)) continue;
+    const phase = factoryStage({ labels: issue.labels, state: issue.state, runs: data.runs, runSteps: data.runSteps });
+    if (phase.kind !== "working" && phase.kind !== "building") continue;
+    factoryIssueByRun.set(run.id, issue);
+  }
   for (const run of data.runs ?? []) {
     if (run.status !== "in_progress") continue;
     const id = typeof run.id === "number" ? String(run.id) : `${run.headBranch}|${run.displayTitle}|${run.name ?? ""}`;
@@ -286,13 +297,18 @@ function repoRuns(owner: string, repo: string, data: RepoData, now: Date): RunEn
     const sleeping = isSleepingRun(run);
     // 寝ている実行は Issue の番号の手がかりを持たない物として扱う（席にぶら下げない）
     const target = sleeping ? { issue: null, pull: null } : runTarget(run, data);
-    const activity = target.issue === null ? null : aiActivity(data, target.issue, owner, repo);
+    const factoryIssue =
+      target.issue === null && target.pull === null && !sleeping && run.id !== undefined
+        ? factoryIssueByRun.get(run.id) ?? null
+        : null;
+    if (factoryIssue) target.issue = factoryIssue.number;
+    const activity = target.issue === null || factoryIssue ? null : aiActivity(data, target.issue, owner, repo);
     const step = target.issue === null && typeof run.id === "number"
       ? (data.runSteps ?? []).find((candidate) => candidate.runId === run.id)?.name ?? null
       : null;
     const activityText =
       activity?.kind === "todo" ? activity.current : activity?.kind === "step" ? activity.name : step;
-    const status = target.issue === null ? undefined : statuses.get(target.issue);
+    const status = target.issue === null || factoryIssue ? undefined : statuses.get(target.issue);
     let detail: string | null = null;
     if (status) {
       const flow = getFlow(status);
@@ -308,7 +324,8 @@ function repoRuns(owner: string, repo: string, data: RepoData, now: Date): RunEn
       repo,
       issueNumber: target.issue,
       pullNumber: target.pull,
-      activity: activityText ?? (run.displayTitle.trim() === "" ? null : run.displayTitle.trim()),
+      // 工場の行は、真ん中に Issue の題名（実行の題名は `Factory talk` だけで、どの作業か分からない）
+      activity: factoryIssue?.title ?? activityText ?? (run.displayTitle.trim() === "" ? null : run.displayTitle.trim()),
       detail,
       elapsedMs: startedMs === null ? null : Math.max(0, now.getTime() - startedMs),
       logUrl: typeof run.id === "number" ? `https://github.com/${owner}/${repo}/actions/runs/${run.id}` : null,

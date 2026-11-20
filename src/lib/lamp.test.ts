@@ -45,6 +45,12 @@ describe("judgeLamp", () => {
     expect(judgeLamp(input({ labels: ["ai:implement"], autoFixing: false }))).not.toBe("running");
   });
 
+  it("工場の Issue が作業中・本番を作っている（factoryRunning）なら、実行が見えなくても緑。そうでなければ緑にしない（Issue #692）", () => {
+    expect(judgeLamp(input({ labels: [], factoryRunning: true }))).toBe("running");
+    expect(judgeLamp(input({ labels: ["factory:wait"], factoryRunning: false }))).toBe("none");
+    expect(judgeLamp(input({ labels: [] }))).toBe("none");
+  });
+
   it("赤：CI失敗で修正の上限に達して止まった物は、関わる実行が動いていても赤（文と印を合わせる）", () => {
     const running = { active: true, lastUpdatedAt: minutesAgo(1) };
     expect(judgeLamp(input({ labels: ["ai:implement"], ciStopped: true, runs: running }))).toBe("needsHuman");

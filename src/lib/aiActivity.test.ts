@@ -6,6 +6,7 @@ import {
   pickWorkingComment,
   readTaskList,
   STEP_PROBE_MAX,
+  factoryRunsByIssue,
   stepProbeRunIds,
   todoActivity,
 } from "./aiActivity";
@@ -247,6 +248,29 @@ describe("stepProbeRunIds", () => {
 
   it("実行が取れなかったときは何も取りに行かない", () => {
     expect(stepProbeRunIds(data({ runs: null }))).toEqual([]);
+  });
+});
+
+describe("factoryRunsByIssue", () => {
+  it("開いている `新サービス：` の Issue ごとに、動いている工場の実行のいちばん新しい1件（Issue #692）", () => {
+    const factory = (id: number, name: string, updatedAt: string) =>
+      run(id, 0, { name, headBranch: "main", displayTitle: name, updatedAt });
+    const result = factoryRunsByIssue(
+      data({
+        issues: [issue(24, { title: "新サービス：犬の散歩" }), issue(25, { title: "料金表", state: "open" }), issue(26, { title: "新サービス：猫", state: "closed" })],
+        runs: [
+          factory(1, "Factory talk", "2026-11-20T08:00:00Z"),
+          factory(2, "Factory", "2026-11-20T09:00:00Z"),
+          factory(3, "CI", "2026-11-20T10:00:00Z"),
+        ],
+      }),
+    );
+    expect([...result.keys()]).toEqual([24]);
+    expect(result.get(24)?.id).toBe(2);
+  });
+
+  it("実行が取れなかったときは空", () => {
+    expect(factoryRunsByIssue(data({ issues: [issue(24, { title: "新サービス：犬" })], runs: null })).size).toBe(0);
   });
 });
 

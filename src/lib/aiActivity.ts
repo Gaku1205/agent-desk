@@ -153,6 +153,21 @@ function factoryActiveRun(data: RepoData, title: string): WorkflowRunData | unde
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
 }
 
+/**
+ * 開いている工場の Issue（`新サービス：`）ごとの、動いている工場の実行（いちばん新しい1件）。キーは Issue 番号。
+ * 工場の実行は Issue 番号で紐づかないので、手がかりは「工場の実行であること」だけ（`stepProbeRunIds` と同じ）。
+ * Background で、実行を工場の Issue に結びつけるのに使う
+ */
+export function factoryRunsByIssue(data: RepoData): Map<number, WorkflowRunData> {
+  const map = new Map<number, WorkflowRunData>();
+  for (const issue of data.issues) {
+    if (issue.state !== "open") continue;
+    const run = factoryActiveRun(data, issue.title);
+    if (run) map.set(issue.number, run);
+  }
+  return map;
+}
+
 /** 1回の同期でステップ名を取りに行く実行の数の上限（リポジトリごと） */
 export const STEP_PROBE_MAX = 3;
 

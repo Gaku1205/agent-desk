@@ -373,6 +373,74 @@ describe("buildLanesSource：いま動いている実行", () => {
     expect(byId(7)).toMatchObject({ sleeping: false, wakeAtMs: null, issueNumber: 3, jobs: 9 });
     expect(byId(8)).toMatchObject({ sleeping: false, jobs: null });
   });
+
+  it("動いている工場の実行は、番号の小さい `新サービス：` の Issue に結びつき、題名が真ん中に出る。同じ実行は1つだけ", () => {
+    const factoryIssue = (number: number): IssueData => ({ ...issue(number), title: `新サービス：landing-page ${number}` });
+    const source = buildLanesSource(
+      [
+        result(
+          data({
+            issues: [factoryIssue(30), factoryIssue(24)],
+            runs: [run({ id: 9, name: "Factory talk", displayTitle: "Factory talk", startedAt: "2026-11-18T02:00:00Z" })],
+          }),
+        ),
+      ],
+      NOW,
+    );
+    expect(source.runs).toHaveLength(1);
+    expect(source.runs[0]).toMatchObject({ issueNumber: 24, activity: "新サービス：landing-page 24" });
+  });
+
+  it("小さい番号が相談待ち（`factory:wait`）、大きい番号が作業中のとき、作業中の Issue に結びつく", () => {
+    const factoryIssue = (number: number, labels: string[]): IssueData => ({
+      ...issue(number),
+      title: `新サービス：landing-page ${number}`,
+      labels,
+    });
+    const source = buildLanesSource(
+      [
+        result(
+          data({
+            issues: [factoryIssue(19, ["factory:wait"]), factoryIssue(24, [])],
+            runs: [run({ id: 9, name: "Factory talk", displayTitle: "Factory talk", startedAt: "2026-11-18T02:00:00Z" })],
+          }),
+        ),
+      ],
+      NOW,
+    );
+    expect(source.runs).toHaveLength(1);
+    expect(source.runs[0]).toMatchObject({ issueNumber: 24, activity: "新サービス：landing-page 24" });
+  });
+
+  it("`新サービス：` の Issue が相談待ちだけのときは、工場の実行を Issue に結びつけない", () => {
+    const source = buildLanesSource(
+      [
+        result(
+          data({
+            issues: [{ ...issue(19), title: "新サービス：landing-page 19", labels: ["factory:wait"] }],
+            runs: [run({ id: 9, name: "Factory talk", displayTitle: "Factory talk" })],
+          }),
+        ),
+      ],
+      NOW,
+    );
+    expect(source.runs[0]).toMatchObject({ issueNumber: null, activity: "Factory talk" });
+  });
+
+  it("`新サービス：` の Issue が無いときは、工場の実行を Issue に結びつけない", () => {
+    const source = buildLanesSource(
+      [
+        result(
+          data({
+            issues: [issue(24)],
+            runs: [run({ id: 9, name: "Factory talk", displayTitle: "Factory talk" })],
+          }),
+        ),
+      ],
+      NOW,
+    );
+    expect(source.runs[0]).toMatchObject({ issueNumber: null, activity: "Factory talk" });
+  });
 });
 
 describe("buildLanesSource：Paused（止めてある物）", () => {
