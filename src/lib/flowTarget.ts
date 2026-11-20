@@ -32,7 +32,7 @@ type MessageLike = Pick<ChatMessage, "key" | "owner" | "repo" | "number" | "titl
  * 無ければ、会話の中で動いている物のうち、いちばん新しい（下の）1件。どれも無ければ null
  */
 export function pickFlowTarget(
-  current: (Pick<TurnItem, "owner" | "repo" | "issue" | "status"> & Partial<Pick<TurnItem, "flowFacts">>) | null,
+  current: (Pick<TurnItem, "owner" | "repo" | "issue" | "status"> & Partial<Pick<TurnItem, "flowFacts" | "factoryFlow">>) | null,
   messages: MessageLike[],
   showRepo: boolean,
   selected: string | null = null,
@@ -61,6 +61,7 @@ export function pickFlowTarget(
       url: current.issue.url,
       flow: getFlow(current.status),
       ...(current.flowFacts ? { extra: { status: current.status, facts: current.flowFacts } } : {}),
+      ...(current.factoryFlow ? { factory: current.factoryFlow } : {}),
     };
   }
   // 会話は上が古く下が新しいので、いちばん新しい（下の）動いている1件
