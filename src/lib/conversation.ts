@@ -1,6 +1,6 @@
 import { aiActivity, type AiActivity } from "./aiActivity";
 import { conflictKind, conflictText } from "./conflict";
-import { ciFailureState, ciFixingText } from "./ciFailureState";
+import { ciFailureState, ciFixingText, type CiFailureState } from "./ciFailureState";
 import { ciProgress, ciStepText, type CiProgress } from "./ciProgress";
 import type { DeployLink } from "./deployStatus";
 import { describeStatus, failureLogUrl } from "./describe";
@@ -164,7 +164,7 @@ function lampTarget(
   issue: IssueData,
   data: RepoData,
   now: Date,
-  autoFixing: boolean,
+  failure: CiFailureState | null,
   factory: FactoryPhase | null = null,
 ): LampTarget {
   const pull = findLinkedPull(data.pulls, issue.number);
@@ -179,7 +179,8 @@ function lampTarget(
     runs: runActivity(data.runs, issue.number, linked),
     touchedAt: touchedAt === "" ? null : touchedAt,
     now,
-    autoFixing,
+    autoFixing: failure?.kind === "fixing",
+    ciStopped: failure?.kind === "stopped",
     factoryRunning: factory?.kind === "working" || factory?.kind === "building",
   });
   return { number: issue.number, labels, kind };
@@ -246,7 +247,7 @@ export function buildConversation(
           : null;
       const line = chatLine(row.status, { queueAfter: queueAfterNumber(row.queueReason), factory, now });
       const failure = ciFailureState({ stage: row.status.stage, stuck: false, fixCount: row.status.fixCount });
-      lampTargets.push(lampTarget(issue, result.data, now, failure?.kind === "fixing", factory));
+      lampTargets.push(lampTarget(issue, result.data, now, failure, factory));
       messages.push({
         key,
         owner: result.owner,

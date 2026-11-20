@@ -54,11 +54,15 @@ export type LampInput = {
   autoFixing?: boolean;
   /** 工場の Issue の段が `作業中`・`本番を作っている`（`factoryStage`）。工場の実行は Issue 番号で結びつかないので、実行が見えなくても緑。相談待ちは false */
   factoryRunning?: boolean;
+  /** CI失敗で、修正の上限に達して止まった（`ciFailureState` が `stopped`）。関わる実行が動いていても赤（文・印・線を合わせる） */
+  ciStopped?: boolean;
 };
 
 /** ランプの種類を決める（待ち順は `assignLamps` で付ける） */
 export function judgeLamp(input: LampInput): LampKind {
   const labels = new Set(input.labels);
+  // CI失敗で止まった物は、関わる実行が動いていても赤（文「CI失敗・修正の上限」と印を合わせる。終わった物は除く）
+  if (input.ciStopped && !input.done) return "needsHuman";
   // いま動いているなら、過去にエラーで止まっていても緑（最新の状態を優先）
   if (input.runs?.active) return "running";
   if (input.done) return "none";
