@@ -359,7 +359,10 @@ export function repoTurnItems(owner: string, repo: string, repoData: RepoData, n
       description,
       note:
         status.stage === "deployFailed" && status.pull
-          ? deployFailureReason(data.pullChecks[status.pull.number]?.statuses ?? [])
+          ? deployFailureReason(data.pullChecks[status.pull.number]?.statuses ?? [], {
+              mergedAt: status.pull.mergedAt,
+              mainDeployed: data.mainDeployedByContext ?? data.mainDeployedAt ?? null,
+            })
           : holdBlockingNote(blocking, data.issues),
       ...(blocking.length > 0 ? { blocking } : {}),
       ...(canMerge && status.pull?.files ? { files: status.pull.files } : {}),

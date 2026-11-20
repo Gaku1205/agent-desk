@@ -50,4 +50,32 @@ describe("deployFailureReason", () => {
   it("description が空なら null", () => {
     expect(deployFailureReason([status("Vercel", "failure", "2026-10-25T10:00:00Z", "")])).toBeNull();
   });
+
+  describe("あとの公開で解決ずみの物", () => {
+    const mergedAt = "2026-11-19T10:00:00Z";
+    const vercel = status("Vercel", "failure", mergedAt, "Account is blocked.");
+    const supabase = status("deploy/supabase", "failure", mergedAt, "表の変更を流せませんでした");
+
+    it("後の Vercel の成功があれば、Vercel だけの失敗は出さない", () => {
+      expect(deployFailureReason([vercel], { mergedAt, mainDeployed: { Vercel: "2026-11-20T10:00:00Z" } })).toBeNull();
+    });
+
+    it("Vercel と supabase が両方失敗なら、supabase だけが残る", () => {
+      expect(
+        deployFailureReason([vercel, supabase], { mergedAt, mainDeployed: { "Vercel – app": "2026-11-20T10:00:00Z" } }),
+      ).toBe("supabase：表の変更を流せませんでした");
+    });
+
+    it("supabase は後の Vercel の成功では解決しない", () => {
+      expect(
+        deployFailureReason([supabase], { mergedAt, mainDeployed: { Vercel: "2026-11-20T10:00:00Z" } }),
+      ).toBe("supabase：表の変更を流せませんでした");
+    });
+
+    it("成功がマージより前なら Vercel の失敗は残る", () => {
+      expect(deployFailureReason([vercel], { mergedAt, mainDeployed: { Vercel: "2026-11-18T10:00:00Z" } })).toBe(
+        "Account is blocked.",
+      );
+    });
+  });
 });

@@ -4,7 +4,7 @@ import { isFactoryIssue } from "./factoryIssue";
 import { isFactoryAnswered } from "./factoryTalk";
 import { isPipelineMaintenanceIssue, isPipelineNotice } from "./pipelineIssue";
 import type { PipelineState } from "./pipelineState";
-import { isCountedDeploySuccess, isFailedState, latestCountedPerContext } from "./deployStatus";
+import { isCountedDeploySuccess, isDeployResolved, isFailedState, latestCountedPerContext } from "./deployStatus";
 import { isMergeablePull } from "./mergeablePull";
 import { holdRequestText, humanRequestReason } from "./humanRequest";
 import { pausedMark, type PausedMark } from "./paused";
@@ -710,7 +710,8 @@ function repoHasNoDeploys(input: StatusInput, now: Date): boolean {
  * 数えられる公開ステータスが無い（飛ばした物の success だけも同じ）ときは、マージより後に main の公開が成功していれば公開済み、
  * そうでなければ、マージから30分たっていれば「公開済み（状況は不明）」、それまでは「公開中」。
  * ただし公開が無いリポジトリ（noDeploys）では、30分たっていなくても「公開済み」（状況は不明にしない）。
- * failure・error の context は、main のあとの公開がマージより後に同じ context で成功していれば解決ずみ。
+ * failure・error の context は、main のあとの公開がマージより後に同じ context で成功していれば解決ずみ
+ * （Vercel の context は、Vercel で始まるどれかの context の成功でよい。`isDeployResolved`）。
  * mainDeployed が文字列のときは、どの context にも同じ時刻を使う
  */
 export function deployState(
@@ -722,8 +723,7 @@ export function deployState(
 ): DeployState {
   const latest = latestCountedPerContext(statuses);
   if (latest.length > 0) {
-    const resolved = (context: string): boolean =>
-      isAfter(typeof mainDeployed === "object" && mainDeployed !== null ? (mainDeployed[context] ?? null) : mainDeployed, mergedAt);
+    const resolved = (context: string): boolean => isDeployResolved(context, mergedAt, mainDeployed);
     if (latest.some((s) => isFailedState(s.state) && !resolved(s.context))) {
       return { state: "failed", unknown: false };
     }
