@@ -9,9 +9,16 @@
   box-shadow: inset 0 0 0 1px var(--hair);
 }
 
-/* PCの左のバー：ユーザーの行のすぐ上 */
-.side {
-  margin-bottom: 8px;
+/* Slots & Queue のページ：見出しのすぐ下（PCだけ。スマホはメニューの中に出る） */
+.page {
+  max-width: 320px;
+  margin: 0 0 24px;
+}
+
+@media (max-width: 899px) {
+  .page {
+    display: none;
+  }
 }
 
 /* スマホのメニュー：項目と同じ左右 */

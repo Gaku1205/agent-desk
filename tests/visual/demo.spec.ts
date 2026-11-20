@@ -265,11 +265,11 @@ test.describe("デモの画面", () => {
 
   test("札を押した瞬間に、押した札が「今いる」の見た目になり、前にいた札は戻る（次の画面が遅くても）", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name === "mobile", "札はPCの帯・左のバーで確かめる");
-    await page.goto(REPO_PAGE);
+    await page.goto("/demo/lanes");
     await page.evaluate(() => document.fonts.ready);
-    const nav = page.getByRole("navigation", { name: "リポジトリ" }).first();
+    const nav = page.getByRole("navigation", { name: "ページ" });
     const home = nav.locator('a[aria-current="page"]');
-    const target = nav.getByRole("link", { name: /^すべてのリポジトリ/ });
+    const target = nav.getByRole("link", { name: /^Dashboard/ });
     const bg = (l: typeof home) => l.evaluate((el) => getComputedStyle(el).backgroundColor);
     const currentBg = await bg(home);
     const idleBg = await bg(target);
@@ -290,12 +290,12 @@ test.describe("デモの画面", () => {
     await expect(target.locator("[data-pending]")).toHaveCount(1);
     expect(await bg(target)).toBe(currentBg);
     expect(await bg(home)).toBe(idleBg);
-    // 上の帯・左のバーは消えない
-    await expect(page.locator("header")).toBeVisible();
+    // 上の帯は消えない
+    await expect(page.locator("header").first()).toBeVisible();
     await expect(nav).toBeVisible();
 
     release();
-    await expect(page).toHaveURL(/\/demo\/repos$/);
+    await expect(page).toHaveURL(/\/demo\/dashboard$/);
     await expect(target).toHaveAttribute("aria-current", "page");
   });
 

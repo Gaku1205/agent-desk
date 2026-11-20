@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { formatSpan } from "@/lib/dashboard/duration";
 import { FLOW_STEPS } from "@/lib/flow";
 import { assignSlots, freeRowText, lanesHeadline, overLimitDetail, overLimitNote, type Slot } from "@/lib/lanes/slots";
@@ -22,10 +22,8 @@ import { lanesTurnRows, mergeOrdinals } from "@/lib/lanes/turnRows";
 import { heldIndex, withHeldRows, type HeldRow } from "@/lib/operationResult";
 import { turnItemKey, turnSig, type TurnItem } from "@/lib/turn";
 import { TURN_GROUPS } from "@/lib/turnKind";
-import { getBrowserStorage } from "@/lib/motion";
-import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import dashboardStyles from "./Dashboard.module.css";
-import { getSidebarSnapshot, subscribeSidebar, type DeskError, type DeskNav } from "./Desk";
+import type { DeskError, DeskNav } from "./Desk";
 import { CiLine, CiText } from "./CiProgress";
 import { LoadErrors } from "./LoadErrors";
 import type { UsageSource } from "@/lib/lanes/usage";
@@ -35,7 +33,6 @@ import {
   CircleIcon,
   ColumnsIcon,
   MoonIcon,
-  PanelLeftIcon,
   PersonIcon,
   PlayIcon,
   SpinnerIcon,
@@ -46,7 +43,7 @@ import { LanesTurn } from "./LanesTurn";
 import { LanesUsage } from "./LanesUsage";
 import { useParallelView } from "./ParallelContext";
 import { QueueIcon } from "./QueueIcon";
-import { SideRepos } from "./TopBar";
+import { ParallelSwitch } from "./ParallelSwitch";
 import { TurnKindIcon } from "./TurnKindIcon";
 
 type Props = {
@@ -611,29 +608,9 @@ export function Lanes({ source, usage, items, now, nav, errors, readMode = "ok" 
   const queueId = useId();
   const usageId = useId();
   const pausedId = useId();
-  const sideCollapsed = useSyncExternalStore(subscribeSidebar, getSidebarSnapshot, () => false);
-  const toggleSide = useCallback(() => {
-    const next = !getSidebarSnapshot();
-    applySidebar(next, document.documentElement);
-    writeSidebarCollapsed(getBrowserStorage(), next);
-  }, []);
 
   return (
     <div className={dashboardStyles.panes} data-panes="">
-      <button
-        type="button"
-        className={dashboardStyles.sideToggle}
-        onClick={toggleSide}
-        aria-expanded={!sideCollapsed}
-        aria-controls="side-repos"
-        aria-label={sideCollapsed ? "リポジトリの一覧を開く" : "リポジトリの一覧を畳む"}
-        title={sideCollapsed ? "リポジトリの一覧を開く" : "リポジトリの一覧を畳む"}
-      >
-        <PanelLeftIcon />
-      </button>
-      <div className={dashboardStyles.side} id="side-repos" inert={sideCollapsed}>
-        <SideRepos {...nav} />
-      </div>
       <main id="main" className={styles.main}>
         <header className={styles.head}>
           <div className={styles.titleBox}>
@@ -683,6 +660,8 @@ export function Lanes({ source, usage, items, now, nav, errors, readMode = "ok" 
             </div>
           </dl>
         </header>
+        {/* 同時に動かす：見出しのすぐ下（PC。スマホはメニューの中。docs/design.md の「同時に動かす」） */}
+        <ParallelSwitch variant="page" />
         <LoadErrors errors={errors ?? []} />
 
         <TurnSection

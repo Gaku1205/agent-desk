@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useParallelView } from "./ParallelContext";
 import { barRatios, parallelLabel, USAGE_MODELS, type AiUsage, type UsageModel } from "@/lib/dashboard/aiUsage";
 import { formatSpan } from "@/lib/dashboard/duration";
@@ -8,10 +8,8 @@ import { FLOW_STEPS } from "@/lib/flow";
 import { formatPeriodLabel, PERIOD_KEYS, periodWord, type PeriodKey } from "@/lib/dashboard/period";
 import { summarySentence } from "@/lib/dashboard/summary";
 import { nextTabIndex } from "@/lib/dashboard/tabKeys";
-import { getBrowserStorage } from "@/lib/motion";
-import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import styles from "./Dashboard.module.css";
-import { getSidebarSnapshot, subscribeSidebar, type DeskError, type DeskNav } from "./Desk";
+import type { DeskError, DeskNav } from "./Desk";
 import { LoadErrors } from "./LoadErrors";
 import {
   formatResetAt,
@@ -22,11 +20,10 @@ import {
   type GithubLimits,
   type LimitGauge,
 } from "@/lib/dashboard/githubLimits";
-import { CheckIcon, ChipIcon, CrossIcon, FlowStepIcon, GaugeIcon, KeyIcon, PanelLeftIcon, PersonIcon } from "./icons";
+import { CheckIcon, ChipIcon, CrossIcon, FlowStepIcon, GaugeIcon, KeyIcon, PersonIcon } from "./icons";
 import { QueueIcon } from "./QueueIcon";
 import { TurnKindIcon } from "./TurnKindIcon";
 import { reasonRatios, STOP_REASONS, type StopReason, type Stops } from "@/lib/dashboard/stops";
-import { SideRepos } from "./TopBar";
 import { DashboardThroughput } from "./DashboardThroughput";
 import { DashboardServices } from "./DashboardServices";
 import type { ServicesView } from "@/lib/dashboard/services";
@@ -441,29 +438,9 @@ export function Dashboard({ bundles, loadPeriod, limits, services, now, repoCoun
     initialRead.current = true;
     if (pending !== null && pending === initialPeriod) readPeriod(initialPeriod);
   }, [pending, initialPeriod, readPeriod]);
-  const sideCollapsed = useSyncExternalStore(subscribeSidebar, getSidebarSnapshot, () => false);
-  const toggleSide = useCallback(() => {
-    const next = !getSidebarSnapshot();
-    applySidebar(next, document.documentElement);
-    writeSidebarCollapsed(getBrowserStorage(), next);
-  }, []);
 
   return (
     <div className={styles.panes} data-panes="">
-      <button
-        type="button"
-        className={styles.sideToggle}
-        onClick={toggleSide}
-        aria-expanded={!sideCollapsed}
-        aria-controls="side-repos"
-        aria-label={sideCollapsed ? "リポジトリの一覧を開く" : "リポジトリの一覧を畳む"}
-        title={sideCollapsed ? "リポジトリの一覧を開く" : "リポジトリの一覧を畳む"}
-      >
-        <PanelLeftIcon />
-      </button>
-      <div className={styles.side} id="side-repos" inert={sideCollapsed}>
-        <SideRepos {...nav} />
-      </div>
       <main id="main" className={styles.main}>
         <header className={styles.head}>
           <div className={styles.title}>

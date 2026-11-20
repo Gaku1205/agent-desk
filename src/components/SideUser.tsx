@@ -21,6 +21,8 @@ type Props = {
   basePath?: string;
   /** スマホのメニューの中では `menu`（設定を押したとき、今いるページならスマホのメニューを閉じる） */
   onPick?: () => void;
+  /** `top`：PCの上端の帯の右端（アイコンだけのボタン。メニューは下に開く）。無ければ行の形（スマホのメニュー） */
+  variant?: "top";
 };
 
 /** GitHub のアイコン（丸・24px）。読めなかったときは頭文字1字の丸 */
@@ -75,7 +77,7 @@ function LogoutItem() {
  * デモではユーザー名の代わりに `デモ` を置き、デモにある物（GitHubで見る・ログイン）を同じ形で出す。
  * docs/spec.md の「PCの3ペイン」・docs/design.md の「左のバーの新サービスとユーザーのメニュー」
  */
-export function SideUser({ login, logout, basePath = "", onPick }: Props) {
+export function SideUser({ login, logout, basePath = "", onPick, variant }: Props) {
   const demo = useDemo();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -192,7 +194,7 @@ export function SideUser({ login, logout, basePath = "", onPick }: Props) {
   }
 
   return (
-    <div className={styles.wrap} ref={wrapRef} onKeyDown={onKeyDown} onBlur={onBlur}>
+    <div className={styles.wrap} data-variant={variant} ref={wrapRef} onKeyDown={onKeyDown} onBlur={onBlur}>
       {open && (
         <div className={styles.menu} role="menu" id={menuId} aria-label={demo ? "デモのメニュー" : "ユーザーのメニュー"} ref={menuRef}>
           {menu}
@@ -201,6 +203,7 @@ export function SideUser({ login, logout, basePath = "", onPick }: Props) {
       <button
         type="button"
         className={`${styles.button} num`}
+        aria-label={variant === "top" ? (demo ? "デモのメニュー" : `ユーザーのメニュー（${login ?? ""}）`) : undefined}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}

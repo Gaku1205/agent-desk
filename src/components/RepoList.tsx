@@ -1,15 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useSyncExternalStore } from "react";
-import { getBrowserStorage } from "@/lib/motion";
 import { formatLastActivity, sortRepoRows, type RepoListRow } from "@/lib/repoList";
-import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
-import { getSidebarSnapshot, subscribeSidebar, type DeskError, type DeskNav } from "./Desk";
+import type { DeskError, DeskNav } from "./Desk";
 import { LoadErrors } from "./LoadErrors";
-import { PanelLeftIcon, PlusIcon } from "./icons";
+import { PlusIcon } from "./icons";
 import styles from "./RepoList.module.css";
-import { Counts, CountsKey, SideRepos } from "./TopBar";
+import { Counts, CountsKey } from "./TopBar";
 
 type Props = {
   rows: RepoListRow[];
@@ -25,29 +22,9 @@ export function RepoList({ rows, now, nav, errors }: Props) {
   const basePath = nav.basePath ?? "";
   const sorted = sortRepoRows(rows);
   const at = new Date(now);
-  const sideCollapsed = useSyncExternalStore(subscribeSidebar, getSidebarSnapshot, () => false);
-  const toggleSide = useCallback(() => {
-    const next = !getSidebarSnapshot();
-    applySidebar(next, document.documentElement);
-    writeSidebarCollapsed(getBrowserStorage(), next);
-  }, []);
 
   return (
     <div className={styles.panes} data-panes="">
-      <button
-        type="button"
-        className={styles.sideToggle}
-        onClick={toggleSide}
-        aria-expanded={!sideCollapsed}
-        aria-controls="side-repos"
-        aria-label={sideCollapsed ? "リポジトリの一覧を開く" : "リポジトリの一覧を畳む"}
-        title={sideCollapsed ? "リポジトリの一覧を開く" : "リポジトリの一覧を畳む"}
-      >
-        <PanelLeftIcon />
-      </button>
-      <div className={styles.side} id="side-repos" inert={sideCollapsed}>
-        <SideRepos {...nav} />
-      </div>
       <main id="main" className={styles.main}>
         <div className={styles.titleRow}>
           <h1 className={styles.h1}>すべてのリポジトリ</h1>

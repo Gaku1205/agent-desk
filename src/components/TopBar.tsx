@@ -2,7 +2,7 @@
 
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ACTION_UNREACHABLE_MESSAGE } from "@/lib/actionCall";
 import { PLAY_BUTTON_LABEL } from "@/lib/demo/playback";
 import { formatPausedNote, formatSyncTime, getDisplayedSyncTime } from "@/lib/refresh";
@@ -10,14 +10,13 @@ import { shouldCloseMenuOnPick, shouldRestoreMenuFocus } from "@/lib/menuFocus";
 import { countText, isRepoCountPending } from "@/lib/navCounts";
 import { newIssueHref } from "@/lib/issueRepo";
 import { pageTitle } from "@/lib/pageTitle";
-import { hasHiddenBelow } from "@/lib/sideScroll";
 import type { DriftSummary } from "@/lib/selfCheck";
 import { revealScrollLeft } from "@/lib/tabScroll";
 import { currentRepoFromPath, visibleRepos } from "@/lib/visibleRepos";
 import type { TurnCounts } from "@/lib/turn";
 import { useShell } from "./AppShell";
 import { useDemo } from "./DemoContext";
-import { ChartIcon, GridIcon, LanesIcon, PlayIcon, PlusIcon, RefreshIcon, RepoIcon, WriteIcon } from "./icons";
+import { ChartIcon, ChevronIcon, GridIcon, LanesIcon, PlayIcon, PlusIcon, RefreshIcon, RepoIcon, WriteIcon } from "./icons";
 import { useParallelView } from "./ParallelContext";
 import { ParallelSwitch, useSlotsInUse } from "./ParallelSwitch";
 import { SideUser } from "./SideUser";
@@ -230,80 +229,108 @@ export function RepoTabs({
   );
 }
 
-/** PCの3ペインの左：リポジトリの一覧（上端の帯の札を縦に並べた物。docs/design.md の「PCの3ペイン」） */
-export function SideRepos(
-  props: Pick<
-    Props,
-    "repos" | "counts" | "runningCounts" | "countsPending" | "countsLoaded" | "countsUnreadable" | "basePath" | "login" | "logout"
-  >,
-) {
+/**
+ * PCの上端の帯の左：Slots & Queue（右に使用中/上限）→ Dashboard → Repositories ▾（押すと札の一覧が下に開く）。
+ * 今いるページは札と同じ見た目（`aria-current="page"`）。スマホでは出さない（メニューの中）。docs/design.md の「上端の帯」
+ */
+function TopNav(props: Props) {
   const pathname = usePathname();
-  const newServiceHref = `${props.basePath ?? ""}/new/service`;
-  const dashboardHref = `${props.basePath ?? ""}/dashboard`;
-  const lanesHref = `${props.basePath ?? ""}/lanes`;
-  const listRef = useRef<HTMLDivElement>(null);
-  const [hiddenBelow, setHiddenBelow] = useState(false);
-  // 札が下の段の下に隠れているときだけ、境目に線を出す（スクロール時・大きさが変わったとき）
-  useEffect(() => {
-    const list = listRef.current;
-    if (!list) return;
-    const update = () => setHiddenBelow(hasHiddenBelow(list));
-    update();
-    list.addEventListener("scroll", update, { passive: true });
-    const observer = new ResizeObserver(update);
-    observer.observe(list);
-    for (const child of Array.from(list.children)) observer.observe(child);
-    return () => {
-      list.removeEventListener("scroll", update);
-      observer.disconnect();
-    };
-  }, [props.repos.length, props.counts, props.runningCounts]);
+  const basePath = props.basePath ?? "";
+  const dashboardHref = `${basePath}/dashboard`;
+  const lanesHref = `${basePath}/lanes`;
+  const isCurrent = (href: string) => pathname.toLowerCase() === href.toLowerCase();
   return (
-    <aside className={styles.side} aria-label="リポジトリの一覧">
-      <div className={styles.sideTop}>
-        <Link
-          href={newServiceHref}
-          className={`${styles.sideNew} ${styles.sideAdd}`}
-          aria-label="新しいサービスを作る"
-          aria-current={pathname.toLowerCase() === newServiceHref ? "page" : undefined}
-        >
-          <PlusIcon />
-          <span aria-hidden="true">新サービス</span>
-          <PendingMark />
-        </Link>
-        <Link
-          href={dashboardHref}
-          className={styles.sideNew}
-          aria-current={pathname.toLowerCase() === dashboardHref ? "page" : undefined}
-        >
-          <ChartIcon />
-          <span>Dashboard</span>
-          <PendingMark />
-        </Link>
-        <Link
-          href={lanesHref}
-          className={styles.sideNew}
-          aria-current={pathname.toLowerCase() === lanesHref ? "page" : undefined}
-        >
-          <LanesIcon />
-          <span>Slots &amp; Queue</span>
-          <LanesUsage />
-          <PendingMark />
-        </Link>
-      </div>
-      <div className={styles.sideList} ref={listRef}>
-        <span className={styles.sideLbl}>
-          <RepoIcon />
-          Repositories
-          <CountsKey />
-        </span>
-        <RepoTabs {...props} />
-      </div>
-      <div className={styles.sideFoot} data-more={hiddenBelow ? "true" : undefined}>
-        <ParallelSwitch variant="side" />
-        <SideUser login={props.login} logout={props.logout} basePath={props.basePath} />
-      </div>
-    </aside>
+    <nav className={styles.pcNav} aria-label="ページ">
+      <Link href={lanesHref} className={styles.tab} aria-current={isCurrent(lanesHref) ? "page" : undefined}>
+        <LanesIcon />
+        <span>Slots &amp; Queue</span>
+        <LanesUsage />
+        <PendingMark />
+      </Link>
+      <Link href={dashboardHref} className={styles.tab} aria-current={isCurrent(dashboardHref) ? "page" : undefined}>
+        <ChartIcon />
+        <span>Dashboard</span>
+        <PendingMark />
+      </Link>
+      <RepoMenu {...props} />
+    </nav>
+  );
+}
+
+/** `Repositories ▾`：押すと、スマホのメニューと同じ札の一覧（あなたの番・AIの数つき）と `すべてのリポジトリ` が下に開く */
+function RepoMenu(props: Props) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
+  // 別のページへ移ったら閉じる
+  const [openPath, setOpenPath] = useState(pathname);
+  if (openPath !== pathname) {
+    setOpenPath(pathname);
+    setOpen(false);
+  }
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !wrapRef.current?.contains(event.target)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      buttonRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  const base = `${props.basePath ?? ""}/repos`.toLowerCase();
+  const here = pathname.toLowerCase() === base || pathname.toLowerCase().startsWith(`${base}/`);
+  return (
+    <div className={styles.repoMenu} ref={wrapRef}>
+      <button
+        type="button"
+        className={styles.tab}
+        data-here={here ? "" : undefined}
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        ref={buttonRef}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <RepoIcon />
+        <span>Repositories</span>
+        <ChevronIcon size={14} />
+      </button>
+      {open && (
+        <div className={styles.repoPanel} id={panelId}>
+          <span className={styles.repoPanelLbl}>
+            <CountsKey />
+          </span>
+          <RepoTabs {...props} onPick={() => setOpen(false)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** PCの上端の帯の右：`新サービス`（縁つきのボタン） */
+function NewServiceLink({ basePath = "" }: { basePath?: string }) {
+  const pathname = usePathname();
+  const href = `${basePath}/new/service`;
+  return (
+    <Link
+      href={href}
+      className={`${styles.tab} ${styles.topNew}`}
+      aria-label="新しいサービスを作る"
+      aria-current={pathname.toLowerCase() === href ? "page" : undefined}
+    >
+      <PlusIcon />
+      <span aria-hidden="true">新サービス</span>
+      <PendingMark />
+    </Link>
   );
 }
 
@@ -446,12 +473,16 @@ export function TopBar(props: Props) {
           agent-desk
         </Link>
         <span className={styles.pageName}>{pageTitle(pathname, props.basePath ?? "")}</span>
-        <RepoTabs {...props} />
+        <TopNav {...props} />
         <div className={styles.right}>
           <DemoControls />
           <FoldedSlot />
           <DriftLink drift={props.drift} className={styles.driftBar} />
+          <NewServiceLink basePath={props.basePath} />
           <SyncStatus />
+          <div className={styles.topUser}>
+            <SideUser login={props.login} logout={props.logout} basePath={props.basePath} variant="top" />
+          </div>
         </div>
       </header>
       <MenuSheet {...props} />
