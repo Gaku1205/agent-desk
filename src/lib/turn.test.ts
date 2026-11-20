@@ -383,6 +383,23 @@ describe("件数", () => {
     expect(countTurnItems(factory).byRepo["gaku1205/ai-dev-template"]).toBe(1);
   });
 
+  it("工場の相談の行にだけ、工場の段の進捗図（factoryFlow）が入る", () => {
+    const factory = buildTurnItems(
+      [
+        ok(
+          "Gaku1205",
+          "ai-dev-template",
+          data({ issues: [issue(250, { title: "新サービス：朝の1枚", labels: ["factory", "factory:wait"] })] }),
+        ),
+      ],
+      NOW,
+    );
+    const flow = factory[0].factoryFlow;
+    expect(flow?.steps.map((step) => step.name)[0]).toBe("案");
+    expect(flow?.steps.find((step) => step.state === "waiting")?.name).toBe("案");
+    for (const item of items) expect(item).not.toHaveProperty("factoryFlow");
+  });
+
   it("1件のキーは `owner/repo#番号`（流れの光のキーと同じ）で、重ならない", () => {
     const keys = items.map(turnItemKey);
     expect(keys).toContain("o/other#1");

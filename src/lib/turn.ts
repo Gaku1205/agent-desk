@@ -2,6 +2,7 @@ import { deployFailureReason } from "./deployFailure";
 import { describeStatus, failureLogUrl, PIPELINE_MISSING_TEXT } from "./describe";
 import { isDeployStatus } from "./deployStatus";
 import { isFactoryIssue } from "./factoryIssue";
+import { factoryProgress, type FactoryProgress } from "./factoryProgress";
 import { flowFacts, type FlowFacts } from "./flowExtraBranches";
 import type { IssueData, PullData, RepoData, RepoResult } from "./github/types";
 import { holdRequestText } from "./humanRequest";
@@ -98,6 +99,8 @@ export type TurnItem = {
   factory: FactoryTalk | null;
   /** 進捗図のほかの分岐を決める材料（docs/spec.md の「ほかの分岐」。無ければ出さない） */
   flowFacts?: FlowFacts;
+  /** 工場の相談の行：工場の段の進捗図（docs/spec.md の「工場の進捗図」。工場の相談でなければ無し） */
+  factoryFlow?: FactoryProgress;
   /** 止めている `ai:hold` のマージ待ちが、マージすると動き出す Issue の番号（無ければ出さない。docs/spec.md の「止めている印」） */
   blocking?: number[];
   /** Issueに紐づかない「マージしてよいPR」の行（`issue` に PR の番号・題名・URL が入る。無ければ Issue の行） */
@@ -376,6 +379,19 @@ export function repoTurnItems(owner: string, repo: string, repoData: RepoData, n
       factory:
         status.stage === "factoryTalk" ? parseFactoryTalk(data.comments, issue.number, `${owner}/${repo}`) : null,
       flowFacts: flowFacts(issue, status, data.comments, owner),
+      ...(status.stage === "factoryTalk"
+        ? {
+            factoryFlow: factoryProgress({
+              owner,
+              repo,
+              issue,
+              comments: data.comments,
+              runs: data.runs,
+              runSteps: data.runSteps,
+              now,
+            }),
+          }
+        : {}),
     });
   }
   // Issueに紐づかない「マージしてよいPR」（Issueの行が無いので、PRから1件ずつ出す）
