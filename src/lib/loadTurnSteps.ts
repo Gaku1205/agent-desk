@@ -8,6 +8,7 @@ import { resolveLoadState, type LoadState, type RepoLoad } from "./loadState";
 import { loadTurns } from "./loadTurns";
 import { DEFAULT_GATHER, gatherSteps, mapSteps, type Gathered, type Step } from "./steps";
 import { buildTurnItems, type TurnItem } from "./turn";
+import { getBuildMemo } from "./buildMemo";
 import { loadWatchedRepos } from "./watchedRepos";
 import type { AddedNotice } from "./autoAdd";
 
@@ -100,7 +101,7 @@ export async function loadTurnSteps<T extends object>(
     return {
       results,
       // 覚えている結果に置き換えた所があるときだけ作り直す（無ければ `loadTurns` と同じ物）
-      items: state.staleRepos.length > 0 ? buildTurnItems(results, loaded.now) : loaded.items,
+      items: state.staleRepos.length > 0 ? getBuildMemo().turnItems(results, loaded.now) : loaded.items,
       addedNotices: loaded.addedNotices,
       now: loaded.now,
       repos: (await loadWatchedRepos()).repos,
