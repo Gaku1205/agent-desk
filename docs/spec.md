@@ -810,7 +810,7 @@ AI を使わずに、「GitHub の状態」と「画面に出す物」を突き�
 - 受け付ける条件（`src/lib/selfcheck/auth.ts` の `decideSelfcheckAuth`。入力：`GET /installation/repositories` の返事・監視リポジトリ・`PIPELINE_APP_ID`・鍵の App の ID。出力：受け付けるか）：(a) その鍵で読めたリポジトリに、監視しているリポジトリが含まれる、(b) その鍵の App の ID が `PIPELINE_APP_ID` と同じ、の両方。App の ID は、`PIPELINE_APP_ID`・`PIPELINE_APP_PRIVATE_KEY` で作る JWT で `GET /repos/{owner}/{repo}/installation`（(a) で見つけた監視リポジトリ）を呼び、返事の `app_id` を見る。どれかを満たさない（鍵が無い・違う App の鍵・監視していないリポジトリの鍵・`PIPELINE_APP_ID` が無い・GitHub が答えない）ときは **401**（本文なし）。受け付けた後にだけ中身を読む。鍵はログにも返事にも出さず、覚えない
 - 監視リポジトリ：環境変数 `WATCHED_REPOS` と、設定の Variable（`SETTINGS_REPO` の `AGENT_DESK_WATCHED_REPOS`。呼ばれた鍵で読む。読めなければ無いものとする）を、`chooseWatchedRepos` で選ぶ。ログインに頼る `loadWatchedRepos` は使わない
 - 読み方：各リポジトリは、呼ばれた鍵で `getRepoResult`（`src/lib/github/fetch.ts`）を使って読む。読めなかったリポジトリは `ok: false` の結果のまま扱い、ずれの判定からは外す（`unreadable` に入れる）
-- 返事（JSON、`Cache-Control: no-store`）：`{ checkedAt, repoCount, unreadable: ["owner/repo", …], drifts: [{ repo, number, rule, shown, actual }] }`。`checkedAt` は点検した時刻（ISO）、`repoCount` は監視リポジトリの数、`repo` は `owner/repo`、`number` は Issue か PR の番号（リポジトリ全体のずれは 0）、`rule` は決まりの名前（下の英字）、`shown` は「画面ではこう」、`actual` は「GitHub ではこう」（どちらも日本語の1行）
+- 返事（JSON、`Cache-Control: no-store`）：`{ checkedAt, repoCount, unreadable: ["owner/repo", …], drifts: [{ repo, number, rule, shown, actual }] }`。返事にはこのほか `usage`・`budget` が付く（Issue #698。5分の記憶には入れず、呼ばれるたびに足す。形と決まりは「サーバーの CPU の予算」の「使用量の数え方と知らせ方」）。`checkedAt` は点検した時刻（ISO）、`repoCount` は監視リポジトリの数、`repo` は `owner/repo`、`number` は Issue か PR の番号（リポジトリ全体のずれは 0）、`rule` は決まりの名前（下の英字）、`shown` は「画面ではこう」、`actual` は「GitHub ではこう」（どちらも日本語の1行）
 - 5分の記憶：結果（返事の中身だけ。鍵は入れない）をサーバーのメモリに5分覚える（`src/lib/selfcheck/run.ts`）。5分のうちに何度呼ばれても、リポジトリは読み直さない。同時に呼ばれたときは1回にまとめる。読み方は画面と同じキャッシュ（`getRepoResult`）を通す
 - 決まり：1つずつの関数にして、`src/lib/selfcheck/rules/` に1ファイル1決まりで並べる（`rules/index.ts` の `SELFCHECK_RULES` に足せば増やせる）。入力は、読めたリポジトリの結果・読めなかったリポジトリ・今の時刻・画面の側の材料（`screen`）。出力はずれの一覧。画面の側は、画面が使っている関数の結果をそのまま使う（`src/lib/selfcheck/screen.ts`）：Your turn は `buildTurnItems`、いまの様子は `buildConversation`、Slots & Queue は `buildLanesSource`
   1. `all-sections`：`ai:*`・`factory*` のラベルが付いた開いている Issue（`shouldShowIssue` で出す物）と、ブランチ名が `claude/` で始まる開いている PR が、Your turn・Slots & Queue（Slots・Queue・Paused・Running）・いまの様子のどの区画にも出ていない。PR は、PR の行（Issue に紐づかない「マージしてよいPR」）か、紐づく Issue が出ていれば出ているとみなす
@@ -996,7 +996,20 @@ AI を使わずに、「GitHub の状態」と「画面に出す物」を突き�
 
 - 直す前（5秒・2.5秒ごとに聞く、Webhook のたびに無効化）の同じ見積もり：印を聞く 約23,000回（約7.7分）、作り直しの取りこぼし分を含めて、1日8分を超える計算になる（実際の6h25m／30日＝1日約13分と同じ桁）。**この表の数字は、本番で測れていない見積もり。** 前提：リポジトリ15、見ているタブ2つ、1日8時間、パイプラインが動くのは4時間。前提が変わる・測れたら直す
 - **決まり：更新の仕組み（作り直しの間隔・キャッシュ・Webhook・変化の印を聞く間隔）を変える PR は、この節の見積もり（表と合計）を更新して、PR の説明に書く。** 合計が1日4分を超えるときは、そのまま出さない
-- 使用量そのものの見張り（上限の50%・75% で知らせる）は ai-dev-template#269。この節は、設計の側の予算
+- 使用量そのものの見張りは、Vercel の Hobby では使用量が外から読めなかったため、agent-desk が自分で数える（下の「使用量の数え方と知らせ方」）。見張り役（ai-dev-template の `selfcheck-call.sh`）が `/api/selfcheck` の `budget` を見て知らせる。この節は、設計の側の予算
+
+#### 使用量の数え方と知らせ方（Issue #698）
+
+- 数える物：プロセスの CPU 時間の増え分（`process.cpuUsage()` の user+system を ms にしたもの）。リクエストごとには測らない。画面・`/api/changes` などの経路には処理を足さない
+- インスタンスごとに「前に書いたときの `process.cpuUsage()`」をメモリに持ち、書くときに増え分だけを足す。立ち上がった直後の1回目は、起動からの全部が増え分になる
+- 残す場所：`SETTINGS_REPO` に日ごとに1つ立てる Issue。題名は `使用量：YYYY-MM-DD`（日本時間・全角コロン）、ラベルなし、開いたまま。本文の1行目 `CPU時間（ms）：<その日の合計>` を書き直す。新しい外のサービス・依存パッケージは使わない（今ある Issues の書き込み権限だけ）。書く前に「その日の Issue の今の合計を読む → 自分の増え分を足す → 書く」ので、複数のインスタンスの分が足し合わさる（同時の書き込みの取りこぼしは許す）
+- 書く役：`POST /api/selfcheck` が、受け付けた（認証を通った）あとに、呼ばれた鍵で書く。5分の記憶から返っただけの呼び出しでも書く。1つのインスタンスで前に書いてから10分（`MIN_WRITE_INTERVAL_MS`）未満なら書かず、増え分は次に持ち越す。401 では何も読まない・書かない
+- 純粋関数は `src/lib/usage/cpuBudget.ts`（増え分・日本時間の日付キー・割合・`budget`・直近7日の1日平均）、GitHub を呼ぶ所は `src/lib/github/usageIssue.ts`
+- 予算の分母：1日4分＝240,000ms
+- 返事に足す項目（`SelfcheckReport` の記憶には入れず、`route.ts` で足す。数字は今回の増え分を足したあとの値）：
+  - `usage: { todayMs, avg7Ms, ratio }`：今日（日本時間）の合計 ms・直近7日（今日を含む）の1日平均 ms（Issue が無い日は 0 として7で割る）・`todayMs` ÷ 240,000
+  - `budget`：`ratio` が 0.5 以上で `"warn"`、1.0 以上で `"over"`（ちょうどを含む）、それ未満は `"ok"`
+  - 読めない・書けない（403 など）・`SETTINGS_REPO` が無いときは、落とさず今までの返事に `usage: null`・`budget: "unknown"` を足す
 
 ### サーバーの各段の時間（`Server-Timing`）
 
