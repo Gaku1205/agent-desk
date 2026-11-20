@@ -136,6 +136,11 @@
   font-size: 14px;
 }
 
+/* 「空」の文を言えない間（読み込み中・読めなかった）も、同じ高さの場所を取っておく（入れ替えで欄がずれない。Issue #702）。見えず、読み上げもしない */
+.empty[data-reserve] {
+  visibility: hidden;
+}
+
 /* 1行：左に縦線（2px）、3列の grid */
 .row {
   display: grid;
