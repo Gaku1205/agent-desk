@@ -297,16 +297,22 @@ export function Desk({
   useEffect(() => {
     const update = () => {
       const root = document.documentElement;
-      followBottom.current = isNearBottom(root.scrollHeight, window.scrollY, window.innerHeight);
+      // ホームは会話が無いので、下へ追従しない
+      followBottom.current = !home && isNearBottom(root.scrollHeight, window.scrollY, window.innerHeight);
     };
     window.addEventListener("scroll", update, { passive: true });
     return () => window.removeEventListener("scroll", update);
-  }, []);
+  }, [home]);
   useLayoutEffect(() => {
     const place = () => {
       const root = document.documentElement;
       const answer = rowsRef.current?.querySelector<HTMLElement>("[data-answer]") ?? null;
-      const position = openPosition(root.scrollHeight, window.innerHeight, answer !== null);
+      // ホームには会話が無いので、いちばん下では始めない（答える欄があればその1件の上端、無ければ上から）
+      const position = home
+        ? answer
+          ? "answer"
+          : "top"
+        : openPosition(root.scrollHeight, window.innerHeight, answer !== null);
       if (position === "answer" && answer) {
         // 上端の帯の下（scroll-padding-top）に、その1件の上端（種類の札と題名）を置く
         answer.scrollIntoView({ block: "start", behavior: "instant" });
@@ -315,7 +321,7 @@ export function Desk({
       } else {
         window.scrollTo({ top: 0, behavior: "instant" });
       }
-      followBottom.current = position === "bottom" || position === "top";
+      followBottom.current = !home && (position === "bottom" || position === "top");
     };
     place();
     // 答える欄がある1件は、最初の選択肢（キー操作の決まりで Tab が止まる物）にフォーカスを置く
@@ -325,7 +331,7 @@ export function Desk({
     // ページを移ったあとの、Next の「上へ戻す」より後にもう一度送る
     const frame = requestAnimationFrame(place);
     return () => cancelAnimationFrame(frame);
-  }, [scopeKey]);
+  }, [scopeKey, home]);
   useLayoutEffect(() => {
     const answering = rowsRef.current?.contains(document.activeElement) === true &&
       document.activeElement?.closest("[data-answer]") != null;
