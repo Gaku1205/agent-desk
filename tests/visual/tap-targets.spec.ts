@@ -98,14 +98,15 @@ test("Issueを書く・新しいサービスを作る：作るボタン", async 
   await expectNoOverflow(page);
 });
 
-test("ホーム：Activity・順番待ち・ほかのN件・入力欄の下の行", async ({ page }) => {
+test("ホーム：Your turn の列の行", async ({ page }) => {
+  // ホームは待ちが1件以上の間、入力欄を出さない
   await page.goto("/demo");
-  const article = page.locator("article").first();
-  await expectTall(article.getByRole("button", { name: /の進捗図を見る$/ }));
-  await expectTall(article.getByRole("link").first());
-  await expectTall(page.locator("article").getByRole("link", { name: /GitHubで見る/ }).first());
-  await expectTall(page.getByRole("button", { name: /^順番待ち/ }));
-  await expectTall(page.getByRole("button", { name: /ほかの\s*\d+件を開く/ }));
+  await expectTall(page.locator('aside[aria-label="Your turn の全部"] button').first());
+  await expectNoOverflow(page);
+});
+
+test("リポジトリのページ：入力欄の下の行", async ({ page }) => {
+  await page.goto("/demo/repos/demo/todo-app");
   const bar = page.getByRole("region", { name: "Issueを書く" });
   await expectTall(bar.getByRole("link", { name: /新しいサービス/ }));
   await expectTall(bar.getByRole("button", { name: "画像を付ける" }));
