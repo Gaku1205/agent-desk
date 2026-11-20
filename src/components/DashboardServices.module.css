@@ -31,7 +31,8 @@
 
 .row {
   display: grid;
-  grid-template-columns: 164px minmax(0, 1fr) auto;
+  /* 右の列は幅を決めて、行をまたいで中の列（棒の長さ）をそろえる */
+  grid-template-columns: 164px minmax(0, 1fr) 132px;
   grid-template-areas: "name body right";
   gap: 16px;
   align-items: start;
