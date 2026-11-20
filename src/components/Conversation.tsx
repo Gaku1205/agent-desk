@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AddedNotice } from "@/lib/autoAdd";
 import type { AiActivity } from "@/lib/aiActivity";
-import { queueAfterNumber, type ChatMessage } from "@/lib/conversation";
+import { messageFlow, queueAfterNumber, type ChatMessage } from "@/lib/conversation";
 import { splitQueue } from "@/lib/queueGroup";
 import { applyStepLog, hideUnknownModels } from "@/lib/flow";
 import type { StepInfo } from "@/lib/stepLog";
@@ -95,7 +95,8 @@ function OpenFlow({
     };
   }, [loadStepLog, message.owner, message.repo, message.number, now]);
   // 読み込み中（帯）にするのは、進捗ログを読む（loadStepLog あり）で、まだ読み終えていないときだけ
-  const logged = infos ? applyStepLog(message.flow, infos) : loadStepLog ? message.flow : applyStepLog(message.flow, []);
+  const base = messageFlow(message);
+  const logged = infos ? applyStepLog(base, infos) : loadStepLog ? base : applyStepLog(base, []);
   const flow = hideUnknownModel ? hideUnknownModels(logged) : logged;
   return (
     <FlowMap
@@ -339,7 +340,7 @@ export function Conversation({
         {mark === null ? (
           <>
             <p className={styles.text}>
-              {message.ci ? <CiText at={message.flow.at} ci={message.ci} /> : message.text}
+              {message.ci ? <CiText at={messageFlow(message).at} ci={message.ci} /> : message.text}
             </p>
             {message.ci && <CiLine ci={message.ci} />}
           </>
@@ -355,7 +356,7 @@ export function Conversation({
                   <CrossIcon />
                 )}
               </span>
-              {message.ci ? <CiText at={message.flow.at} ci={message.ci} /> : <span>{message.text}</span>}
+              {message.ci ? <CiText at={messageFlow(message).at} ci={message.ci} /> : <span>{message.text}</span>}
             </p>
             {message.ci && <CiLine ci={message.ci} />}
             {message.activity && <ActivityLine activity={message.activity} />}

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { buildConversation, chatCi, chatLine, compareMessages, queueAfterNumber, type ChatMessage } from "./conversation";
+import {
+  buildConversation,
+  chatCi,
+  chatLine,
+  compareMessages,
+  messageFlow,
+  queueAfterNumber,
+  type ChatMessage,
+} from "./conversation";
+import { getFlowExtras } from "./flowExtraBranches";
 import { buildDemoResults } from "./demo/data";
 import { startPlayback } from "./demo/playback";
 import { buildTrailEvents } from "./events";
@@ -211,6 +220,44 @@ describe("buildConversation（デモのデータ）", () => {
     const keys = new Set(messages.map((m) => m.key));
     expect(keys.has("demo/todo-app#42")).toBe(false);
     expect(keys.has("demo/todo-app#43")).toBe(false);
+  });
+
+  it("画面に渡す形は細い：PR の本文・ファイルの一覧・SHA は渡さず、審査役の点数と進捗図の工程は変わらない（Issue #700）", () => {
+    const body = "PRの長い本文 SECRET-BODY\n\n## 審査役\n点数: 7.5\n\n詳しい説明 SECRET-TAIL";
+    const fat = results.map((result) =>
+      result.ok
+        ? {
+            ...result,
+            data: {
+              ...result.data,
+              pulls: result.data.pulls.map((pull) => ({
+                ...pull,
+                body,
+                files: ["src/SECRET-FILE.ts"],
+                headSha: "SECRET-SHA-0123456789",
+              })),
+            },
+          }
+        : result,
+    );
+    const slim = buildConversation(fat, buildTrailEvents(fat, NOW), NOW);
+    const json = JSON.stringify(slim);
+    for (const secret of ["SECRET-BODY", "SECRET-TAIL", "SECRET-FILE", "SECRET-SHA"]) expect(json).not.toContain(secret);
+    expect(slim.some((m) => m.flowExtra?.status.pull?.body.includes("点数: 7.5"))).toBe(true);
+    // 審査役の点数（7.5＝8未満）から、実装に戻る枝が今までどおり決まる
+    const critiqued = slim.find((m) => m.flowExtra?.status.pull);
+    expect(critiqued?.flowExtra && getFlowExtras({ ...critiqued.flowExtra, stepLog: null }).branches.map((b) => b.kind)).toContain(
+      "critique",
+    );
+    // 公開済みの行は工程を渡さず、細い状態から「公開」が成功の工程が決まる
+    const deployed = slim.filter((m) => m.deployed);
+    expect(deployed.length).toBeGreaterThan(0);
+    for (const m of deployed) {
+      expect(m.flow).toBeUndefined();
+      const flow = messageFlow(m);
+      expect(flow.steps).toHaveLength(7);
+      expect(flow.steps[flow.at]).toMatchObject({ key: "deploy", state: "done" });
+    }
   });
 
   it("リポジトリを絞ると、そのリポジトリの物だけ", () => {
