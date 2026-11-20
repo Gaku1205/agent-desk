@@ -3,7 +3,7 @@ import { getSignedInLogin } from "@/lib/auth";
 import { loadTurnSteps } from "@/lib/loadTurnSteps";
 import { newIssueRepos } from "@/lib/newIssue";
 import { unreadableMapOf } from "@/lib/navCounts";
-import { countRunningPipelineRows } from "@/lib/runningPipeline";
+import { getBuildMemo } from "@/lib/buildMemo";
 import { countTurnItems } from "@/lib/turn";
 import { logout } from "../../logout";
 
@@ -22,7 +22,7 @@ export default async function NewServicePage() {
       nav: {
         repos,
         counts: countTurnItems(items),
-        runningCounts: countRunningPipelineRows(results, now),
+        runningCounts: getBuildMemo().runningCounts(results, now),
         countsUnreadable: unreadableMapOf(errors),
         login,
         logout,

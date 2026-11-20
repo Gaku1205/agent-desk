@@ -16,7 +16,8 @@ import {
   type PausedBy,
 } from "./refresh";
 import { graceRefreshAt, nextGraceEnd } from "./graceRefresh";
-import { buildTurnItems, type TurnItem } from "./turn";
+import { getBuildMemo, getRequestNow } from "./buildMemo";
+import type { TurnItem } from "./turn";
 import { appendLoadedWatchedRepos, loadWatchedRepos } from "./watchedRepos";
 
 export type LoadedTurns = {
@@ -39,7 +40,8 @@ export type LoadedTurns = {
  * 1回のリクエストの中では、サイドバーとページで同じ結果を使う（件数を一致させるため）
  */
 export const loadTurns = cache(async (): Promise<LoadedTurns> => {
-  const now = new Date();
+  // 時刻はリクエストで1つ（左のバーのリポジトリごとの数と、組み立ての覚えを共有するため）
+  const now = getRequestNow();
   const token = await getGitHubToken();
   if (!token) {
     return {
@@ -77,7 +79,7 @@ export const loadTurns = cache(async (): Promise<LoadedTurns> => {
   return {
     results,
     addedNotices,
-    items: buildTurnItems(results, now),
+    items: getBuildMemo().turnItems(results, now),
     refreshPlan: {
       intervalMs: plan.intervalMs,
       resumeAt: plan.resumeAt?.toISOString() ?? null,
