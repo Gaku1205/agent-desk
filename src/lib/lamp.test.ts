@@ -45,6 +45,20 @@ describe("judgeLamp", () => {
     expect(judgeLamp(input({ labels: ["ai:implement"], autoFixing: false }))).not.toBe("running");
   });
 
+  it("赤：CI失敗で修正の上限に達して止まった物は、関わる実行が動いていても赤（文と印を合わせる）", () => {
+    const running = { active: true, lastUpdatedAt: minutesAgo(1) };
+    expect(judgeLamp(input({ labels: ["ai:implement"], ciStopped: true, runs: running }))).toBe("needsHuman");
+    expect(judgeLamp(input({ labels: [], ciStopped: true, runs: running }))).toBe("needsHuman");
+  });
+
+  it("止まった旗があっても、終わった物（閉じた・マージ済み）は何も出さない", () => {
+    expect(judgeLamp(input({ ciStopped: true, done: true }))).toBe("none");
+  });
+
+  it("自動で直している途中（止まった旗なし）は、実行が動いていなくても緑のまま", () => {
+    expect(judgeLamp(input({ labels: ["ai:implement"], autoFixing: true, ciStopped: false }))).toBe("running");
+  });
+
   it("ラベルだけでは緑にしない：進行中のラベルで、実行が10分以上動いていなければ赤", () => {
     expect(
       judgeLamp(input({ labels: ["ai:implement"], runs: { active: false, lastUpdatedAt: minutesAgo(10) }, touchedAt: minutesAgo(20) })),
