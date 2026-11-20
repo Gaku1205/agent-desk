@@ -78,6 +78,17 @@ describe("pickFlowTarget", () => {
     expect(target?.flow.at).toBe(6);
   });
 
+  it("あなたの番の1件に工場の段があれば factory を渡す。無ければ渡さない", () => {
+    const factoryFlow = {
+      steps: [
+        { key: "ideas" as const, name: "案", state: "waiting" as const, started: null, wait: null, work: null },
+      ],
+      repo: null,
+    };
+    expect(pickFlowTarget({ ...current, factoryFlow }, [], false)?.factory).toBe(factoryFlow);
+    expect(pickFlowTarget(current, [], false)).not.toHaveProperty("factory");
+  });
+
   it("選んだ行がもう無ければ、今まで通り", () => {
     expect(pickFlowTarget(current, [message(21, true)], false, "demo/todo-app#99")?.label).toBe("#23");
     expect(pickFlowTarget(null, [message(21, true)], false, "demo/todo-app#99")?.label).toBe("#21");

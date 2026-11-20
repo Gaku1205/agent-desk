@@ -95,6 +95,11 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
   const key = `${owner}/${repo}#${issue.number}`;
   const kind = turnKind(status);
   const progress = getProgress(status);
+  // 工場の相談は、工場の今の段の名前（相談待ち → 動いている段 → 通常の段階名）
+  const stageName =
+    item.factoryFlow?.steps.find((step) => step.state === "waiting")?.name ??
+    item.factoryFlow?.steps.find((step) => step.state === "running")?.name ??
+    progress.currentName;
   const router = useRouter();
   const [pending, startAction] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -442,7 +447,7 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
           {!item.pullOnly && status.pull ? `　PR #${status.pull.number}` : ""}
         </span>
         <span className={`${styles.wait} num`}>{wait}</span>
-        <span className={styles.stage}>{progress.currentName}</span>
+        <span className={styles.stage}>{stageName}</span>
       </div>
       <h2 className={styles.title}>
         <SmartLink href={issue.url}>{issue.title}</SmartLink>
