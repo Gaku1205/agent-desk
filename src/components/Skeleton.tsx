@@ -9,7 +9,6 @@ import { Sheet } from "./Sheet";
 import pageStyles from "./Settings.module.css";
 import settingsStyles from "./SettingsSections.module.css";
 import styles from "./Skeleton.module.css";
-import { SideRepos } from "./TopBar";
 
 /** 帯1本。幅・高さだけ変える（色は --hair-2 のみ） */
 function Band({ width, height }: { width: number | string; height: number }) {
@@ -21,12 +20,8 @@ function Band({ width, height }: { width: number | string; height: number }) {
  * 下に入力欄の位置、右の進捗図の列（空）。PC の3ペインと同じ枠なので、本文が出たときに跳ねない
  */
 export function DeskSkeleton() {
-  const nav = useNav();
   return (
     <div className={deskStyles.panes} data-panes="" aria-busy="true">
-      <div className={deskStyles.side} id="side-repos">
-        {nav && <SideRepos {...nav} />}
-      </div>
       <div className={deskStyles.center}>
         <main className={deskStyles.desk} id="main">
           <div className={styles.past} aria-hidden="true">
@@ -56,12 +51,8 @@ export function DeskSkeleton() {
 
 /** Dashboard の骨組み：左のバー（本物）、見出しとまとめの文、表の位置 */
 export function DashboardSkeleton() {
-  const nav = useNav();
   return (
     <div className={dashboardStyles.panes} data-panes="" aria-busy="true">
-      <div className={dashboardStyles.side} id="side-repos">
-        {nav && <SideRepos {...nav} />}
-      </div>
       <main id="main" className={dashboardStyles.main}>
         <div className={dashboardStyles.head} aria-hidden="true">
           <div className={dashboardStyles.title}>
@@ -102,12 +93,8 @@ export function DashboardSkeleton() {
 
 /** Slots & Queue の骨組み：左のバー（本物）、見出しと一文、区画ごとの見出しと行の位置 */
 export function LanesSkeleton() {
-  const nav = useNav();
   return (
     <div className={dashboardStyles.panes} data-panes="" aria-busy="true">
-      <div className={dashboardStyles.side} id="side-repos">
-        {nav && <SideRepos {...nav} />}
-      </div>
       <main id="main" className={lanesStyles.main}>
         <div className={styles.line} aria-hidden="true" style={{ gap: 4 }}>
           <Band width={200} height={36} />
@@ -141,9 +128,6 @@ export function RepoListSkeleton() {
   const rows = Math.min(nav?.repos.length ?? 6, REPO_LIST_SKELETON_MAX_ROWS);
   return (
     <div className={repoListStyles.panes} data-panes="" aria-busy="true">
-      <div className={repoListStyles.side} id="side-repos">
-        {nav && <SideRepos {...nav} />}
-      </div>
       <main id="main" className={repoListStyles.main}>
         <div className={styles.line} aria-hidden="true" style={{ gap: 4 }}>
           <Band width={230} height={36} />
@@ -218,12 +202,8 @@ export function FormSkeleton() {
 
 /** 新しいサービスを作るの骨組み：左のバー（本物。layout が渡した物）と、中央に同じ形の帯（Issue #660） */
 export function NewServiceSkeleton() {
-  const nav = useNav();
   return (
     <div className={repoListStyles.panes} data-panes="" aria-busy="true">
-      <div className={repoListStyles.side} id="side-repos">
-        {nav && <SideRepos {...nav} />}
-      </div>
       <main id="main" className={repoListStyles.main}>
         <FormSkeletonBody />
       </main>

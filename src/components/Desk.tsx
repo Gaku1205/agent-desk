@@ -1,24 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AddedNotice } from "@/lib/autoAdd";
 import type { ChatMessage } from "@/lib/conversation";
 import { applyStepLog, hideUnknownModels } from "@/lib/flow";
 import { isNearBottom, openPosition, shouldFollow } from "@/lib/followScroll";
 import { pickFlowTarget, toggleFlowSelection } from "@/lib/flowTarget";
 import type { StepInfo } from "@/lib/stepLog";
-import { getBrowserStorage } from "@/lib/motion";
-import { applySidebar, writeSidebarCollapsed } from "@/lib/sidebar";
 import { formatWait, turnItemKey, type TurnCounts, type TurnItem } from "@/lib/turn";
 import type { WatchdogNotice } from "@/lib/watchdogState";
 import { Conversation, type ConversationNotice } from "./Conversation";
-import { PanelLeftIcon } from "./icons";
 import { useLastShown, useNav, useStreamedNav } from "./NavContext";
 import { readLastShown, restToShow, writeLastShown } from "@/lib/lastShown";
 import styles from "./Desk.module.css";
 import { FlowMap } from "./FlowMap";
 import { NewIssueForm, type NewIssueRepo } from "./NewIssueForm";
-import { SideRepos, type TopBarRepo } from "./TopBar";
+import type { TopBarRepo } from "./TopBar";
 import { TurnList } from "./TurnList";
 import { TurnRow } from "./TurnRow";
 import { pickTurn } from "@/lib/turnList";
@@ -72,17 +69,6 @@ export type DeskNav = {
   login?: string;
   logout?: () => Promise<void>;
 };
-
-/** 左のバーを畳んだか：<html> の data-side が正（描く前のスクリプトが保存から付ける） */
-export function subscribeSidebar(onChange: () => void): () => void {
-  const observer = new MutationObserver(onChange);
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-side"] });
-  return () => observer.disconnect();
-}
-
-export function getSidebarSnapshot(): boolean {
-  return document.documentElement.getAttribute("data-side") === "closed";
-}
 
 /** ページのいちばん下へ即座に移す */
 function scrollToBottom(): void {
@@ -148,13 +134,6 @@ export function Desk({
       : deferred && streamed
         ? streamed.addedNotices
         : addedNoticesProp;
-  // 左のバーを畳んだか。見た目は <html> の data-side（描く前のスクリプトが付ける）で決まり、ここは読み上げと inert 用
-  const sideCollapsed = useSyncExternalStore(subscribeSidebar, getSidebarSnapshot, () => false);
-  const toggleSide = useCallback(() => {
-    const next = !getSidebarSnapshot();
-    applySidebar(next, document.documentElement);
-    writeSidebarCollapsed(getBrowserStorage(), next);
-  }, []);
 
   const rowsRef = useRef<HTMLDivElement>(null);
   // 入力欄の高さを測って --composer-h に入れる（html の scroll-padding-bottom が使う）。離れたら消す
@@ -441,20 +420,6 @@ export function Desk({
   // PC（幅900px以上）は3ペイン：左に一覧、中央に列と下の入力欄、右に進捗図の列。スマホでは列だけ（docs/design.md の「PCの3ペイン」）
   return (
     <div className={styles.panes} data-panes="">
-      <button
-        type="button"
-        className={styles.sideToggle}
-        onClick={toggleSide}
-        aria-expanded={!sideCollapsed}
-        aria-controls="side-repos"
-        aria-label={sideCollapsed ? "リポジトリの一覧を開く" : "リポジトリの一覧を畳む"}
-        title={sideCollapsed ? "リポジトリの一覧を開く" : "リポジトリの一覧を畳む"}
-      >
-        <PanelLeftIcon />
-      </button>
-      <div className={styles.side} id="side-repos" inert={sideCollapsed}>
-        <SideRepos {...nav} />
-      </div>
       <div className={styles.center}>
         {column}
         <div className={styles.composer} ref={composerRef}>

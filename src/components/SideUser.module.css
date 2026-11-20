@@ -31,6 +31,25 @@
   }
 }
 
+/* PCの上端の帯の右端：アイコンだけ（高さ30px・札と同じ。デモは「デモ」の文字）。メニューは下に開く */
+.wrap[data-variant="top"] .button {
+  width: auto;
+  height: 30px;
+  padding: 0 6px;
+}
+
+.wrap[data-variant="top"] .button .name:not(:only-child) {
+  display: none;
+}
+
+.wrap[data-variant="top"] .menu {
+  top: calc(100% + 6px);
+  right: 0;
+  bottom: auto;
+  left: auto;
+  width: 200px;
+}
+
 /* GitHub のアイコン：丸・24px。読み込む前も24pxの場所を取る */
 .avatar,
 .initial {

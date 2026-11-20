@@ -611,65 +611,17 @@
   font-size: 12.5px;
 }
 
-/* ───── PCの3ペイン（左のバーはホームと同じ。右の進捗図の列は無い） ───── */
+/* ───── PCの中身の列：左のバーは無い（ページの移動は上端の帯）。1列で、中央が全部使う ───── */
 @media (min-width: 900px) {
   .panes {
     display: grid;
-    grid-template-columns: 224px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     align-items: start;
-    transition: grid-template-columns 150ms var(--ease);
-  }
-
-  .side {
-    position: sticky;
-    top: var(--top-h);
-    height: calc(100svh - var(--top-h));
-    overflow: hidden;
-    box-shadow: inset -1px 0 0 var(--hair);
-  }
-
-  .side > aside {
-    width: 224px;
-    padding-top: 44px;
-  }
-
-  .sideToggle {
-    position: fixed;
-    top: calc(var(--top-h) + 8px);
-    left: 12px;
-    z-index: 6;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    color: var(--mute);
-  }
-
-  .sideToggle:hover {
-    color: var(--bone);
-  }
-
-  :global(:root[data-side="closed"]) .panes {
-    grid-template-columns: 0 minmax(0, 1fr);
-  }
-
-  :global(:root[data-side="closed"]) .side {
-    overflow: hidden;
-    visibility: hidden;
-    box-shadow: none;
-    transition: visibility 0s linear 150ms;
   }
 }
 
-/* ───── スマホ（幅899px以下）：左のバーを隠して1本の列 ───── */
+/* ───── スマホ（幅899px以下）：1本の列 ───── */
 @media (max-width: 899px) {
-  .sideToggle,
-  .side {
-    display: none;
-  }
-
   .main {
     padding: 40px 0 72px;
   }

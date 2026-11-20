@@ -118,13 +118,13 @@ function Body({ inUse }: { inUse: number | null }) {
  * `folded` は、マスと `1/1` だけの1行（左のバーを畳んだとき・スマホの上のバー）。押すと全部が開く。
  * docs/spec.md の「並列の状態と切り替え」・docs/design.md の「同時に動かす」
  */
-export function ParallelSwitch({ variant }: { variant: "side" | "menu" | "folded" }) {
+export function ParallelSwitch({ variant }: { variant: "page" | "menu" | "folded" }) {
   const view = useParallelView();
   const inUse = useSlotsInUse();
   if (!view?.state || !view.settings) return null;
   if (variant === "folded") return <Folded inUse={inUse} />;
   return (
-    <section className={`${styles.wrap} ${variant === "menu" ? styles.menu : styles.side}`} aria-label="同時に動かす">
+    <section className={`${styles.wrap} ${variant === "menu" ? styles.menu : styles.page}`} aria-label="同時に動かす">
       <Body inUse={inUse} />
     </section>
   );

@@ -442,9 +442,9 @@
   display: none;
 }
 
-/* PCの左のバーの Slots & Queue の右の `1/1` */
+/* 上端の帯の Slots & Queue の右の `1/1` */
 .lanesUsage {
-  margin-left: auto;
+  margin-left: 2px;
   color: var(--mute);
   font-size: 11.5px;
   font-style: normal;
@@ -465,38 +465,63 @@
   display: none;
 }
 
-/* ───── PCの3ペインの左：リポジトリの一覧（docs/design.md の「PCの3ペイン」） ───── */
-.side {
-  padding: 24px 12px;
+/* ───── PCの上端の帯の左：Slots & Queue・Dashboard・Repositories ▾（docs/design.md の「上端の帯」） ───── */
+.pcNav {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+  align-items: center;
 }
 
-.sideLbl {
+.pcNav .tab,
+.topNew {
+  /* <button> も <a> と同じ見た目にする */
+  font-family: inherit;
+}
+
+/* 押した札の脈打ち用の印と同じく、Repositories の今いる見た目（ボタンには aria-current を付けないので data-here） */
+.tab[data-here],
+.tab[aria-expanded="true"] {
+  background: var(--well);
+  color: var(--bone);
+}
+
+.tab[data-here] > svg:first-child {
+  color: var(--accent);
+}
+
+.repoMenu {
+  position: relative;
+}
+
+/* 札の一覧：ボタンのすぐ下に重ねて開く。影・動きは付けない */
+.repoPanel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 7;
   display: flex;
-  gap: 7px;
-  align-items: center;
-  margin: 0 10px 8px;
+  flex-direction: column;
+  width: 280px;
+  max-height: calc(100svh - var(--top-h) - 24px);
+  padding: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  border-radius: 8px;
+  background: var(--raise);
+  box-shadow: inset 0 0 0 1px var(--hair);
+}
+
+.repoPanelLbl {
+  display: flex;
+  justify-content: flex-end;
+  margin: 4px 10px 6px;
   color: var(--mute);
   font-size: 11.5px;
-  white-space: nowrap;
 }
 
-/* 狭い左ペインで1行に収める：凡例の間と点の間を詰める */
-.side .sideLbl {
-  gap: 3px;
-  /* アイコンの左端は下の札のアイコン（22px）、凡例の右端は札の数の右端（202px）にそろえる */
-  margin: 0 10px 8px;
-}
-
-.side .key {
-  gap: 4px;
-}
-
-.side .keyTurn,
-.side .keyRunning {
-  gap: 4px;
-}
-
-.side .repos {
+.repoPanel .repos {
   flex-direction: column;
   gap: 2px;
   padding: 0;
@@ -506,112 +531,42 @@
   mask-image: none;
 }
 
-.side .tab {
+.repoPanel .tab {
   justify-content: space-between;
   height: 36px;
   min-width: 0;
 }
 
-/* アイコンの右に名前を左揃えで置き、件数を右端へ寄せる */
-.side .tab > span {
+/* アイコンの右に名前を左揃えで置き、件数を右端へ寄せる。名札は出さない（凡例で何の数か分かる） */
+.repoPanel .tab > span {
   flex: 1;
   min-width: 0;
 }
 
-/* 左の一覧では名札を出さない（上の凡例で何の数か分かる。名前を「…」で切らない） */
-.side .countName {
+.repoPanel .countName {
   display: none;
 }
 
-/* 左のバー：高さいっぱいの縦並びで、ユーザー名のボタンをいちばん下に置く */
-.side {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  box-sizing: border-box;
-}
-
-/* 上の段：小見出しと札の一覧。ここだけがスクロールする */
-.sideList {
-  flex: 1;
-  min-height: 0;
-  /* フォーカスの輪が左右で切れないよう、<aside> の余白ぶんをスクロール領域の内側に取る */
-  margin: 0 -12px;
-  padding: 0 12px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-}
-
-/* 上：新サービス・Dashboard・Slots & Queue（間2px）。スクロールしない */
-.sideTop {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 16px;
-}
-
-/* 下の段：同時に動かす・ユーザー名。スクロールせず、いつも下端に見える */
-.sideFoot {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  padding-top: 8px;
-}
-
-/* 隠れた札があるときだけ、境目に1pxの線（高さは変えない） */
-.sideFoot[data-more="true"] {
-  box-shadow: 0 -1px 0 var(--hair);
-}
-
-.sideNew {
-  display: flex;
-  gap: 7px;
-  align-items: center;
-  flex-shrink: 0;
-  height: 36px;
-  padding: 0 10px;
-  border-radius: 6px;
-  color: var(--mute);
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-  transition:
-    color 0.15s var(--ease),
-    background 0.15s var(--ease);
-}
-
-/* 新サービス：縁つきのボタン（下の Dashboard との間は6px足す） */
-.sideAdd {
-  margin-bottom: 6px;
+/* 右の `新サービス`：縁つきのボタン */
+.topNew {
   box-shadow: inset 0 0 0 1px var(--edge);
   color: var(--bone-2);
 }
 
-.sideNew:hover {
-  background: var(--hair-2);
-  color: var(--bone-2);
+.topNew[aria-current="page"] {
+  box-shadow: none;
 }
 
-.sideNew[aria-current="page"] {
-  background: var(--well);
-  color: var(--bone);
+.topUser {
+  flex-shrink: 0;
 }
 
-.sideNew[aria-current="page"] > svg {
-  color: var(--accent);
-}
-
-/* 3ペインのページでは、帯に札を出さない（左の一覧と同じ物を2か所に置かない） */
-@media (min-width: 900px) {
-  :global(body:has([data-panes])) .top .repos {
+/* PCの帯に出す物はスマホでは出さない（スマホはメニューの中） */
+@media (max-width: 899px) {
+  .pcNav,
+  .topNew,
+  .topUser {
     display: none;
-  }
-
-  /* 左のバーを畳んでいる間は、「同時に動かす」を1行に縮めて帯に出す */
-  :global(:root[data-side="closed"] body:has([data-panes])) .top .foldedSlot {
-    display: block;
   }
 }
 

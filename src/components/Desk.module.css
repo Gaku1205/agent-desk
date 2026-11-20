@@ -124,7 +124,7 @@
 @media (min-width: 900px) {
   .panes {
     display: grid;
-    grid-template-columns: 224px minmax(0, 1fr) 320px;
+    grid-template-columns: minmax(0, 1fr) 320px;
     align-items: start;
   }
 
@@ -137,15 +137,6 @@
     overscroll-behavior: contain;
     scrollbar-width: thin;
     box-shadow: inset 1px 0 0 var(--hair);
-  }
-
-  /* 左の一覧：上端の帯の下に付いたまま。ここはスクロールさせない（札の一覧だけが中でスクロールする） */
-  .side {
-    position: sticky;
-    top: var(--top-h);
-    height: calc(100svh - var(--top-h));
-    overflow: hidden;
-    box-shadow: inset -1px 0 0 var(--hair);
   }
 
   /* 中央の列は --col をやめ、左右の列の間を幅いっぱい（左右の余白は --gutter だけ。入力欄と同じ端。Issue #347） */
@@ -162,66 +153,11 @@
 /* 中央が狭くならないよう、1180px未満では右の列を280pxにする */
 @media (min-width: 900px) and (max-width: 1179px) {
   .panes {
-    grid-template-columns: 224px minmax(0, 1fr) 280px;
-  }
-}
-
-/*
- * 左のバーの開く・畳むボタン（docs/design.md の「左のバーの折り畳み」）。
- * 開いていても畳んでいても、上端の帯の下の左上の同じ所に置く。
- * 畳んだ状態は <html data-side="closed">（描く前のスクリプトが付ける。ちらつかない）
- */
-@media (min-width: 900px) {
-  .panes {
-    transition: grid-template-columns 150ms var(--ease);
-  }
-
-  .sideToggle {
-    position: fixed;
-    top: calc(var(--top-h) + 8px);
-    left: 12px;
-    z-index: 6;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    color: var(--mute);
-  }
-
-  .sideToggle:hover {
-    color: var(--bone);
-  }
-
-  /* ボタンの分、左の一覧の中身を下げる */
-  .side > aside {
-    width: 224px;
-    padding-top: 44px;
-  }
-
-  :global(:root[data-side="closed"]) .panes {
-    grid-template-columns: 0 minmax(0, 1fr) 320px;
-  }
-
-  /* 畳んだ左のバーは完全に消す。visibility で Tab・読み上げからも外す（幅が0になってから） */
-  :global(:root[data-side="closed"]) .side {
-    overflow: hidden;
-    visibility: hidden;
-    box-shadow: none;
-    transition: visibility 0s linear 150ms;
-  }
-}
-
-@media (min-width: 900px) and (max-width: 1179px) {
-  :global(:root[data-side="closed"]) .panes {
-    grid-template-columns: 0 minmax(0, 1fr) 280px;
+    grid-template-columns: minmax(0, 1fr) 280px;
   }
 }
 
 @media (max-width: 899px) {
-  .sideToggle,
-  .side,
   .flow {
     display: none;
   }

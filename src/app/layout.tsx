@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist, IBM_Plex_Sans_JP } from "next/font/google";
 import { MENU_PRE_TAP_SCRIPT } from "@/lib/menuPreTap";
 import { MOTION_INIT_SCRIPT } from "@/lib/motion";
-import { SIDEBAR_INIT_SCRIPT } from "@/lib/sidebar";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
@@ -57,7 +56,6 @@ export default function RootLayout({
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: MOTION_INIT_SCRIPT }} />
-        <script dangerouslySetInnerHTML={{ __html: SIDEBAR_INIT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: MENU_PRE_TAP_SCRIPT }} />
       </head>
