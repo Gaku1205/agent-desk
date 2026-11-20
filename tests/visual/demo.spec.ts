@@ -9,6 +9,9 @@ const REPO_PAGE = "/demo/repos/demo/todo-app";
  * （止めないと、画面を伸ばすたびにその場所も伸びて、高さが決まらない）
  */
 async function settle(page: Page) {
+  // 直前に押したボタンの所にマウスが残ると、画面を伸ばしたあとにその位置へ来た行（過去の欄など）が
+  // ホバーの色になったりならなかったりして、画像が揺れる。何も無い左上の隅へ外してから撮る
+  await page.mouse.move(0, 0);
   await page.evaluate(() => {
     const style = document.createElement("style");
     style.textContent = `main > section[data-skip-target]:not([data-empty]) { min-height: ${window.innerHeight - 52}px !important; }`;
