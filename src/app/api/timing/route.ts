@@ -1,4 +1,5 @@
 import { getGitHubToken, getSignedInLogin } from "@/lib/auth";
+import { buildLayoutNumbers, createBuildMemo, type BuildCalls } from "@/lib/buildMemo";
 import { withCallLog, type CallTotals } from "@/lib/github/callLog";
 import { getRepoResult } from "@/lib/github/fetch";
 import type { RepoResult } from "@/lib/github/types";
@@ -22,6 +23,7 @@ const STAGE_LABELS: Record<string, string> = {
   "first-repo": "最初のリポジトリを読み終えるまで（覚えた物。無ければ GitHub）",
   repos: "全部のリポジトリを読み終えるまで",
   "slowest-repo": "いちばん遅かったリポジトリ1つ（下の repos で、何番目かが分かる）",
+  "layout-build": "レイアウトの組み立て（左のバー・上の帯の数・使用中の枠。ページと同じ組み立てを使い回すので、先に作る側が時間を持つ）",
   build: "組み立て（Your turn・いまの様子・Slots & Queue の判定と整形。GitHub は読まない）",
   "gh-graphql": "GitHub の GraphQL を呼んだ時間の合計（同時に呼ぶので、足すと total より長くなる）",
   "gh-rest": "GitHub の REST（Actions の実行・ジョブ・読めるかの確認など）を呼んだ時間の合計",
@@ -46,6 +48,7 @@ export async function GET(): Promise<Response> {
   if (isWebhookEnabled()) await timer.time("marks", () => getChangeMarks(repos));
   let repoRows: RepoRow[] = [];
   let calls: CallTotals | null = null;
+  let builds: BuildCalls | null = null;
   if (token && repos.length > 0) {
     // 全部を同時に読み始め、最初の1つが終わった時と、全部が終わった時を残す。リポジトリごとの時間と、GitHub を呼んだ回数も数える
     const from = performance.now();
@@ -76,16 +79,26 @@ export async function GET(): Promise<Response> {
     });
     repoRows = logged.value.map((entry) => entry.row);
     // 組み立て（判定・整形）：読み終えたデータから、Your turn・いまの様子・Slots & Queue を作る時間（GitHub は読まない）
-    const buildFrom = performance.now();
+    // レイアウト（左のバー・上の帯の数・使用中の枠）→ ページの順で、同じ覚えを使って組み立てる。
+    // 同じ結果からの組み立ては1回になるので、`builds` の回数が「リポジトリの数」「1」になる
+    const results = logged.value.map((entry) => entry.result);
+    const now = new Date();
+    const memo = createBuildMemo();
+    const layoutFrom = performance.now();
     try {
-      buildScreen(
-        logged.value.map((entry) => entry.result),
-        new Date(),
-      );
+      buildLayoutNumbers(memo, results, now);
     } catch {
       // 組み立てが投げても、測るだけの入口は落とさない（そこまでの時間は残す）
     }
+    timer.add("layout-build", performance.now() - layoutFrom);
+    const buildFrom = performance.now();
+    try {
+      buildScreen(results, now, memo);
+    } catch {
+      // 同上
+    }
     timer.add("build", performance.now() - buildFrom);
+    builds = memo.calls();
     calls = logged.calls;
     timer.add("slowest-repo", Math.max(...repoRows.map((row) => row.ms)));
     timer.add("gh-graphql", calls.graphql.ms);
@@ -93,7 +106,7 @@ export async function GET(): Promise<Response> {
     timer.add("gh-key", calls.key.ms);
   }
   timer.mark("total");
-  return respond(timer.stages(), repoRows, calls);
+  return respond(timer.stages(), repoRows, calls, builds);
 }
 
 /** リポジトリ1つ分：何番目か・読み終えるまでの ms・読めたか・どの鍵で読んだか・データの大きさ（KB）・差分か全部か・読んだ件数 */
@@ -107,7 +120,7 @@ type RepoRow = {
   count: number | null;
 };
 
-function respond(measured: TimingStage[], repos: RepoRow[], calls: CallTotals | null): Response {
+function respond(measured: TimingStage[], repos: RepoRow[], calls: CallTotals | null, builds: BuildCalls | null): Response {
   const stages = [...measured, { name: "instance", ms: roundTimingMs(instanceAgeMs()) }];
   return Response.json(
     {
@@ -115,6 +128,8 @@ function respond(measured: TimingStage[], repos: RepoRow[], calls: CallTotals | 
       repoCount: repos.length,
       // リポジトリごと（名前は入れない。設定の並びで何番目か）。ms が数十以下なら覚えた物、数百以上なら GitHub を読んだ
       repos,
+      // レイアウトとページを合わせた組み立ての回数（`turn`・`running`＝リポジトリごと、`lanes`＝全部。同じ結果からは1回）
+      builds,
       // GitHub を呼んだ回数と時間（種類ごと。count＝回数、ms＝合計、maxMs＝いちばん長い1回）
       calls: calls
         ? Object.fromEntries(
