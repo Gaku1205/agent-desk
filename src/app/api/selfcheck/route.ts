@@ -6,6 +6,8 @@ import {
   readWatchedVariableWith,
 } from "@/lib/github/selfcheck";
 import type { RepoResult } from "@/lib/github/types";
+import { createUsageIssue, listUsageIssues, updateIssueBody } from "@/lib/github/usageIssue";
+import { recordCpuUsage } from "@/lib/usage/record";
 import { isSelfcheckKeyAccepted, parseBearer, watchedAmong, parseInstallationRepositories } from "@/lib/selfcheck/auth";
 import { publishDriftIssues } from "@/lib/selfcheck/publish";
 import { selfcheckOnceDetailed, selfcheckScopeKey } from "@/lib/selfcheck/run";
@@ -47,5 +49,13 @@ export async function POST(request: Request): Promise<Response> {
     (): Promise<RepoResult[]> => Promise.all(repos.map((repo) => getRepoResult(token, repo))),
   );
   if (fresh) await publishDriftIssues(token, settingsRepo, scope, report);
-  return Response.json(report, { headers: NO_STORE });
+  // 使用量は記憶（5分）に入れず、呼ばれるたびに数える。書けない・読めないときは今までの返事に usage: null を足す
+  const { usage, budget } = settingsRepo
+    ? await recordCpuUsage({
+        list: () => listUsageIssues(token, settingsRepo),
+        create: (title, body) => createUsageIssue(token, settingsRepo, title, body),
+        update: (number, body) => updateIssueBody(token, settingsRepo, number, body),
+      })
+    : ({ usage: null, budget: "unknown" } as const);
+  return Response.json({ ...report, usage, budget }, { headers: NO_STORE });
 }
