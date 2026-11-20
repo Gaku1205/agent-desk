@@ -45,6 +45,12 @@ describe("judgeLamp", () => {
     expect(judgeLamp(input({ labels: ["ai:implement"], autoFixing: false }))).not.toBe("running");
   });
 
+  it("工場の Issue が作業中・本番を作っている（factoryRunning）なら、実行が見えなくても緑。そうでなければ緑にしない（Issue #692）", () => {
+    expect(judgeLamp(input({ labels: [], factoryRunning: true }))).toBe("running");
+    expect(judgeLamp(input({ labels: ["factory:wait"], factoryRunning: false }))).toBe("none");
+    expect(judgeLamp(input({ labels: [] }))).toBe("none");
+  });
+
   it("ラベルだけでは緑にしない：進行中のラベルで、実行が10分以上動いていなければ赤", () => {
     expect(
       judgeLamp(input({ labels: ["ai:implement"], runs: { active: false, lastUpdatedAt: minutesAgo(10) }, touchedAt: minutesAgo(20) })),
