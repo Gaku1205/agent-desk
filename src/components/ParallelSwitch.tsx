@@ -12,7 +12,7 @@ import {
   type ParallelChoice,
 } from "@/lib/parallelSwitch";
 import { useDemo } from "./DemoContext";
-import { useStreamedNav } from "./NavContext";
+import { useLastShown, useStreamedNav } from "./NavContext";
 import { useParallelView } from "./ParallelContext";
 import styles from "./ParallelSwitch.module.css";
 
@@ -26,7 +26,9 @@ export function useSlotsInUse(): number | null {
     () => (demo ? buildLanesSource(demo.results, demo.now).works.length : null),
     [demo],
   );
-  return demo ? demoCount : (streamed?.slotsInUse ?? null);
+  // そろうまでは前に出した数を出し続ける（`–` から実際の数へ変わって見えないように）
+  const last = useLastShown();
+  return demo ? demoCount : (streamed ? streamed.slotsInUse : last.slotsInUse);
 }
 
 /** 席のマス（使っている席＝緑の塗り、空いている席＝縁だけ、その時間は使えない席＝点線の縁） */
