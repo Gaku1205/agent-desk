@@ -58,7 +58,12 @@ export function countPipelineWork(rows: PipelineRow[]): { queued: number; workin
 
 function failReason(issueNumber: number, data: RepoData): string | null {
   const pull = findLinkedPull(data.pulls, issueNumber);
-  return pull ? deployFailureReason(data.pullChecks[pull.number]?.statuses ?? []) : null;
+  return pull
+    ? deployFailureReason(data.pullChecks[pull.number]?.statuses ?? [], {
+        mergedAt: pull.mergedAt,
+        mainDeployed: data.mainDeployedByContext ?? data.mainDeployedAt ?? null,
+      })
+    : null;
 }
 
 function deployedLinks(issueNumber: number, data: RepoData): DeployLink[] {
