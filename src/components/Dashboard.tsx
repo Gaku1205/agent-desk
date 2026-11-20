@@ -28,6 +28,8 @@ import { TurnKindIcon } from "./TurnKindIcon";
 import { reasonRatios, STOP_REASONS, type StopReason, type Stops } from "@/lib/dashboard/stops";
 import { SideRepos } from "./TopBar";
 import { DashboardThroughput } from "./DashboardThroughput";
+import { DashboardServices } from "./DashboardServices";
+import type { ServicesView } from "@/lib/dashboard/services";
 import { buildBundle, type PeriodBundle } from "@/lib/dashboard/bundle";
 
 type Props = {
@@ -37,6 +39,8 @@ type Props = {
   loadPeriod?: (key: PeriodKey) => Promise<PeriodBundle | null>;
   /** GitHub limits（期間の切り替えとは関係なく、直近24時間） */
   limits: GithubLimits;
+  /** Services（外のサービスの様子。いちばん上の区画。Issue #719） */
+  services: ServicesView;
   /** 「今」（ISO文字列） */
   now: string;
   /** 監視中のリポジトリの数 */
@@ -394,7 +398,7 @@ function GithubLimitsSection({ limits }: { limits: GithubLimits }) {
 }
 
 /** Dashboard（`/dashboard`、デモは `/demo/dashboard`）：期間で振り返る。見出し・期間の切り替え・まとめ・AI usage・GitHub limits */
-export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav, errors, initialPeriod = "24h" }: Props) {
+export function Dashboard({ bundles, loadPeriod, limits, services, now, repoCount, nav, errors, initialPeriod = "24h" }: Props) {
   const [period, setPeriod] = useState<PeriodKey>(initialPeriod);
   // `loadPeriod` で取った期間（5分覚えるのはサーバー側。画面では開いている間だけ持つ）
   const [loaded, setLoaded] = useState<Partial<Record<PeriodKey, PeriodBundle>>>({});
@@ -498,6 +502,7 @@ export function Dashboard({ bundles, loadPeriod, limits, now, repoCount, nav, er
           </div>
         </header>
         <LoadErrors errors={errors ?? []} />
+        <DashboardServices services={services} />
         <section
           className={styles.summary}
           role="tabpanel"

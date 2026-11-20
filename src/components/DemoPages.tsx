@@ -13,6 +13,8 @@ import { countTurnItems, filterTurnItems } from "@/lib/turn";
 import { buildBundle, type PeriodBundle } from "@/lib/dashboard/bundle";
 import { hourStarts, type GithubLimits } from "@/lib/dashboard/githubLimits";
 import { PERIOD_KEYS, type PeriodKey } from "@/lib/dashboard/period";
+import { buildServiceRows, type ServicesView } from "@/lib/dashboard/services";
+import { recentDateKeys } from "@/lib/usage/cpuBudget";
 import { buildLanesSource } from "@/lib/lanes/source";
 import { buildUsageSource } from "@/lib/lanes/usage";
 import { Dashboard } from "./Dashboard";
@@ -125,6 +127,43 @@ function demoGithubLimits(now: Date, runs: number | null): GithubLimits {
   };
 }
 
+/** デモの Services：Supabase の失敗が1つ・よい物が1つ、Vercel の CPU は直近の日ごとの合計 */
+function demoServices(now: Date, limits: GithubLimits): ServicesView {
+  const nowMs = now.getTime();
+  const hour = 60 * 60 * 1000;
+  const keys = recentDateKeys(now, 30);
+  const daily = [222_000, 380_000, 410_000, 290_000, 350_000, 330_000, 300_000, 260_000, 240_000, 310_000];
+  const cpuTotals = new Map(keys.slice(0, daily.length).map((key, i) => [key, daily[i]]));
+  return {
+    checkedAt: now.toISOString(),
+    rows: buildServiceRows({
+      supabase: [
+        {
+          owner: "demo",
+          repo: "tide-almanac",
+          ok: true,
+          at: nowMs - 2 * hour,
+          failingSince: null,
+          message: null,
+          logUrl: null,
+        },
+        {
+          owner: "demo",
+          repo: "loss-lab",
+          ok: false,
+          at: nowMs - 3 * hour,
+          failingSince: nowMs - 2 * 24 * hour - 3 * hour,
+          message: "Supabase project is paused. Resume it from https://supabase.com/dashboard/project/demo",
+          logUrl: null,
+        },
+      ],
+      cpuTotals,
+      limits,
+      now,
+    }),
+  };
+}
+
 /** デモの Dashboard：デモのデータで、本物と同じ集計を出す */
 export function DemoDashboard({ initialPeriod }: { initialPeriod?: PeriodKey }) {
   const { dashboardResults, now, repos } = useDemoState();
@@ -134,10 +173,12 @@ export function DemoDashboard({ initialPeriod }: { initialPeriod?: PeriodKey }) 
     PeriodKey,
     PeriodBundle
   >;
+  const limits = demoGithubLimits(now, bundles["24h"].summary.runs);
   return (
     <Dashboard
       bundles={bundles}
-      limits={demoGithubLimits(now, bundles["24h"].summary.runs)}
+      limits={limits}
+      services={demoServices(now, limits)}
       now={now.toISOString()}
       repoCount={repos.length}
       nav={nav}

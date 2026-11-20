@@ -70,6 +70,15 @@ export function DashboardSkeleton() {
           </div>
           <Band width={110} height={36} />
         </div>
+        {/* Services（Issue #719）：見出しと行3本 */}
+        <div aria-hidden="true">
+          <div className={styles.line}>
+            <Band width={120} height={16} />
+            <Band width="100%" height={40} />
+            <Band width="100%" height={40} />
+            <Band width="100%" height={40} />
+          </div>
+        </div>
         <div className={dashboardStyles.summary} aria-hidden="true">
           <div className={styles.line}>
             <Band width="80%" height={42} />

@@ -314,7 +314,7 @@ GitHub の認証が切れたとき（サーバーで GitHub を呼んで **401**
 2026年11月18日、Issue #460（最初の分。残りは #462 Throughput・#463 Stops・#464 AI usage・#465 GitHub limits・#466 期間 `30d`）。毎朝「昨夜・この1日に何が進んで、何が止まったか」を1画面で見るための、**期間で振り返る**ページ。ホームは「いま」、こちらは「期間」。見た目は `docs/design.md` の「Dashboard」。
 
 - **場所**：左のバー（スマホはメニュー）の `ほか` の並びに `Dashboard`（棒グラフのアイコン）。押すと `/dashboard`（デモは `/demo/dashboard`）。そのページにいる間は「今いる」（`aria-current="page"`）。押した直後の反応は、ほかの項目と同じ
-- **枠**：PCは左のバー（ホームと同じ）＋中央の1本の列（最大1080px）。右の進捗図の列と入力欄は無い。スマホは1本の列。上から 見出し → まとめ →（後の Issue の区画）
+- **枠**：PCは左のバー（ホームと同じ）＋中央の1本の列（最大1080px）。右の進捗図の列と入力欄は無い。スマホは1本の列。上から 見出し → Services（Issue #719）→ まとめ →（後の Issue の区画）
 - **見出し**：`Dashboard`。下に期間 `11/17 11:00 〜 11/18 11:00 · 12リポジトリ`（「今」から期間をさかのぼった範囲［日本時間。終わりは表示した「今」］と、監視中のリポジトリの数）。右に期間の切り替え `24h`・`7d`・`30d`（`30d` は Issue #466）。開いたときは `24h`（URL の `?period=7d`・`?period=30d` ならその期間。Issue #615）。キーボードは設定のテーマ・アニメーションと同じ（Issue #514）：Tab で止まるのは選んでいる1つだけ。←→ で隣の期間へフォーカスと選択を同時に移し、端では反対の端へ回る。Home・End で最初・最後。押して選ぶ動きは今までどおり。切り替えると期間の表示・まとめの文・数字が替わる（`24h`・`7d` はページを取り直さない。`30d` は下の「`30d`」）
 - **まとめ**：1行の文 `この24時間：14件マージ、止まり 3回`（`7d` は `この7日：…`）と、4つの数の表
   - `Merged`：期間内にマージされたPRの数。下に `prev 24h: 9`（その前の同じ長さの期間。`7d` は `prev 7d`）。**ブランチ名が `pipeline-sync/` で始まるPR（テンプレート更新の取り込み。配布のPR）は数えない**（`prev` も同じ。判定は `src/lib/status.ts` の `isSyncPull`）。外した数（今の期間の分だけ）が1以上のときだけ、補足を `prev 24h: 9 · 配布 22件除く` にする。0件のとき・数が取れないとき（`—`）は足さない。`30d` も同じ決まり（Issue #542）。下の Throughput の「リポジトリごとのマージ数」も同じ数え方（配布のPRは外れる）
@@ -367,6 +367,22 @@ GitHub の認証が切れたとき（サーバーで GitHub を呼んで **401**
   - **Actions の実行の数**：`24h` のまとめの `runs`（すでに取った進捗ログの行の数）をそのまま使う。取れなければ `—`
   - **GitHub を読む回数**：1回の表示で増えるのは `GET /rate_limit` の1回（5分に1回まで。回数を消費しない）と、保存の Variable の読み取り（1分に1回まで。サーバーごと）。書くのは10分に1回まで・変わったときだけ。runs は、すでに覚えた物から出す
   - デモ（`/demo/dashboard`）はデモのデータ
+- **Services**（Issue #719。いちばん上の区画［見出しの下、まとめの上］。期間の切り替えとは関係なく「今」）：外のサービス（Supabase・Vercel の CPU・GitHub の回数）の様子を1か所で見て、悪い物にすぐ気づくため（2026-11-21、tide-almanac の Supabase が無料プランの一時停止で9日間止まっていたのに誰も気づかなかった。11/20 には Vercel の CPU の上限でアカウントが止まった）。1つのサービス（とリポジトリ）を1行。見出しの横に `外のサービスの様子 · 05:43 に確かめた`（読んだ「今」）
+  - **並び**（`orderServiceRows`）：悪い物（失敗・上限の90%を超えた物）を上に。悪い物どうし・よい物どうしは Supabase（リポジトリの並びは監視の順）→ Vercel → GitHub の順
+  - **Supabase**（`src/lib/github/supabaseKeepalive.ts`）：監視リポジトリごとに、`supabase-keepalive.yml`（ai-dev-template#285 で配った、毎日 Supabase を起こす見張り）の終わった実行を `GET /repos/{owner}/{repo}/actions/workflows/supabase-keepalive.yml/runs?status=completed&per_page=10` で読む。**404（そのワークフローが無い）・実行0件のリポジトリは行を出さない**（公開先に Supabase があるかは、これで決める）。読めなかった（通信・権限・回数制限）リポジトリも行を出さない
+    - いちばん新しい、結果が `success` か失敗（`failure`・`timed_out`・`startup_failure`）の実行で決める（`cancelled`・`skipped` などは飛ばす）。`success` ならよい：`tide-almanac · 最後に起こした 05:43`（その実行の時刻）
+    - 失敗なら悪い：`loss-lab が一時停止しています`（リポジトリ名。実行の失敗の文［失敗したジョブの注釈］に「paused」［大文字小文字を問わない］か「一時停止」があるとき）、無ければ `Supabase に書き込めませんでした`。2行目は、続けて失敗している実行のうち、いちばん古い実行の時刻から `N日前から`（24時間以上は日、1時間以上は時間、それ未満は分［最小1分］。切り捨て。`sinceWords`）。右は `Resume を開く →`：注釈の中の `https://supabase.com/dashboard/project/<ref>` があればそのリンク、無ければ `実行のログを開く →`（その実行の `html_url`）
+    - 失敗の文を読むのは失敗のときだけ：その実行のジョブ（`GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs?filter=latest&per_page=10`）の、結果が失敗のジョブの注釈（`GET /repos/{owner}/{repo}/check-runs/{job_id}/annotations`）。読めなければ文は無しとして扱う
+    - **5分覚える**（Actions の runs と同じ考え方）：サーバーのメモリに、キーはトークンのハッシュ＋リポジトリ、件数は200まで（超えたら古い物から）、再起動で消えてよい。404 の「無い」も覚える。通信の失敗・権限・回数制限は覚えない。REST は ETag つき（`GitHubClient`）。**5分以内の2回目の表示では GitHub を読まない**。読む鍵はログインした人のトークン
+    - Dashboard を開いたときだけ読む。ホーム・リポジトリのページの同期（`loadTurns`）には足さない。全部がそろう前の段は覚えている物だけで出す（無ければ行を出さない）
+  - **Vercel の CPU**（`loadCpuTotals`）：`SETTINGS_REPO` の `使用量：YYYY-MM-DD` の Issue（上の「使用量の数え方と知らせ方」。`listUsageIssues`）を読み、今日（日本時間）を含む直近30日ぶんを使う。5分覚える（キーはトークンのハッシュ。失敗は覚えない）
+    - 1行目：30日の合計 / 上限4時間（「サーバーの CPU の予算」の Vercel の Hobby の上限）と、その割合の棒。2行目：`今日 3m42s · このままなら 30日で 2h 50m`（「このままなら」は今日の合計 × 30。仮定）。今日の分は `/api/selfcheck` が書くまで（30分ごと）遅れる。そのまま出す
+    - 悪い：30日の合計が上限の90%（3時間36分）を超えたとき。そのときだけ右に `11/24 に戻る見込み`：この先の使用量を0として、30日の窓からいちばん古い日が出ていき、合計が上限の90%以下になる最初の日（`cpuRecoveryDate`）。それ以外は右を空にする
+    - `SETTINGS_REPO` が無い・読めないときは `使用量を読めませんでした`（悪いにはしない）
+  - **GitHub の回数**：下の GitHub limits と同じ `loadGithubLimits` の残り（`Pipeline · REST`・`agent-desk reads · GraphQL`）から1行。**GitHub を読む回数は増やさない**。棒は使った割合（1 − 残り÷上限）の大きい方。悪い：どちらかの使った割合が90%を超えたとき。右は、その方の `resets at 11:52`。下の `GitHub limits` の区画はそのまま
+  - 行の文言・判定は `src/lib/dashboard/services.ts` の純粋関数（`buildServiceRows`・`orderServiceRows`・`sinceWords`・`cpuForecast`・`cpuRecoveryDate`・`supabaseVerdict`）。Supabase の一時停止を自動で解除することはしない（リンクを出すだけ）
+  - **GitHub を読む回数**（1回の表示で）：Supabase は監視リポジトリごとに REST 1回（失敗しているときだけ、さらにジョブと注釈の2回）、Vercel は `SETTINGS_REPO` の Issue の一覧を1〜3回。どちらも5分以内の2回目は0回
+  - デモ（`/demo/dashboard`）は同じ部品にデモのデータ（Supabase の失敗が1つ・よい物が1つ）
 
 ### Slots & Queue（`/lanes`）
 
