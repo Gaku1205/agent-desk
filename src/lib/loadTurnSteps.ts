@@ -43,9 +43,11 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 
 /**
  * 最初の段で新しい結果がそろわないとき、先の段を組み立てる前に、全部がそろうのを待つ上限（ms）。
- * 組み立て（約1.4秒）より短くして、温まったとき（全部で約0.2秒）は組み立てを1回で済ませる
+ * 温まったとき（本番の実測で、印・読み込みまで全部で約0.25秒）は、この間にそろって組み立てが1回で済む。
+ * 冷えたとき（GitHub から取り直す）は、先に出す画面がこの分だけ遅れるので、温まったときの倍ほどに留める
+ * （マネージャーの判断、2026-11-21。CPU の上限を守るのを優先し、遅れは最大0.5秒にする）
  */
-export const FIRST_BUILD_WAIT_MS = 1000;
+export const FIRST_BUILD_WAIT_MS = 500;
 
 /** 段の中身（取得元ごとの新しい結果・古い結果）から、出す物を決める */
 function stateOf(gathered: Gathered<RepoResult>): LoadState {
