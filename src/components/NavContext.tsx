@@ -1,7 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  fillFromLastShown,
+  lastShownOf,
+  lastShownSnapshot,
+  parseLastShown,
+  readLastShown,
+  subscribeLastShown,
+  writeLastShown,
+  type LastShown,
+} from "@/lib/lastShown";
 import type { AddedNotice } from "@/lib/autoAdd";
 import {
   applyRepoCount,
@@ -117,6 +127,14 @@ export function NavProvider({ base, children }: { base: DeskNav; children: React
     };
     return () => channel.close();
   }, [applySavedRepos, router]);
+  // 数がそろったら、前に出した数として覚える（次に開いたとき、途中の段で数が増えて見えないように）
+  useEffect(() => {
+    if (!state.streamed) return;
+    const repoKeys = base.repos.map((repo) => `${repo.owner}/${repo.repo}`.toLowerCase());
+    writeLastShown(
+      lastShownOf(state.live.counts, state.live.runningCounts, repoKeys, state.live.unreadable, state.streamed.slotsInUse, readLastShown()),
+    );
+  }, [state, base.repos]);
   const value = useMemo(
     () => ({
       base,
@@ -140,21 +158,30 @@ export function NavProvider({ base, children }: { base: DeskNav; children: React
 export function useNav(): (DeskNav & { countsPending: boolean; drift: DriftSummary | null }) | null {
   // `countsUnreadable`：読めなかったリポジトリ。札は残し、数は「–」
   const state = useContext(NavContext);
+  const last = useLastShown();
   return useMemo(() => {
     if (!state) return null;
     const { base, streamed, live, saved } = state;
+    // 全部がそろう前は、まだ届いていないリポジトリを前に出した数で埋める（数が後から増えて見えない・行が後から出ない）
+    const filled = streamed === null ? fillFromLastShown(live.counts, live.runningCounts, live.loaded, last) : live;
     return {
       ...base,
       repos: [...reposToShow(base.repos, saved)],
-      counts: live.counts,
-      runningCounts: live.runningCounts,
-      countsLoaded: live.loaded,
+      counts: filled.counts,
+      runningCounts: filled.runningCounts,
+      countsLoaded: filled.loaded,
       countsUnreadable: live.unreadable,
       countsPending: streamed === null,
       // 全部を読み終えるまでは出さない（読み終えてから、取り込み済みの Issue で数える）
       drift: streamed?.drift ?? null,
     };
-  }, [state]);
+  }, [state, last]);
+}
+
+/** 前に出した数（ブラウザの localStorage。サーバーと最初の描画では何も覚えていない扱い） */
+export function useLastShown(): LastShown {
+  const raw = useSyncExternalStore(subscribeLastShown, lastShownSnapshot, () => null);
+  return useMemo(() => parseLastShown(raw), [raw]);
 }
 
 /** 後から届いた物（Issueを書く欄のリポジトリ・自動で足したお知らせ）。まだなら null */
