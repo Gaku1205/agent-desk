@@ -109,7 +109,13 @@ export function LanesUsage({ usage, settings, headingId }: Props) {
         </div>
         <div className={styles.xAxis} aria-hidden="true">
           {chart.ticks.map((tick) => (
-            <span key={tick.index} className={`${styles.xLabel} num`} style={{ left: pct(tick.index) }}>
+            // 右端の目盛りは、端からはみ出さないように内側へ寄せる（Issue #720）
+            <span
+              key={tick.index}
+              className={`${styles.xLabel} num`}
+              data-edge={tick.index >= count - 1 ? "" : undefined}
+              style={{ left: pct(tick.index) }}
+            >
               {tick.label}
             </span>
           ))}

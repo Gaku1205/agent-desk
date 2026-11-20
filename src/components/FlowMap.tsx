@@ -9,7 +9,9 @@ import {
 import {
   FLOW_STATE_LABEL,
   flowStepLabel,
+  isNotStarted,
   isSolidLink,
+  stepDetail,
   type Flow,
   type FlowState,
   type FlowStep,
@@ -155,9 +157,10 @@ function Step({
   // デザインの行：画面案ありは成功、通らなかったときは「飛ばした」（docs/spec.md の「ほかの分岐」）
   const skipped = step.key === "design" && extras.design === "skipped";
   const shown: FlowStep = step.key === "design" && extras.design === "made" ? { ...step, state: "done" } : step;
-  const sub = skipped ? DESIGN_SKIPPED_LABEL : [shown.model, shown.duration].filter(Boolean).join(" · ");
-  // 進捗ログを読み込み中：モデル名・所要時間の位置に、文字なしの帯を出す（「不明」は出さない）
-  const loading = !skipped && shown.model === null;
+  // 2行目：始まっていない工程は出さない。CI・公開はモデル名を出さず時間だけ（Issue #720）
+  const sub = skipped ? DESIGN_SKIPPED_LABEL : stepDetail(shown);
+  // 進捗ログを読み込み中：モデル名・所要時間の位置に、文字なしの帯を出す（「不明」は出さない）。始まっていない工程は出さない
+  const loading = !skipped && shown.model === null && !isNotStarted(shown);
   const branches = extras.branches.filter((branch) => branch.anchor === step.key);
   return (
     <li
@@ -167,6 +170,7 @@ function Step({
       data-solid={!last && isSolidLink(flow, index) ? "" : undefined}
       data-last={last ? "" : undefined}
       data-skipped={skipped ? "" : undefined}
+      data-notstarted={isNotStarted(shown) ? "" : undefined}
       aria-current={shown.current ? "step" : undefined}
     >
       <div

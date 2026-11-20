@@ -12,11 +12,14 @@ import styles from "./Dashboard.module.css";
 import type { DeskError, DeskNav } from "./Desk";
 import { LoadErrors } from "./LoadErrors";
 import {
+  chartTop,
   formatResetAt,
   hourLabel,
   limitsSummary,
+  peakValue,
   RATE_LIMIT,
   remainingRatio,
+  showLimitLine,
   type GithubLimits,
   type LimitGauge,
 } from "@/lib/dashboard/githubLimits";
@@ -263,14 +266,14 @@ function StopsSection({ stops }: { stops: Stops }) {
   );
 }
 
-/** 残り1つ分：`今 残り 3,912 / 5,000`・横棒・`resets at 11:52` */
+/** 残り1つ分：`Remaining 3,912 / 5,000`・横棒・`resets at 11:52`（英語の短いラベルにそろえる。Issue #720） */
 function Gauge({ name, gauge }: { name: string; gauge: LimitGauge }) {
   const ratio = remainingRatio(gauge.remaining, gauge.limit);
   return (
     <div className={styles.gauge}>
       <dt className={styles.gaugeName}>{name}</dt>
       <dd className={`${styles.gaugeNow} num`}>
-        今 残り <span className={styles.gaugeValue}>{num(gauge.remaining)}</span> / {num(gauge.limit)}
+        Remaining <span className={styles.gaugeValue}>{num(gauge.remaining)}</span> / {num(gauge.limit)}
       </dd>
       <dd className={styles.gaugeTrack}>
         {ratio !== null && (
@@ -316,8 +319,11 @@ function linePath(series: (number | null)[], yMax: number): { line: string; dots
 /** GitHub limits：2つの残りと、1時間ごとに使った量の線グラフ */
 function GithubLimitsSection({ limits }: { limits: GithubLimits }) {
   const headingId = useId();
-  const yMax = Math.max(RATE_LIMIT * 1.1, ...limits.pipelineUsed.map((v) => v ?? 0), ...limits.readsUsed.map((v) => v ?? 0));
+  // 縦の目盛りは実際の最大値の少し上まで。上限の線は値が近いときだけ出す（遠いときは凡例の `上限 5,000` だけ）（Issue #720）
+  const peak = peakValue(limits.pipelineUsed, limits.readsUsed);
+  const yMax = chartTop(peak);
   const limitY = CHART_H - CHART_PAD - (RATE_LIMIT / yMax) * (CHART_H - 2 * CHART_PAD);
+  const drawLimit = showLimitLine(peak);
   const summary = limitsSummary(limits.hourStarts, limits.pipelineUsed, limits.readsUsed);
   const last = limits.hourStarts.length - 1;
   const reads = linePath(limits.readsUsed, yMax);
@@ -364,11 +370,13 @@ function GithubLimitsSection({ limits }: { limits: GithubLimits }) {
           role="img"
           aria-label={`1時間ごとに使った量の線グラフ。${summary}`}
         >
-          <path
-            d={`M${CHART_PAD} ${limitY}H${CHART_W - CHART_PAD}`}
-            className={styles.limitLine}
-            vectorEffect="non-scaling-stroke"
-          />
+          {drawLimit && (
+            <path
+              d={`M${CHART_PAD} ${limitY}H${CHART_W - CHART_PAD}`}
+              className={styles.limitLine}
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
           <path d={reads.line} className={styles.readsLine} vectorEffect="non-scaling-stroke" />
           <path d={reads.dots} className={styles.readsDot} vectorEffect="non-scaling-stroke" />
           <path d={pipeline.line} className={styles.pipelineLine} vectorEffect="non-scaling-stroke" />

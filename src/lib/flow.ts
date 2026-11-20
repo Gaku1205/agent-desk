@@ -196,13 +196,48 @@ export function isSolidLink(flow: Pick<Flow, "at">, index: number): boolean {
   return index + 1 <= flow.at;
 }
 
-/** 工程の読み上げの文（`企画　成功　モデル 不明`。開始時刻・所要時間があれば続ける。読み込み中は「モデル」を言わない） */
+/** モデル名を出さない工程（AI でない工程：CI・公開） */
+const NO_MODEL_STEPS: readonly FlowStepKey[] = ["ci", "deploy"];
+
+/** まだ始まっていない工程（待ちで、今の位置でない）。2行目（モデル名と所要時間）を出さない（Issue #720） */
+export function isNotStarted(step: Pick<FlowStep, "state" | "current">): boolean {
+  return step.state === "waiting" && !step.current;
+}
+
+/**
+ * 工程の2行目に出すモデル名と所要時間。始まっていない工程は両方 null。
+ * CI・公開はモデル名を出さない（時間だけ）。記録が無いモデル（`不明`）も出さない（時間だけ）
+ */
+export function stepDetailParts(
+  step: Pick<FlowStep, "state" | "current" | "model" | "duration"> & { key?: FlowStepKey },
+): { model: string | null; duration: string | null } {
+  if (isNotStarted(step)) return { model: null, duration: null };
+  const hasModel = step.model !== null && step.model !== UNKNOWN_MODEL && !(step.key && NO_MODEL_STEPS.includes(step.key));
+  return { model: hasModel ? step.model : null, duration: step.duration ?? null };
+}
+
+/** 工程の2行目の文（`opus · 3分12秒`・`3分12秒`）。出す物が無ければ null */
+export function stepDetail(
+  step: Pick<FlowStep, "state" | "current" | "model" | "duration"> & { key?: FlowStepKey },
+): string | null {
+  const { model, duration } = stepDetailParts(step);
+  const parts = [model, duration].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/** 工程の読み上げの文（`企画　成功　モデル opus`。開始時刻・所要時間があれば続ける。読み込み中・記録が無いモデルは言わない） */
 export function flowStepLabel(
   step: Pick<FlowStep, "name" | "state"> & {
-    model: string | null; duration?: string | null; started?: string | null },
+    key?: FlowStepKey;
+    current?: boolean;
+    model: string | null;
+    duration?: string | null;
+    started?: string | null;
+  },
 ): string {
+  const { model, duration } = stepDetailParts({ ...step, duration: step.duration ?? null, current: step.current ?? false });
   const start = step.started ? `　開始 ${step.started}` : "";
-  const time = step.duration ? `　所要時間 ${step.duration}` : "";
-  const model = step.model ? `　モデル ${step.model}` : "";
-  return `${step.name}　${FLOW_STATE_LABEL[step.state]}${model}${start}${time}`;
+  const time = duration ? `　所要時間 ${duration}` : "";
+  const modelText = model ? `　モデル ${model}` : "";
+  return `${step.name}　${FLOW_STATE_LABEL[step.state]}${modelText}${start}${time}`;
 }
