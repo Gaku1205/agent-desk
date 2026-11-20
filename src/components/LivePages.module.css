@@ -2,7 +2,8 @@
 .staleNote {
   position: fixed;
   left: 50%;
-  bottom: 12px;
+  /* 入力欄（Desk が高さを --composer-h に入れる）の上に置き、重ならないようにする */
+  bottom: calc(var(--composer-h, 0px) + 12px);
   transform: translateX(-50%);
   z-index: 5;
   margin: 0;

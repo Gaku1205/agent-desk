@@ -106,7 +106,7 @@ export function DeskLive({ first }: { first: Step<LiveValue<ComponentProps<typeo
   usePublishPageCounts(props.nav, complete);
   return (
     <>
-      <Desk {...props} />
+      <Desk {...props} settled={complete} />
       <StaleNote staleAt={staleAt} staleBecause={staleBecause} complete={complete} />
     </>
   );
