@@ -1,0 +1,148 @@
+/* Services（docs/design.md の「Dashboard」の「Services」。Issue #719） */
+
+.services {
+  container-type: inline-size;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin: 0 0 14px;
+  color: var(--bone);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sub {
+  color: var(--mute);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--hair);
+  border-bottom: 1px solid var(--hair);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 164px minmax(0, 1fr) auto;
+  grid-template-areas: "name body right";
+  gap: 16px;
+  align-items: start;
+  padding: 10px 0;
+}
+
+.row + .row {
+  border-top: 1px solid var(--hair-2);
+}
+
+.name {
+  grid-area: name;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--bone);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.mark {
+  display: inline-flex;
+  width: 14px;
+  justify-content: center;
+  color: var(--ok);
+}
+
+.row[data-state="unknown"] .mark {
+  color: var(--mute);
+}
+
+.row[data-state="bad"] .name,
+.row[data-state="bad"] .mark,
+.row[data-state="bad"] .main {
+  color: var(--fail-soft);
+}
+
+.body {
+  grid-area: body;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.main {
+  color: var(--bone);
+  font-size: 13.5px;
+}
+
+.row[data-state="unknown"] .main {
+  color: var(--mute);
+}
+
+.note {
+  margin-top: 4px;
+  color: var(--mute);
+  font-size: 12.5px;
+}
+
+.track {
+  position: relative;
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 3px;
+  background: var(--hair-2);
+  overflow: hidden;
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  background: var(--bone-2);
+}
+
+.row[data-state="bad"] .fill {
+  background: var(--fail-soft);
+}
+
+.right {
+  grid-area: right;
+  color: var(--mute);
+  font-size: 12.5px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@container (max-width: 559px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name right"
+      "body body";
+    gap: 6px 12px;
+  }
+}
