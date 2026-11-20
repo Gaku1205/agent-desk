@@ -1,4 +1,4 @@
-import { deployKind, isFailedState, latestPerContext } from "./deployStatus";
+import { deployKind, isDeployResolved, isFailedState, latestPerContext, type MainDeployedTimes } from "./deployStatus";
 import type { CommitStatusData } from "./github/types";
 
 /** 「rate limited — retry in 24 hours.」の形（数字と単位 minute／hour／day を取り出す） */
@@ -21,11 +21,16 @@ export function deployFailureMessage(description: string): string | null {
 /**
  * 公開失敗の理由：公開ステータスを context ごとに最新の物にして、failure・error の物の description を出す。
  * description が空の物は除く。失敗が Vercel の1つだけなら description だけ、
- * それ以外は `{種類}：{説明}` を1行ずつ。出す物が無ければ null
+ * それ以外は `{種類}：{説明}` を1行ずつ。出す物が無ければ null。
+ * `later` を渡すと、あとの公開で解決ずみの context（`isDeployResolved`）は外す
  */
-export function deployFailureReason(statuses: CommitStatusData[]): string | null {
+export function deployFailureReason(
+  statuses: CommitStatusData[],
+  later?: { mergedAt: string | null; mainDeployed: MainDeployedTimes },
+): string | null {
   const failed = latestPerContext(statuses)
     .filter((s) => isFailedState(s.state))
+    .filter((s) => !later || !isDeployResolved(s.context, later.mergedAt, later.mainDeployed))
     .flatMap((s) => {
       const message = deployFailureMessage(s.description);
       return message === null ? [] : [{ context: s.context, message }];

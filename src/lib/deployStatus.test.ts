@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deployFailureReason } from "./deployFailure";
-import { deployKind, deployLinks, isDeployStatus, latestPerContext } from "./deployStatus";
+import { deployKind, deployLinks, isDeployResolved, isDeployStatus, latestPerContext } from "./deployStatus";
 import type { CommitStatusData } from "./github/types";
 import { deployState, latestSuccessDeployByContext } from "./status";
 
@@ -15,6 +15,41 @@ function st(
 ): CommitStatusData {
   return { context, state, description: "", updatedAt, ...extra };
 }
+
+describe("isDeployResolved", () => {
+  const mergedAt = "2026-11-19T10:00:00Z";
+  const later = "2026-11-20T10:00:00Z";
+
+  it("Vercel は Vercel で始まるどの context の成功でも解決する", () => {
+    expect(isDeployResolved("Vercel", mergedAt, { "Vercel – app": later })).toBe(true);
+    expect(isDeployResolved("Vercel", mergedAt, { Vercel: "2026-11-18T10:00:00Z" })).toBe(false);
+  });
+
+  it("deploy/ は同じ context の成功でしか解決しない", () => {
+    expect(isDeployResolved("deploy/supabase", mergedAt, { Vercel: later })).toBe(false);
+    expect(isDeployResolved("deploy/supabase", mergedAt, { "deploy/supabase": later })).toBe(true);
+  });
+
+  it("文字列の時刻はどの context にも使う", () => {
+    expect(isDeployResolved("deploy/supabase", mergedAt, later)).toBe(true);
+    expect(isDeployResolved("Vercel", mergedAt, null)).toBe(false);
+  });
+});
+
+describe("deployState（後の Vercel の成功）", () => {
+  const mergedAt = "2026-11-19T10:00:00Z";
+  const now = new Date("2026-11-21T10:00:00Z");
+  const later = { "Vercel – app": "2026-11-20T10:00:00Z" };
+
+  it("Vercel だけの失敗は、後の Vercel の成功で公開済み", () => {
+    expect(deployState([st("Vercel", "failure", mergedAt)], mergedAt, now, later).state).toBe("deployed");
+  });
+
+  it("supabase の失敗は、後の Vercel の成功では公開失敗のまま", () => {
+    const statuses = [st("Vercel", "failure", mergedAt), st("deploy/supabase", "failure", mergedAt)];
+    expect(deployState(statuses, mergedAt, now, later).state).toBe("failed");
+  });
+});
 
 describe("isDeployStatus", () => {
   it("Vercel で始まる物と deploy/ で始まる物だけ true", () => {
