@@ -10,7 +10,7 @@ import { isFactoryTitle } from "./factoryIssue";
 import { factoryProgress, type FactoryProgress } from "./factoryProgress";
 import { factoryChatText, factoryStage, type FactoryPhase } from "./factoryStage";
 import { FLOW_STEPS, getFlow, type Flow } from "./flow";
-import { flowFacts, type FlowExtraSource } from "./flowExtraBranches";
+import { flowFacts, slimFlowStatus, type FlowExtraSource } from "./flowExtraBranches";
 import type { IssueData, RepoData, RepoResult } from "./github/types";
 import { assignLamps, hasOpenHumanRequest, judgeLamp, runActivity, type Lamp, type LampTarget } from "./lamp";
 import { buildPipelineRows } from "./pipeline";
@@ -38,7 +38,7 @@ export type ChatLineOptions = {
  * 「いまの様子」と進捗図の CI の段に出す、CI のチェックの線と数（docs/spec.md の「CI の段にいる間」）。
  * 通常の CI 中（段階が `ciRunning`で、直した結果の確認中でない）のときだけ。それ以外は null
  */
-export function chatCi(status: IssueStatus): CiProgress | null {
+export function chatCi(status: Pick<IssueStatus, "stage" | "verifyingFix" | "ci">): CiProgress | null {
   if (status.stage !== "ciRunning" || status.verifyingFix) return null;
   return ciProgress(status.ci);
 }
@@ -149,15 +149,25 @@ export type ChatMessage = {
   doneAt: string | null;
   /** AIの番で動いている（`isRunningStage`）。進捗図に描く1件を選ぶのに使う */
   running: boolean;
-  /** 進捗図の7つの工程の状態 */
-  flow: Flow;
-  /** 進捗図のほかの分岐を決める材料（docs/spec.md の「ほかの分岐」。無ければ出さない） */
+  /**
+   * 進捗図の7つの工程の状態。公開済み（過去の欄）の行には入れない（画面を細くするため。
+   * `flowExtra.status` から `messageFlow` で決める。docs/spec.md の「画面へ渡す物」）
+   */
+  flow?: Flow;
+  /** 進捗図のほかの分岐を決める材料（細い状態。docs/spec.md の「ほかの分岐」。無ければ出さない） */
   flowExtra?: FlowExtraSource;
   /** 工場の Issue の進捗図（工場の段。あれば通常の7つの工程の代わりに出す） */
   factoryFlow?: FactoryProgress;
   /** 行の左のランプ（緑・赤・紫の数字・無し） */
   lamp: Lamp;
 };
+
+/** 進捗図の工程：入っていればそのまま、無ければ（公開済みの行）細い状態から決める */
+export function messageFlow(message: Pick<ChatMessage, "flow" | "flowExtra">): Flow {
+  if (message.flow) return message.flow;
+  if (message.flowExtra) return getFlow(message.flowExtra.status);
+  throw new Error("flow も flowExtra も無いメッセージ");
+}
 
 /** ランプを決めるための、1件の入力（Issue と紐づく PR のラベル・お願いのコメント・実行） */
 function lampTarget(
@@ -269,8 +279,9 @@ export function buildConversation(
         deployed: row.status.stage === "deployed",
         doneAt: trail?.latestAt ?? findLinkedPull(result.data.pulls, row.issue.number)?.mergedAt ?? null,
         running: isRunningStage(row.status.stage, row.status.grace),
-        flow: getFlow(row.status),
-        flowExtra: { status: row.status, facts: flowFacts(issue, row.status, result.data.comments, result.owner) },
+        // 公開済みの行は、図を押したときに細い状態から決める（`messageFlow`）
+        ...(row.status.stage === "deployed" ? {} : { flow: getFlow(row.status) }),
+        flowExtra: { status: slimFlowStatus(row.status), facts: flowFacts(issue, row.status, result.data.comments, result.owner) },
         ...(factory
           ? {
               factoryFlow: factoryProgress({
