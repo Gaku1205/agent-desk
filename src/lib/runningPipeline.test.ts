@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { IssueData, PullData, RepoData, RepoResult } from "./github/types";
-import { buildRunningPipelineRows, countRunningPipelineRows, isRunningStage } from "./runningPipeline";
+import {
+  buildRunningPipelineRows,
+  countRunningLampMessages,
+  countRunningPipelineRows,
+  isRunningStage,
+} from "./runningPipeline";
 import type { Stage } from "./status";
 
 const NOW = new Date("2026-10-25T12:00:00Z");
@@ -65,18 +70,38 @@ describe("isRunningStage", () => {
   });
 });
 
+describe("countRunningLampMessages", () => {
+  it("ランプが running の行だけを、owner/repo（小文字）ごとに数える", () => {
+    const counts = countRunningLampMessages([
+      { owner: "O", repo: "A", lamp: { kind: "running" } },
+      { owner: "o", repo: "a", lamp: { kind: "running" } },
+      { owner: "o", repo: "a", lamp: { kind: "needsHuman" } },
+      { owner: "o", repo: "a", lamp: { kind: "waiting", position: 1 } },
+      { owner: "o", repo: "b", lamp: { kind: "none" } },
+    ]);
+    expect(counts).toEqual({ byRepo: { "o/a": 2 } });
+  });
+});
+
 describe("countRunningPipelineRows", () => {
-  it("全体と、owner/repo（小文字）ごとに数える。全体は表の行数と同じ", () => {
+  it("やり直し待ち（ai:retry）は、段階が動いていなくても数に入る。赤・紫・無しは入らない", () => {
     const results = [
-      ok("O", "A", data({ issues: [issue(2, { labels: ["ai:plan"] }), issue(9, { labels: ["ai:plan"] })] })),
-      ok("o", "b", data({ issues: [issue(5, { labels: ["ai:implement"] }), issue(6)] })),
+      ok(
+        "O",
+        "A",
+        data({
+          issues: [
+            issue(1, { labels: ["ai:retry"] }),
+            issue(2, { labels: ["ai:stuck"] }),
+            issue(3, { labels: ["ai:queue"] }),
+            issue(4),
+          ],
+        }),
+      ),
       ok("o", "c", data({ issues: [issue(1)] })),
       { owner: "o", repo: "x", ok: false, error: { kind: "not_found", message: "見つかりません" } } as RepoResult,
     ];
-    const counts = countRunningPipelineRows(results, NOW);
-    expect(counts).toEqual({ byRepo: { "o/a": 2, "o/b": 1 } });
-    const rows = buildRunningPipelineRows(results, NOW);
-    expect(Object.values(counts.byRepo).reduce((sum, n) => sum + n, 0)).toBe(rows.length);
+    expect(countRunningPipelineRows(results, NOW)).toEqual({ byRepo: { "o/a": 1 } });
   });
 
   it("動いている物が無ければ 0 件", () => {
