@@ -522,7 +522,7 @@ export function NewIssueForm({
                   )}
                   {status.kind === "created" && (
                     <span className={settingsStyles.saved} role="status">
-                      {status.number !== null ? `#${status.number} を作りました` : "作りました。Your turn に出ます"}
+                      {status.number !== null ? `#${status.number} を作りました` : "作りました"}
                       {service && status.number !== null && (
                         <>
                           {" "}

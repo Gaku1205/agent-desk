@@ -1,3 +1,4 @@
+import { buildConversation, type ChatMessage } from "./conversation";
 import type { RepoResult } from "./github/types";
 import { buildPipelineRows, type PipelineRow } from "./pipeline";
 import type { IssueStatus, Stage } from "./status";
@@ -22,15 +23,23 @@ export function isRunningStage(stage: Stage, grace: IssueStatus["grace"] = null)
   return grace !== null || RUNNING_STAGES.has(stage);
 }
 
-/** サイドバーに出す実行中の件数（`owner/repo`（小文字）ごと）。ホームの表の行数と同じ数え方 */
-export function countRunningPipelineRows(results: RepoResult[], now: Date): TurnCounts {
-  const rows = buildRunningPipelineRows(results, now);
+/** 「いまの様子」の行のうち、ランプが緑（running）の物を `owner/repo`（小文字）ごとに数える（入力から出力が決まる関数） */
+export function countRunningLampMessages(messages: ReadonlyArray<Pick<ChatMessage, "owner" | "repo" | "lamp">>): TurnCounts {
   const byRepo: Record<string, number> = {};
-  for (const row of rows) {
-    const key = `${row.owner}/${row.repo}`.toLowerCase();
+  for (const message of messages) {
+    if (message.lamp.kind !== "running") continue;
+    const key = `${message.owner}/${message.repo}`.toLowerCase();
     byRepo[key] = (byRepo[key] ?? 0) + 1;
   }
   return { byRepo };
+}
+
+/**
+ * 左のバー・上端の帯に出す `AI` の件数（`owner/repo`（小文字）ごと）：「いまの様子」でランプが緑の行の数。
+ * ランプの判定に足あとは要らないので、events は空で会話を作る
+ */
+export function countRunningPipelineRows(results: RepoResult[], now: Date): TurnCounts {
+  return countRunningLampMessages(buildConversation(results, [], now));
 }
 
 /** 全リポジトリの実行中のパイプライン：Issue番号が大きい順（同じ番号ならリポジトリ名の順）。取れなかったリポジトリは飛ばす */
