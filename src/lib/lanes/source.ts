@@ -358,6 +358,12 @@ function issueUrl(owner: string, repo: string, number: number): string {
  * 結果から、枠を使っている作業・順番待ち・動いている実行をまとめる。
  * 並びは、リポジトリの並び（results の順）→ 番号。取れなかったリポジトリは飛ばす
  */
+/** ホームの上端の帯の右の1行の数：実装中（枠を使っている作業）と順番待ち（Slots & Queue と同じ数え方） */
+export function activityOf(results: readonly RepoResult[], now: Date): { running: number; queued: number } {
+  const source = buildLanesSource(results, now);
+  return { running: source.works.length, queued: source.queue.length };
+}
+
 export function buildLanesSource(results: readonly RepoResult[], now: Date): LanesSource {
   const works: SlotWork[] = [];
   const queue: { entry: QueueSource; order: number; rank: number }[] = [];

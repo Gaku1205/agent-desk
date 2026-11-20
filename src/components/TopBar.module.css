@@ -442,6 +442,17 @@
   display: none;
 }
 
+/* ホームの「動いている作業」の1行の置き場。空のときは場所を取らない。スマホでは出さない */
+.activitySlot:empty {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .activitySlot {
+    display: none;
+  }
+}
+
 .pageName {
   display: none;
 }

@@ -58,6 +58,31 @@ export function turnKind(status: Pick<IssueStatus, "stage"> & Partial<Pick<Issue
   }
 }
 
+/** まとまりの英語の名前（`Fix`・`Answer`・`Ship`・`Start`） */
+export function groupLabel(group: TurnGroup): string {
+  return TURN_GROUPS.find((g) => g.group === group)?.label ?? "";
+}
+
+/** 決める画面の札の「誰から」（質問＝企画AIから・工場の相談＝工場から。ほかは無し） */
+export function turnSource(stage: IssueStatus["stage"]): string | null {
+  if (stage === "question") return "企画AIから";
+  if (stage === "factoryTalk") return "工場から";
+  return null;
+}
+
+/** 題名を「何が起きたか」にする種類（公開の失敗・止まった物） */
+export function titlesWhatHappened(stage: IssueStatus["stage"]): boolean {
+  return stage === "deployFailed" || stage === "stuck";
+}
+
+/** 右の Your turn の列の「中身の手がかり」（公開の失敗・止まった・3問）。無ければ null */
+export function turnHint(stage: IssueStatus["stage"], questionCount: number): string | null {
+  if (stage === "deployFailed") return "公開の失敗";
+  if (stage === "stuck") return "止まった";
+  if (stage === "question" && questionCount > 0) return `${questionCount}問`;
+  return null;
+}
+
 /** 日本語の文を「。」「、」のあとで分け、塊ごとに折り返せるようにする（文節の途中で切らない） */
 export function splitPhrases(text: string): string[] {
   return text.split(/(?<=[。、])/).filter((s) => s !== "");

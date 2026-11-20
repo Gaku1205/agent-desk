@@ -2,6 +2,7 @@
 
 import { useRef, type KeyboardEvent } from "react";
 import type { AnswerInput, MockupOption, ParsedQuestion, QuestionItem } from "@/lib/question";
+import { codeParts, splitChoice } from "@/lib/choiceText";
 import { rovingNext } from "@/lib/roving";
 import { OptionMarkIcon } from "./icons";
 import styles from "./QuestionForm.module.css";
@@ -16,6 +17,23 @@ type Props = {
   /** 送る文（画面で選んだ・書いた物から組み立てた物。空なら出さない） */
   preview: string;
 };
+
+/** 文の中の `` `…` `` を、バッククォートを出さずにコードの見た目にする */
+export function CodeText({ text }: { text: string }) {
+  return (
+    <>
+      {codeParts(text).map((part, i) =>
+        part.code ? (
+          <code key={i} className={styles.code}>
+            {part.text}
+          </code>
+        ) : (
+          <span key={i}>{part.text}</span>
+        ),
+      )}
+    </>
+  );
+}
 
 /** 空の答え */
 export function emptyAnswer(): AnswerInput {
@@ -47,11 +65,14 @@ export function QuestionBlock({
   answer,
   onAnswer,
   idPrefix,
+  keyed = false,
 }: {
   item: QuestionItem;
   answer: { choice: string | null; note: string };
   onAnswer: (next: { choice: string | null; note: string }) => void;
   idPrefix: string;
+  /** 決める画面の形：左にキーの印、右に見出しと説明（docs/design.md の「ホーム（決める画面）」） */
+  keyed?: boolean;
 }) {
   const letters = item.options.map((o) => o.letter);
   const roving = useRoving(letters, answer.choice, (choice) => onAnswer({ ...answer, choice }));
@@ -62,7 +83,47 @@ export function QuestionBlock({
         <span className={`${styles.qno} num`}>Q{item.number}</span>
         {item.text}
       </p>
-      {item.options.length > 0 && (
+      {item.options.length > 0 && keyed && (
+        <div className={styles.choices} role="radiogroup" aria-labelledby={labelId} data-choices="">
+          {item.options.map((option, i) => {
+            const split = splitChoice(option.text);
+            const checked = answer.choice === option.letter;
+            return (
+              <button
+                key={option.letter}
+                ref={(el) => {
+                  roving.refs.current[i] = el;
+                }}
+                type="button"
+                role="radio"
+                aria-checked={checked}
+                tabIndex={roving.tabIndexOf(i)}
+                className={styles.choice}
+                onClick={() => roving.onClick(option.letter)}
+                onKeyDown={(event) => roving.onKeyDown(event, i)}
+              >
+                {i < 9 && (
+                  <kbd className={`${styles.choiceKey} num`} aria-hidden="true">
+                    {i + 1}
+                  </kbd>
+                )}
+                <span className={styles.choiceText}>
+                  <span className={styles.choiceHead}>
+                    <CodeText text={split.head} />
+                    {(option.recommended || split.recommended) && <span className={styles.choiceRec}>おすすめ</span>}
+                  </span>
+                  {split.body !== "" && (
+                    <span className={styles.choiceBody}>
+                      <CodeText text={split.body} />
+                    </span>
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {item.options.length > 0 && !keyed && (
         <div className={styles.options} role="radiogroup" aria-labelledby={labelId}>
           {item.options.map((option, i) => (
             <button
@@ -178,6 +239,7 @@ export function QuestionForm({ question, value, onChange, idPrefix, preview }: P
           key={item.number}
           item={item}
           idPrefix={idPrefix}
+          keyed
           answer={value.answers[item.number] ?? { choice: null, note: "" }}
           onAnswer={(next) => onChange({ ...value, answers: { ...value.answers, [item.number]: next } })}
         />
