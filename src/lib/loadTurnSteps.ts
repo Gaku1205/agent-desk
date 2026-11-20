@@ -41,6 +41,12 @@ const isFailedResult = (result: RepoResult): boolean => !result.ok;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/**
+ * 最初の段で新しい結果がそろわないとき、先の段を組み立てる前に、全部がそろうのを待つ上限（ms）。
+ * 組み立て（約1.4秒）より短くして、温まったとき（全部で約0.2秒）は組み立てを1回で済ませる
+ */
+export const FIRST_BUILD_WAIT_MS = 1000;
+
 /** 段の中身（取得元ごとの新しい結果・古い結果）から、出す物を決める */
 function stateOf(gathered: Gathered<RepoResult>): LoadState {
   const loads: RepoLoad[] =
@@ -136,9 +142,9 @@ export async function loadTurnSteps<T extends object>(
       sync: state.sync,
     };
   };
-  // 組み立て（`build`）は重い（全部のリポジトリで約1.4秒）ので、1回の表示で2回までにする：
-  // ・最初の段で全部の新しい結果がそろっていれば、途中の段は作らず、仕上げの段だけを作る（1回）
-  // ・そろっていなければ、最初の段（覚えている結果・一部）と仕上げの段だけを作り、間の段は作らない
+  // 組み立て（`build`）は重い（全部のリポジトリで約1.4秒）ので、1回の表示で1回にする：
+  // ・最初の段、または `FIRST_BUILD_WAIT_MS` までに全部の新しい結果がそろえば、仕上げの段だけを作る（1回）
+  // ・それより遅いときだけ（GitHub から取り直している）、最初の段（覚えている結果・一部）を先に出し、仕上げと2回。間の段は作らない
   if (gathered.next === null) {
     try {
       return { value: await finish(await last()), next: null };
@@ -147,12 +153,23 @@ export async function loadTurnSteps<T extends object>(
       return { value: await finish(partialOf(gathered.value)), next: null };
     }
   }
-  const firstValue = await finish(partialOf(gathered.value));
   /** 間の段は飛ばして、最後の段の中身を待つ */
   const lastGathered = async (step: Step<Gathered<RepoResult>>): Promise<Gathered<RepoResult>> =>
     step.next === null ? step.value : lastGathered(await step.next);
+  const settling = lastGathered(gathered);
+  // 最初の段の組み立て自体が約1.4秒かかるので、`FIRST_BUILD_WAIT_MS` までに全部の新しい結果がそろえば、
+  // 先の段は作らずに仕上げの1回だけにする（最初に出るまでの時間はほぼ変わらない。キャッシュが温まっていれば、ここでそろう）
+  const settledEarly = await Promise.race([settling.catch(() => null), sleep(FIRST_BUILD_WAIT_MS).then(() => null)]);
+  if (settledEarly !== null) {
+    try {
+      return { value: await finish(await last()), next: null };
+    } catch {
+      return { value: await finish(partialOf(settledEarly)), next: null };
+    }
+  }
+  const firstValue = await finish(partialOf(gathered.value));
   const final = async (): Promise<Step<typeof firstValue>> => {
-    const settled = await lastGathered(gathered);
+    const settled = await settling;
     try {
       return { value: await finish(await last()), next: null };
     } catch {

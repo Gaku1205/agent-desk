@@ -18,7 +18,7 @@ vi.mock("./github/rateHistoryStore", () => ({ syncRateHistory: async () => undef
 vi.mock("./loadTurns", () => ({ loadTurns: mocks.loadTurns }));
 vi.mock("./watchedRepos", () => ({ loadWatchedRepos: mocks.loadWatchedRepos }));
 
-import { loadTurnSteps } from "./loadTurnSteps";
+import { FIRST_BUILD_WAIT_MS, loadTurnSteps } from "./loadTurnSteps";
 
 const result = (repo: string): RepoResult =>
   ({
@@ -56,15 +56,28 @@ describe("loadTurnSteps の組み立て（build）の回数", () => {
     expect(build.mock.calls[0]?.[0].complete).toBe(true);
   });
 
-  it("そろっていなければ、多くて2回（最初の段と仕上げ）で、間の段は飛ばす", async () => {
+  it("最初の段でそろわなくても、待つ上限までにそろえば、1回だけ組み立てる（温まったとき）", async () => {
     mocks.getRepoResult.mockImplementation(
-      () => new Promise<RepoResult>((resolve) => setTimeout(() => resolve(result("a")), 600)),
+      () => new Promise<RepoResult>((resolve) => setTimeout(() => resolve(result("a")), 300)),
     );
     mocks.getStaleRepoResult.mockResolvedValue(result("a"));
     const build = vi.fn((turns: TurnsSoFar) => ({ complete: turns.complete }));
-    await drain(build);
-    expect(build.mock.calls.length).toBeLessThanOrEqual(2);
-    expect(build.mock.calls.at(-1)?.[0]?.complete).toBe(true);
+    expect(await drain(build)).toBe(1);
+    expect(build).toHaveBeenCalledTimes(1);
+    expect(build.mock.calls[0]?.[0].complete).toBe(true);
+  });
+
+  it("待つ上限より遅いときだけ、覚えている結果を先に出し、仕上げと2回（間の段は飛ばす）", async () => {
+    mocks.getRepoResult.mockImplementation(
+      () => new Promise<RepoResult>((resolve) => setTimeout(() => resolve(result("a")), FIRST_BUILD_WAIT_MS + 300)),
+    );
+    mocks.getStaleRepoResult.mockResolvedValue(result("a"));
+    const build = vi.fn((turns: TurnsSoFar) => ({ complete: turns.complete }));
+    expect(await drain(build)).toBe(2);
+    expect(build).toHaveBeenCalledTimes(2);
+    expect(build.mock.calls[0]?.[0].complete).toBe(false);
+    expect(build.mock.calls[0]?.[0].results).toHaveLength(1);
+    expect(build.mock.calls[1]?.[0].complete).toBe(true);
   });
 
   it("仕上げ（loadTurns）が投げたときは、そろった分で1回組み立てる", async () => {
