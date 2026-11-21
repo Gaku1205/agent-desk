@@ -14,6 +14,7 @@ import { flowFacts, slimFlowStatus, type FlowExtraSource } from "./flowExtraBran
 import type { IssueData, RepoData, RepoResult } from "./github/types";
 import { assignLamps, hasOpenHumanRequest, judgeLamp, runActivity, type Lamp, type LampTarget } from "./lamp";
 import { buildPipelineRows } from "./pipeline";
+import { blockedByLabel, openBlockedBy, parseBlockedBy } from "./queueReason";
 import { isRunningStage } from "./runningPipeline";
 import { findLinkedPull, isLinkedPull, MAX_AUTO_FIX, type IssueStatus, type Stage } from "./status";
 import { turnRowDescription } from "./turn";
@@ -135,6 +136,10 @@ export type ChatMessage = {
   failed: boolean;
   /** 文の下に出す理由（順番待ちの理由）。無ければ null */
   note: string | null;
+  /** `ai:blocked` で止まっているか（順番待ちの行。ホームの `次：` から外す） */
+  blocked?: boolean;
+  /** 待ち先が `blocked-by` の印から分かるときの書き方（`#715`・`repo#3`）。分からなければ無し */
+  waitAfter?: string[];
   /** やり直しの理由に付いた、このリポジトリのログのURL */
   logUrl: string | null;
   /** 公開済みの、公開先へのリンク */
@@ -271,6 +276,14 @@ export function buildConversation(
         ci: chatCi(row.status),
         failed: failure?.kind === "stopped",
         note: row.queueReason,
+        ...(row.status.stage === "queued" && issue.labels.includes("ai:blocked")
+          ? {
+              blocked: true,
+              waitAfter: openBlockedBy(parseBlockedBy(result.data.comments, issue.number), result, result.data).map(
+                (mark) => blockedByLabel(mark, result),
+              ),
+            }
+          : {}),
         logUrl: failureLogUrl(row.status, full),
         links: row.deployLinks,
         activity: null,
