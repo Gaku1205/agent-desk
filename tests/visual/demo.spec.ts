@@ -264,7 +264,7 @@ test.describe("デモの画面", () => {
     await second.getByRole("button", { name: "マージする" }).click();
     // その行だけが「マージ中…」→「マージしました」・PR の番号に変わり、ほかの行はそのまま
     await expect(second.getByRole("button", { name: "マージ中…" })).toBeVisible();
-    await expect(second.getByText("GitHub でマージしています")).toBeVisible();
+    await expect(second.getByText("GitHub でマージ（変更の取り込み）をしています。待つだけです")).toBeVisible();
     await expect(second.getByRole("status")).toHaveText("マージしました");
     await expect(second.getByRole("link", { name: /^PR #\d+ ↗$/ })).toBeVisible();
     await expect(rows).toHaveCount(count);
