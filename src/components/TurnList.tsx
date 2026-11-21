@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { rovingNext } from "@/lib/roving";
 import { formatWait, turnItemKey, type TurnItem } from "@/lib/turn";
 import { groupLabel, turnHint, turnKind } from "@/lib/turnKind";
@@ -33,6 +33,27 @@ export function TurnList({ items, currentKey, now, count, onPick, label = "Your 
     0,
   );
   const activeIndex = Math.min(active ?? currentIndex, Math.max(items.length - 1, 0));
+
+  // 真ん中の1件が替わったら、`いま` の行が列の中で見えるように、列の中だけをスクロールする（ページは動かさない）
+  useEffect(() => {
+    const row = listRef.current?.querySelector<HTMLElement>("[data-here]");
+    if (!row) return;
+    let scroller: HTMLElement | null = row.parentElement;
+    while (scroller) {
+      const overflowY = getComputedStyle(scroller).overflowY;
+      if ((overflowY === "auto" || overflowY === "scroll") && scroller.scrollHeight > scroller.clientHeight) break;
+      scroller = scroller.parentElement;
+    }
+    if (!scroller) return;
+    const box = scroller.getBoundingClientRect();
+    const rect = row.getBoundingClientRect();
+    let delta = 0;
+    if (rect.top < box.top) delta = rect.top - box.top - 8;
+    else if (rect.bottom > box.bottom) delta = rect.bottom - box.bottom + 8;
+    if (delta === 0) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    scroller.scrollBy({ top: delta, behavior: reduce ? "instant" : "smooth" });
+  }, [currentKey]);
 
   function onKeyDown(event: KeyboardEvent<HTMLUListElement>) {
     const next = rovingNext(event.key, activeIndex, items.length);
