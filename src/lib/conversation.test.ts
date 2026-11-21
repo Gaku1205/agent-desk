@@ -274,7 +274,7 @@ describe("工場の Issue の「いまの様子」（Issue #659）", () => {
   it("工場が作業中のデモの Issue は、相談待ちと出ず、段の文と経過時間が出る", () => {
     const message = messages.find((m) => m.key === "demo/landing-page#24");
     expect(message?.speaker).toBe("工場");
-    expect(message?.text).toBe("作っています（12分）");
+    expect(message?.text).toBe("作っています（12分）。待つだけです");
     expect(message?.text).not.toContain("相談待ち");
   });
 
@@ -282,7 +282,7 @@ describe("工場の Issue の「いまの様子」（Issue #659）", () => {
     const notStarted = status({ stage: "notStarted" });
     const text = (kind: "waiting" | "unknown") =>
       chatLine(notStarted, { factory: { kind, text: null, startedAt: null }, now: NOW }).text;
-    expect(text("waiting")).toBe("工場の担当・相談待ち");
-    expect(text("unknown")).toBe("工場が受け付けています");
+    expect(text("waiting")).toBe("工場が相談の答えを待っています。Your turn で選んでください");
+    expect(text("unknown")).toBe("工場が受け付けています。待つだけです");
   });
 });

@@ -23,7 +23,7 @@ describe("factoryStage", () => {
   it("factory:wait が付いていれば相談待ち（動いている実行があっても）", () => {
     const phase = factoryStage({ ...base, labels: [...base.labels, "factory:wait"], runs: [run("Factory talk")] });
     expect(phase.kind).toBe("waiting");
-    expect(factoryChatText(phase, NOW)).toBe("工場の担当・相談待ち");
+    expect(factoryChatText(phase, NOW)).toBe("工場が相談の答えを待っています。Your turn で選んでください");
   });
 
   it("Factory talk が動いていれば作業中。ステップ名で段の文が決まる", () => {
@@ -41,7 +41,7 @@ describe("factoryStage", () => {
 
   it("作業中の文に経過時間が付く", () => {
     const phase = factoryStage({ ...base, runs: [run("Factory talk")] });
-    expect(factoryChatText(phase, NOW)).toBe("作っています（12分）");
+    expect(factoryChatText(phase, NOW)).toBe("作っています（12分）。待つだけです");
     expect(factoryChatText(phase, NOW)).not.toContain("相談待ち");
   });
 
@@ -63,7 +63,7 @@ describe("factoryStage", () => {
   it("ラベルも実行も無ければ、相談待ちと書かず中立な文にする", () => {
     const phase = factoryStage({ ...base, runs: [] });
     expect(phase.kind).toBe("unknown");
-    expect(factoryChatText(phase, NOW)).toBe("工場が受け付けています");
+    expect(factoryChatText(phase, NOW)).toBe("工場が受け付けています。待つだけです");
   });
 
   it("実行の一覧が取れていないときはラベルだけで決める", () => {

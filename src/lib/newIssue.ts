@@ -41,7 +41,7 @@ export const OMAKASE_BODY = "- [x] 全部おまかせ";
 
 /** `全部おまかせ` の横の補足の1行（オンのとき・オフのとき。「Issueを書く」のテンプレート選択時も同じ） */
 export function omakaseHint(on: boolean): string {
-  return on ? "相談なしで公開まで（30分ほど）" : "案・見た目・最終確認の3回、Your turn で選ぶ";
+  return on ? "相談なしで公開まで進めます（30分ほど）" : "案・見た目・最終確認の3回、Your turn（あなたの番）で選ぶ";
 }
 
 /** 新サービスの書き方の見本（誰が使う・何ができる・スマホか PC か・お金を取るか。押すと入力欄に入る） */

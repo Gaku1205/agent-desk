@@ -283,7 +283,7 @@ export function factoryProgress(input: FactoryProgressInput): FactoryProgress {
 const STATE_LABEL: Record<FactoryStepState, string> = {
   done: "済み",
   running: "進行中",
-  waiting: "Your turn",
+  waiting: "Your turn（あなたの番）",
   pending: "まだ",
 };
 
