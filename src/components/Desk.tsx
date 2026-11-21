@@ -498,9 +498,16 @@ export function Desk({
         {activitySlot &&
           activity &&
           createPortal(
-            <Link href={`${base}/lanes`} className={`${styles.activity} num`}>
+            <Link
+              href={`${base}/lanes`}
+              className={`${styles.activity} num`}
+              aria-label={`実装中 ${activity.running}、順番待ち ${activity.queued}。Slots & Queue を開く`}
+            >
               <span className={styles.activityDot} aria-hidden="true" />
-              実装中 {activity.running} · 順番待ち {activity.queued} ·{" "}
+              <span className={styles.activityLabel}>実装中 </span>
+              {activity.running} ·{" "}
+              <span className={styles.activityLabel}>順番待ち </span>
+              {activity.queued} ·{" "}
               <span className={styles.activityLanes}>Slots &amp; Queue </span>→
             </Link>,
             activitySlot,

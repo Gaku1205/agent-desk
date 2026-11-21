@@ -447,7 +447,8 @@
   display: none;
 }
 
-@media (max-width: 899px) {
+/* 幅1099px以下は帯の右（同期・更新・アカウント）が切れるので、この1行は出さない（Slots & Queue は帯の左にある） */
+@media (max-width: 1099px) {
   .activitySlot {
     display: none;
   }

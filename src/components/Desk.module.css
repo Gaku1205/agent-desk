@@ -212,7 +212,8 @@
 }
 
 @media (max-width: 1279px) {
-  .activityLanes {
+  .activityLanes,
+  .activityLabel {
     display: none;
   }
 }
