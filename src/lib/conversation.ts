@@ -44,6 +44,14 @@ export function chatCi(status: Pick<IssueStatus, "stage" | "verifyingFix" | "ci"
   return ciProgress(status.ci);
 }
 
+/** CI の話し手（初めて読む人にも分かるよう、説明を添える。Issue #743） */
+export const CI_SPEAKER = "CI（自動のチェック）";
+
+/** 直した結果を CI とレビューで確かめている間の文 */
+function verifyingText(ci: string): string {
+  return `直した結果を、CIとレビューで確かめています（CI ${ci}）。待つだけです`;
+}
+
 /** 段階から、話し手と会話の文を決める。人間の番の段階は、ふつう会話には出ない（説明文をそのまま使う） */
 export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): ChatLine {
   const ci = `${status.ci.passed}/${status.ci.total}`;
@@ -51,57 +59,65 @@ export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): Ch
   if (conflict) {
     return { speaker: conflict === "fixing" ? "AI" : "パイプライン", text: conflictText(conflict) };
   }
+  // 文の形は docs/design.md の「文言のそろえ方」（{起きていること}。{なぜ・どうなるか}。{次にすること}）。
+  // 人がすることが無い物は「待つだけです」で終える。CI の話し手は「CI（自動のチェック）」（Issue #743）
   switch (status.stage) {
     case "planning":
-      return { speaker: "企画AI", text: "企画AIが清書中" };
+      return { speaker: "企画AI", text: "企画AIがIssueを清書しています。待つだけです" };
     case "implementing":
-      return { speaker: "AI", text: "AIが実装しています" };
+      return { speaker: "AI", text: "AIが実装しています。待つだけです" };
     case "fixing": {
       const max = status.fixLimit ?? MAX_AUTO_FIX;
       const n = Math.min(Math.max(status.fixCount, 1), max);
-      return { speaker: "AI", text: `AIが直しています（${n}/${max} 回目）` };
+      return { speaker: "AI", text: `AIが直しています（${n}/${max} 回目）。待つだけです` };
     }
     case "ciRunning": {
       const progress = chatCi(status);
       return progress
-        ? { speaker: "CI", text: ciStepText(getFlow(status).at, FLOW_STEPS.length, progress) }
-        : { speaker: "CI", text: `修正をCIとレビューで確認中（CI ${ci}）` };
+        ? { speaker: CI_SPEAKER, text: ciStepText(getFlow(status).at, FLOW_STEPS.length, progress) }
+        : { speaker: CI_SPEAKER, text: verifyingText(ci) };
     }
     case "ciFailed": {
       const failure = ciFailureState({ stage: status.stage, stuck: false, fixCount: status.fixCount });
       if (failure?.kind === "fixing") return { speaker: "AI", text: ciFixingText(failure.n) };
-      return { speaker: "CI", text: "CI失敗・修正の上限" };
+      return {
+        speaker: CI_SPEAKER,
+        text: "CIが失敗し、AIが直せる回数の上限に達しました。止まった作業として Your turn に出たら、確認してください",
+      };
     }
     case "reviewing":
       return status.verifyingFix
-        ? { speaker: "CI", text: `修正をCIとレビューで確認中（CI ${ci}）` }
-        : { speaker: "レビューAI", text: "レビューAIが確認中" };
+        ? { speaker: CI_SPEAKER, text: verifyingText(ci) }
+        : { speaker: "レビューAI", text: "レビューAIがPRを確かめています。待つだけです" };
     case "mergeWaiting":
       if (status.mergeWait === "autoMerge") {
-        return { speaker: "パイプライン", text: "CI・レビューOK・まもなく自動マージ" };
+        return { speaker: "パイプライン", text: "CIとレビューが通りました。まもなく自動でマージします。待つだけです" };
       }
       if (status.mergeWait === "needsReview") {
-        return { speaker: "パイプライン", text: `CI通過（${ci}）・レビューへ` };
+        return { speaker: "パイプライン", text: `CIが通りました（${ci}）。次はレビューに進みます。待つだけです` };
       }
       break;
     case "deploying":
-      return { speaker: "本番", text: "本番に公開中" };
+      return { speaker: "本番", text: "本番に公開しています。待つだけです" };
     case "deployed":
       return status.deployUnknown
-        ? { speaker: "本番", text: "マージ済み・公開状況は不明" }
+        ? { speaker: "本番", text: "マージしました。公開できたかは読み取れません。必要なら公開先を確認してください" }
         : { speaker: "本番", text: "本番に公開しました" };
     case "queued": {
       const after = options.queueAfter ?? null;
       return {
         speaker: "パイプライン",
-        text: after === null ? "順番待ち" : `順番待ち（#${after} の後）`,
+        text:
+          after === null
+            ? "順番待ちです。前の作業が終わると自動で始まります。待つだけです"
+            : `順番待ちです（#${after} の後）。前の作業が終わると自動で始まります。待つだけです`,
       };
     }
     case "retrying":
       return { speaker: "パイプライン", text: describeStatus(status).long };
     case "notStarted":
       if (status.grace === "intake") {
-        return { speaker: "パイプライン", text: "受付が企画に回すか判断中" };
+        return { speaker: "パイプライン", text: "受付が、企画に回すかを判断しています。待つだけです" };
       }
       // 会話に出る未着手は、工場が受け持つ「新サービス：」の Issue だけ（ほかは「あなたの番」に出る）
       // 相談待ちと決め打ちせず、工場の今の段から決める（Issue #659）。段が渡されなければ今までどおり
@@ -111,7 +127,7 @@ export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): Ch
       };
     case "prWaiting":
       if (status.grace === "creatingPull") {
-        return { speaker: "パイプライン", text: "AIの作業完了・PRを作成中" };
+        return { speaker: "パイプライン", text: "AIの作業が終わり、PRを作っています。待つだけです" };
       }
       break;
   }

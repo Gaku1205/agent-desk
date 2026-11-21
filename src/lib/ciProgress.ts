@@ -46,7 +46,8 @@ export function countCiChecks(checkRuns: readonly Pick<CheckRunData, "status" | 
 const KIND_NAME: Record<CiKind, string> = {
   passed: "通過",
   running: "実行中",
-  queued: "枠待ち",
+  // Actions の席が空かず、まだ始まっていないチェック（以前の言い方は「枠待ち」。Issue #743）
+  queued: "開始待ち",
   failed: "失敗",
 };
 
@@ -69,7 +70,7 @@ export type CiProgress = {
   /** 線のまとまり（左から 通過・実行中・枠待ち・失敗。0件の種類は入れない） */
   segments: CiSegment[];
   /** いちばん右に添える言葉（失敗 → 枠待ち → 実行中 の順に、あれば先の物） */
-  word: "失敗" | "枠待ち" | "実行中";
+  word: "失敗" | "開始待ち" | "実行中";
   /** 記号つきの数の文（`✓4 ⧗6`。0件の種類は出さない。チェックが無ければ空） */
   marks: string;
   /** 読み上げ（`CI 10件のうち 通過4件・枠待ち6件`） */
@@ -103,12 +104,12 @@ export function ciProgress(input: CiCountsInput): CiProgress {
     count: counts[kind],
     ratio: counts.total === 0 ? 0 : counts[kind] / counts.total,
   }));
-  const word = counts.failed > 0 ? "失敗" : counts.queued > 0 ? "枠待ち" : "実行中";
+  const word = counts.failed > 0 ? "失敗" : counts.queued > 0 ? "開始待ち" : "実行中";
   const marks = present.map((kind) => `${KIND_MARK[kind]}${counts[kind]}`).join(" ");
   const label =
     counts.total === 0
-      ? "CI のチェックはまだありません"
-      : `CI ${counts.total}件のうち ${present.map((kind) => `${KIND_NAME[kind]}${counts[kind]}件`).join("・")}`;
+      ? "CI（自動のチェック）はまだ始まっていません"
+      : `CI（自動のチェック）${counts.total}件のうち ${present.map((kind) => `${KIND_NAME[kind]}${counts[kind]}件`).join("・")}`;
   return { counts, segments, word, marks, label };
 }
 

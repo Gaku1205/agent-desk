@@ -62,7 +62,7 @@ describe("chatLine（コンフリクト）", () => {
   it("コンフリクトでなければ今までどおり", () => {
     expect(
       chatLine(status({ stage: "mergeWaiting", mergeWait: "autoMerge", pull: { conflicting: false } as NonNullable<IssueStatus["pull"]> })).text,
-    ).toBe("CI・レビューOK・まもなく自動マージ");
+    ).toBe("CIとレビューが通りました。まもなく自動でマージします。待つだけです");
   });
 });
 
@@ -70,13 +70,13 @@ describe("chatCi（CI の線と数）", () => {
   it("通常の CI 中は、席の行と同じ文（枠待ちがあれば枠待ち）", () => {
     const ci = { passed: 4, total: 10, running: 0, queued: 6, failed: 0 };
     const line = chatLine(status({ stage: "ciRunning", ci }));
-    expect(line.text).toBe("4/7 CI ✓4 ⧗6 枠待ち");
+    expect(line.text).toBe("4/7 CI ✓4 ⧗6 開始待ち");
     expect(chatCi(status({ stage: "ciRunning", ci }))?.counts).toEqual({ passed: 4, running: 0, queued: 6, failed: 0, total: 10 });
   });
 
   it("未報告の必須チェックが枠待ちに入った数も、そのまま文に出る", () => {
     const ci = { passed: 4, total: 6, running: 0, queued: 2, failed: 0 };
-    expect(chatLine(status({ stage: "ciRunning", ci })).text).toBe("4/7 CI ✓4 ⧗2 枠待ち");
+    expect(chatLine(status({ stage: "ciRunning", ci })).text).toBe("4/7 CI ✓4 ⧗2 開始待ち");
   });
 
   it("直した結果の確認中・CI 以外は null", () => {
@@ -87,58 +87,60 @@ describe("chatCi（CI の線と数）", () => {
 
 describe("chatLine", () => {
   it("AIの番の段階は「〇〇が△△しています」の形（頭に「いま」を付けない）", () => {
-    expect(chatLine(status({ stage: "planning" }))).toEqual({ speaker: "企画AI", text: "企画AIが清書中" });
-    expect(chatLine(status({ stage: "implementing" }))).toEqual({ speaker: "AI", text: "AIが実装しています" });
-    expect(chatLine(status({ stage: "ciRunning" }))).toEqual({ speaker: "CI", text: "4/7 CI ✓3 ◌1 実行中" });
-    expect(chatLine(status({ stage: "reviewing" }))).toEqual({ speaker: "レビューAI", text: "レビューAIが確認中" });
-    expect(chatLine(status({ stage: "fixing", fixCount: 2 }))).toEqual({ speaker: "AI", text: "AIが直しています（2/3 回目）" });
-    expect(chatLine(status({ stage: "fixing", fixCount: 3 }))).toEqual({ speaker: "AI", text: "AIが直しています（3/3 回目）" });
-    expect(chatLine(status({ stage: "fixing", fixCount: 5 }))).toEqual({ speaker: "AI", text: "AIが直しています（3/3 回目）" });
-    expect(chatLine(status({ stage: "fixing", fixCount: 1, fixLimit: 4 }))).toEqual({ speaker: "AI", text: "AIが直しています（1/4 回目）" });
+    expect(chatLine(status({ stage: "planning" }))).toEqual({ speaker: "企画AI", text: "企画AIがIssueを清書しています。待つだけです" });
+    expect(chatLine(status({ stage: "implementing" }))).toEqual({ speaker: "AI", text: "AIが実装しています。待つだけです" });
+    expect(chatLine(status({ stage: "ciRunning" }))).toEqual({ speaker: "CI（自動のチェック）", text: "4/7 CI ✓3 ◌1 実行中" });
+    expect(chatLine(status({ stage: "reviewing" }))).toEqual({ speaker: "レビューAI", text: "レビューAIがPRを確かめています。待つだけです" });
+    expect(chatLine(status({ stage: "fixing", fixCount: 2 }))).toEqual({ speaker: "AI", text: "AIが直しています（2/3 回目）。待つだけです" });
+    expect(chatLine(status({ stage: "fixing", fixCount: 3 }))).toEqual({ speaker: "AI", text: "AIが直しています（3/3 回目）。待つだけです" });
+    expect(chatLine(status({ stage: "fixing", fixCount: 5 }))).toEqual({ speaker: "AI", text: "AIが直しています（3/3 回目）。待つだけです" });
+    expect(chatLine(status({ stage: "fixing", fixCount: 1, fixLimit: 4 }))).toEqual({ speaker: "AI", text: "AIが直しています（1/4 回目）。待つだけです" });
     expect(chatLine(status({ stage: "ciFailed", fixCount: 1 }))).toEqual({ speaker: "AI", text: "AIが直しています（2/3 回目）" });
     expect(chatLine(status({ stage: "ciFailed", fixCount: 3 }))).toEqual({
-      speaker: "CI",
-      text: "CI失敗・修正の上限",
+      speaker: "CI（自動のチェック）",
+      text: "CIが失敗し、AIが直せる回数の上限に達しました。止まった作業として Your turn に出たら、確認してください",
     });
-    expect(chatLine(status({ stage: "deploying", turn: "none" }))).toEqual({ speaker: "本番", text: "本番に公開中" });
+    expect(chatLine(status({ stage: "deploying", turn: "none" }))).toEqual({ speaker: "本番", text: "本番に公開しています。待つだけです" });
   });
 
   it("修正の確認中は、CIとレビューで確かめている文", () => {
-    const text = "修正をCIとレビューで確認中（CI 3/4）";
+    const text = "直した結果を、CIとレビューで確かめています（CI 3/4）。待つだけです";
     expect(chatLine(status({ stage: "ciRunning", verifyingFix: true })).text).toBe(text);
     expect(chatLine(status({ stage: "reviewing", verifyingFix: true })).text).toBe(text);
   });
 
   it("マージ待ち（AI）は、自動マージかレビューに回すか", () => {
     expect(chatLine(status({ stage: "mergeWaiting", mergeWait: "autoMerge", ci: { passed: 4, total: 4 } })).text).toBe(
-      "CI・レビューOK・まもなく自動マージ",
+      "CIとレビューが通りました。まもなく自動でマージします。待つだけです",
     );
     expect(chatLine(status({ stage: "mergeWaiting", mergeWait: "needsReview", ci: { passed: 4, total: 4 } })).text).toBe(
-      "CI通過（4/4）・レビューへ",
+      "CIが通りました（4/4）。次はレビューに進みます。待つだけです",
     );
   });
 
   it("順番待ちは、理由に番号があれば「#17 の後」を添える", () => {
     expect(chatLine(status({ stage: "queued", turn: "none" }), { queueAfter: 17 }).text).toBe(
-      "順番待ち（#17 の後）",
+      "順番待ちです（#17 の後）。前の作業が終わると自動で始まります。待つだけです",
     );
-    expect(chatLine(status({ stage: "queued", turn: "none" })).text).toBe("順番待ち");
+    expect(chatLine(status({ stage: "queued", turn: "none" })).text).toBe(
+      "順番待ちです。前の作業が終わると自動で始まります。待つだけです",
+    );
   });
 
   it("公開済みは、不明なら分からないと言う", () => {
     expect(chatLine(status({ stage: "deployed", turn: "none" })).text).toBe("本番に公開しました");
     expect(chatLine(status({ stage: "deployed", turn: "none", deployUnknown: true })).text).toBe(
-      "マージ済み・公開状況は不明",
+      "マージしました。公開できたかは読み取れません。必要なら公開先を確認してください",
     );
   });
 
   it("猶予の間はパイプラインの番", () => {
     expect(chatLine(status({ stage: "notStarted", grace: "intake" }))).toEqual({
       speaker: "パイプライン",
-      text: "受付が企画に回すか判断中",
+      text: "受付が、企画に回すかを判断しています。待つだけです",
     });
     expect(chatLine(status({ stage: "prWaiting", grace: "creatingPull" })).text).toBe(
-      "AIの作業完了・PRを作成中",
+      "AIの作業が終わり、PRを作っています。待つだけです",
     );
   });
 
@@ -210,7 +212,7 @@ describe("buildConversation（デモのデータ）", () => {
 
   it("CI失敗・修正の上限で止まった行は、修正の実行が動いていても赤・失敗の色・回る印なし（Issue #693）", () => {
     const stopped = messages.find((m) => m.key === "demo/todo-app#18");
-    expect(stopped?.text).toBe("CI失敗・修正の上限");
+    expect(stopped?.text).toBe("CIが失敗し、AIが直せる回数の上限に達しました。止まった作業として Your turn に出たら、確認してください");
     expect(stopped?.lamp).toEqual({ kind: "needsHuman" });
     expect(stopped?.failed).toBe(true);
     expect(stopped?.activity).toBeNull();

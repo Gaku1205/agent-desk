@@ -105,6 +105,12 @@
   font-weight: 600;
 }
 
+/* 名前は縮めない（長い説明の側が折り返す） */
+.sectionName {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .sectionSub {
   color: var(--mute);
   font-size: 13px;

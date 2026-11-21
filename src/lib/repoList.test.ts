@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatLastActivity, sortRepoRows, type RepoListRow } from "./repoList";
+import { buildRepoRows, formatLastActivity, sortRepoRows, type RepoListRow } from "./repoList";
+
+describe("buildRepoRows", () => {
+  it("結果がまだ無いリポジトリの行は unreadable（数は – で出す）", () => {
+    const rows = buildRepoRows([{ owner: "o", repo: "r" }], [], [], new Date("2026-11-21T00:00:00Z"));
+    expect(rows[0]?.unreadable).toBe(true);
+  });
+});
 
 function row(repo: string, turn: number, running: number, lastAt: string | null): RepoListRow {
   return { owner: "o", repo, turn, running, lastAt, githubUrl: "", links: [] };

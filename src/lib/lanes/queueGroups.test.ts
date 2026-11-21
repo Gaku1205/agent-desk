@@ -180,6 +180,6 @@ describe("子の行の文", () => {
       ...work(2, 3),
       ci: ciProgress({ passed: 4, total: 10, running: 0, queued: 6, failed: 0 }),
     };
-    expect(workStepText(ci)).toBe("4/7 CI ✓4 ⧗6 枠待ち");
+    expect(workStepText(ci)).toBe("4/7 CI ✓4 ⧗6 開始待ち");
   });
 });
