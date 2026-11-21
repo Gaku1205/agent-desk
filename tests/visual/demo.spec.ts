@@ -13,10 +13,19 @@ async function settle(page: Page) {
   // ホバーの色になったりならなかったりして、画像が揺れる。何も無い左上の隅へ外してから撮る
   await page.mouse.move(0, 0);
   await page.evaluate(() => {
-    const style = document.createElement("style");
-    style.textContent = `main > section[data-skip-target]:not([data-empty]) { min-height: ${window.innerHeight - 52}px !important; }
-      [data-panes] > :first-child { min-height: ${window.innerHeight - 52}px !important; }`;
-    document.head.appendChild(style);
+    const fixed = `${window.innerHeight - 52}px`;
+    // 真ん中の列も最初の1画面の高さなので止める。ただし高さが付いていないとき（スマホのホームで右の列があるときは 0）は、
+    // 本当の画面と同じになるよう、真ん中の列も、その中の「あなたの番」の場所も、そのままにする
+    const unpinned: HTMLElement[] = [];
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>("[data-panes] > :first-child"))) {
+      if (getComputedStyle(el).minHeight === "0px") unpinned.push(el);
+      else el.style.setProperty("min-height", fixed, "important");
+    }
+    for (const el of Array.from(
+      document.querySelectorAll<HTMLElement>("main > section[data-skip-target]:not([data-empty])"),
+    )) {
+      if (!unpinned.some((pane) => pane.contains(el))) el.style.setProperty("min-height", fixed, "important");
+    }
     // 上や左右に貼り付く部品（`position: sticky`）は、ページの下端までスクロールしたあとだと、
     // 上へ戻しても中の文字が1画素未満ずれて描かれる（ボタンを押すとその場所までスクロールするので、押すまでの速さで画像が変わる）。
     // 画面をページ全体に広げると貼り付く意味は無いので、撮るときは普通の位置に置き、スクロールの跡が残らないようにする
