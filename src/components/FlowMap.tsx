@@ -8,6 +8,7 @@ import {
 } from "@/lib/factoryProgress";
 import {
   FLOW_STATE_LABEL,
+  FLOW_STEP_NOTE,
   flowStepLabel,
   isNotStarted,
   isSolidLink,
@@ -182,7 +183,11 @@ function Step({
           <FlowStepIcon step={shown.key} />
         </span>
         <span className={styles.text} aria-hidden="true">
-          <span className={styles.name}>{shown.name}</span>
+          <span className={styles.name}>
+            {shown.name}
+            {/* 工程の名前は変えず、意味を添える（`CI（自動のチェック）`。Issue #743） */}
+            {FLOW_STEP_NOTE[shown.key] && <span className={styles.nameNote}>（{FLOW_STEP_NOTE[shown.key]}）</span>}
+          </span>
           <span className={`${styles.model} num`}>
             {loading ? <span className={styles.bone} /> : sub}
           </span>
@@ -295,11 +300,14 @@ export function FlowMap({
   target,
   inline = false,
   unreadable = false,
+  pending = false,
 }: {
   target: FlowTarget | null;
   inline?: boolean;
   /** 読めなかったリポジトリがある（出す1件が無いとき、「無い」と言い切らない） */
   unreadable?: boolean;
+  /** まだ届いていないリポジトリがある（同じく「無い」と言い切らない） */
+  pending?: boolean;
 }) {
   if (inline && target) {
     // スマホ：「いまの様子」の行の下に開く。見出しは行にあるので付けない。図だけが横にスクロールする
@@ -326,7 +334,11 @@ export function FlowMap({
     return (
       <section className={styles.flow} aria-label="進捗図">
         <p className={styles.empty}>
-          {unreadable ? "読めなかったリポジトリの作業は、ここに出せません" : "いま動いている作業はありません"}
+          {pending
+            ? "まだ届いていないリポジトリの作業は、ここに出せません"
+            : unreadable
+              ? "読めなかったリポジトリの作業は、ここに出せません"
+              : "いま動いている作業はありません"}
         </p>
       </section>
     );

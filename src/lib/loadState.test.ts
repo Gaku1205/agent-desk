@@ -45,6 +45,23 @@ describe("読めなかったリポジトリがあるときに出す物", () => {
     expect(state.sync).toBe("ok");
   });
 
+  it("5つのうち2つだけ（覚えている結果で）届いた段：空と言ってはいけない", () => {
+    const loads = [
+      { fresh: null, stale: ok("a", OLD) },
+      { fresh: null, stale: ok("b", OLD) },
+      { fresh: null, stale: null },
+      { fresh: null, stale: null },
+      { fresh: null, stale: null },
+    ];
+    const state = resolveLoadState(loads);
+    expect(state.pendingRepos).toBe(3);
+    expect(state.canSayEmpty).toBe(false);
+    // 全部そろったら言ってよい
+    const done = resolveLoadState(loads.map((load, index) => ({ ...load, fresh: ok(`r${index}`, NEW) })));
+    expect(done.pendingRepos).toBe(0);
+    expect(done.canSayEmpty).toBe(true);
+  });
+
   it("新しい結果が失敗・覚えている結果あり：覚えている結果を出し、読めなかった行も残す", () => {
     const stale = ok("a", OLD);
     const state = resolveLoadState([{ fresh: failed("a"), stale }]);
@@ -87,7 +104,9 @@ describe("読めなかったリポジトリがあるときに出す物", () => {
     expect(state.shown).toEqual([stale, null]);
     expect(state.from).toEqual(["stale", "none"]);
     expect(state.staleBecause).toBe("loading");
-    expect(state.canSayEmpty).toBe(true);
+    // まだ届いていない所があるので、空とは言わない（#754）
+    expect(state.pendingRepos).toBe(1);
+    expect(state.canSayEmpty).toBe(false);
     expect(state.sync).toBe("ok");
   });
 

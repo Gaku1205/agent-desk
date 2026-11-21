@@ -18,6 +18,7 @@ export default async function ReposPage() {
   const first = await loadTurnSteps(({ results, items, now, repos, complete, errors }) => ({
     complete,
     props: {
+      // まだ届いていないリポジトリの行は、数 `–`・時刻 `—`（読めなかったときと同じ。0 や時刻なしを言わない）
       rows: buildRepoRows(repos, results, items, now),
       now: now.toISOString(),
       // 読めなかったリポジトリ（覚えている結果を出していても入る）

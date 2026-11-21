@@ -68,7 +68,7 @@ describe("factoryProgress", () => {
     ]);
     // 作業 9分（Issue ができてからカードまで）、待ち 51分（カードから今まで）
     expect(p.steps[0]).toMatchObject({ started: "12:00", work: "9分", wait: "51分" });
-    expect(factoryStepLabel(p.steps[0])).toBe("案　Your turn　開始 12:00　待ち 51分　AI 9分");
+    expect(factoryStepLabel(p.steps[0])).toBe("案　Your turn（あなたの番）　開始 12:00　待ち 51分　AI 9分");
     expect(factoryStepSub(p.steps[0])).toBe("待ち 51分 · AI 9分");
   });
 

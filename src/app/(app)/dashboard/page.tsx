@@ -26,8 +26,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const login = (await getSignedInLogin()) ?? undefined;
   const userToken = (await getGitHubToken()) ?? "";
   // 全部がそろうのを待たず、覚えている最後の結果と読めた分を先に出す（`loadTurnSteps`）
-  const first = await loadTurnSteps(async ({ results, items, now, repos, complete, errors }) => {
-    const bundles = buildLocalBundles(results, now);
+  const first = await loadTurnSteps(async ({ results, items, now, repos, complete, errors, pendingRepos }) => {
+    // まだ届いていないリポジトリがある間は、足し算が終わっていないので、数は全部 `—`（読めた結果が無いときと同じ）
+    const bundles = buildLocalBundles((pendingRepos ?? 0) > 0 ? [] : results, now);
     // GitHub を読むのは、パイプラインの App の鍵の `GET /rate_limit` だけ（5分に1回まで）
     // そろう前の段は、この読み取りを待たない（覚えている残りだけで出す）
     // Services の Supabase・Vercel の CPU（Dashboard を開いたときだけ。5分覚える）。そろう前の段は覚えている物だけ

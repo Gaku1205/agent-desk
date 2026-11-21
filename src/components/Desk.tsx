@@ -59,6 +59,8 @@ type Props = {
   hideUnknownModel?: boolean;
   /** 全部のリポジトリの新しい結果がそろった（無ければそろっている） */
   settled?: boolean;
+  /** まだ届いていないリポジトリの数（あれば「あなたが答えることはありません」と言わない・待ちが0件の画面を出さない。無ければ 0） */
+  pendingRepos?: number;
   /** ホームの上端の帯の右の1行：実装中（枠を使っている作業）と順番待ちの数（Slots & Queue と同じ数え方）。無ければ出さない */
   activity?: HomeActivity | null;
   /** ホームの「いない間のまとめ」を数える出来事（取得済みの直近3日の公開・止まり）。無ければ出さない */
@@ -123,6 +125,7 @@ export function Desk({
   activity = null,
   awayEvents = [],
   settled = true,
+  pendingRepos = 0,
 }: Props) {
   // リポジトリのページは中央の中身を先に出すので、件数など他のリポジトリを待つ物は layout が後から流す。
   // 件数は読み終えたリポジトリから順に入る（届くまでは「–」）
@@ -400,7 +403,7 @@ export function Desk({
     ...notices.map((notice) => ({
       key: `watchdog:${notice.owner}/${notice.repo}`,
       tone: "warn" as const,
-      text: `${scope.kind === "all" ? `${notice.repo}　` : ""}見張り役が ${notice.hours}h 止まっている`,
+      text: `${scope.kind === "all" ? `${notice.repo}　` : ""}見張り役（やり直しや見落としを拾う自動の仕組み）が ${notice.hours}h 動いていません。作業が先へ進まなくなることがあります。Actions を確認してください`,
       title: "Actions が止まっていないか確認してください",
     })),
     ...errors.map((error) => ({ key: `error:${error.repo}`, tone: "fail" as const, text: `${error.repo}：${error.message}` })),
@@ -408,6 +411,8 @@ export function Desk({
 
   // 読めなかったリポジトリがあるときは、「何も無い」と言い切らない（docs/spec.md の「読めなかったリポジトリは、空ではなく読めなかったと出す」）
   const unreadable = errors.length > 0;
+  // まだ届いていないリポジトリがある（Issue #754。「ありません」「待ちが0件」と言わない）
+  const pending = pendingRepos > 0;
   const showRepo = scope.kind === "all" && scope.repoCount > 1;
   // 「いまの様子」で選んだ行（`owner/repo#番号`）。同じ行をもう一度選ぶと外す。選んでいなければ今まで通りの1件を描く
   const [selected, setSelected] = useState<string | null>(null);
@@ -454,6 +459,7 @@ export function Desk({
       repo={scope.kind === "repo" ? { name: scope.repo, githubUrl: scope.githubUrl } : null}
       notices={conversationNotices}
       unreadable={unreadable}
+      pending={pending}
       added={addedNotices}
       selected={selectedKey}
       onSelect={select}
@@ -470,7 +476,7 @@ export function Desk({
     ) : null;
 
   // ホームで待ちが0件：緑のチェックと「いま動いている」の画面（docs/design.md の「ホーム：待ちが0件」）
-  const calm = home && !current;
+  const calm = home && !current && !pending;
   const turn = (
       <section
         className={styles.turn}
@@ -486,12 +492,16 @@ export function Desk({
           <>
             <div className={styles.head} data-hidden={current ? "" : undefined}>
               <h1 className={styles.h1} id="turn-title" tabIndex={-1}>
-                {current ? "Your turn" : unreadable ? "読めなかったリポジトリがあります" : "いまは AI が進めています"}
+                {current ? "Your turn" : pending ? "リポジトリを読んでいます" : unreadable ? "読めなかったリポジトリがあります" : "いまは AI が進めています"}
               </h1>
             </div>
             {!current && (
               <p className={styles.calm}>
-                {unreadable ? "読めなかったリポジトリの分は、ここに入っていません" : "あなたが答えることはありません"}
+                {pending
+                  ? "まだ届いていないリポジトリの分は、ここに入っていません"
+                  : unreadable
+                    ? "読めなかったリポジトリの分は、ここに入っていません"
+                    : "あなたが答えることはありません"}
               </p>
             )}
           </>
@@ -619,7 +629,7 @@ export function Desk({
         {composer}
       </div>
       <div className={styles.flow}>
-        <FlowMap target={flowTarget} unreadable={unreadable} />
+        <FlowMap target={flowTarget} unreadable={unreadable} pending={pending} />
       </div>
     </div>
   );

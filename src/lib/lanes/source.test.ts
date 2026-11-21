@@ -158,7 +158,7 @@ describe("buildLanesSource：枠を使う作業", () => {
       NOW,
     );
     expect(source.works[0].ci?.counts).toEqual({ passed: 1, running: 0, queued: 2, failed: 0, total: 3 });
-    expect(source.works[0].ci?.word).toBe("枠待ち");
+    expect(source.works[0].ci?.word).toBe("開始待ち");
   });
 
   it("取れなかったリポジトリは飛ばす", () => {

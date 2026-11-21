@@ -18,6 +18,11 @@ describe("lanesReadMode", () => {
     expect(lanesReadMode({ canSayEmpty: false, sync: "failed", results: [failure] })).toBe("failed");
   });
 
+  it("まだ届いていないリポジトリがあれば、中身があっても pending（ok にならない）", () => {
+    expect(lanesReadMode({ pendingRepos: 3, canSayEmpty: false, sync: "ok", results: [success] })).toBe("pending");
+    expect(lanesReadMode({ pendingRepos: 0, canSayEmpty: true, sync: "ok", results: [success] })).toBe("ok");
+  });
+
   it("全部読めなくても、覚えている結果を出していれば partial", () => {
     expect(lanesReadMode({ canSayEmpty: false, sync: "failed", results: [success] })).toBe("partial");
   });

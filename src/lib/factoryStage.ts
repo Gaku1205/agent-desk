@@ -117,17 +117,20 @@ export function factoryElapsed(startedAt: string | null, now: Date): string | nu
   return formatDuration(Math.floor(ms / 60_000) * 60_000);
 }
 
+/** 工場が相談の答えを待っているときの「いまの様子」の文 */
+export const FACTORY_WAITING_TEXT = "工場が相談の答えを待っています。Your turn で選んでください";
+
 /** 「いまの様子」の工場の文 */
 export function factoryChatText(phase: FactoryPhase, now: Date): string {
   switch (phase.kind) {
     case "waiting":
-      return "工場の担当・相談待ち";
+      return FACTORY_WAITING_TEXT;
     case "working":
     case "building": {
       const elapsed = factoryElapsed(phase.startedAt, now);
-      return `${phase.text ?? "作っています"}${elapsed ? `（${elapsed}）` : ""}`;
+      return `${phase.text ?? "作っています"}${elapsed ? `（${elapsed}）` : ""}。待つだけです`;
     }
     default:
-      return "工場が受け付けています";
+      return "工場が受け付けています。待つだけです";
   }
 }
