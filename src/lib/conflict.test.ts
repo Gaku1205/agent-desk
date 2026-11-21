@@ -29,7 +29,7 @@ describe("conflictKind", () => {
 
 describe("conflictText", () => {
   it("文言", () => {
-    expect(conflictText("waiting")).toBe("main とぶつかっています");
-    expect(conflictText("fixing")).toBe("main とぶつかり・AIが解消中");
+    expect(conflictText("waiting")).toBe("main とぶつかっています。AIが解消します。待つだけです");
+    expect(conflictText("fixing")).toBe("main とぶつかっています。AIが解消中です。待つだけです");
   });
 });

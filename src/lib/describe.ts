@@ -59,7 +59,7 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
   switch (status.stage) {
     case "stuck":
       return {
-        long: `${trimTrailingPeriod(failureReasonText(parseFailureReason(status.stuckReason ?? "", options.repo ?? "")))}。確認して「再開」`,
+        long: `${trimTrailingPeriod(failureReasonText(parseFailureReason(status.stuckReason ?? "", options.repo ?? "")))}。AIは自動では進められず止まっています。原因を確認して「再開」を押してください`,
         short: "止まっています",
       };
     case "retrying": {
@@ -68,79 +68,101 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
         parseFailureReason(status.retry?.reason ?? "AIが止まりました", options.repo ?? ""),
       );
       return {
-        long: `${reason}${count ? `（${count}）` : ""}・自動でやり直し`,
+        long: `${reason}${count ? `（${count}）` : ""}。AIが自動でやり直します。待つだけです`,
         short: count ? `やり直し待ち ${count}` : "やり直し待ち",
       };
     }
     case "notStarted":
       if (status.grace === "intake") {
-        return { long: "受付が企画に回すか判断中", short: "受付中" };
+        return { long: "受付が企画に回すか判断中。待つだけです", short: "受付中" };
       }
-      return { long: "まだ誰にも頼んでいません", short: "まだ頼んでいません" };
+      return {
+        long: "まだ誰にも頼んでいません。「おまかせ」か「実装を依頼」を押してください",
+        short: "まだ頼んでいません",
+      };
     case "queued":
-      return { long: "順番待ち（前の作業の後）", short: "順番待ち" };
+      return { long: "順番待ち（前の作業の後）。待つだけです", short: "順番待ち" };
     case "skipped":
-      if (status.paused) return { long: `止めてある：${status.paused.reason}`, short: "止めてある" };
-      return { long: "保留中。準備ができたら「始める」", short: "保留中" };
+      if (status.paused) {
+        return {
+          long: `止めてあります：${status.paused.reason}。解除されるまで進みません`,
+          short: "止めてある",
+        };
+      }
+      return { long: "保留中です。準備ができたら「始める」を押してください", short: "保留中" };
     case "notice":
-      return { long: "配り先で落ちた知らせ", short: "知らせ" };
+      return { long: "配り先で落ちた知らせです。内容を確認して閉じてください", short: "知らせ" };
     case "planning":
-      return { long: "企画AIが清書中", short: "清書中" };
+      return { long: "企画AIが清書中。待つだけです", short: "清書中" };
     case "question":
-      return { long: "企画AIの質問に回答待ち", short: "質問があります" };
+      return { long: "企画AIが質問しています。答えると、AIが続きを進めます", short: "質問があります" };
     case "factoryTalk":
-      return { long: "工場の相談に回答待ち", short: "工場の相談" };
+      return {
+        long: "工場（新しいサービスを作る仕組み）が相談しています。答えると、続きが進みます",
+        short: "工場の相談",
+      };
     case "implementing":
-      return { long: "AIが実装中", short: "AIが実装中" };
+      return { long: "AIが実装中。待つだけです", short: "AIが実装中" };
     case "prWaiting":
       if (status.grace === "creatingPull") {
-        return { long: "AIの作業完了・PRを作成中", short: "PRを作成中" };
+        return { long: "AIの作業が終わり、PR（変更のまとめ）を作成中。待つだけです", short: "PRを作成中" };
       }
       return status.implementError
         ? {
-            long: "AIがエラーで停止・結果を確認",
+            long: "AIがエラーで止まりました。結果を確認して、続けるか判断してください",
             short: "AIがエラーで停止",
           }
-        : { long: "AIの作業完了・PR待ち", short: "PRを作れます" };
+        : {
+            long: "AIの作業が終わりました。PR（変更のまとめ）を作ると、チェックとレビューに進みます",
+            short: "PRを作れます",
+          };
     case "ciRunning":
       if (status.verifyingFix) {
-        return { long: `直した結果を確認中（CI ${ci}・レビュー）`, short: "修正を確認中" };
+        return { long: `直した結果を確認中（CI ${ci}・レビュー）。待つだけです`, short: "修正を確認中" };
       }
-      return { long: `CI 実行中 ${ci}`, short: `CI 実行中 ${ci}` };
+      return { long: `CI（自動のチェック）を実行中 ${ci}。待つだけです`, short: `CI 実行中 ${ci}` };
     case "ciFailed":
-      return { long: "CI失敗・AIが修正します", short: "CIが失敗しました" };
+      return {
+        long: "CI（自動のチェック）が失敗しました。AIが自動で直します。待つだけです",
+        short: "CIが失敗しました",
+      };
     case "reviewing":
       if (status.verifyingFix) {
-        return { long: `直した結果を確認中（CI ${ci}・レビュー）`, short: "修正を確認中" };
+        return { long: `直した結果を確認中（CI ${ci}・レビュー）。待つだけです`, short: "修正を確認中" };
       }
-      return { long: "レビューAIが確認中", short: "レビューAIが確認中" };
+      return { long: "レビューAIが確認中。待つだけです", short: "レビューAIが確認中" };
     case "fixing": {
       const max = status.fixLimit ?? MAX_AUTO_FIX;
       const n = Math.min(Math.max(status.fixCount, 1), max);
       const head = `AIが直しています（${n}/${max} 回目）`;
       return {
-        long: options.fixReason ? `${head}：${options.fixReason}` : head,
+        long: `${options.fixReason ? `${head}：${options.fixReason}` : head}。待つだけです`,
         short: `AIが修正中 ${n}/${max}`,
       };
     }
     case "mergeWaiting":
       if (status.mergeWait === "hold") {
         return {
-          long: status.holdRequest ?? `CI ${ci} 通過・マージできます`,
+          long: status.holdRequest
+            ? `${status.holdRequest}。確認してから「マージ…」を押してください`
+            : `CI ${ci} 通過。内容を確認して、よければ「マージ…」を押してください`,
           short: "マージできます",
         };
       }
       if (status.mergeWait === "autoMerge") {
-        return { long: "CI・レビューOK・自動マージ", short: "自動でマージします" };
+        return { long: "CI・レビューOK。まもなく自動でマージします。待つだけです", short: "自動でマージします" };
       }
-      return { long: `CI ${ci} 通過・レビューへ`, short: "レビューに回します" };
+      return { long: `CI ${ci} 通過。レビューに回します。待つだけです`, short: "レビューに回します" };
     case "deploying":
-      return { long: "本番に公開中", short: "本番に公開中" };
+      return { long: "本番に公開中。待つだけです", short: "本番に公開中" };
     case "deployFailed":
-      return { long: "公開に失敗しました", short: "公開に失敗しました" };
+      return {
+        long: "公開に失敗しました。理由を確認して、直す依頼を出してください",
+        short: "公開に失敗しました",
+      };
     case "deployed":
       return status.deployUnknown
-        ? { long: "公開状況は不明", short: "公開状況は不明" }
+        ? { long: "公開されたか分かりません。公開先で確認してください", short: "公開状況は不明" }
         : { long: "本番に公開済み", short: "公開済み" };
   }
 }

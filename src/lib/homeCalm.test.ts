@@ -4,7 +4,7 @@ import { calmCopy } from "./homeCalm";
 describe("calmCopy", () => {
   it("全部読めたときは、決めることが無いと言い、緑のチェックを出す", () => {
     expect(calmCopy(false)).toEqual({
-      title: "君が決めることは、今はありません",
+      title: "決めることは、今はありません",
       description: "AIたちが進めています。決めることが出たら、ここに出ます。",
       check: true,
     });
