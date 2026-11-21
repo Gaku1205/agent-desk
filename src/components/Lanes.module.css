@@ -708,6 +708,27 @@
   }
 }
 
+/* 動きを減らす設定で題名が折り返している間は、行の固定の高さを最小の高さに切り替えて、行を伸ばす */
+.qRow:has([data-mode="wrap"]) {
+  height: auto;
+  min-height: 28px;
+}
+
+.groupHead:has([data-mode="wrap"]) {
+  height: auto;
+  min-height: 40px;
+}
+
+@media (max-width: 899px) {
+  .qRow:has([data-mode="wrap"]) {
+    min-height: 45px;
+  }
+
+  .groupHead:has([data-mode="wrap"]) {
+    min-height: 44px;
+  }
+}
+
 /* ───── Background の目盛りと Active・Sleeping（Issue #584） ───── */
 .bgHead {
   display: flex;
