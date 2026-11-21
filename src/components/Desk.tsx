@@ -454,6 +454,7 @@ export function Desk({
       <section
         className={styles.turn}
         data-empty={current ? undefined : ""}
+        data-after-away={away && awayResult ? "" : undefined}
         aria-labelledby="turn-title"
         data-skip-target=""
       >
