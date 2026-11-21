@@ -38,9 +38,9 @@ export const NOTIFY_EVENT_LABELS: Record<NotifyEvent, { name: string; descriptio
 };
 
 export const NOTIFY_MESSAGES = {
-  invalid: "通知の種類が正しくありません",
-  empty: "通知の種類を1つ以上選んでください",
-  noPipeline: "パイプラインが入っていないリポジトリは変えられません",
+  invalid: "通知の種類が正しくありません。画面を開き直して、もう一度選んでください",
+  empty: "通知の種類を1つ以上選んでください。すべてオフにはできません",
+  noPipeline: "パイプラインが入っていないリポジトリは変えられません。先にパイプラインを入れてください",
 } as const;
 
 function isNotifyEvent(value: unknown): value is NotifyEvent {

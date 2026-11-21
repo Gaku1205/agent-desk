@@ -66,7 +66,7 @@ describe("どの値をどこに書くか", () => {
   it("並列の夜の時間帯が同じ時刻なら書かない", () => {
     expect(planParallelWrite({ day: 3, night: 1, nightHours: { start: 4, end: 4 } })).toEqual({
       ok: false,
-      message: "夜の時間帯の開始と終了は、違う時刻にしてください",
+      message: "夜の時間帯の開始と終了が同じです。違う時刻を選んでください",
     });
   });
 });
@@ -144,7 +144,7 @@ describe("通知（1行1種類）", () => {
     const after = setNotifyRow([repo("o/a", ["stuck"])], "stuck", false);
     expect(planNotifyWrites([repo("o/a", ["stuck"])], after)).toEqual({
       ok: false,
-      message: "通知の種類を1つ以上選んでください",
+      message: "通知の種類を1つ以上選んでください。すべてオフにはできません",
     });
   });
 
@@ -194,7 +194,7 @@ describe("段階ボタンと帯", () => {
   it("1回目は始まり、2回目で終わり。同じますは受け付けない", () => {
     expect(pickNightHour(null, 23)).toEqual({ kind: "anchor", anchor: 23 });
     expect(pickNightHour(23, 7)).toEqual({ kind: "picked", hours: { start: 23, end: 7 } });
-    expect(pickNightHour(5, 5)).toEqual({ kind: "error", message: "夜の時間帯の開始と終了は、違う時刻にしてください" });
+    expect(pickNightHour(5, 5)).toEqual({ kind: "error", message: "夜の時間帯の開始と終了が同じです。違う時刻を選んでください" });
   });
 });
 
