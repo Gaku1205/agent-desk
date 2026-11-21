@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { startTransition, useEffect, useLayoutEffect, useRef, useState, useTransition, type KeyboardEvent } from "react";
+import { Fragment, startTransition, useEffect, useLayoutEffect, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { runOperation } from "@/app/actions";
 import { ACTION_UNREACHABLE_MESSAGE, callAction } from "@/lib/actionCall";
 import type { OperationResult } from "@/lib/operations";
@@ -10,6 +10,7 @@ import { isMergeWeak, mergeResultLines } from "@/lib/mergeLines";
 import { DEMO_OP_DELAY_MS } from "@/lib/demo/ops";
 import { doneSummary, OPERATION_COPY, RESULT_FADE_MS, RESULT_SHOW_MS } from "@/lib/operationResult";
 import { getProgress } from "@/lib/progress";
+import { turnHeadCells, turnHeadId } from "@/lib/turnHead";
 import { composeAnswer, type AnswerInput } from "@/lib/question";
 import { groupLabel, splitPhrases, titlesWhatHappened, turnKind, turnSource } from "@/lib/turnKind";
 import { presetAnswer } from "@/lib/choiceText";
@@ -463,17 +464,35 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue, home = fals
           <TurnKindIcon icon={kind.icon} />
           {groupLabel(kind.group)}
         </span>
-        <span className={`${styles.id} num`}>
-          {item.pullOnly ? `${repo}　PR #${issue.number}` : `${repo}#${issue.number}`}
-          {!item.pullOnly && status.pull ? `　PR #${status.pull.number}` : ""}
-        </span>
-        {whatHappened && (
-          <span className={styles.issueName}>
-            <SmartLink href={issue.url}>{issue.title}</SmartLink>
-          </span>
-        )}
-        {source && <span className={styles.source}>{source}</span>}
-        <span className={`${styles.wait} num`}>{wait}</span>
+        {turnHeadCells({ hasName: Boolean(whatHappened), source }).map((cell) => {
+          const content =
+            cell === "id" ? (
+              <span className={`${styles.id} num`}>
+                {turnHeadId({
+                  repo,
+                  number: issue.number,
+                  pullOnly: Boolean(item.pullOnly),
+                  pullNumber: status.pull ? status.pull.number : null,
+                })}
+              </span>
+            ) : cell === "name" ? (
+              <span className={styles.issueName}>
+                <SmartLink href={issue.url}>{issue.title}</SmartLink>
+              </span>
+            ) : cell === "source" ? (
+              <span className={styles.source}>{source}</span>
+            ) : (
+              <span className={`${styles.wait} num`}>{wait}</span>
+            );
+          return (
+            <Fragment key={cell}>
+              <span className={styles.dot} aria-hidden="true">
+                ·
+              </span>
+              {content}
+            </Fragment>
+          );
+        })}
         <span className={styles.stage}>{stageName}</span>
       </div>
       <h2 className={styles.title}>
