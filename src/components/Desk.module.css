@@ -295,3 +295,8 @@
   }
 }
 
+/* 「いない間のまとめ」の面のすぐ下では、面との間を 16px にする（docs/design.md） */
+.turn[data-after-away] {
+  padding-top: 16px;
+}
+

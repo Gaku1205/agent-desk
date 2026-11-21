@@ -27,6 +27,9 @@ import type { HomeActivity } from "@/lib/lanes/source";
 import { pickTurn } from "@/lib/turnList";
 import { isMergeQueueItem, MERGE_QUEUE_FROM, orderMergeQueue } from "@/lib/mergeOrder";
 import { withHeldRows, type HeldRow } from "@/lib/operationResult";
+import { awaySummary, parseLastSeen, AWAY_MIN_MS, type AwayEvent } from "@/lib/awaySummary";
+import { readLastSeen, writeLastSeen } from "@/lib/lastSeen";
+import { AwaySummary } from "./AwaySummary";
 
 export type DeskScope =
   | { kind: "all"; repoCount: number }
@@ -58,6 +61,8 @@ type Props = {
   settled?: boolean;
   /** ホームの上端の帯の右の1行：実装中（枠を使っている作業）と順番待ちの数（Slots & Queue と同じ数え方）。無ければ出さない */
   activity?: HomeActivity | null;
+  /** ホームの「いない間のまとめ」を数える出来事（取得済みの直近3日の公開・止まり）。無ければ出さない */
+  awayEvents?: AwayEvent[];
 };
 
 export type DeskNav = {
@@ -116,6 +121,8 @@ export function Desk({
   loadStepLog,
   hideUnknownModel = false,
   activity = null,
+  awayEvents = [],
+  settled = true,
 }: Props) {
   // リポジトリのページは中央の中身を先に出すので、件数など他のリポジトリを待つ物は layout が後から流す。
   // 件数は読み終えたリポジトリから順に入る（届くまでは「–」）
@@ -191,7 +198,38 @@ export function Desk({
   // 開いたときの1件はフェードしない。替わった1件だけ短くフェードする
   const [firstKey] = useState(currentKey);
 
+  // いない間のまとめ：開いた最初の1回だけ判定する。前に見た時刻と開いた時刻は、そのとき値で固定する（その後は更新しない）
+  const [away, setAway] = useState<{ lastSeen: string; openedAt: number } | null>(null);
+  const judged = useRef(false);
+  const awayOpen = useRef(false);
+  const dismissAway = useCallback(() => {
+    if (!awayOpen.current) return;
+    awayOpen.current = false;
+    writeLastSeen(new Date());
+    setAway(null);
+  }, []);
+  useEffect(() => {
+    if (!home || judged.current) return;
+    judged.current = true;
+    const openedAt = Date.now();
+    const lastSeen = readLastSeen();
+    const since = parseLastSeen(lastSeen, new Date(openedAt));
+    if (lastSeen !== null && since !== null && openedAt - since >= AWAY_MIN_MS) {
+      awayOpen.current = true;
+      queueMicrotask(() => setAway({ lastSeen, openedAt }));
+    } else {
+      // 出さないときは、開いた時刻を「前に見た時刻」にする
+      writeLastSeen(new Date(openedAt));
+    }
+  }, [home]);
+  const awayResult = away ? awaySummary(away.lastSeen, new Date(away.openedAt), awayEvents, items) : null;
+  // 数がそろっても全部0件なら、出さずに今の時刻を覚える
+  useEffect(() => {
+    if (away && settled && awayResult === null) dismissAway();
+  }, [away, settled, awayResult, dismissAway]);
+
   const leave = useCallback((key: string, on: boolean) => {
+    if (on) dismissAway();
     if (on && document.activeElement?.id === "turn-title") focusNext.current = true;
     setLeaving((prev) => {
       if (prev.has(key) === on) return prev;
@@ -200,7 +238,7 @@ export function Desk({
       else next.delete(key);
       return next;
     });
-  }, []);
+  }, [dismissAway]);
 
   // 押してから片づけるまで、その1件の中身を預かる（位置は押した時点の並び）。done は件数から外す印
   const hold = useCallback((key: string, value: { item: TurnItem; done: boolean } | null) => {
@@ -439,6 +477,7 @@ export function Desk({
         className={styles.turn}
         data-empty={current || calm ? undefined : ""}
         data-calm={calm ? "" : undefined}
+        data-after-away={away && awayResult ? "" : undefined}
         aria-labelledby="turn-title"
         data-skip-target=""
       >
@@ -520,6 +559,15 @@ export function Desk({
                   </li>
                 ))}
               </ul>
+            )}
+            {away && awayResult && (
+              <AwaySummary
+                summary={awayResult}
+                lastSeen={away.lastSeen}
+                now={new Date(away.openedAt)}
+                dashboardHref={`${base}/dashboard`}
+                onDismiss={dismissAway}
+              />
             )}
             {turn}
             {current && (
