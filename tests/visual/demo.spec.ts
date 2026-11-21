@@ -14,7 +14,8 @@ async function settle(page: Page) {
   await page.mouse.move(0, 0);
   await page.evaluate(() => {
     const style = document.createElement("style");
-    style.textContent = `main > section[data-skip-target]:not([data-empty]) { min-height: ${window.innerHeight - 52}px !important; }`;
+    style.textContent = `main > section[data-skip-target]:not([data-empty]) { min-height: ${window.innerHeight - 52}px !important; }
+      [data-panes] > :first-child { min-height: ${window.innerHeight - 52}px !important; }`;
     document.head.appendChild(style);
     // 上や左右に貼り付く部品（`position: sticky`）は、ページの下端までスクロールしたあとだと、
     // 上へ戻しても中の文字が1画素未満ずれて描かれる（ボタンを押すとその場所までスクロールするので、押すまでの速さで画像が変わる）。
