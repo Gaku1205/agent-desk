@@ -181,12 +181,12 @@ describe("buildServiceRows", () => {
     expect(rows.map((r) => r.key)).toEqual(["supabase:o/loss-lab", "supabase:o/other", "supabase:o/tide-almanac", "vercel", "github"]);
     expect(rows[0]).toMatchObject({
       state: "bad",
-      main: "loss-lab が一時停止しています",
+      main: "loss-lab が一時停止しています。Supabase で再開してください",
       sub: "2日前から",
       right: { text: "Resume を開く →", href: "https://supabase.com/dashboard/project/xyz" },
     });
     expect(rows[1]).toMatchObject({
-      main: "Supabase に書き込めませんでした",
+      main: "Supabase に書き込めませんでした。実行のログを確かめてください",
       right: { text: "実行のログを開く →", href: "https://github.com/o/other/actions/runs/1" },
     });
     expect(rows[2].main).toBe("tide-almanac · 最後に起こした 04:43");

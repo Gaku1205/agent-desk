@@ -34,7 +34,7 @@ export const NOTIFY_EVENT_LABELS: Record<NotifyEvent, { name: string; descriptio
   deployed: { name: "公開された", description: "本番に公開されたとき" },
   deploy_failed: { name: "公開に失敗", description: "公開に失敗したとき" },
   merged: { name: "自動でマージした", description: "AIがPRをマージしたとき" },
-  ci_failed: { name: "CIが失敗した", description: "AIが直す前のCI失敗" },
+  ci_failed: { name: "CIが失敗した", description: "CI（自動のチェック）が失敗したとき（AIが直す前）" },
 };
 
 export const NOTIFY_MESSAGES = {

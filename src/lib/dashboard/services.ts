@@ -206,7 +206,9 @@ function supabaseRow(item: SupabaseKeepalive, nowMs: number): ServiceRow {
     kind: "supabase",
     state: "bad",
     name: "Supabase",
-    main: isPausedMessage(item.message) ? `${item.repo} が一時停止しています` : "Supabase に書き込めませんでした",
+    main: isPausedMessage(item.message)
+      ? `${item.repo} が一時停止しています。Supabase で再開してください`
+      : "Supabase に書き込めませんでした。実行のログを確かめてください",
     sub: sinceWords(item.failingSince ?? item.at, nowMs),
     bar: null,
     right: dashboard
@@ -224,7 +226,7 @@ function vercelRow(totals: ReadonlyMap<string, number> | null, now: Date): Servi
       kind: "vercel",
       state: "unknown",
       name: "Vercel の CPU",
-      main: "使用量を読めませんでした",
+      main: "使用量を読めませんでした。設定の保存先（SETTINGS_REPO）を確かめてください",
       sub: null,
       bar: null,
       right: null,

@@ -89,7 +89,7 @@ export const NOTIFY_ROWS: readonly NotifyRowDef[] = [
   { key: "deploy_failed", name: "Deploy failed", description: "公開に失敗したとき", events: ["deploy_failed"] },
   { key: "deployed", name: "Deployed", description: "本番に公開されたとき", events: ["deployed"] },
   { key: "merged", name: "Auto-merged", description: "AIがPRをマージしたとき", events: ["merged"] },
-  { key: "ci_failed", name: "CI failed", description: "AIが直す前のCI失敗", events: ["ci_failed"] },
+  { key: "ci_failed", name: "CI failed", description: "CI（自動のチェック）が失敗したとき（AIが直す前）", events: ["ci_failed"] },
 ];
 
 /** 1つのリポジトリの通知の状態 */
