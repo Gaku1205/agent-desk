@@ -400,7 +400,7 @@ export function Desk({
     ...notices.map((notice) => ({
       key: `watchdog:${notice.owner}/${notice.repo}`,
       tone: "warn" as const,
-      text: `${scope.kind === "all" ? `${notice.repo}　` : ""}見張り役が ${notice.hours}h 止まっている`,
+      text: `${scope.kind === "all" ? `${notice.repo}　` : ""}見張り役（やり直しや見落としを拾う自動の仕組み）が ${notice.hours}h 動いていません。作業が先へ進まなくなることがあります。Actions を確認してください`,
       title: "Actions が止まっていないか確認してください",
     })),
     ...errors.map((error) => ({ key: `error:${error.repo}`, tone: "fail" as const, text: `${error.repo}：${error.message}` })),

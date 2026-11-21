@@ -225,7 +225,13 @@ export function stepDetail(
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-/** 工程の読み上げの文（`企画　成功　モデル opus`。開始時刻・所要時間があれば続ける。読み込み中・記録が無いモデルは言わない） */
+/**
+ * 工程の名前の後ろに添える説明（工程の名前は変えない。知らない人に意味が分かるように。Issue #743）。
+ * 進捗図の工程の行で、名前の右に `（自動のチェック）` のように出す
+ */
+export const FLOW_STEP_NOTE: Partial<Record<FlowStepKey, string>> = { ci: "自動のチェック" };
+
+/** 工程の読み上げの文（`企画　成功　モデル opus`。CI は `CI（自動のチェック）　成功`。開始時刻・所要時間があれば続ける。読み込み中・記録が無いモデルは言わない） */
 export function flowStepLabel(
   step: Pick<FlowStep, "name" | "state"> & {
     key?: FlowStepKey;
@@ -239,5 +245,6 @@ export function flowStepLabel(
   const start = step.started ? `　開始 ${step.started}` : "";
   const time = duration ? `　所要時間 ${duration}` : "";
   const modelText = model ? `　モデル ${model}` : "";
-  return `${step.name}　${FLOW_STATE_LABEL[step.state]}${modelText}${start}${time}`;
+  const note = step.key && FLOW_STEP_NOTE[step.key] ? `（${FLOW_STEP_NOTE[step.key]}）` : "";
+  return `${step.name}${note}　${FLOW_STATE_LABEL[step.state]}${modelText}${start}${time}`;
 }

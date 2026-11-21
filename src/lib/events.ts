@@ -136,7 +136,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
           tone: "human",
           icon: "check",
           text: "AIが実装を終えました。PRを作れます",
-          short: "実装が終わった · PRを作れます",
+          short: "実装が完了 · PRを作れます",
           ref: issueRef,
         });
       } else if (isImplementErrorComment(comment)) {
@@ -173,7 +173,7 @@ function issueEvents(repo: string, issue: IssueData, data: RepoData): Draft[] {
     tone: "ai",
     icon: "pr",
     text: "PRができました",
-    short: "PRができた",
+    short: "PRを作成",
     ref: pullRef,
   });
 

@@ -16,6 +16,7 @@ import {
   type QueueGroupRow,
 } from "@/lib/lanes/queueGroups";
 import { isLongSleep, jobGauge, sleepingCountText, sortByWake, wakeTimeText, type JobGauge } from "@/lib/lanes/sleeping";
+import { RETRY_TIMER_NOTE, runKindNote } from "@/lib/lanes/kindNote";
 import type { LanesSource, RunEntry, WaitTarget } from "@/lib/lanes/source";
 import type { LanesReadMode } from "@/lib/lanes/readMode";
 import { lanesTurnRows, mergeOrdinals } from "@/lib/lanes/turnRows";
@@ -196,7 +197,7 @@ function SectionHead({
   return (
     <h2 className={styles.sectionHead} id={id}>
       {icon}
-      <span>
+      <span className={styles.sectionName}>
         {title}
         {count !== undefined && <span className="num"> {count}</span>}
       </span>
@@ -335,7 +336,10 @@ function RunRow({ run }: { run: RunEntry }) {
         <span className={styles.activity} title={run.activity ?? undefined}>
           <MarqueeText text={run.activity ?? "—"} />
         </span>
-        {run.detail && <span className={styles.detail}>{run.detail}</span>}
+        {/* 工程とモデルが無い行（Watchdog・CI など）は、種類の説明を添える（Issue #743） */}
+        {(run.detail ?? runKindNote(run.kind)) && (
+          <span className={styles.detail}>{run.detail ?? runKindNote(run.kind)}</span>
+        )}
       </div>
       <div className={`${styles.right} ${styles.runRight}`}>
         {run.elapsedMs !== null && <span className={`${styles.time} num`}>{formatSpan(run.elapsedMs)}</span>}
@@ -410,7 +414,7 @@ function SleepingRow({ runs, now }: { runs: RunEntry[]; now: Date }) {
               </span>
               Resume
             </span>
-            <span className={styles.ref}>Retry timer</span>
+            <span className={styles.ref}>Retry timer · {RETRY_TIMER_NOTE}</span>
           </span>
           <span className={styles.wakeList}>
             {peek.map((run) => (
@@ -430,7 +434,7 @@ function SleepingRow({ runs, now }: { runs: RunEntry[]; now: Date }) {
         </button>
       </li>
       <li className={styles.sleepOpen} hidden={!open}>
-        <ul id={listId} className={styles.sleepList} aria-label="Retry timer">
+        <ul id={listId} className={styles.sleepList} aria-label={`Retry timer（${RETRY_TIMER_NOTE}）`}>
           {runs.map((run) => (
             <li key={run.key} className={styles.sleepSub}>
               <span className={`${styles.wakeTime} num`}>
@@ -478,7 +482,7 @@ function BackgroundSection({
   return (
     <section className={styles.section} aria-labelledby={id}>
       <div className={styles.bgHead}>
-        <SectionHead id={id} icon={<PlayIcon size={16} />} title="Background" sub="CI・公開など、席を使わない作業" />
+        <SectionHead id={id} icon={<PlayIcon size={16} />} title="Background" sub="CI（自動のチェック）・公開など、席を使わない作業" />
         <JobGaugeView gauge={gauge} />
       </div>
       {active.length === 0 && sleeping.length === 0 ? (

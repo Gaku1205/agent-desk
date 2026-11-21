@@ -61,7 +61,7 @@ export type LampInput = {
 /** ランプの種類を決める（待ち順は `assignLamps` で付ける） */
 export function judgeLamp(input: LampInput): LampKind {
   const labels = new Set(input.labels);
-  // CI失敗で止まった物は、関わる実行が動いていても赤（文「CI失敗・修正の上限」と印を合わせる。終わった物は除く）
+  // CI失敗で止まった物は、関わる実行が動いていても赤（会話の文「CIが失敗し、AIが直せる回数の上限に…」と印を合わせる。終わった物は除く）
   if (input.ciStopped && !input.done) return "needsHuman";
   // いま動いているなら、過去にエラーで止まっていても緑（最新の状態を優先）
   if (input.runs?.active) return "running";
@@ -120,13 +120,13 @@ export function assignLamps(targets: LampTarget[]): Map<number, Lamp> {
   );
 }
 
-/** 読み上げとホバーの文言（「動作中」「人間の手が必要」「順番待ち 2番目」）。何も出さないときは null */
+/** 読み上げとホバーの文言（「AIが動いています」「止まっているか、あなたの確認が必要です」「順番待ち 2番目」）。何も出さないときは null */
 export function lampLabel(lamp: Lamp): string | null {
   switch (lamp.kind) {
     case "running":
-      return "動作中";
+      return "AIが動いています";
     case "needsHuman":
-      return "人間の手が必要";
+      return "止まっているか、あなたの確認が必要です";
     case "waiting":
       return `順番待ち ${lamp.position}番目`;
     case "none":
