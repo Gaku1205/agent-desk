@@ -8,6 +8,7 @@ import {
 } from "@/lib/factoryProgress";
 import {
   FLOW_STATE_LABEL,
+  FLOW_STEP_NOTE,
   flowStepLabel,
   isNotStarted,
   isSolidLink,
@@ -182,7 +183,11 @@ function Step({
           <FlowStepIcon step={shown.key} />
         </span>
         <span className={styles.text} aria-hidden="true">
-          <span className={styles.name}>{shown.name}</span>
+          <span className={styles.name}>
+            {shown.name}
+            {/* 工程の名前は変えず、意味を添える（`CI（自動のチェック）`。Issue #743） */}
+            {FLOW_STEP_NOTE[shown.key] && <span className={styles.nameNote}>（{FLOW_STEP_NOTE[shown.key]}）</span>}
+          </span>
           <span className={`${styles.model} num`}>
             {loading ? <span className={styles.bone} /> : sub}
           </span>

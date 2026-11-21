@@ -124,7 +124,7 @@ describe("buildTrailEvents", () => {
 
   it("短い文言：PRができた・CI 4/4・レビュー済・マージ・本番に公開", () => {
     const shorts = new Set(buildTrailEvents(results, NOW).map((e) => e.short));
-    for (const s of ["PRができた", "CI 4/4", "レビュー済", "自動でマージ", "本番に公開", "実装を依頼"]) {
+    for (const s of ["PRを作成", "CI 4/4", "レビュー済", "自動でマージ", "本番に公開", "実装を依頼"]) {
       expect(shorts.has(s), s).toBe(true);
     }
   });
