@@ -157,9 +157,125 @@
   }
 }
 
+/* ───── ホーム（決める画面。docs/design.md の「ホーム（決める画面）」） ───── */
+
+/* 今の1件があるときは、見出しの行（`Your turn`）は読み上げとフォーカスの行き先だけに残す（右の列に見出しがある） */
+.head[data-hidden] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.notices {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 24px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  list-style: none;
+}
+
+.notices li[data-tone="fail"] {
+  color: var(--fail-soft);
+}
+
+.notices li[data-tone="warn"] {
+  color: var(--accent-soft);
+}
+
+/* 上端の帯の右の1行：● 実装中 N · 順番待ち N · Slots & Queue → */
+.activity {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--bone-2);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.activity:hover {
+  color: var(--bone);
+  text-decoration: underline;
+}
+
+.activityDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+@media (max-width: 1279px) {
+  .activityLanes,
+  .activityLabel {
+    display: none;
+  }
+}
+
+/* リポジトリのページ：真ん中の1件と、その右にそのリポジトリの Your turn の列 */
+@media (min-width: 900px) {
+  .side {
+    position: sticky;
+    top: var(--top-h);
+    height: calc(100svh - var(--top-h));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    box-shadow: inset 1px 0 0 var(--hair);
+  }
+
+  .panes[data-single] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .repoDecide {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .repoDecide[data-single] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .repoSide > aside {
+    padding: 40px 0 24px;
+  }
+}
+
+/* 中央が狭い幅（1180px未満）では、右の Your turn の列を下に回して1列にする（マージ待ちの一覧が窮屈になるため） */
+@media (min-width: 900px) and (max-width: 1179px) {
+  .repoDecide {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .repoSide > aside {
+    padding: 0 0 24px;
+  }
+}
+
 @media (max-width: 899px) {
   .flow {
     display: none;
+  }
+
+  /* ホームの右の列（Your turn）：スマホは真ん中の1件の下に、同じ幅と余白で続ける */
+  .side {
+    width: min(var(--col), calc(100% - 2 * var(--gutter)));
+    margin: 0 auto;
+  }
+
+  /* 右の列があるときは、真ん中を画面の高さにしない（下に空白ができ、列が最初の1画面に入らない） */
+  .panes:has(> .side) > .center {
+    min-height: 0;
   }
 
   .turn {

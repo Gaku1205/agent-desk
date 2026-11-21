@@ -1,5 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { splitPhrases, TURN_GROUPS, turnKind } from "./turnKind";
+import { groupLabel, splitPhrases, titlesWhatHappened, TURN_GROUPS, turnHint, turnKind, turnSource } from "./turnKind";
+
+describe("決める画面の札と手がかり", () => {
+  it("まとまりの名前・誰から・手がかり", () => {
+    expect(groupLabel("answer")).toBe("Answer");
+    expect(turnSource("question")).toBe("企画AIから");
+    expect(turnSource("factoryTalk")).toBe("工場から");
+    expect(turnSource("stuck")).toBeNull();
+    expect(turnHint("deployFailed", 0)).toBe("公開の失敗");
+    expect(turnHint("stuck", 0)).toBe("止まった");
+    expect(turnHint("question", 3)).toBe("3問");
+    expect(turnHint("question", 0)).toBeNull();
+    expect(turnHint("mergeWaiting", 0)).toBeNull();
+    expect(titlesWhatHappened("deployFailed")).toBe(true);
+    expect(titlesWhatHappened("question")).toBe(false);
+  });
+});
 
 describe("turnKind", () => {
   it("8つの種類は、英語の名前・まとまり・記号が決まっている", () => {

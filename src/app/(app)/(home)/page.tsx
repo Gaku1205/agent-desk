@@ -7,6 +7,7 @@ import { loadTurnSteps } from "@/lib/loadTurnSteps";
 import { unreadableMapOf } from "@/lib/navCounts";
 import { newIssueRepos } from "@/lib/newIssue";
 import { getBuildMemo } from "@/lib/buildMemo";
+import { activityOf } from "@/lib/lanes/source";
 import { countTurnItems } from "@/lib/turn";
 import { buildWatchdogNotices } from "@/lib/watchdogState";
 import { logout } from "../logout";
@@ -47,6 +48,8 @@ export default async function Home() {
           }
         : { repos, counts: NO_COUNTS, runningCounts: NO_COUNTS, countsPending: true, login, logout },
       newIssueRepos: newIssueRepos(repos, results),
+      // 上端の帯の右の1行（実装中・順番待ち。Slots & Queue と同じ数え方）
+      activity: activityOf(results, now),
       loadStepLog,
     },
   }));

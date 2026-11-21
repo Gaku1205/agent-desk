@@ -3,33 +3,33 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { rovingNext } from "@/lib/roving";
 import { formatWait, turnItemKey, type TurnItem } from "@/lib/turn";
-import { isTurnListFoldable } from "@/lib/turnList";
-import { turnKind } from "@/lib/turnKind";
-import { TurnKindIcon } from "./TurnKindIcon";
+import { groupLabel, turnHint, turnKind } from "@/lib/turnKind";
 import styles from "./TurnList.module.css";
 
 type Props = {
-  /** 大きい1件を除いた残り（並び順のまま） */
+  /** 待っている物の全部（真ん中の1件も含む。並び順のまま） */
   items: TurnItem[];
+  /** 今真ん中に出している物のキー */
+  currentKey: string | null;
   now: Date;
-  /** 複数のリポジトリを出しているとき、番号の前にリポジトリ名を付ける */
-  showRepo: boolean;
+  /** 件数（結果を出し始めた1件は数えない） */
+  count: number;
   onPick: (key: string) => void;
 };
 
 /**
- * 「あなたの番」の残りの一覧（docs/design.md の「あなたの番」、docs/spec.md の「残りの一覧」）。
- * 1行を選ぶと、その1件が大きい方に替わる。6件以上は畳める
+ * 右の Your turn の列（docs/design.md の「ホーム（決める画面）」）。待っている物を全部、並び順のまま縦に並べる。
+ * 今真ん中に出している物は `いま`。行を選ぶと、その1件を真ん中に出す
  */
-export function TurnList({ items, now, showRepo, onPick }: Props) {
-  const foldable = isTurnListFoldable(items.length);
-  const [open, setOpen] = useState(false);
-  // Tab で止まる行（初めは先頭）。矢印キーで動かす
-  const [active, setActive] = useState(0);
+export function TurnList({ items, currentKey, now, count, onPick }: Props) {
+  // Tab で止まる行（初めは今の1件）。矢印キーで動かす
+  const [active, setActive] = useState<number | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  if (items.length === 0) return null;
-  const shown = !foldable || open;
-  const activeIndex = Math.min(active, items.length - 1);
+  const currentIndex = Math.max(
+    items.findIndex((item) => turnItemKey(item) === currentKey),
+    0,
+  );
+  const activeIndex = Math.min(active ?? currentIndex, Math.max(items.length - 1, 0));
 
   function onKeyDown(event: KeyboardEvent<HTMLUListElement>) {
     const next = rovingNext(event.key, activeIndex, items.length);
@@ -40,36 +40,20 @@ export function TurnList({ items, now, showRepo, onPick }: Props) {
   }
 
   return (
-    <div className={styles.list} role="group" aria-label="Your turn の残り">
-      {foldable && (
-        <button
-          type="button"
-          className={styles.fold}
-          aria-expanded={open}
-          aria-controls={open ? "turn-list-rows" : undefined}
-          onClick={() => setOpen((prev) => !prev)}
-        >
-          <span>
-            {open ? (
-              "一覧を畳む"
-            ) : (
-              <>
-                ほかの <span className="num">{items.length}</span>件を開く
-              </>
-            )}
-          </span>
-          <span className={styles.chev} aria-hidden="true" data-open={open ? "" : undefined} />
-        </button>
-      )}
-      {shown && (
-        <ul id="turn-list-rows" className={styles.rows} ref={listRef} onKeyDown={onKeyDown}>
+    <aside className={styles.list} aria-label="Your turn の全部">
+      <h2 className={styles.head}>
+        <span>Your turn</span>
+        <span className={`${styles.count} num`}>{count}</span>
+      </h2>
+      {items.length > 0 && (
+        <ul className={styles.rows} ref={listRef} onKeyDown={onKeyDown}>
           {items.map((item, index) => {
             const key = turnItemKey(item);
             const kind = turnKind(item.status);
-            const ref = item.pullOnly
-              ? `${showRepo ? item.repo : ""} PR #${item.issue.number}`.trim()
-              : `${showRepo ? item.repo : ""}#${item.issue.number}`;
+            const hint = turnHint(item.status.stage, item.question?.questions.length ?? 0);
+            const here = key === currentKey;
             const wait = formatWait(item.waitingSince, now);
+            const ref = item.pullOnly ? `${item.repo} PR #${item.issue.number}` : item.repo;
             return (
               <li key={key}>
                 <button
@@ -77,23 +61,27 @@ export function TurnList({ items, now, showRepo, onPick }: Props) {
                   className={styles.row}
                   data-group={kind.group}
                   data-list-key={key}
+                  data-here={here ? "" : undefined}
+                  aria-current={here ? "true" : undefined}
                   tabIndex={index === activeIndex ? 0 : -1}
                   onFocus={() => setActive(index)}
                   onClick={() => onPick(key)}
                 >
                   <span className={styles.kind}>
-                    <TurnKindIcon icon={kind.icon} size={13} />
-                    {kind.label}
+                    {here && <span className={styles.here}>いま · </span>}
+                    <span className={styles.group}>{groupLabel(kind.group)}</span>
+                    {hint && <span className={styles.hint}> · {hint}</span>}
                   </span>
-                  <span className={`${styles.ref} num`}>{ref}</span>
                   <span className={styles.title}>{item.issue.title}</span>
-                  <span className={`${styles.wait} num`}>{wait}</span>
+                  <span className={`${styles.meta} num`}>
+                    {ref} · {wait}
+                  </span>
                 </button>
               </li>
             );
           })}
         </ul>
       )}
-    </div>
+    </aside>
   );
 }

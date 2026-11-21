@@ -15,7 +15,7 @@ import { hourStarts, type GithubLimits } from "@/lib/dashboard/githubLimits";
 import { PERIOD_KEYS, type PeriodKey } from "@/lib/dashboard/period";
 import { buildServiceRows, type ServicesView } from "@/lib/dashboard/services";
 import { recentDateKeys } from "@/lib/usage/cpuBudget";
-import { buildLanesSource } from "@/lib/lanes/source";
+import { activityOf, buildLanesSource } from "@/lib/lanes/source";
 import { buildUsageSource } from "@/lib/lanes/usage";
 import { Dashboard } from "./Dashboard";
 import { Lanes } from "./Lanes";
@@ -72,6 +72,7 @@ export function DemoHome() {
       newIssueRepos={newIssueRepos(repos)}
       loadStepLog={loadStepLog}
       hideUnknownModel
+      activity={activityOf(results, now)}
     />
   );
 }

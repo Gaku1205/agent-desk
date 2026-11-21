@@ -9,10 +9,23 @@ const REPO_PAGE = "/demo/repos/demo/todo-app";
  * （止めないと、画面を伸ばすたびにその場所も伸びて、高さが決まらない）
  */
 async function settle(page: Page) {
+  // 直前に押したボタンの所にマウスが残ると、画面を伸ばしたあとにその位置へ来た行（過去の欄など）が
+  // ホバーの色になったりならなかったりして、画像が揺れる。何も無い左上の隅へ外してから撮る
+  await page.mouse.move(0, 0);
   await page.evaluate(() => {
-    const style = document.createElement("style");
-    style.textContent = `main > section[data-skip-target]:not([data-empty]) { min-height: ${window.innerHeight - 52}px !important; }`;
-    document.head.appendChild(style);
+    const fixed = `${window.innerHeight - 52}px`;
+    // 真ん中の列も最初の1画面の高さなので止める。ただし高さが付いていないとき（スマホのホームで右の列があるときは 0）は、
+    // 本当の画面と同じになるよう、真ん中の列も、その中の「あなたの番」の場所も、そのままにする
+    const unpinned: HTMLElement[] = [];
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>("[data-panes] > :first-child"))) {
+      if (getComputedStyle(el).minHeight === "0px") unpinned.push(el);
+      else el.style.setProperty("min-height", fixed, "important");
+    }
+    for (const el of Array.from(
+      document.querySelectorAll<HTMLElement>("main > section[data-skip-target]:not([data-empty])"),
+    )) {
+      if (!unpinned.some((pane) => pane.contains(el))) el.style.setProperty("min-height", fixed, "important");
+    }
     // 上や左右に貼り付く部品（`position: sticky`）は、ページの下端までスクロールしたあとだと、
     // 上へ戻しても中の文字が1画素未満ずれて描かれる（ボタンを押すとその場所までスクロールするので、押すまでの速さで画像が変わる）。
     // 画面をページ全体に広げると貼り付く意味は無いので、撮るときは普通の位置に置き、スクロールの跡が残らないようにする
@@ -61,8 +74,9 @@ async function closeResult(page: Page, done: string) {
   await page.getByRole("button", { name: "閉じる" }).click();
   await expect(status).toHaveCount(0);
 }
-/** 「ほかに N件」の N */
-const restCount = async (page: Page) => Number((await page.getByText(/^ほかに/).textContent())?.match(/\d+/)?.[0] ?? "0");
+/** 右の Your turn の列の見出しにある件数（待っている物の全部。結果を出し始めた1件は数えない） */
+const restCount = async (page: Page) =>
+  Number((await page.locator('aside[aria-label="Your turn の全部"] h2').textContent())?.match(/\d+/)?.[0] ?? "0");
 
 test.describe("デモの画面", () => {
   test("ホーム", async ({ page }) => {
@@ -152,7 +166,7 @@ test.describe("デモの画面", () => {
     await expect(page).toHaveScreenshot("menu-open.png");
   });
 
-  test("あなたの番は常に1件だけ。最初の1画面に収まり、片づけると次の1件に替わって「ほかに N件」が減る", async ({ page }) => {
+  test("あなたの番は常に1件だけ。最初の1画面に収まり、片づけると次の1件に替わって右の列の件数が減る", async ({ page }) => {
     await page.goto("/demo");
     await page.evaluate(() => document.fonts.ready);
     const current = page.locator(CURRENT);
@@ -167,7 +181,7 @@ test.describe("デモの画面", () => {
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
 
-    const rest = async () => Number((await page.getByText(/^ほかに/).textContent())?.match(/\d+/)?.[0] ?? "0");
+    const rest = () => restCount(page);
     const before = await rest();
     const firstKey = await current.getAttribute("data-key");
     // キーボードだけで押す：フォーカスしてから Enter
@@ -207,8 +221,8 @@ test.describe("デモの画面", () => {
     const count = await queueCount(page);
     expect(count).toBeGreaterThanOrEqual(3);
     await expect(rows).toHaveCount(count);
-    // 「ほかに N件」は、マージ待ち以外の残りだけを数える（片づけた1件と、一覧に出たマージ待ちは数えない）
-    expect(await restCount(page)).toBe(before - count);
+    // 右の列の件数は、片づけた1件だけ減る（一覧に出たマージ待ちも、右の列には残る）
+    expect(await restCount(page)).toBe(before - 1);
     const numbers = () => rows.evaluateAll((els) => els.map((el) => el.firstElementChild?.textContent ?? ""));
     const keys = () => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-key") ?? ""));
     expect(await numbers()).toEqual(Array.from({ length: count }, (_, i) => String(i + 1)));

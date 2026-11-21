@@ -477,6 +477,8 @@ export function TopBar(props: Props) {
         <div className={styles.right}>
           <DemoControls />
           <FoldedSlot />
+          {/* ホームだけ：動いている作業の1行（Desk が中身を入れる。docs/design.md の「ホーム（決める画面）」） */}
+          <div id="top-activity" className={styles.activitySlot} />
           <DriftLink drift={props.drift} className={styles.driftBar} />
           <NewServiceLink basePath={props.basePath} />
           <SyncStatus />

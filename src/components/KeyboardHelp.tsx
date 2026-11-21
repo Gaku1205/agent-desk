@@ -9,7 +9,11 @@ import styles from "./KeyboardHelp.module.css";
 const ROWS: { keys: string[]; text: string }[] = [
   { keys: ["?"], text: "この一覧を開く・閉じる" },
   { keys: ["Tab"], text: "最初の Tab で「本文へ移る」。押すと、Your turn の最初のボタンへ移る" },
-  { keys: ["↑", "↓", "←", "→", "Home", "End"], text: "Your turn の残りの一覧で、行を移る" },
+  { keys: ["↑", "↓", "←", "→", "Home", "End"], text: "Your turn の列で、行を移る" },
+  { keys: ["1", "…", "9"], text: "その番の選択肢を選ぶ" },
+  { keys: ["Enter"], text: "答えて次へ（主役のボタンを押す）" },
+  { keys: ["S"], text: "何もせず、次の1件へ飛ばす" },
+  { keys: ["J", "K"], text: "Your turn の列で、真ん中に出す物を下・上へ" },
   { keys: ["Esc"], text: "スマホのメニュー・マージの確認を閉じる" },
 ];
 

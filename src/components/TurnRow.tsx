@@ -11,13 +11,14 @@ import { DEMO_OP_DELAY_MS } from "@/lib/demo/ops";
 import { doneSummary, OPERATION_COPY, RESULT_FADE_MS, RESULT_SHOW_MS } from "@/lib/operationResult";
 import { getProgress } from "@/lib/progress";
 import { composeAnswer, type AnswerInput } from "@/lib/question";
-import { splitPhrases, turnKind } from "@/lib/turnKind";
+import { groupLabel, splitPhrases, titlesWhatHappened, turnKind, turnSource } from "@/lib/turnKind";
+import { presetAnswer } from "@/lib/choiceText";
 import { OPERATION_LABEL, type OperationKind, type TurnItem } from "@/lib/turn";
 import { useDemo } from "./DemoContext";
 import { DoneResult } from "./DoneResult";
 import { SpinnerIcon } from "./icons";
 import flowStyles from "./FlowMap.module.css";
-import { emptyAnswer, QuestionForm } from "./QuestionForm";
+import { QuestionForm } from "./QuestionForm";
 import { FactoryForm } from "./FactoryForm";
 import {
   FACTORY_GO,
@@ -129,7 +130,10 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   // 企画AIの質問：画面で選んだ・書いた答えと、そこから組み立てた送る文
   const asking = status.stage === "question";
-  const [answer, setAnswer] = useState<AnswerInput>(emptyAnswer);
+  // おすすめの選択肢を最初から選んでおく（docs/spec.md の「ホーム（決める画面）」）
+  const [answer, setAnswer] = useState<AnswerInput>(() => presetAnswer(item.question ?? null));
+  const whatHappened = titlesWhatHappened(status.stage);
+  const source = turnSource(status.stage);
   // 工場の相談：選んだ・書いた物は、その相談のコメントの間だけ覚える（次の段階に変わったら空に戻す）
   const talking = status.stage === "factoryTalk";
   const talkId = item.factory?.commentId ?? null;
@@ -438,19 +442,25 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
       onKeyDown={onKeyDown}
     >
       <div className={styles.head}>
-        <span className={styles.kind}>
+        <span className={styles.kind} title={kind.label}>
           <TurnKindIcon icon={kind.icon} />
-          {kind.label}
+          {groupLabel(kind.group)}
         </span>
         <span className={`${styles.id} num`}>
           {item.pullOnly ? `${repo}　PR #${issue.number}` : `${repo}#${issue.number}`}
           {!item.pullOnly && status.pull ? `　PR #${status.pull.number}` : ""}
         </span>
+        {whatHappened && (
+          <span className={styles.issueName}>
+            <SmartLink href={issue.url}>{issue.title}</SmartLink>
+          </span>
+        )}
+        {source && <span className={styles.source}>{source}</span>}
         <span className={`${styles.wait} num`}>{wait}</span>
         <span className={styles.stage}>{stageName}</span>
       </div>
       <h2 className={styles.title}>
-        <SmartLink href={issue.url}>{issue.title}</SmartLink>
+        {whatHappened ? item.description : <SmartLink href={issue.url}>{issue.title}</SmartLink>}
       </h2>
       {done ? (
         // 通った：説明文・補足・答える欄・ボタンを、その場で結果に置き換える
@@ -469,7 +479,7 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
                 </li>
               ))}
             </ul>
-          ) : (
+          ) : whatHappened && !doing ? null : (
             <p className={styles.desc}>
               {phrases.map((phrase, i) => (
                 <span className="ph" key={i}>
@@ -478,7 +488,7 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
               ))}
             </p>
           )}
-          {item.note && !lines && <p className={styles.note}>{item.note}</p>}
+          {item.note && !lines && !whatHappened && <p className={styles.note}>{item.note}</p>}
           {asking && (
             <div className={styles.form}>
               <QuestionForm
@@ -519,8 +529,27 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
               ? confirmButtons
               : buttons.map((button, index) => {
                   const role = index === 0 ? styles.primary : "";
+                  const primary = index === 0 ? "" : undefined;
+                  // Answer の主役のボタンは `答えて次へ`（横に Enter のキーの印）
+                  const label =
+                    button.type === "operation" && button.kind === "answer" ? (
+                      <>
+                        答えて次へ
+                        <kbd className={styles.enterKey} aria-hidden="true">
+                          Enter
+                        </kbd>
+                      </>
+                    ) : (
+                      button.label
+                    );
                   return button.type === "link" ? (
-                    <SmartLink key={button.label} className={`${styles.act} ${role}`} href={button.href} data-act="">
+                    <SmartLink
+                      key={button.label}
+                      className={`${styles.act} ${role}`}
+                      href={button.href}
+                      data-act=""
+                      data-primary={primary}
+                    >
                       {button.label}
                     </SmartLink>
                   ) : (
@@ -530,6 +559,7 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
                       type="button"
                       className={`${styles.act} ${role}`}
                       data-act=""
+                      data-primary={primary}
                       // 流し直してよい押し（Issue #615）。答えるは入力が要るので印を付けない
                       data-pre-tap={button.kind === "answer" ? undefined : ""}
                       data-hit={hit === button.kind ? "" : undefined}
@@ -543,7 +573,7 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
                         else run(button.kind);
                       }}
                     >
-                      {busy === button.kind ? <BusyLabel kind={button.kind} /> : button.label}
+                      {busy === button.kind ? <BusyLabel kind={button.kind} /> : label}
                     </button>
                   );
                 })}
@@ -552,6 +582,9 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
                 ログを開く ↗
               </a>
             )}
+            <span className={styles.keysHint} aria-hidden="true">
+              <span className="num">S</span> で飛ばす · <span className="num">J</span> / <span className="num">K</span> で選ぶ
+            </span>
           </div>
         </>
       )}

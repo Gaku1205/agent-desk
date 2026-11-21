@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { deskKeyAction, skipKey, stepKey } from "@/lib/deskKeys";
 import type { AddedNotice } from "@/lib/autoAdd";
 import type { ChatMessage } from "@/lib/conversation";
 import { applyStepLog, hideUnknownModels } from "@/lib/flow";
@@ -10,8 +13,7 @@ import type { StepInfo } from "@/lib/stepLog";
 import { formatWait, turnItemKey, type TurnCounts, type TurnItem } from "@/lib/turn";
 import type { WatchdogNotice } from "@/lib/watchdogState";
 import { Conversation, type ConversationNotice } from "./Conversation";
-import { useLastShown, useNav, useStreamedNav } from "./NavContext";
-import { readLastShown, restToShow, writeLastShown } from "@/lib/lastShown";
+import { useNav, useStreamedNav } from "./NavContext";
 import styles from "./Desk.module.css";
 import { FlowMap } from "./FlowMap";
 import { NewIssueForm, type NewIssueRepo } from "./NewIssueForm";
@@ -21,7 +23,6 @@ import { TurnRow } from "./TurnRow";
 import { pickTurn } from "@/lib/turnList";
 import { isMergeQueueItem, MERGE_QUEUE_FROM, orderMergeQueue } from "@/lib/mergeOrder";
 import { withHeldRows, type HeldRow } from "@/lib/operationResult";
-import { TURN_GROUPS } from "@/lib/turnKind";
 
 export type DeskScope =
   | { kind: "all"; repoCount: number }
@@ -49,8 +50,10 @@ type Props = {
   loadStepLog?: (owner: string, repo: string, number: number) => Promise<StepInfo[]>;
   /** デモ：記録が無い工程の「不明」を出さない（本物は出す） */
   hideUnknownModel?: boolean;
-  /** 全部のリポジトリの新しい結果がそろった（無ければそろっている）。そろう前の `ほかに N件` は前に出した数を出し続ける */
+  /** 全部のリポジトリの新しい結果がそろった（無ければそろっている） */
   settled?: boolean;
+  /** ホームの上端の帯の右の1行：実装中（枠を使っている作業）と順番待ちの数（Slots & Queue と同じ数え方）。無ければ出さない */
+  activity?: { running: number; queued: number } | null;
 };
 
 export type DeskNav = {
@@ -108,7 +111,7 @@ export function Desk({
   newIssueRepos: newIssueReposProp,
   loadStepLog,
   hideUnknownModel = false,
-  settled = true,
+  activity = null,
 }: Props) {
   // リポジトリのページは中央の中身を先に出すので、件数など他のリポジトリを待つ物は layout が後から流す。
   // 件数は読み終えたリポジトリから順に入る（届くまでは「–」）
@@ -136,6 +139,8 @@ export function Desk({
         : addedNoticesProp;
 
   const rowsRef = useRef<HTMLDivElement>(null);
+  // ホームは、待ちが1件以上の間は入力欄を出さない（0件の画面は続きの Issue。それまでは今の出し方）
+  const showComposer = scope.kind !== "all" || items.length === 0;
   // 入力欄の高さを測って --composer-h に入れる（html の scroll-padding-bottom が使う）。離れたら消す
   const composerRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -150,7 +155,7 @@ export function Desk({
       ro.disconnect();
       root.style.removeProperty("--composer-h");
     };
-  }, []);
+  }, [showComposer]);
   // 操作が通って片づけた1件。取り直しを待たずに次の1件に替え、件数を減らす（取り直しで消えたら自然に数えなくなる）
   const [leaving, setLeaving] = useState<ReadonlySet<string>>(() => new Set());
   // 押してから片づけるまでの1件（押した時点の中身と位置）。取り直しで消えても、結果を見せ終えるまで同じ場所に残す
@@ -172,27 +177,13 @@ export function Desk({
   const currentKey = current ? turnItemKey(current) : null;
   const queue = mergeQueueOf(shown, current);
   const queueKeys = new Set(queue.map(turnItemKey));
-  // 残りの一覧と `ほかに N件` は、結果を見せている1件を片づけたあとの形で数える（次の1件は、結果が消えてから出る）
-  const next = pickTurn(waiting, picked);
-  const nextKey = next ? turnItemKey(next) : null;
-  const nextQueueKeys = new Set(mergeQueueOf(waiting, next).map(turnItemKey));
-  const others = waiting.filter(
-    (item) =>
-      turnItemKey(item) !== nextKey &&
-      !nextQueueKeys.has(turnItemKey(item)) &&
-      turnItemKey(item) !== currentKey &&
-      !queueKeys.has(turnItemKey(item)),
-  );
-  const actualRest = others.length;
-  // 全部のリポジトリがそろう前（ホーム）は、読めた分だけの数を出さず、前に出した数を出し続ける（あとから増えて見えない）。
-  // そろったら実際の数にして、次のために覚える
-  const lastShown = useLastShown();
-  const rest = restToShow(actualRest, settled, lastShown.rest) ?? 0;
-  useEffect(() => {
-    if (!settled || scope.kind !== "all") return;
-    const previous = readLastShown();
-    if (previous.rest !== actualRest) writeLastShown({ ...previous, rest: actualRest });
-  }, [settled, scope.kind, actualRest]);
+  const home = scope.kind === "all";
+  // 右の Your turn の列のキーの並び（J / K・S で動かす）。最新の物をキー操作から読む
+  const waitingKeys = waiting.map(turnItemKey);
+  const keysRef = useRef({ current: currentKey, keys: waitingKeys });
+  useLayoutEffect(() => {
+    keysRef.current = { current: currentKey, keys: waitingKeys };
+  });
   // 開いたときの1件はフェードしない。替わった1件だけ短くフェードする
   const [firstKey] = useState(currentKey);
 
@@ -231,6 +222,66 @@ export function Desk({
     setPicked(key);
   }, []);
 
+  // 決める画面のキー（docs/spec.md の「ホーム（決める画面）」）：1〜9 で選ぶ・Enter で答える・S で飛ばす・J / K で右の列を上下
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented) return;
+      // ダイアログ（キーボード操作の一覧・画像の全体表示・開いたメニュー）が開いている間は効かせない
+      const modal = Array.from(document.querySelectorAll('[aria-modal="true"]')).some((el) => !el.closest("[inert]"));
+      if (modal) return;
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const typing =
+        target !== null && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+      const onControl = target !== null && target.closest("a, button") !== null && target.closest('[role="radio"]') === null;
+      const action = deskKeyAction({
+        key: event.key,
+        ctrlKey: event.ctrlKey,
+        altKey: event.altKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey,
+        isComposing: event.isComposing,
+        repeat: event.repeat,
+        typing,
+        onControl,
+      });
+      if (!action) return;
+      const { current: key, keys } = keysRef.current;
+      if (action.type === "skip" || action.type === "move") {
+        const to = action.type === "skip" ? skipKey(keys, key) : stepKey(keys, key, action.delta);
+        if (to === null) return;
+        event.preventDefault();
+        if (to !== key) setPicked(to);
+        return;
+      }
+      if (key === null) return;
+      const card = rowsRef.current?.querySelector<HTMLElement>(`article[data-key="${CSS.escape(key)}"]:not([data-leaving])`);
+      if (!card) return;
+      if (action.type === "choose") {
+        const groups = Array.from(card.querySelectorAll<HTMLElement>("[data-choices]"));
+        const group = groups.find((g) => g.contains(document.activeElement)) ?? groups[0];
+        const radio = group?.querySelectorAll<HTMLElement>('[role="radio"]')[action.index];
+        if (!radio) return;
+        event.preventDefault();
+        if (radio.getAttribute("aria-checked") !== "true") radio.click();
+        radio.focus();
+        return;
+      }
+      const primary = card.querySelector<HTMLElement>('[data-primary]:not([aria-disabled="true"])');
+      if (!primary) return;
+      event.preventDefault();
+      primary.click();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // 上端の帯の右の「動いている作業」の1行の置き場（TopBar の `#top-activity`）。ホームだけ
+  const [activitySlot, setActivitySlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!home) return;
+    queueMicrotask(() => setActivitySlot(document.getElementById("top-activity")));
+  }, [home]);
+
   useEffect(() => {
     if (!focusNext.current) return;
     focusNext.current = false;
@@ -246,16 +297,22 @@ export function Desk({
   useEffect(() => {
     const update = () => {
       const root = document.documentElement;
-      followBottom.current = isNearBottom(root.scrollHeight, window.scrollY, window.innerHeight);
+      // ホームは会話が無いので、下へ追従しない
+      followBottom.current = !home && isNearBottom(root.scrollHeight, window.scrollY, window.innerHeight);
     };
     window.addEventListener("scroll", update, { passive: true });
     return () => window.removeEventListener("scroll", update);
-  }, []);
+  }, [home]);
   useLayoutEffect(() => {
     const place = () => {
       const root = document.documentElement;
       const answer = rowsRef.current?.querySelector<HTMLElement>("[data-answer]") ?? null;
-      const position = openPosition(root.scrollHeight, window.innerHeight, answer !== null);
+      // ホームには会話が無いので、いちばん下では始めない（答える欄があればその1件の上端、無ければ上から）
+      const position = home
+        ? answer
+          ? "answer"
+          : "top"
+        : openPosition(root.scrollHeight, window.innerHeight, answer !== null);
       if (position === "answer" && answer) {
         // 上端の帯の下（scroll-padding-top）に、その1件の上端（種類の札と題名）を置く
         answer.scrollIntoView({ block: "start", behavior: "instant" });
@@ -264,7 +321,7 @@ export function Desk({
       } else {
         window.scrollTo({ top: 0, behavior: "instant" });
       }
-      followBottom.current = position === "bottom" || position === "top";
+      followBottom.current = !home && (position === "bottom" || position === "top");
     };
     place();
     // 答える欄がある1件は、最初の選択肢（キー操作の決まりで Tab が止まる物）にフォーカスを置く
@@ -274,7 +331,7 @@ export function Desk({
     // ページを移ったあとの、Next の「上へ戻す」より後にもう一度送る
     const frame = requestAnimationFrame(place);
     return () => cancelAnimationFrame(frame);
-  }, [scopeKey]);
+  }, [scopeKey, home]);
   useLayoutEffect(() => {
     const answering = rowsRef.current?.contains(document.activeElement) === true &&
       document.activeElement?.closest("[data-answer]") != null;
@@ -305,7 +362,8 @@ export function Desk({
   // 進捗ログ（モデル名と所要時間）。取れるまでは骨組みの帯、取れないときは「不明」。データを取り直したら読み直す
   const [stepLog, setStepLog] = useState<{ key: string; infos: StepInfo[] } | null>(null);
   useEffect(() => {
-    if (!loadStepLog || !pickedTarget || targetKey === null) return;
+    // ホームには進捗図を出さないので読まない
+    if (home || !loadStepLog || !pickedTarget || targetKey === null) return;
     let cancelled = false;
     loadStepLog(pickedTarget.owner, pickedTarget.repo, pickedTarget.number)
       .then((infos) => {
@@ -348,41 +406,29 @@ export function Desk({
     />
   );
 
-  const column = (
-    <main className={styles.desk} id="main">
-      {conversation}
+  // 右の Your turn の列（待っている物の全部。真ん中の1件も含む）
+  const side =
+    waiting.length > 0 ? (
+      <TurnList items={waiting} currentKey={currentKey} now={at} count={waiting.length} onPick={pick} />
+    ) : null;
+
+  const turn = (
       <section
         className={styles.turn}
         data-empty={current ? undefined : ""}
         aria-labelledby="turn-title"
         data-skip-target=""
       >
-        <div className={styles.head}>
+        <div className={styles.head} data-hidden={current ? "" : undefined}>
           <h1 className={styles.h1} id="turn-title" tabIndex={-1}>
             {current ? "Your turn" : unreadable ? "読めなかったリポジトリがあります" : "いまは AI が進めています"}
           </h1>
-          {current && shown.length >= 2 && (
-            <ul className={styles.legend} aria-label="色の見方">
-              {TURN_GROUPS.map((g) => (
-                <li key={g.group} data-group={g.group}>
-                  <span className={styles.swatch} aria-hidden="true" />
-                  {g.label}
-                </li>
-              ))}
-            </ul>
-          )}
-          {rest > 0 && (
-            <p className={styles.rest}>
-              ほかに <b className="num">{rest}</b>件
-            </p>
-          )}
         </div>
         {!current && (
           <p className={styles.calm}>
             {unreadable ? "読めなかったリポジトリの分は、ここに入っていません" : "あなたが答えることはありません"}
           </p>
         )}
-        <TurnList items={others} now={at} showRepo={showRepo} onPick={pick} />
 
         {queue.length > 0 && (
           <h2 className={styles.queueHead} id="merge-queue-title">
@@ -414,22 +460,74 @@ export function Desk({
           })}
         </div>
       </section>
-    </main>
   );
 
-  // PC（幅900px以上）は3ペイン：左に一覧、中央に列と下の入力欄、右に進捗図の列。スマホでは列だけ（docs/design.md の「PCの3ペイン」）
+  const composer = showComposer ? (
+    <div className={styles.composer} ref={composerRef}>
+      <NewIssueForm
+        variant="bar"
+        newServiceHref={`${nav.basePath ?? ""}/new/service`}
+        repos={newIssueRepos}
+        initialRepo={scope.kind === "repo" ? `${scope.owner}/${scope.repo}` : undefined}
+      />
+    </div>
+  ) : null;
+
+  if (home) {
+    // ホーム（決める画面。docs/design.md の「ホーム（決める画面）」）：真ん中に今の1件・右に Your turn の全部。
+    // 会話・過去の欄・進捗図は出さない。動いている作業は上端の帯の右に1行だけ
+    const base = nav.basePath ?? "";
+    return (
+      <div className={styles.panes} data-panes="" data-single={side ? undefined : ""}>
+        <div className={styles.center}>
+          <main className={styles.desk} id="main">
+            {conversationNotices.length > 0 && (
+              <ul className={styles.notices}>
+                {conversationNotices.map((notice) => (
+                  <li key={notice.key} data-tone={notice.tone} title={notice.title}>
+                    {notice.text}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {turn}
+          </main>
+          {composer}
+        </div>
+        {side && <div className={styles.side}>{side}</div>}
+        {activitySlot &&
+          activity &&
+          createPortal(
+            <Link
+              href={`${base}/lanes`}
+              className={`${styles.activity} num`}
+              aria-label={`実装中 ${activity.running}、順番待ち ${activity.queued}。Slots & Queue を開く`}
+            >
+              <span className={styles.activityDot} aria-hidden="true" />
+              <span className={styles.activityLabel}>実装中 </span>
+              {activity.running} ·{" "}
+              <span className={styles.activityLabel}>順番待ち </span>
+              {activity.queued} ·{" "}
+              <span className={styles.activityLanes}>Slots &amp; Queue </span>→
+            </Link>,
+            activitySlot,
+          )}
+      </div>
+    );
+  }
+
+  // リポジトリのページ：中央に会話と Your turn（真ん中の1件＋そのリポジトリの Your turn の列）と入力欄、右に進捗図の列
   return (
     <div className={styles.panes} data-panes="">
       <div className={styles.center}>
-        {column}
-        <div className={styles.composer} ref={composerRef}>
-          <NewIssueForm
-            variant="bar"
-            newServiceHref={`${nav.basePath ?? ""}/new/service`}
-            repos={newIssueRepos}
-            initialRepo={scope.kind === "repo" ? `${scope.owner}/${scope.repo}` : undefined}
-          />
-        </div>
+        <main className={styles.desk} id="main">
+          {conversation}
+          <div className={styles.repoDecide} data-single={side ? undefined : ""}>
+            {turn}
+            {side && <div className={styles.repoSide}>{side}</div>}
+          </div>
+        </main>
+        {composer}
       </div>
       <div className={styles.flow}>
         <FlowMap target={flowTarget} unreadable={unreadable} />

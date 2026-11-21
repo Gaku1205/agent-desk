@@ -442,6 +442,18 @@
   display: none;
 }
 
+/* ホームの「動いている作業」の1行の置き場。空のときは場所を取らない。スマホでは出さない */
+.activitySlot:empty {
+  display: none;
+}
+
+/* 幅1099px以下は帯の右（同期・更新・アカウント）が切れるので、この1行は出さない（Slots & Queue は帯の左にある） */
+@media (max-width: 1099px) {
+  .activitySlot {
+    display: none;
+  }
+}
+
 .pageName {
   display: none;
 }
