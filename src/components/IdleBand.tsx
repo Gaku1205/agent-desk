@@ -26,7 +26,7 @@ export function IdleBand({ onRefresh }: { onRefresh: () => void }) {
         fontSize: 13,
       }}
     >
-      <span>しばらく操作が無いので、自動更新を止めています</span>
+      <span>しばらく操作が無いので、自動更新を止めています。再開するには「最新にする」を押してください</span>
       <button
         type="button"
         onClick={onRefresh}
