@@ -6,6 +6,38 @@
   margin-top: 6px;
 }
 
+/* 問いの切り替え（2問以上）：今の問いは太字＋下に2pxの線、ほかは --bone-2 */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+}
+
+.tab {
+  min-height: 32px;
+  padding: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--bone-2);
+  font-size: 13.5px;
+}
+
+.tab:hover {
+  color: var(--bone);
+}
+
+.tab[aria-current="step"] {
+  border-bottom-color: var(--bone);
+  color: var(--bone);
+  font-weight: 700;
+}
+
+@media (max-width: 899px) {
+  .tab {
+    min-height: 44px;
+  }
+}
+
 .item {
   display: grid;
   gap: 7px;

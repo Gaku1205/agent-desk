@@ -4,6 +4,7 @@ import { useRef, type KeyboardEvent } from "react";
 import type { AnswerInput, MockupOption, ParsedQuestion, QuestionItem } from "@/lib/question";
 import { codeParts, splitChoice } from "@/lib/choiceText";
 import { rovingNext } from "@/lib/roving";
+import { questionTabLabel } from "@/lib/questionAnswer";
 import { OptionMarkIcon } from "./icons";
 import styles from "./QuestionForm.module.css";
 
@@ -16,6 +17,8 @@ type Props = {
   idPrefix: string;
   /** 送る文（画面で選んだ・書いた物から組み立てた物。空なら出さない） */
   preview: string;
+  /** 2問以上のとき：今の問い（0から）と、切り替え。無ければ全部の問いを縦に並べる */
+  step?: { current: number; onCurrent: (index: number) => void };
 };
 
 /** 文の中の `` `…` `` を、バッククォートを出さずにコードの見た目にする */
@@ -229,12 +232,29 @@ function Mockups({
  * 企画AIの質問に答える欄（docs/design.md の「質問に答える欄」）。選択肢のボタン（おすすめに印）・自分で書く欄・
  * 画面案（A・B）・ほかに伝えたいこと、と、送る文の見本。送るのは行の「答えを送る」
  */
-export function QuestionForm({ question, value, onChange, idPrefix, preview }: Props) {
+export function QuestionForm({ question, value, onChange, idPrefix, preview, step }: Props) {
   const questions = question?.questions ?? [];
   const mockups = question?.mockups ?? [];
+  // 2問以上のときは、問いの切り替えを出し、今の問いだけを出す
+  const shown = step ? questions.filter((_, i) => i === step.current) : questions;
   return (
     <div className={styles.form}>
-      {questions.map((item) => (
+      {step && (
+        <div className={styles.tabs} role="group" aria-label="問いの切り替え">
+          {questions.map((item, i) => (
+            <button
+              key={item.number}
+              type="button"
+              className={`${styles.tab} num`}
+              aria-current={i === step.current ? "step" : undefined}
+              onClick={() => step.onCurrent(i)}
+            >
+              {questionTabLabel(item)}
+            </button>
+          ))}
+        </div>
+      )}
+      {shown.map((item) => (
         <QuestionBlock
           key={item.number}
           item={item}
