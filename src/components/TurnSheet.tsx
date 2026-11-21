@@ -21,12 +21,16 @@ type Props = {
  */
 export function TurnSheet({ items, currentKey, now, count, onPick }: Props) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const [body, setBody] = useState<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    queueMicrotask(() => setSlot(document.getElementById("top-turn")));
+    queueMicrotask(() => {
+      setSlot(document.getElementById("top-turn"));
+      setBody(document.body);
+    });
   }, []);
 
   // 閉じたらボタンへフォーカスを戻す（行を選んで閉じるときは、Desk が選んだ1件へ移す）
@@ -70,11 +74,13 @@ export function TurnSheet({ items, currentKey, now, count, onPick }: Props) {
           </button>,
           slot,
         )}
-      {createPortal(
+      {body &&
+        createPortal(
         <div className={styles.sheet} data-open={open ? "" : undefined} aria-hidden={!open} inert={!open} id="turn-sheet">
           <div className={styles.scrim} onClick={close} aria-hidden="true" />
           <div className={styles.pane} role="dialog" aria-modal="true" aria-label="Your turn の全部" ref={paneRef}>
             <TurnList
+              label="Your turn の一覧"
               items={items}
               currentKey={currentKey}
               now={now}
@@ -86,8 +92,8 @@ export function TurnSheet({ items, currentKey, now, count, onPick }: Props) {
             />
           </div>
         </div>,
-        document.body,
-      )}
+          body,
+        )}
     </>
   );
 }

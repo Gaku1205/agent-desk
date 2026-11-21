@@ -15,13 +15,15 @@ type Props = {
   /** 件数（結果を出し始めた1件は数えない） */
   count: number;
   onPick: (key: string) => void;
+  /** 読み上げの名前（スマホの下から出る一覧では、右の列と取り違えないよう別の名前にする） */
+  label?: string;
 };
 
 /**
  * 右の Your turn の列（docs/design.md の「ホーム（決める画面）」）。待っている物を全部、並び順のまま縦に並べる。
  * 今真ん中に出している物は `いま`。行を選ぶと、その1件を真ん中に出す
  */
-export function TurnList({ items, currentKey, now, count, onPick }: Props) {
+export function TurnList({ items, currentKey, now, count, onPick, label = "Your turn の全部" }: Props) {
   // Tab で止まる行（初めは今の1件）。矢印キーで動かす
   const [active, setActive] = useState<number | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -40,7 +42,7 @@ export function TurnList({ items, currentKey, now, count, onPick }: Props) {
   }
 
   return (
-    <aside className={styles.list} aria-label="Your turn の全部">
+    <aside className={styles.list} aria-label={label}>
       <h2 className={styles.head}>
         <span>Your turn</span>
         <span className={`${styles.count} num`}>{count}</span>
