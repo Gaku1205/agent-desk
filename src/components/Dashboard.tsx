@@ -496,7 +496,7 @@ export function Dashboard({ bundles, loadPeriod, limits, services, now, repoCoun
         >
           {(pending === period || failed === period) && (
             <p className={styles.periodNote} role="status">
-              {pending === period ? `${periodWord(period)}分を読んでいます…` : `${periodWord(period)}分を読めません（もう一度押す）`}
+              {pending === period ? `${periodWord(period)}分を読んでいます…` : `${periodWord(period)}分を読めませんでした。もう一度押してください`}
             </p>
           )}
           <p className={styles.sentence}>{summarySentence(summary, periodWord(period))}</p>
