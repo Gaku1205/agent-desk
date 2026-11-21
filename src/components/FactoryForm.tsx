@@ -347,7 +347,7 @@ function Confirm({
       </div>
       {asking && (
         <p className={styles.goConfirm} role="group" aria-label="作る前の確認">
-          <span>作り始めます。押すとすぐ送ります。</span>
+          <span>作り始めます。押すとすぐ送られます。よければ「作り始める」を押してください。</span>
           <button
             type="button"
             className={styles.goBtn}
