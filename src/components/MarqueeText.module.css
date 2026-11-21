@@ -1,0 +1,54 @@
+/* 長い題名を流す（docs/design.md の「長い題名を流す（触れた行だけ）」）。触れていない間は今までの見た目のまま */
+.box {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font: inherit;
+}
+
+.text {
+  display: block;
+  overflow: hidden;
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.box[data-lines="2"] .text {
+  display: -webkit-box;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.box .text[data-mode="marquee"] {
+  display: inline-block;
+  overflow: visible;
+  text-decoration: inherit;
+  text-overflow: clip;
+  white-space: nowrap;
+  will-change: transform;
+  -webkit-line-clamp: none;
+  line-clamp: none;
+}
+
+/* 動きを減らす設定：流さずに、触れている間だけ折り返して全部出す */
+.box .text[data-mode="wrap"] {
+  display: block;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  -webkit-line-clamp: none;
+  line-clamp: none;
+}
+
+/* スマホ（タッチ）：長押しで端末のメニューや文字の選択が出ないようにする */
+@media (pointer: coarse) {
+  :global([data-marquee-row]) {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
