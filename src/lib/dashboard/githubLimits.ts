@@ -94,7 +94,7 @@ export function limitsSummary(
 ): string {
   const hours = observedHours(pipeline, reads);
   if (hours === 0) {
-    return "使った量の履歴はまだありません";
+    return "使った量の履歴はまだありません。1時間ごとに記録がたまるので、待つだけです";
   }
   // 記録が24時間に満たないときは、何時間分を見たかを言う（記録の無い時間を「超えていない」と言い切らない）
   const seen = hours < starts.length ? `記録は直近 ${hours} 時間分。` : "";
