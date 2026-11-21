@@ -3,6 +3,7 @@ import { ciProgress, type CiProgress } from "../ciProgress";
 import { ciFailureState } from "../ciFailureState";
 import { factoryStage } from "../factoryStage";
 import { queueAfterNumber } from "../conversation";
+import { blockedByLabel, openBlockedBy, parseBlockedBy } from "../queueReason";
 import { usageModel } from "../dashboard/aiUsage";
 import { parseRunRows } from "../dashboard/summary";
 import { FLOW_STEPS, getFlow, type FlowStepKey } from "../flow";
@@ -60,6 +61,8 @@ export type WaitTarget = {
   issueNumber: number | null;
   /** GitHub のページ */
   url: string;
+  /** 別のリポジトリの相手のときだけ、そのリポジトリ名（`リポジトリ#番号` で出す） */
+  otherRepo?: { owner: string; repo: string };
 };
 
 /** 順番待ちの1件（理由の最終の形は `assignSlots` が枠の数を見て決める） */
@@ -427,8 +430,26 @@ export function buildLanesSource(results: readonly RepoResult[], now: Date): Lan
       const hold = holds.find((candidate) => candidate.blocking.includes(row.issue.number));
       if (labels.includes(BLOCKED_LABEL)) {
         cause = "blocked";
+        // 相手は、まず `blocked-by` の印（まだ開いている物だけ）から。印が無いときだけ理由の文から
+        const marks = openBlockedBy(parseBlockedBy(data.comments, row.issue.number), { owner, repo }, data);
         const after = queueAfterNumber(row.queueReason);
-        if (after !== null) {
+        if (marks.length > 0) {
+          const targets: WaitTarget[] = marks.map((mark) => {
+            const here = blockedByLabel(mark, { owner, repo }) === `#${mark.number}`;
+            const url = issueUrl(mark.owner, mark.repo, mark.number);
+            return {
+              kind: "issue",
+              number: mark.number,
+              title: here ? (issues.get(mark.number)?.title ?? "") : "",
+              running: here && repoWorks.some((work) => work.number === mark.number),
+              issueNumber: here ? mark.number : null,
+              url,
+              ...(here ? {} : { otherRepo: { owner: mark.owner, repo: mark.repo } }),
+            };
+          });
+          waitFor = { label: blockedByLabel(marks[0], { owner, repo }), url: targets[0].url };
+          waitFors = targets;
+        } else if (after !== null) {
           waitFor = { label: `#${after}`, url: issueUrl(owner, repo, after) };
           waitFors = [
             {

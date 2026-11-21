@@ -57,8 +57,9 @@ export function workStepText(work: SlotWork): string {
 }
 
 /** 相手の番号の書き方（`#553`・`PR #36`） */
-export function targetLabel(target: Pick<WaitTarget, "kind" | "number">): string {
-  return target.kind === "pull" ? `PR #${target.number}` : `#${target.number}`;
+export function targetLabel(target: Pick<WaitTarget, "kind" | "number" | "otherRepo">): string {
+  const repo = target.otherRepo ? target.otherRepo.repo : "";
+  return target.kind === "pull" ? `PR ${repo}#${target.number}` : `${repo}#${target.number}`;
 }
 
 /** 子の行の番号とファイル（`agent-desk#556 · TopBar.tsx`。2段目は `agent-desk#590 · #556 のあと`） */
@@ -94,7 +95,7 @@ function queueParents(queue: readonly QueueEntry[]): Map<string, QueueEntry> {
   for (const entry of queue) {
     if (entry.waitFors.length !== 1) continue;
     const target = entry.waitFors[0];
-    if (target.kind !== "issue" || target.running) continue;
+    if (target.kind !== "issue" || target.running || target.otherRepo) continue;
     const found = byKey.get(`${repoKey(entry)}#${target.number}`);
     if (found && found.key !== entry.key) parent.set(entry.key, found);
   }
@@ -141,7 +142,7 @@ export function queueGroups(queue: readonly QueueEntry[], works: readonly SlotWo
   };
   const queued = new Set(sorted.map((entry) => entry.key));
   const findWork = (owner: string, repo: string, target: WaitTarget) =>
-    target.kind === "issue"
+    target.kind === "issue" && !target.otherRepo
       ? (works.find((work) => work.owner === owner && work.repo === repo && work.number === target.number) ?? null)
       : null;
 
@@ -149,7 +150,7 @@ export function queueGroups(queue: readonly QueueEntry[], works: readonly SlotWo
   for (const entry of sorted) {
     if (parent.has(entry.key)) continue;
     const targets = targetsOf(entry, works);
-    const id = targets.length === 0 ? "next" : `${repoKey(entry)}|${targets.map((t) => `${t.kind}:${t.number}`).join(",")}`;
+    const id = targets.length === 0 ? "next" : `${repoKey(entry)}|${targets.map((t) => `${t.kind}:${t.otherRepo ? `${t.otherRepo.owner}/${t.otherRepo.repo}` : ""}:${t.number}`).join(",")}`;
     let draft = drafts.get(id);
     if (!draft) {
       const found = targets.map((target) => findWork(entry.owner, entry.repo, target));
@@ -164,7 +165,7 @@ export function queueGroups(queue: readonly QueueEntry[], works: readonly SlotWo
         tone = "running";
       } else if (targets.length === 1) {
         kind = "idle";
-        tone = targets[0].kind === "issue" && queued.has(`${repoKey(entry)}#${targets[0].number}`) ? "queue" : "idle";
+        tone = targets[0].kind === "issue" && !targets[0].otherRepo && queued.has(`${repoKey(entry)}#${targets[0].number}`) ? "queue" : "idle";
       } else {
         kind = "multi";
         tone = running.length === targets.length ? "running" : "idle";
