@@ -464,6 +464,11 @@
     display: flex;
     flex-shrink: 0;
   }
+
+  /* ボタンが出るホームでは、ページ名（`ホーム`）を外して帯を空ける（デモの帯でも同期が切れない） */
+  .top:has(> .right > .turnSlot:not(:empty)) .pageName {
+    display: none;
+  }
 }
 
 .pageName {
