@@ -20,6 +20,10 @@ import { NewIssueForm, type NewIssueRepo } from "./NewIssueForm";
 import type { TopBarRepo } from "./TopBar";
 import { TurnList } from "./TurnList";
 import { TurnRow } from "./TurnRow";
+import { HomeCalm } from "./HomeCalm";
+import { HomeLater } from "./HomeLater";
+import { TurnSheet } from "./TurnSheet";
+import type { HomeActivity } from "@/lib/lanes/source";
 import { pickTurn } from "@/lib/turnList";
 import { isMergeQueueItem, MERGE_QUEUE_FROM, orderMergeQueue } from "@/lib/mergeOrder";
 import { withHeldRows, type HeldRow } from "@/lib/operationResult";
@@ -56,7 +60,7 @@ type Props = {
   /** 全部のリポジトリの新しい結果がそろった（無ければそろっている） */
   settled?: boolean;
   /** ホームの上端の帯の右の1行：実装中（枠を使っている作業）と順番待ちの数（Slots & Queue と同じ数え方）。無ければ出さない */
-  activity?: { running: number; queued: number } | null;
+  activity?: HomeActivity | null;
   /** ホームの「いない間のまとめ」を数える出来事（取得済みの直近3日の公開・止まり）。無ければ出さない */
   awayEvents?: AwayEvent[];
 };
@@ -260,6 +264,22 @@ export function Desk({
     setPicked(key);
   }, []);
 
+  // スマホの `飛ばす`：右の列の次の1件を真ん中に出す（S キーと同じ）
+  const skip = useCallback(() => {
+    const { current: key, keys } = keysRef.current;
+    const to = skipKey(keys, key);
+    if (to !== null && to !== key) setPicked(to);
+  }, []);
+
+  // スマホの `このあと` の行：その1件を真ん中に出して、上へ戻る
+  const pickLater = useCallback(
+    (key: string) => {
+      pick(key);
+      window.scrollTo({ top: 0, behavior: "instant" });
+    },
+    [pick],
+  );
+
   // 決める画面のキー（docs/spec.md の「ホーム（決める画面）」）：1〜9 で選ぶ・Enter で答える・S で飛ばす・J / K で右の列を上下
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -450,23 +470,32 @@ export function Desk({
       <TurnList items={waiting} currentKey={currentKey} now={at} count={waiting.length} onPick={pick} />
     ) : null;
 
+  // ホームで待ちが0件：緑のチェックと「いま動いている」の画面（docs/design.md の「ホーム：待ちが0件」）
+  const calm = home && !current;
   const turn = (
       <section
         className={styles.turn}
-        data-empty={current ? undefined : ""}
+        data-empty={current || calm ? undefined : ""}
+        data-calm={calm ? "" : undefined}
         data-after-away={away && awayResult ? "" : undefined}
         aria-labelledby="turn-title"
         data-skip-target=""
       >
-        <div className={styles.head} data-hidden={current ? "" : undefined}>
-          <h1 className={styles.h1} id="turn-title" tabIndex={-1}>
-            {current ? "Your turn" : unreadable ? "読めなかったリポジトリがあります" : "いまは AI が進めています"}
-          </h1>
-        </div>
-        {!current && (
-          <p className={styles.calm}>
-            {unreadable ? "読めなかったリポジトリの分は、ここに入っていません" : "あなたが答えることはありません"}
-          </p>
+        {calm ? (
+          <HomeCalm activity={activity} unreadable={unreadable} base={nav.basePath ?? ""} />
+        ) : (
+          <>
+            <div className={styles.head} data-hidden={current ? "" : undefined}>
+              <h1 className={styles.h1} id="turn-title" tabIndex={-1}>
+                {current ? "Your turn" : unreadable ? "読めなかったリポジトリがあります" : "いまは AI が進めています"}
+              </h1>
+            </div>
+            {!current && (
+              <p className={styles.calm}>
+                {unreadable ? "読めなかったリポジトリの分は、ここに入っていません" : "あなたが答えることはありません"}
+              </p>
+            )}
+          </>
         )}
 
         {queue.length > 0 && (
@@ -494,6 +523,8 @@ export function Desk({
                 onLeave={leave}
                 onHold={hold}
                 queue={queueIndex >= 0 ? { num: queueIndex + 1 } : undefined}
+                home={home}
+                onSkip={home && waiting.length > 1 ? skip : undefined}
               />
             );
           })}
@@ -539,10 +570,21 @@ export function Desk({
               />
             )}
             {turn}
+            {current && (
+              <HomeLater
+                items={waiting.filter((item) => turnItemKey(item) !== currentKey)}
+                onPick={pickLater}
+                activity={activity}
+                base={base}
+              />
+            )}
           </main>
           {composer}
         </div>
         {side && <div className={styles.side}>{side}</div>}
+        {waiting.length > 0 && (
+          <TurnSheet items={waiting} currentKey={currentKey} now={at} count={waiting.length} onPick={pick} />
+        )}
         {activitySlot &&
           activity &&
           createPortal(

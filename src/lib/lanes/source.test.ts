@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CommentData, IssueData, PullData, RepoData, RepoResult, WorkflowRunData } from "../github/types";
 import type { IssueStatus } from "../status";
-import { buildLanesSource, modelLabel, occupiesSlot, runKind, runTarget } from "./source";
+import { activityOf, buildLanesSource, modelLabel, occupiesSlot, runKind, runTarget } from "./source";
 
 const NOW = new Date("2026-11-18T02:13:00Z");
 
@@ -51,6 +51,34 @@ function result(repoData: RepoData, repo = "r"): RepoResult {
 }
 
 const touches = (paths: string) => `本文\n<!-- ai-touches: ${paths} -->`;
+
+describe("activityOf：ホームの帯と待ちが0件の画面の数", () => {
+  const merged = (number: number, mergedAt: string) =>
+    pull(number, { state: "closed", merged: true, mergedAt, headRef: `claude/issue-${number}-x` });
+
+  it("直近24時間にマージされた PR だけを published に数える", () => {
+    const repoData = data({
+      pulls: [merged(1, "2026-11-18T00:00:00Z"), merged(2, "2026-11-17T03:00:00Z"), merged(3, "2026-11-17T01:00:00Z")],
+    });
+    expect(activityOf([result(repoData)], NOW).published).toBe(2);
+  });
+
+  it("どのリポジトリも読めないときは published が 0", () => {
+    const failed: RepoResult = { owner: "o", repo: "x", ok: false, error: { kind: "other", message: "x" } };
+    expect(activityOf([failed], NOW)).toEqual({ running: 0, queued: 0, published: 0, works: [] });
+  });
+
+  it("works は buildLanesSource の works と同じ並びで、工程の名前が付き、running はその件数", () => {
+    const repoData = data({ issues: [issue(5, ["ai:implement"]), issue(3, ["ai:implement"]), issue(4, ["ai:plan"])] });
+    const activity = activityOf([result(repoData)], NOW);
+    expect(activity.works.map((work) => [work.number, work.stepName])).toEqual([
+      [3, "実装"],
+      [5, "実装"],
+    ]);
+    expect(activity.running).toBe(2);
+    expect(activity.works.map((work) => work.key)).toEqual(buildLanesSource([result(repoData)], NOW).works.map((work) => work.key));
+  });
+});
 
 describe("buildLanesSource：枠を使う作業", () => {
   it("実装中の Issue は枠を使い、企画中・順番待ちは使わない", () => {

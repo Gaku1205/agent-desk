@@ -101,7 +101,9 @@ test("Issueを書く・新しいサービスを作る：作るボタン", async 
 test("ホーム：Your turn の列の行", async ({ page }) => {
   // ホームは待ちが1件以上の間、入力欄を出さない
   await page.goto("/demo");
-  await expectTall(page.locator('aside[aria-label="Your turn の全部"] button').first());
+  // スマホでは右の列は出さず、上の帯の `Your turn N` を押すと下から一覧が出る
+  await page.locator("#top-turn button").click();
+  await expectTall(page.locator('aside[aria-label="Your turn の一覧"] button').first());
   await expectNoOverflow(page);
 });
 

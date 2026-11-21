@@ -454,6 +454,23 @@
   }
 }
 
+/* スマホのホームの `Your turn N ⌃` の置き場。PC では出さない */
+.turnSlot {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .turnSlot:not(:empty) {
+    display: flex;
+    flex-shrink: 0;
+  }
+
+  /* ボタンが出るホームでは、ページ名（`ホーム`）を外して帯を空ける（デモの帯でも同期が切れない） */
+  .top:has(> .right > .turnSlot:not(:empty)) .pageName {
+    display: none;
+  }
+}
+
 .pageName {
   display: none;
 }

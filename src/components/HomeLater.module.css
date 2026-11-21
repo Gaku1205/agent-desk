@@ -1,0 +1,85 @@
+/* スマホのホーム：`このあと` と、動いている作業の1行。PC では出さない */
+
+.later {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .later {
+    display: block;
+    padding-bottom: 40px;
+  }
+
+  .head {
+    margin: 0 0 8px;
+    color: var(--mute);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .rows {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rows li + li {
+    box-shadow: inset 0 1px 0 var(--hair-2);
+  }
+
+  .row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 4px;
+    border-radius: 8px;
+    text-align: left;
+  }
+
+  .row:hover {
+    background: var(--well);
+  }
+
+  .kind {
+    display: inline-flex;
+    flex: none;
+    gap: 5px;
+    align-items: center;
+    color: var(--kind-text, var(--bone-2));
+    font-size: 12.5px;
+    font-weight: 700;
+  }
+
+  .title {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--bone-2);
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .row:hover .title {
+    color: var(--bone);
+  }
+
+  .activity {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    min-height: 44px;
+    margin-top: 20px;
+    color: var(--bone-2);
+    font-size: 12.5px;
+  }
+
+  .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--ok);
+  }
+}

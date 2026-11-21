@@ -1,0 +1,108 @@
+/* ホームの待ちが0件の画面（docs/design.md の「ホーム：待ちが0件」） */
+
+.calm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 64px 0 56px;
+}
+
+.check {
+  display: inline-flex;
+  color: var(--ok);
+}
+
+.title {
+  margin-top: 12px;
+  color: var(--bone);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+.title:focus {
+  outline: none;
+}
+
+.desc {
+  margin-top: 8px;
+  color: var(--bone-2);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.sub {
+  margin: 40px 0 8px;
+  color: var(--mute);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rows {
+  width: 100%;
+  max-width: 640px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rows li + li {
+  box-shadow: inset 0 1px 0 var(--hair-2);
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 4px;
+  margin: 0 -4px;
+  border-radius: 8px;
+  color: var(--bone-2);
+  font-size: 14px;
+}
+
+.row:hover {
+  background: var(--well);
+  color: var(--bone);
+}
+
+.spin {
+  display: inline-flex;
+  color: var(--accent);
+}
+
+.ref {
+  color: var(--mute);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.workTitle {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step {
+  color: var(--mute);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.ok {
+  color: var(--ok);
+}
+
+@media (max-width: 899px) {
+  .calm {
+    padding: 40px 0;
+  }
+
+  .title {
+    font-size: 21px;
+  }
+}
