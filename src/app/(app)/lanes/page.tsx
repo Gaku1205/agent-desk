@@ -17,11 +17,11 @@ export const metadata = { title: "Slots & Queue" };
  */
 export default async function LanesPage() {
   const login = (await getSignedInLogin()) ?? undefined;
-  const first = await loadTurnSteps(({ results, items, now, repos, complete, errors, canSayEmpty, sync }) => ({
+  const first = await loadTurnSteps(({ results, items, now, repos, complete, errors, canSayEmpty, pendingRepos, sync }) => ({
     complete,
     props: {
       // 読めなかったときの出し方（全部読めなかったときは数を `–` に、一部のときは「空」の文を出さない）
-      readMode: lanesReadMode({ canSayEmpty: canSayEmpty ?? true, sync: sync ?? "ok", results }),
+      readMode: lanesReadMode({ pendingRepos, canSayEmpty: canSayEmpty ?? true, sync: sync ?? "ok", results }),
       source: getBuildMemo().lanesSource(results, now),
       usage: buildUsageSource(results, now),
       items,

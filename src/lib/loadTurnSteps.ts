@@ -34,6 +34,8 @@ export type TurnsSoFar = {
   errors: LoadError[];
   /** 「何も無い」と言ってよいか（`resolveLoadState` の `canSayEmpty`）。無ければ言ってよい */
   canSayEmpty?: boolean;
+  /** まだ届いていないリポジトリの数（`resolveLoadState` の `pendingRepos`）。無ければ 0 */
+  pendingRepos?: number;
   /** 同期の状態（`resolveLoadState` の `sync`）。無ければ全部読めた */
   sync?: LoadState["sync"];
 };
@@ -89,7 +91,7 @@ function shownResults(state: LoadState): RepoResult[] {
  */
 export async function loadTurnSteps<T extends object>(
   build: (turns: TurnsSoFar) => T | Promise<T>,
-): Promise<Step<T & { staleAt: string | null; staleBecause: StaleBecause }>> {
+): Promise<Step<T & { staleAt: string | null; staleBecause: StaleBecause; pendingRepos: number }>> {
   const token = await getGitHubToken();
   const { repos } = await loadWatchedRepos();
   const last = async (): Promise<TurnsSoFar> => {
@@ -117,6 +119,7 @@ export async function loadTurnSteps<T extends object>(
     ...(await build(turns)),
     staleAt: turns.staleAt ?? null,
     staleBecause: turns.staleBecause ?? null,
+    pendingRepos: turns.pendingRepos ?? 0,
   });
   if (!token || repos.length === 0) return { value: await finish(await last()), next: null };
 
@@ -142,6 +145,7 @@ export async function loadTurnSteps<T extends object>(
       staleBecause: state.staleBecause,
       errors: state.errors,
       canSayEmpty: state.canSayEmpty,
+      pendingRepos: state.pendingRepos,
       sync: state.sync,
     };
   };
