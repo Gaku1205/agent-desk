@@ -185,6 +185,11 @@ describe("flowStepLabel", () => {
   it("工程名・状態を文字で言う。記録が無いモデル（不明）は言わない", () => {
     expect(flowStepLabel({ name: "企画", state: "done", model: "不明" })).toBe("企画　成功");
   });
+  it("CI は名前の後ろに説明を添えて言う（工程の名前は CI のまま。Issue #743）", () => {
+    expect(flowStepLabel({ key: "ci", name: "CI", state: "done", model: null, duration: "4分2秒" })).toBe(
+      "CI（自動のチェック）　成功　所要時間 4分2秒",
+    );
+  });
   it("読み込み中（モデル名が null）は「モデル」を言わない", () => {
     expect(flowStepLabel({ name: "企画", state: "done", model: null })).toBe("企画　成功");
   });

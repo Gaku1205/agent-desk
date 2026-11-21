@@ -135,6 +135,13 @@
   white-space: nowrap;
 }
 
+/* 工程の名前の後ろの説明（`（自動のチェック）`。12px・--mute。Issue #743） */
+.nameNote {
+  color: var(--mute);
+  font-size: 12px;
+  font-weight: 400;
+}
+
 .model {
   overflow: hidden;
   color: var(--mute);

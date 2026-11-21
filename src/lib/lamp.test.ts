@@ -161,8 +161,8 @@ describe("assignLamps：急ぎ（priority:high）", () => {
 
 describe("lampLabel", () => {
   it("読み上げとホバーの文言", () => {
-    expect(lampLabel({ kind: "running" })).toBe("動作中");
-    expect(lampLabel({ kind: "needsHuman" })).toBe("人間の手が必要");
+    expect(lampLabel({ kind: "running" })).toBe("AIが動いています");
+    expect(lampLabel({ kind: "needsHuman" })).toBe("止まっているか、あなたの確認が必要です");
     expect(lampLabel({ kind: "waiting", position: 2 })).toBe("順番待ち 2番目");
     expect(lampLabel({ kind: "none" })).toBeNull();
   });
