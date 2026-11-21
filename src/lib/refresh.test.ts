@@ -413,7 +413,7 @@ describe("自動更新を止めている間の1行（どの残りが少ないか
   it("どの鍵・どの枠かと残りの数を入れる", async () => {
     const { formatPausedNote, pausedByLabel } = await import("./refresh");
     expect(formatPausedNote({ key: "user", resource: "rest", remaining: 420 }, resetAt)).toBe(
-      "ログイン REST 残り 420。自動更新を停止中（01:14 再開）",
+      "ログイン REST 残り 420。自動更新を停止中（01:14 再開）。待つだけです",
     );
     expect(pausedByLabel({ key: "user", resource: "graphql" })).toBe("ログイン GraphQL");
     expect(pausedByLabel({ key: "app", resource: "rest" })).toBe("App REST");
@@ -422,6 +422,6 @@ describe("自動更新を止めている間の1行（どの残りが少ないか
 
   it("分からないときは、今までの文", async () => {
     const { formatPausedNote } = await import("./refresh");
-    expect(formatPausedNote(null, resetAt)).toBe("回数制限の残りが少ないため、自動更新を止めています（01:14 に再開）");
+    expect(formatPausedNote(null, resetAt)).toBe("回数制限の残りが少ないため、自動更新を止めています（01:14 に再開）。待つだけです");
   });
 });

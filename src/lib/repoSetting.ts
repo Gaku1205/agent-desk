@@ -3,14 +3,14 @@ import type { WatchedRepo } from "./config";
 import { GitHubError } from "./github/errors";
 
 export const REPO_SETTING_MESSAGES = {
-  unauthorized: "ログインし直してください",
-  noSettingsRepo: "設定の保存先（SETTINGS_REPO）が無いため変えられません",
-  invalid: "リポジトリは owner/repo の形で指定してください",
+  unauthorized: "ログインの有効期限が切れました。ログインし直してください",
+  noSettingsRepo: "設定の保存先（SETTINGS_REPO）が決まっていないため、変えられません。環境変数に SETTINGS_REPO を設定してください",
+  invalid: "リポジトリの書き方が正しくありません。owner/repo の形で入力してください",
   empty: "監視するリポジトリを1つ以上選んでください",
-  unreadable: "読めないリポジトリは追加できません",
-  forbidden: "このリポジトリの設定を変える権限がありません",
+  unreadable: "読めないリポジトリは追加できません。名前とアクセスの権限を確かめてください",
+  forbidden: "このリポジトリの設定を変える権限がありません。権限のあるアカウントでログインし直してください",
   rateLimited: "GitHubのレート制限に達しました。しばらくしてからもう一度試してください",
-  failed: "設定を保存できませんでした",
+  failed: "設定を保存できませんでした。少し待ってから、もう一度試してください",
 } as const;
 
 const NAME = /^[\w.-]+$/;

@@ -67,7 +67,7 @@ describe("OPERATION_COPY", () => {
   it("マージは「マージ中…」→「マージしました」、答えは「送信中…」→「送りました」", () => {
     expect(OPERATION_COPY.merge).toEqual({
       busy: "マージ中…",
-      doing: "GitHub でマージしています",
+      doing: "GitHub でマージ（変更の取り込み）をしています。待つだけです",
       done: "マージしました",
     });
     expect(OPERATION_COPY.answer.busy).toBe("送信中…");

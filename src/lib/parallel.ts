@@ -35,11 +35,11 @@ export const DEFAULT_PARALLEL_SETTINGS: ParallelSettings = {
 };
 
 export const PARALLEL_MESSAGES = {
-  invalid: "並列の設定の形が正しくありません",
-  count: "並列の数は1以上の整数にしてください",
-  hours: "夜の時間帯は0〜23時で選んでください",
-  sameHours: "夜の時間帯の開始と終了は、違う時刻にしてください",
-  noPipeline: "パイプラインのある監視リポジトリがありません",
+  invalid: "並列の設定の形が正しくありません。画面を開き直して、もう一度選んでください",
+  count: "並列の数が正しくありません。1以上の整数を入れてください",
+  hours: "夜の時間帯が正しくありません。0〜23時の間で選んでください",
+  sameHours: "夜の時間帯の開始と終了が同じです。違う時刻を選んでください",
+  noPipeline: "パイプラインのある監視リポジトリがありません。パイプラインを入れてから、もう一度試してください",
 } as const;
 
 function isInteger(value: unknown): value is number {

@@ -34,13 +34,13 @@ export const NOTIFY_EVENT_LABELS: Record<NotifyEvent, { name: string; descriptio
   deployed: { name: "公開された", description: "本番に公開されたとき" },
   deploy_failed: { name: "公開に失敗", description: "公開に失敗したとき" },
   merged: { name: "自動でマージした", description: "AIがPRをマージしたとき" },
-  ci_failed: { name: "CIが失敗した", description: "AIが直す前のCI失敗" },
+  ci_failed: { name: "CIが失敗した", description: "CI（自動のチェック）が失敗したとき（AIが直す前）" },
 };
 
 export const NOTIFY_MESSAGES = {
-  invalid: "通知の種類が正しくありません",
-  empty: "通知の種類を1つ以上選んでください",
-  noPipeline: "パイプラインが入っていないリポジトリは変えられません",
+  invalid: "通知の種類が正しくありません。画面を開き直して、もう一度選んでください",
+  empty: "通知の種類を1つ以上選んでください。すべてオフにはできません",
+  noPipeline: "パイプラインが入っていないリポジトリは変えられません。先にパイプラインを入れてください",
 } as const;
 
 function isNotifyEvent(value: unknown): value is NotifyEvent {

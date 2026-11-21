@@ -141,8 +141,8 @@ export function pausedByLabel(by: Pick<PausedBy, "key" | "resource">): string {
  */
 export function formatPausedNote(by: PausedBy | null, resetAt: number): string {
   const time = formatResetTime(resetAt);
-  if (!by) return `回数制限の残りが少ないため、自動更新を止めています（${time} に再開）`;
-  return `${pausedByLabel(by)} 残り ${by.remaining.toLocaleString("en-US")}。自動更新を停止中（${time} 再開）`;
+  if (!by) return `回数制限の残りが少ないため、自動更新を止めています（${time} に再開）。待つだけです`;
+  return `${pausedByLabel(by)} 残り ${by.remaining.toLocaleString("en-US")}。自動更新を停止中（${time} 再開）。待つだけです`;
 }
 
 /**

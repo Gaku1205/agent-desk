@@ -17,15 +17,15 @@ export type OperationCopy = {
 
 /** 文言の一覧（docs/design.md の「押したあとの結果」の表と同じ） */
 export const OPERATION_COPY: Record<OperationKind, OperationCopy> = {
-  plan: { busy: "おまかせ中…", doing: "GitHub に ai:plan を付けています", done: "おまかせしました" },
-  implement: { busy: "依頼中…", doing: "GitHub に ai:implement を付けています", done: "実装を依頼しました" },
-  resume: { busy: "再開中…", doing: "GitHub で ai:stuck を外しています", done: "再開しました" },
-  start: { busy: "開始中…", doing: "GitHub で ai:skip を外しています", done: "始めました" },
-  createPull: { busy: "作成中…", doing: "GitHub で PR を作っています", done: "PRを作りました" },
-  requestReview: { busy: "依頼中…", doing: "GitHub に ai:review を付けています", done: "レビューを依頼しました" },
-  merge: { busy: "マージ中…", doing: "GitHub でマージしています", done: "マージしました" },
-  answer: { busy: "送信中…", doing: "GitHub にコメントを書いています", done: "送りました" },
-  close: { busy: "閉じています…", doing: "GitHub で Issue を閉じています", done: "閉じました" },
+  plan: { busy: "おまかせ中…", doing: "GitHub に「AIに任せる」印を付けています。待つだけです", done: "おまかせしました" },
+  implement: { busy: "依頼中…", doing: "GitHub に「AIに実装を頼む」印を付けています。待つだけです", done: "実装を依頼しました" },
+  resume: { busy: "再開中…", doing: "GitHub で「止まった」印を外しています。待つだけです", done: "再開しました" },
+  start: { busy: "開始中…", doing: "GitHub で「保留」の印を外しています。待つだけです", done: "始めました" },
+  createPull: { busy: "作成中…", doing: "GitHub で PR（変更の提案）を作っています。待つだけです", done: "PRを作りました" },
+  requestReview: { busy: "依頼中…", doing: "GitHub に「レビューを頼む」印を付けています。待つだけです", done: "レビューを依頼しました" },
+  merge: { busy: "マージ中…", doing: "GitHub でマージ（変更の取り込み）をしています。待つだけです", done: "マージしました" },
+  answer: { busy: "送信中…", doing: "GitHub にコメントを書いています。待つだけです", done: "送りました" },
+  close: { busy: "閉じています…", doing: "GitHub で Issue を閉じています。待つだけです", done: "閉じました" },
 };
 
 /** 結果の1行に出す物 */

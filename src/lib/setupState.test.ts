@@ -264,7 +264,7 @@ describe("入れたリポジトリの Cookie", () => {
 
 describe("setupErrorMessage", () => {
   it("決まった物だけ", () => {
-    expect(setupErrorMessage("state")).toBe("もう一度 App を作るところからやり直してください");
+    expect(setupErrorMessage("state")).toBe("App を作る途中で、GitHub から戻れませんでした。もう一度 App を作るところからやり直してください");
     expect(setupErrorMessage("<script>")).toBeNull();
     expect(setupErrorMessage(["state"])).toBeNull();
   });
