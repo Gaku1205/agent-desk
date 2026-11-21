@@ -250,6 +250,18 @@
   }
 }
 
+/* 中央が狭い幅（1180px未満）では、右の Your turn の列を下に回して1列にする（マージ待ちの一覧が窮屈になるため） */
+@media (min-width: 900px) and (max-width: 1179px) {
+  .repoDecide {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .repoSide > aside {
+    padding: 0 0 24px;
+  }
+}
+
 @media (max-width: 899px) {
   .flow {
     display: none;
