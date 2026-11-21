@@ -1049,6 +1049,12 @@ button[aria-expanded="true"] .chevron svg {
   padding-bottom: 0;
 }
 
+/* 動きを減らす設定で題名が折り返している間は、行を伸ばす */
+.row[data-kind="turn"]:has([data-mode="wrap"]) {
+  height: auto;
+  min-height: 56px;
+}
+
 .row[data-fading] {
   opacity: 0;
   transition: opacity 0.15s var(--ease);
