@@ -13,6 +13,7 @@ import { getProgress } from "@/lib/progress";
 import { composeAnswer, type AnswerInput } from "@/lib/question";
 import { groupLabel, splitPhrases, titlesWhatHappened, turnKind, turnSource } from "@/lib/turnKind";
 import { presetAnswer } from "@/lib/choiceText";
+import { composeRecommendedAnswer, hasOtherPick, recommendedSummary } from "@/lib/questionAnswer";
 import { OPERATION_LABEL, type OperationKind, type TurnItem } from "@/lib/turn";
 import { useDemo } from "./DemoContext";
 import { DoneResult } from "./DoneResult";
@@ -136,6 +137,17 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue, home = fals
   const asking = status.stage === "question";
   // おすすめの選択肢を最初から選んでおく（docs/spec.md の「ホーム（決める画面）」）
   const [answer, setAnswer] = useState<AnswerInput>(() => presetAnswer(item.question ?? null));
+  // 2問以上の質問：今の問い（0から）。最後の問い以外の主役のボタンは、次の問いへ移るだけ
+  const [qIndex, setQIndex] = useState(0);
+  const questionItems = item.question?.questions ?? [];
+  const stepping = asking && questionItems.length >= 2;
+  const lastQ = questionItems.length - 1;
+  const curQ = Math.min(qIndex, Math.max(lastQ, 0));
+  const nextQuestion = stepping && curQ < lastQ;
+  const recSummary = stepping ? recommendedSummary(questionItems, answer.answers) : null;
+  const recBody =
+    stepping && recSummary !== null && item.question ? composeRecommendedAnswer(item.question, answer) : null;
+  const recLabel = hasOtherPick(questionItems, answer.answers) ? "残りをおすすめで答える" : "おすすめで全部答える";
   const whatHappened = titlesWhatHappened(status.stage);
   const source = turnSource(status.stage);
   // 工場の相談：選んだ・書いた物は、その相談のコメントの間だけ覚える（次の段階に変わったら空に戻す）
@@ -505,6 +517,7 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue, home = fals
                 }}
                 idPrefix={`turn-${owner}-${repo}-${issue.number}`}
                 preview={answerText}
+                step={stepping ? { current: curQ, onCurrent: setQIndex } : undefined}
               />
             </div>
           )}
@@ -539,7 +552,7 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue, home = fals
                   const label =
                     button.type === "operation" && button.kind === "answer" ? (
                       <>
-                        答えて次へ
+                        {nextQuestion ? "答えて次の問いへ" : "答えて次へ"}
                         <kbd className={styles.enterKey} aria-hidden="true">
                           Enter
                         </kbd>
@@ -570,11 +583,14 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue, home = fals
                       data-hit={hit === button.kind ? "" : undefined}
                       data-busy={busy === button.kind ? "" : undefined}
                       aria-disabled={
-                        blocked || (button.kind === "answer" && answerText.trim() === "") ? "true" : undefined
+                        blocked || (button.kind === "answer" && !nextQuestion && answerText.trim() === "")
+                          ? "true"
+                          : undefined
                       }
                       onClick={() => {
                         if (blocked) return;
                         if (button.kind === "merge") setConfirming(true);
+                        else if (button.kind === "answer" && nextQuestion) setQIndex(curQ + 1);
                         else run(button.kind);
                       }}
                     >
@@ -582,6 +598,22 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue, home = fals
                     </button>
                   );
                 })}
+            {recBody !== null && recSummary !== null && (
+              <>
+                <button
+                  type="button"
+                  className={styles.recAll}
+                  data-act=""
+                  aria-disabled={blocked ? "true" : undefined}
+                  onClick={() => {
+                    if (!blocked) run("answer", recBody);
+                  }}
+                >
+                  {recLabel}
+                </button>
+                <span className={`${styles.recSummary} num`}>{recSummary}</span>
+              </>
+            )}
             {item.logUrl && (
               <a className={styles.link} href={item.logUrl} target="_blank" rel="noreferrer">
                 ログを開く ↗
