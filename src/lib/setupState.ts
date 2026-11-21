@@ -13,19 +13,20 @@ export const CLAUDE_TOKEN_SECRET = "CLAUDE_CODE_OAUTH_TOKEN";
 export const DOCTOR_WORKFLOW = "doctor.yml";
 
 export const SETUP_MESSAGES = {
-  unauthorized: "ログインし直してください",
-  notTarget: "このリポジトリは使えません（自分のアカウントにあり、ai-dev-template から作ったリポジトリだけ）",
-  invalidName: "リポジトリの名前は、英数字と . _ - の100文字までにしてください",
-  exists: "その名前のリポジトリはもうあります",
-  createFailed: "リポジトリを作れませんでした",
-  appFailed: "App を作れませんでした。もう一度試してください",
-  state: "もう一度 App を作るところからやり直してください",
-  appKey: "App ID と秘密鍵を確かめてください",
-  saveFailed: "保存できませんでした",
-  emptyToken: "トークンを貼ってください",
-  doctorFailed: "診断を始められませんでした",
-  watchFailed: "監視に足せませんでした：",
-  noTemplateRepos: "テンプレートから作ったリポジトリがありません",
+  unauthorized: "ログインの有効期限が切れました。ログインし直してください",
+  notTarget:
+    "このリポジトリは使えません。自分のアカウントにある、ai-dev-template から作ったリポジトリだけ使えます。別のリポジトリを選ぶか、新しく作ってください",
+  invalidName: "リポジトリの名前が正しくありません。英数字と . _ - だけを使い、100文字までで入力してください",
+  exists: "同じ名前のリポジトリがすでにあります。別の名前にするか、「作ってあるリポジトリを使う」を押してください",
+  createFailed: "リポジトリを作れませんでした。少し待ってから、もう一度押してください",
+  appFailed: "App を作れませんでした。もう一度「GitHub で App を作る」を押してください",
+  state: "App を作る途中で、GitHub から戻れませんでした。もう一度 App を作るところからやり直してください",
+  appKey: "App ID と秘密鍵が合いませんでした。App の設定ページの値を、もう一度確かめてください",
+  saveFailed: "保存できませんでした。少し待ってから、もう一度押してください",
+  emptyToken: "トークンが空か、正しくありません。ターミナルに出た文字列を、そのまま貼ってください",
+  doctorFailed: "診断を始められませんでした。少し待ってから、もう一度押してください",
+  watchFailed: "監視に足せませんでした。設定の画面でリポジトリを足してください。理由：",
+  noTemplateRepos: "テンプレートから作ったリポジトリがありません。「作る」で新しく作ってください",
 } as const;
 
 /** `?error=…` で受け取る知らせ（決まった物だけ。それ以外は出さない） */

@@ -58,12 +58,21 @@ const STEP_NAMES: Record<SetupStepId, string> = {
   check: "Check",
 };
 
+/** 各手順の説明（なぜ要るか）。次の `STEP_TROUBLES` が、うまくいかないときの次の一手 */
 const STEP_DESCRIPTIONS: Record<SetupStepId, string> = {
-  repo: "テンプレートから新しいリポジトリを作る",
-  app: "AI用の鍵。Create を押すだけ",
-  claude: "AIを Claude のサブスクで動かす",
-  settings: "マージ後のブランチを自動で消す",
-  check: "Doctor で足りない設定を確かめる",
+  repo: "テンプレートから、AI が作業する新しいリポジトリを作ります。AI はこのリポジトリの中だけで作業するので、最初に必要です",
+  app: "AI が GitHub を操作するための「鍵」になる App を作ります。「GitHub で App を作る」を押し、GitHub の画面で作成を押してください",
+  claude: "AI を動かすために、Claude の利用権限（トークン）を GitHub に預けます。これが無いと AI は動きません",
+  settings: "マージしたあとの不要なブランチを自動で消す設定にします。リポジトリが散らかるのを防ぎます。自動で進みます",
+  check: "必要な設定がそろったか、自動のチェック（診断）で確かめます。ここで通れば準備は完了です",
+};
+
+const STEP_TROUBLES: Record<SetupStepId, string> = {
+  repo: "うまくいかないときは、名前を変えるか、「作ってあるリポジトリを使う」を押してください",
+  app: "GitHub から戻れないときは、もう一度押してください。作ってある App があるときは「App はもう持っている」を押してください",
+  claude: "トークンが出ないときは、ターミナルで claude setup-token をもう一度打ってください。貼っても保存できないときは、先に「入れた」を押してください",
+  settings: "止まったときは「もう一度」を押してください。直らないときは、ページを読み込み直してください",
+  check: "直す所が見つかったときは「結果を見る」で理由を読み、その段に戻って直してから、もう一度診断してください",
 };
 
 const VISIBILITY = [
@@ -348,7 +357,9 @@ export function Setup({ login, facts: serverFacts, notTarget, canWrite, template
   function relogin(): ReactNode {
     return (
       <div className={styles.line}>
-        <p className={styles.sub}>Secret には repo の権限が要ります</p>
+        <p className={styles.sub}>
+          設定を書き込むには、GitHub の repo の権限が要ります。いまのログインには足りないので、権限を足してログインし直してください
+        </p>
         <form action={reloginWithRepoScope.bind(null, repo ?? "")}>
           <button type="submit" className={styles.primary}>
             権限を足してログインし直す
@@ -440,7 +451,9 @@ export function Setup({ login, facts: serverFacts, notTarget, canWrite, template
       const href = facts.appSlug && repo ? appInstallUrl(facts.appSlug, repo) : "https://github.com/settings/installations";
       return (
         <>
-          <p className={styles.sub}>App ができました。次はリポジトリへ</p>
+          <p className={styles.sub}>
+            App ができました。次は、この App をリポジトリに入れてください（入れないと AI が使えません）。もう入れてあるときは「入れてある」を押してください
+          </p>
           <div className={styles.line}>
             {demo ? (
               <button type="button" className={styles.primary} onClick={confirmInstalled}>
@@ -548,7 +561,7 @@ export function Setup({ login, facts: serverFacts, notTarget, canWrite, template
               {copied ? "コピーしました" : "コピー"}
             </button>
           </div>
-          <p className={styles.hint}>ターミナルで打つと、トークンが出ます</p>
+          <p className={styles.hint}>ターミナルで打つと、トークンが出ます。出た文字列を下に貼ってください</p>
           <div className={styles.line}>
             <label className={styles.field} data-size="token">
               <input
@@ -673,7 +686,7 @@ export function Setup({ login, facts: serverFacts, notTarget, canWrite, template
         <span className={styles.h1En}>Setup</span>
         <span className={styles.h1Ja}>導入</span>
       </h1>
-      <p className={styles.lead}>上から順に押す。あとは Issue を書くだけ</p>
+      <p className={styles.lead}>上から順に進めてください。終われば、あとは Issue を書くだけです</p>
       {notice && (
         <p className={styles.notice} role="alert">
           {notice}
@@ -695,6 +708,7 @@ export function Setup({ login, facts: serverFacts, notTarget, canWrite, template
                   </span>
                 </span>
                 {status === "current" && <span className={styles.desc}>{STEP_DESCRIPTIONS[id]}</span>}
+                {status === "current" && <span className={styles.desc}>{STEP_TROUBLES[id]}</span>}
               </div>
               {status === "done" && (
                 <span className={styles.result} title={results[id]}>
@@ -719,7 +733,7 @@ export function Setup({ login, facts: serverFacts, notTarget, canWrite, template
         <section className={styles.done} aria-label="Done">
           <div className={styles.doneHead}>
             <span className={styles.doneEn}>Done</span>
-            <span className={styles.doneJa}>監視に足しました。あとは Issue を書くだけ</span>
+            <span className={styles.doneJa}>監視に足しました。あとは Issue を書くだけです</span>
           </div>
           {watchError && (
             <p className={styles.error} role="alert">

@@ -113,7 +113,7 @@ describe("authorizeRepoSetting", () => {
 describe("repoSettingErrorMessage", () => {
   it("権限が無い（403・404）ときは、設定を変える権限が無いと出す", () => {
     expect(repoSettingErrorMessage(new GitHubError("forbidden", 403))).toBe(
-      "このリポジトリの設定を変える権限がありません",
+      "このリポジトリの設定を変える権限がありません。権限のあるアカウントでログインし直してください",
     );
     expect(repoSettingErrorMessage(new GitHubError("not_found", 404))).toBe(
       REPO_SETTING_MESSAGES.forbidden,
