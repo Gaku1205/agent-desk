@@ -7,7 +7,7 @@ export function calmCopy(unreadable: boolean): { title: string; description: str
         check: false,
       }
     : {
-        title: "君が決めることは、今はありません",
+        title: "決めることは、今はありません",
         description: "AIたちが進めています。決めることが出たら、ここに出ます。",
         check: true,
       };

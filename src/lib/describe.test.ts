@@ -31,7 +31,7 @@ describe("describeStatus", () => {
     [
       "止まった",
       { stage: "stuck", stuckReason: "レビューの指摘が直りませんでした" },
-      "レビューの指摘が直りませんでした。確認して「再開」",
+      "レビューの指摘が直りませんでした。AIは自動では進められず止まっています。原因を確認して「再開」を押してください",
       "止まっています",
     ],
     [
@@ -41,128 +41,165 @@ describe("describeStatus", () => {
         turn: "none",
         retry: { count: 3, max: 10, reason: "使用量の上限に達しました" },
       },
-      "使用量の上限に達しました（3/10回）・自動でやり直し",
+      "使用量の上限に達しました（3/10回）。AIが自動でやり直します。待つだけです",
       "やり直し待ち 3/10回",
     ],
     [
       "やり直し待ち（回数なし）",
       { stage: "retrying", turn: "none" },
-      "AIが止まりました・自動でやり直し",
+      "AIが止まりました。AIが自動でやり直します。待つだけです",
       "やり直し待ち",
     ],
     [
       "保留",
       { stage: "skipped" },
-      "保留中。準備ができたら「始める」",
+      "保留中です。準備ができたら「始める」を押してください",
       "保留中",
     ],
-    ["未着手", { stage: "notStarted" }, "まだ誰にも頼んでいません", "まだ頼んでいません"],
+    [
+      "未着手",
+      { stage: "notStarted" },
+      "まだ誰にも頼んでいません。「おまかせ」か「実装を依頼」を押してください",
+      "まだ頼んでいません",
+    ],
     [
       "未着手（受付中）",
       { stage: "notStarted", turn: "ai", grace: "intake" },
-      "受付が企画に回すか判断中",
+      "受付が企画に回すか判断中。待つだけです",
       "受付中",
     ],
     [
       "PR作成待ち（PRを作成中）",
       { stage: "prWaiting", turn: "ai", grace: "creatingPull" },
-      "AIの作業完了・PRを作成中",
+      "AIの作業が終わり、PR（変更のまとめ）を作成中。待つだけです",
       "PRを作成中",
     ],
     [
       "順番待ち",
       { stage: "queued", turn: "none" },
-      "順番待ち（前の作業の後）",
+      "順番待ち（前の作業の後）。待つだけです",
       "順番待ち",
     ],
-    ["企画中", { stage: "planning", turn: "ai" }, "企画AIが清書中", "清書中"],
-    ["AI作業中", { stage: "implementing", turn: "ai" }, "AIが実装中", "AIが実装中"],
+    ["企画中", { stage: "planning", turn: "ai" }, "企画AIが清書中。待つだけです", "清書中"],
+    ["AI作業中", { stage: "implementing", turn: "ai" }, "AIが実装中。待つだけです", "AIが実装中"],
     [
       "PR作成待ち",
       { stage: "prWaiting" },
-      "AIの作業完了・PR待ち",
+      "AIの作業が終わりました。PR（変更のまとめ）を作ると、チェックとレビューに進みます",
       "PRを作れます",
     ],
     [
       "PR作成待ち（エラー）",
       { stage: "prWaiting", implementError: true },
-      "AIがエラーで停止・結果を確認",
+      "AIがエラーで止まりました。結果を確認して、続けるか判断してください",
       "AIがエラーで停止",
     ],
     [
       "PR作成待ち（エラー直後の猶予）",
       { stage: "prWaiting", turn: "ai", implementError: true, grace: "creatingPull" },
-      "AIの作業完了・PRを作成中",
+      "AIの作業が終わり、PR（変更のまとめ）を作成中。待つだけです",
       "PRを作成中",
     ],
     [
       "CI中",
       { stage: "ciRunning", turn: "ai", ci: { passed: 2, total: 4 } },
-      "CI 実行中 2/4",
+      "CI（自動のチェック）を実行中 2/4。待つだけです",
       "CI 実行中 2/4",
     ],
     [
       "CI失敗",
       { stage: "ciFailed", turn: "ai" },
-      "CI失敗・AIが修正します",
+      "CI（自動のチェック）が失敗しました。AIが自動で直します。待つだけです",
       "CIが失敗しました",
     ],
-    ["レビュー中", { stage: "reviewing", turn: "ai" }, "レビューAIが確認中", "レビューAIが確認中"],
+    [
+      "レビュー中",
+      { stage: "reviewing", turn: "ai" },
+      "レビューAIが確認中。待つだけです",
+      "レビューAIが確認中",
+    ],
     [
       "修正の確認中（CI中）",
       { stage: "ciRunning", turn: "ai", ci: { passed: 3, total: 4 }, verifyingFix: true },
-      "直した結果を確認中（CI 3/4・レビュー）",
+      "直した結果を確認中（CI 3/4・レビュー）。待つだけです",
       "修正を確認中",
     ],
     [
       "修正の確認中（レビュー中）",
       { stage: "reviewing", turn: "ai", ci, verifyingFix: true },
-      "直した結果を確認中（CI 4/4・レビュー）",
+      "直した結果を確認中（CI 4/4・レビュー）。待つだけです",
       "修正を確認中",
     ],
     [
       "マージ待ち（hold）",
       { stage: "mergeWaiting", mergeWait: "hold", ci },
-      "CI 4/4 通過・マージできます",
+      "CI 4/4 通過。内容を確認して、よければ「マージ…」を押してください",
       "マージできます",
     ],
     [
       "マージ待ち（hold・PRの説明のお願いあり）",
       { stage: "mergeWaiting", mergeWait: "hold", ci, holdRequest: "マージの前に：秘密情報を登録（ほか2件）" },
-      "マージの前に：秘密情報を登録（ほか2件）",
+      "マージの前に：秘密情報を登録（ほか2件）。確認してから「マージ…」を押してください",
       "マージできます",
     ],
     [
       "止まった（理由の末尾に。がある）",
       { stage: "stuck", stuckReason: "依存を足してください。" },
-      "依存を足してください。確認して「再開」",
+      "依存を足してください。AIは自動では進められず止まっています。原因を確認して「再開」を押してください",
       "止まっています",
     ],
     [
       "マージ待ち（レビュー前）",
       { stage: "mergeWaiting", turn: "ai", mergeWait: "needsReview", ci },
-      "CI 4/4 通過・レビューへ",
+      "CI 4/4 通過。レビューに回します。待つだけです",
       "レビューに回します",
     ],
     [
       "マージ待ち（自動マージ）",
       { stage: "mergeWaiting", turn: "ai", mergeWait: "autoMerge", ci },
-      "CI・レビューOK・自動マージ",
+      "CI・レビューOK。まもなく自動でマージします。待つだけです",
       "自動でマージします",
     ],
-    ["公開中", { stage: "deploying", turn: "none" }, "本番に公開中", "本番に公開中"],
-    ["公開失敗", { stage: "deployFailed" }, "公開に失敗しました", "公開に失敗しました"],
+    ["公開中", { stage: "deploying", turn: "none" }, "本番に公開中。待つだけです", "本番に公開中"],
+    [
+      "公開失敗",
+      { stage: "deployFailed" },
+      "公開に失敗しました。「確認する」で理由を見て、必要なら GitHub で Issue を作ってください",
+      "公開に失敗しました",
+    ],
     ["公開済み", { stage: "deployed", turn: "none" }, "本番に公開済み", "公開済み"],
     [
       "公開済み（不明）",
       { stage: "deployed", turn: "none", deployUnknown: true },
-      "公開状況は不明",
+      "公開されたか分かりません。公開先で確認してください",
       "公開状況は不明",
     ],
   ];
 
   it.each(cases)("%s", (_name, overrides, long, short) => {
     expect(describeStatus(status(overrides))).toEqual({ long, short });
+  });
+
+  describe("Your turn の状態の文には「次に何を」がある", () => {
+    // 次にすること（押す・確認する）か「待つだけです」のどちらかが入っている
+    const NEXT = /押してください|確認してください|判断してください|作ってください|待つだけです/;
+    const states: [string, Partial<IssueStatus>][] = [
+      ["Stuck", { stage: "stuck", stuckReason: "AIが止まりました" }],
+      ["Deploy failed", { stage: "deployFailed" }],
+      ["CIの失敗", { stage: "ciFailed", turn: "ai" }],
+      ["AIがやり直している", { stage: "retrying", turn: "none" }],
+      ["AIが直している", { stage: "fixing", turn: "ai", fixCount: 1 }],
+      ["レビュー待ち", { stage: "reviewing", turn: "ai" }],
+      ["マージ待ち（Ship）", { stage: "mergeWaiting", mergeWait: "hold", ci }],
+      ["マージ待ち（人のお願い）", { stage: "mergeWaiting", mergeWait: "hold", ci, holdRequest: "マージの前に：登録" }],
+      ["保留（Start）", { stage: "skipped" }],
+    ];
+    it.each(states)("%s", (_name, overrides) => {
+      expect(describeStatus(status(overrides)).long).toMatch(NEXT);
+    });
+    it("質問への答え待ち（Answer）", () => {
+      expect(describeStatus(status({ stage: "question" })).long).toContain("答えると");
+    });
   });
 
   describe("原因とログのURLが付いた理由", () => {
@@ -173,7 +210,7 @@ describe("describeStatus", () => {
     it("止まった：URLを外して {説明}（{原因}） にする", () => {
       const stuck = status({ stage: "stuck", stuckReason: reason });
       expect(describeStatus(stuck, options).long).toBe(
-        "実装AIがエラーで止まりました（許可不足（Bash(git rebase main)））。確認して「再開」",
+        "実装AIがエラーで止まりました（許可不足（Bash(git rebase main)））。AIは自動では進められず止まっています。原因を確認して「再開」を押してください",
       );
       expect(failureLogUrl(stuck, "Gaku1205/agent-desk")).toBe(url);
     });
@@ -185,7 +222,7 @@ describe("describeStatus", () => {
         retry: { count: 1, max: 10, reason },
       });
       expect(describeStatus(retrying, options).long).toBe(
-        "実装AIがエラーで止まりました（許可不足（Bash(git rebase main)））（1/10回）・自動でやり直し",
+        "実装AIがエラーで止まりました（許可不足（Bash(git rebase main)））（1/10回）。AIが自動でやり直します。待つだけです",
       );
       expect(failureLogUrl(retrying, "Gaku1205/agent-desk")).toBe(url);
     });
@@ -202,10 +239,10 @@ describe("describeStatus", () => {
   it("修正中は回数と理由を出す", () => {
     const fixing = status({ stage: "fixing", turn: "ai", fixCount: 2 });
     expect(describeStatus(fixing, { fixReason: "レビューの指摘" })).toEqual({
-      long: "AIが直しています（2/3 回目）：レビューの指摘",
+      long: "AIが直しています（2/3 回目）：レビューの指摘。待つだけです",
       short: "AIが修正中 2/3",
     });
-    expect(describeStatus(fixing).long).toBe("AIが直しています（2/3 回目）");
+    expect(describeStatus(fixing).long).toBe("AIが直しています（2/3 回目）。待つだけです");
     // 3回目も「3/3」になる
     expect(describeStatus(status({ stage: "fixing", turn: "ai", fixCount: 3 })).short).toBe("AIが修正中 3/3");
   });

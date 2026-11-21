@@ -47,7 +47,7 @@ describe("chatLine（コンフリクト）", () => {
     for (const mergeWait of ["autoMerge", "needsReview"] as const) {
       expect(chatLine(status({ stage: "mergeWaiting", mergeWait, pull: conflictPull }))).toEqual({
         speaker: "パイプライン",
-        text: "main とぶつかっています",
+        text: "main とぶつかっています。AIが解消します。待つだけです",
       });
     }
   });
@@ -55,7 +55,7 @@ describe("chatLine（コンフリクト）", () => {
   it("修正の依頼が出ているときは、AIが解消しますを付ける", () => {
     expect(chatLine(status({ stage: "fixing", pull: conflictPull }))).toEqual({
       speaker: "AI",
-      text: "main とぶつかり・AIが解消中",
+      text: "main とぶつかっています。AIが解消中です。待つだけです",
     });
   });
 
@@ -145,7 +145,7 @@ describe("chatLine", () => {
   it("やり直し待ちは、理由と回数の説明文", () => {
     const line = chatLine(status({ stage: "retrying", turn: "none", retry: { count: 2, max: 10, reason: "利用上限" } }));
     expect(line.speaker).toBe("パイプライン");
-    expect(line.text).toBe("利用上限（2/10回）・自動でやり直し");
+    expect(line.text).toBe("利用上限（2/10回）。AIが自動でやり直します。待つだけです");
   });
 });
 

@@ -23,5 +23,6 @@ export function conflictKind(
 
 /** 文言（`docs/design.md` の「段階ごとの説明文」） */
 export function conflictText(kind: ConflictKind): string {
-  return kind === "fixing" ? "main とぶつかり・AIが解消中" : "main とぶつかっています";
+  return kind === "fixing" ? "main とぶつかっています。AIが解消中です。待つだけです"
+    : "main とぶつかっています。AIが解消します。待つだけです";
 }

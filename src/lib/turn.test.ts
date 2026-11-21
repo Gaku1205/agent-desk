@@ -169,7 +169,7 @@ describe("保留", () => {
 
 describe("パイプライン未設定", () => {
   const MISSING = "パイプライン未設定・Secretsを登録";
-  const ASK = "まだ誰にも頼んでいません";
+  const ASK = "まだ誰にも頼んでいません。「おまかせ」か「実装を依頼」を押してください";
 
   function itemsFor(pipeline: RepoData["pipeline"], overrides: Partial<RepoData> = {}) {
     const repoData = data({ issues: [issue(1)], pipeline, ...overrides });
@@ -200,7 +200,7 @@ describe("パイプライン未設定", () => {
 
   it("未着手以外（保留など）の表示は変えない", () => {
     const items = itemsFor("notConfigured", { issues: [issue(1, { labels: ["ai:skip"] })] });
-    expect(items[0].description).toBe("保留中。準備ができたら「始める」");
+    expect(items[0].description).toBe("保留中です。準備ができたら「始める」を押してください");
     expect(items[0].buttons.map((b) => b.label)).toEqual(["始める"]);
   });
 });
@@ -330,7 +330,7 @@ describe("buildTurnItems", () => {
   it("説明文と、マージの確認ダイアログの中身を持つ", () => {
     const items = buildTurnItems([ok("o", "r", mixedRepo())], NOW);
     const merge = items.find((item) => item.issue.number === 5);
-    expect(merge?.description).toBe("CI 1/1 通過・マージできます");
+    expect(merge?.description).toBe("CI 1/1 通過。内容を確認して、よければ「マージ…」を押してください");
     expect(merge?.merge).toEqual({
       pullNumber: 15,
       base: "main",
@@ -582,7 +582,7 @@ describe("パイプラインの知らせ", () => {
     expect(items.map((item) => item.issue.number)).toEqual([2, 1]);
     expect(items[0].status.stage).toBe("notice");
     expect(items[0].waitingSince).toBe("2026-10-25T10:00:00Z");
-    expect(items[0].description).toBe("配り先で落ちた知らせ");
+    expect(items[0].description).toBe("配り先で落ちた知らせです。内容を確認して閉じてください");
     expect(turnKind(items[0].status)).toEqual({ label: "Notice", group: "fix", icon: "notice" });
   });
 });
