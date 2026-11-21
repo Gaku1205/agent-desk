@@ -266,6 +266,17 @@
   max-width: 100%;
 }
 
+/* 幅900px以上：画像の高さを抑え、2問以上・画面案つきの1件でも主役のボタンが最初の1画面に入るようにする（Issue #746） */
+@media (min-width: 900px) {
+  .shot[data-device="pc"] {
+    max-height: 130px;
+  }
+
+  .shot[data-device="mobile"] {
+    max-height: 110px;
+  }
+}
+
 /* 送る文の見本 */
 .preview {
   display: flex;

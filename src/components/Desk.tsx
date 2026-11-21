@@ -272,13 +272,8 @@ export function Desk({
   }, []);
 
   // スマホの `このあと` の行：その1件を真ん中に出して、上へ戻る
-  const pickLater = useCallback(
-    (key: string) => {
-      pick(key);
-      window.scrollTo({ top: 0, behavior: "instant" });
-    },
-    [pick],
-  );
+  // （上へ戻すのではなく、フォーカスを移す副作用が、その1件を上端の帯の下まで見せる）
+  const pickLater = pick;
 
   // 決める画面のキー（docs/spec.md の「ホーム（決める画面）」）：1〜9 で選ぶ・Enter で答える・S で飛ばす・J / K で右の列を上下
   useEffect(() => {
@@ -344,8 +339,12 @@ export function Desk({
     if (!focusNext.current) return;
     focusNext.current = false;
     if (currentKey === null) return;
-    const row = rowsRef.current?.querySelector(`[data-key="${CSS.escape(currentKey)}"]`);
-    firstControl(row)?.focus();
+    const row = rowsRef.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(currentKey)}"]`);
+    // 答える欄がある1件は、選んでいる選択肢（無ければ最初）。ほかは最初のボタン
+    const target = row?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]') ?? firstControl(row);
+    target?.focus({ preventScroll: true });
+    // 1件の上端を、上端の帯のすぐ下（scroll-padding-top）に置いて、フォーカスを画面の中に見せる
+    row?.scrollIntoView({ block: "start", behavior: "instant" });
   }, [currentKey]);
 
   // 中央は上が古く下が新しい。開いたとき・リポジトリを切り替えたときはいちばん下で始め、
