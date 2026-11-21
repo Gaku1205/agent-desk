@@ -164,7 +164,7 @@ describe("describeStatus", () => {
     [
       "公開失敗",
       { stage: "deployFailed" },
-      "公開に失敗しました。理由を確認して、直す依頼を出してください",
+      "公開に失敗しました。「確認する」で理由を見て、必要なら GitHub で Issue を作ってください",
       "公開に失敗しました",
     ],
     ["公開済み", { stage: "deployed", turn: "none" }, "本番に公開済み", "公開済み"],
@@ -182,7 +182,7 @@ describe("describeStatus", () => {
 
   describe("Your turn の状態の文には「次に何を」がある", () => {
     // 次にすること（押す・確認する）か「待つだけです」のどちらかが入っている
-    const NEXT = /押してください|確認してください|判断してください|依頼を出してください|待つだけです/;
+    const NEXT = /押してください|確認してください|判断してください|作ってください|待つだけです/;
     const states: [string, Partial<IssueStatus>][] = [
       ["Stuck", { stage: "stuck", stuckReason: "AIが止まりました" }],
       ["Deploy failed", { stage: "deployFailed" }],

@@ -157,7 +157,7 @@ export function describeStatus(status: IssueStatus, options: DescribeOptions = {
       return { long: "本番に公開中。待つだけです", short: "本番に公開中" };
     case "deployFailed":
       return {
-        long: "公開に失敗しました。理由を確認して、直す依頼を出してください",
+        long: "公開に失敗しました。「確認する」で理由を見て、必要なら GitHub で Issue を作ってください",
         short: "公開に失敗しました",
       };
     case "deployed":
