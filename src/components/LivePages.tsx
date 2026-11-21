@@ -9,8 +9,8 @@ import { useNav, usePublishPageCounts } from "./NavContext";
 import { NewIssueForm, type NewIssueRepo } from "./NewIssueForm";
 import { RepoList } from "./RepoList";
 import { NewServiceSkeleton } from "./Skeleton";
-import { formatStaleTime, shouldHoldPrevious } from "@/lib/staleSnapshot";
-import styles from "./LivePages.module.css";
+import { shouldHoldPrevious } from "@/lib/staleSnapshot";
+import { StaleNote } from "./StaleNote";
 
 // 全部のリポジトリを使うページの入れ物（docs/spec.md の「全部のリポジトリを待つページ」）。
 // サーバーが先に返した段（覚えている最後の結果・読めた分）をすぐ描き、次の段が届くたびに、同じ部品の中身だけを入れ替える
@@ -59,28 +59,12 @@ export type LiveValue<P> = {
   complete: boolean;
   staleAt?: string | null;
   staleBecause?: "loading" | "unreadable" | null;
+  /** まだ届いていないリポジトリの数（あれば、帯は時刻ではなく件数を言う）。無ければ 0 */
+  pendingRepos?: number;
 };
 
 const isComplete = (value: { complete: boolean }): boolean => value.complete;
 
-/**
- * 古い結果を出している間の1行（日本時間）。新しい結果を待っている間は `HH:MM 時点の内容です。新しい内容を読んでいます…`、
- * 読めなかったので覚えている結果を出し続けているときは `HH:MM 時点の内容です。GitHubから読めなかったため、前に読めた内容を出しています`
- * （最後の段でも消えない）
- */
-function StaleNote({ staleAt, staleBecause, complete }: Omit<LiveValue<unknown>, "props">) {
-  const unreadable = staleBecause === "unreadable";
-  if ((complete && !unreadable) || !staleAt) return null;
-  const time = formatStaleTime(staleAt);
-  if (!time) return null;
-  return (
-    <p className={styles.staleNote} role="status">
-      {unreadable
-        ? `${time} 時点の内容です。GitHubから読めなかったため、前に読めた内容を出しています`
-        : `${time} 時点の内容です。新しい内容を読んでいます…`}
-    </p>
-  );
-}
 
 /**
  * 左のバーの件数：全部がそろう前の段では、ページが数えた件数（読めた分だけ）ではなく、
@@ -102,36 +86,36 @@ function useLiveNav(nav: DeskNav, complete: boolean): DeskNav {
 
 /** ホーム */
 export function DeskLive({ first }: { first: Step<LiveValue<ComponentProps<typeof Desk>>> }) {
-  const { props, complete, staleAt, staleBecause } = useSteps(first, isComplete);
+  const { props, complete, staleAt, staleBecause, pendingRepos } = useSteps(first, isComplete);
   usePublishPageCounts(props.nav, complete);
   return (
     <>
       <Desk {...props} settled={complete} />
-      <StaleNote staleAt={staleAt} staleBecause={staleBecause} complete={complete} />
+      <StaleNote staleAt={staleAt} staleBecause={staleBecause} complete={complete} pendingRepos={pendingRepos} />
     </>
   );
 }
 
 /** Slots & Queue */
 export function LanesLive({ first }: { first: Step<LiveValue<ComponentProps<typeof Lanes>>> }) {
-  const { props, complete, staleAt, staleBecause } = useSteps(first, isComplete);
+  const { props, complete, staleAt, staleBecause, pendingRepos } = useSteps(first, isComplete);
   const nav = useLiveNav(props.nav, complete);
   return (
     <>
       <Lanes {...props} nav={nav} />
-      <StaleNote staleAt={staleAt} staleBecause={staleBecause} complete={complete} />
+      <StaleNote staleAt={staleAt} staleBecause={staleBecause} complete={complete} pendingRepos={pendingRepos} />
     </>
   );
 }
 
 /** Dashboard */
 export function DashboardLive({ first }: { first: Step<LiveValue<ComponentProps<typeof Dashboard>>> }) {
-  const { props, complete, staleAt, staleBecause } = useSteps(first, isComplete);
+  const { props, complete, staleAt, staleBecause, pendingRepos } = useSteps(first, isComplete);
   const nav = useLiveNav(props.nav, complete);
   return (
     <>
       <Dashboard {...props} nav={nav} />
-      <StaleNote staleAt={staleAt} staleBecause={staleBecause} complete={complete} />
+      <StaleNote staleAt={staleAt} staleBecause={staleBecause} complete={complete} pendingRepos={pendingRepos} />
     </>
   );
 }
@@ -153,12 +137,12 @@ export function NewServiceLive({
 
 /** すべてのリポジトリ */
 export function RepoListLive({ first }: { first: Step<LiveValue<ComponentProps<typeof RepoList>>> }) {
-  const { props, complete, staleAt, staleBecause } = useSteps(first, isComplete);
+  const { props, complete, staleAt, staleBecause, pendingRepos } = useSteps(first, isComplete);
   const nav = useLiveNav(props.nav, complete);
   return (
     <>
       <RepoList {...props} nav={nav} />
-      <StaleNote staleAt={staleAt} staleBecause={staleBecause} complete={complete} />
+      <StaleNote staleAt={staleAt} staleBecause={staleBecause} complete={complete} pendingRepos={pendingRepos} />
     </>
   );
 }

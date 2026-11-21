@@ -8,7 +8,7 @@ import { groupTrails } from "./eventGroups";
 import type { TrailEvent } from "./events";
 import { isFactoryTitle } from "./factoryIssue";
 import { factoryProgress, type FactoryProgress } from "./factoryProgress";
-import { factoryChatText, factoryStage, type FactoryPhase } from "./factoryStage";
+import { FACTORY_WAITING_TEXT, factoryChatText, factoryStage, type FactoryPhase } from "./factoryStage";
 import { FLOW_STEPS, getFlow, type Flow } from "./flow";
 import { flowFacts, slimFlowStatus, type FlowExtraSource } from "./flowExtraBranches";
 import type { IssueData, RepoData, RepoResult } from "./github/types";
@@ -123,7 +123,7 @@ export function chatLine(status: IssueStatus, options: ChatLineOptions = {}): Ch
       // 相談待ちと決め打ちせず、工場の今の段から決める（Issue #659）。段が渡されなければ今までどおり
       return {
         speaker: "工場",
-        text: options.factory ? factoryChatText(options.factory, options.now ?? new Date()) : "工場の担当・相談待ち",
+        text: options.factory ? factoryChatText(options.factory, options.now ?? new Date()) : FACTORY_WAITING_TEXT,
       };
     case "prWaiting":
       if (status.grace === "creatingPull") {

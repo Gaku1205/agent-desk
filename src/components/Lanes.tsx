@@ -598,7 +598,9 @@ function QueueGroupView({ group, basePath }: { group: QueueGroup; basePath: stri
 /** Slots & Queue（`/lanes`、デモは `/demo/lanes`）：見出し・Slots・Running・Queue */
 export function Lanes({ source, usage, items, now, nav, errors, readMode = "ok" }: Props) {
   const canSayEmpty = readMode === "ok";
-  const unreadable = readMode === "failed";
+  const pending = readMode === "pending";
+  // 数が決まらない：全部読めなかった／まだ届いていないリポジトリがある（足し算が終わっていない）
+  const unreadable = readMode === "failed" || pending;
   const turnId = useId();
   const parallel = useParallelView();
   const limit = parallel?.state?.limit ?? null;
@@ -691,7 +693,14 @@ export function Lanes({ source, usage, items, now, nav, errors, readMode = "ok" 
               {overLimit}
             </p>
           ) : null}
-          {unreadable ? (
+          {pending && runningSlots.length > 0 ? (
+            // まだ届いていない所がある：読めた席の行はそのまま出し、空きの席の行は出さない
+            <ul className={`${styles.list} ${styles.seatList}`}>
+              {runningSlots.map((slot) => (
+                <SlotRow key={slot.work.key} slot={slot} />
+              ))}
+            </ul>
+          ) : unreadable ? (
             <EmptyNote text="動いている作業はありません" canSay={false} />
           ) : lanes.slots.length === 0 ? (
             <EmptyNote text="動いている作業はありません" canSay={canSayEmpty} />

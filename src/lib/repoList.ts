@@ -96,7 +96,8 @@ export function buildRepoRows(
       lastAt,
       githubUrl: "https://github.com/" + owner + "/" + repo,
       links: result ? latestDeployLinks(result, now) : [],
-      ...(result && !result.ok ? { unreadable: true } : {}),
+      // 読めなかった・まだ届いていない（結果が無い）行は、0 ではなく「–」
+      ...(!result || !result.ok ? { unreadable: true } : {}),
     };
   });
 }

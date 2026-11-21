@@ -553,7 +553,7 @@ export function NewIssueForm({
                   )}
                 </div>
                 {service && status.kind === "created" && (
-                  <p className={styles.after}>公開まで進めます。相談は Your turn に出ます</p>
+                  <p className={styles.after}>公開まで自動で進みます。相談が必要になったら Your turn に出るので、選んでください</p>
                 )}
               </form>
   );
@@ -577,7 +577,7 @@ export function NewIssueForm({
             </h2>
             {service && (
               <p className={styles.lead}>
-                新しいリポジトリを作る。既存は「Issueを書く」から
+                工場（新しいサービスを作る仕組み）に、作りたい物を言葉で頼みます。案・見た目の方向・最終確認を相談しながら、リポジトリ・デザイン・実装・公開まで自動で作るので、あなたは要所で選ぶだけです。
               </p>
             )}
             {names.length === 0 ? empty : form}

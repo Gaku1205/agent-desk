@@ -18,8 +18,8 @@ import {
 
 describe("omakaseHint", () => {
   it("オフ・オンの補足の1行", () => {
-    expect(omakaseHint(false)).toBe("案・見た目・最終確認の3回、Your turn で選ぶ");
-    expect(omakaseHint(true)).toBe("相談なしで公開まで（30分ほど）");
+    expect(omakaseHint(false)).toBe("案・見た目・最終確認の3回、Your turn（あなたの番）で選ぶ");
+    expect(omakaseHint(true)).toBe("相談なしで公開まで進めます（30分ほど）");
   });
 });
 
