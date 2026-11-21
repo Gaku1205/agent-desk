@@ -354,6 +354,15 @@
 }
 
 @media (max-width: 899px) {
+  /* 決める画面の選択肢：幅いっぱいのカード。キーの印は出さない（タップで選ぶ） */
+  .choiceKey {
+    display: none;
+  }
+
+  .choice {
+    min-height: 44px;
+  }
+
   .option {
     min-height: 36px;
     font-size: 13px;

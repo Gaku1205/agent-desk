@@ -454,6 +454,18 @@
   }
 }
 
+/* スマホのホームの `Your turn N ⌃` の置き場。PC では出さない */
+.turnSlot {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .turnSlot:not(:empty) {
+    display: flex;
+    flex-shrink: 0;
+  }
+}
+
 .pageName {
   display: none;
 }

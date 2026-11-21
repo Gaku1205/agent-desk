@@ -19,6 +19,11 @@
   padding: 56px 0;
 }
 
+/* ホームの待ちが0件：余白は HomeCalm が持つ */
+.turn[data-calm] {
+  padding: 0;
+}
+
 .head {
   display: flex;
   flex-wrap: wrap;
@@ -267,10 +272,9 @@
     display: none;
   }
 
-  /* ホームの右の列（Your turn）：スマホは真ん中の1件の下に、同じ幅と余白で続ける */
+  /* ホームの右の列（Your turn）：スマホは出さない（上の帯の `Your turn N ⌃` から開く一覧と、1件の下の `このあと` に替わった） */
   .side {
-    width: min(var(--col), calc(100% - 2 * var(--gutter)));
-    margin: 0 auto;
+    display: none;
   }
 
   /* 右の列があるときは、真ん中を画面の高さにしない（下に空白ができ、列が最初の1画面に入らない） */

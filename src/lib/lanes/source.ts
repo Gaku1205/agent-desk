@@ -5,7 +5,7 @@ import { factoryStage } from "../factoryStage";
 import { queueAfterNumber } from "../conversation";
 import { blockedByLabel, openBlockedBy, parseBlockedBy } from "../queueReason";
 import { usageModel } from "../dashboard/aiUsage";
-import { parseRunRows } from "../dashboard/summary";
+import { parseRunRows, summarize } from "../dashboard/summary";
 import { FLOW_STEPS, getFlow, type FlowStepKey } from "../flow";
 import type { IssueData, RepoData, RepoResult, WorkflowRunData } from "../github/types";
 import { parseHoldBlocking } from "../holdBlocking";
@@ -363,9 +363,23 @@ function issueUrl(owner: string, repo: string, number: number): string {
  * 並びは、リポジトリの並び（results の順）→ 番号。取れなかったリポジトリは飛ばす
  */
 /** ホームの上端の帯の右の1行の数：実装中（枠を使っている作業）と順番待ち（Slots & Queue と同じ数え方） */
-export function activityOf(results: readonly RepoResult[], now: Date): { running: number; queued: number } {
+export type HomeActivity = {
+  running: number;
+  queued: number;
+  /** 直近24時間に公開（マージ）された数（Dashboard の `24h` の `Merged` と同じ） */
+  published: number;
+  /** 実装中の作業（待ちが0件の画面に1件ずつ出す。工程の名前つき） */
+  works: { key: string; repo: string; number: number; title: string; stepName: string }[];
+};
+
+export function activityOf(results: readonly RepoResult[], now: Date): HomeActivity {
   const source = buildLanesSource(results, now);
-  return { running: source.works.length, queued: source.queue.length };
+  return {
+    running: source.works.length,
+    queued: source.queue.length,
+    published: summarize(results, now, "24h").merged ?? 0,
+    works: source.works.map(({ key, repo, number, title, stepName }) => ({ key, repo, number, title, stepName })),
+  };
 }
 
 export function buildLanesSource(results: readonly RepoResult[], now: Date): LanesSource {

@@ -95,6 +95,11 @@
   white-space: nowrap;
 }
 
+/* スマホの `飛ばす`（PC では出さない。S キーがある） */
+.skip {
+  display: none;
+}
+
 .title {
   color: var(--bone);
   font-size: 30px;
@@ -426,5 +431,48 @@
 
   .link {
     height: 44px;
+  }
+
+  /* ホーム：主役のボタンは幅いっぱい、その下に `飛ばす`（docs/design.md の「ホーム：スマホ」） */
+  .row[data-home] .acts {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .row[data-home] .acts .act,
+  .row[data-home] .acts .link {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .row[data-home] .keysHint,
+  .row[data-home] .enterKey {
+    display: none;
+  }
+
+  .row[data-home] .skip {
+    display: inline-flex;
+    order: 3;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 44px;
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px var(--edge);
+    color: var(--bone-2);
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  .row[data-home] .skip:hover {
+    background: var(--well);
+    color: var(--bone);
+  }
+
+  .row[data-home] .skip:focus-visible {
+    box-shadow:
+      inset 0 0 0 1px var(--edge-focus),
+      0 0 0 2px var(--bg),
+      0 0 0 3.5px var(--bone);
   }
 }

@@ -42,6 +42,10 @@ type Props = {
   onHold: (key: string, hold: { item: TurnItem; done: boolean } | null) => void;
   /** マージ待ちの一覧の1行として描く（順番の数。無ければ大きい1件） */
   queue?: { num: number };
+  /** ホームの真ん中の1件（スマホで主役のボタンを幅いっぱいにする） */
+  home?: boolean;
+  /** スマホの `飛ばす`（右の列の次の1件へ）。待ちが1件だけなら渡さない */
+  onSkip?: () => void;
 };
 
 /** 押した操作の段階：押している間（`〜中…`）→ 結果（`〜しました`）→ 消えていく */
@@ -91,7 +95,7 @@ function moveFocusOutOf(row: HTMLElement) {
  * 「あなたの番」の1件（docs/design.md の「あなたの番」）。種類の札 → 題名 → 説明文 → 答える欄 → ボタン。
  * ボタンはサーバー側で操作して、画面を取り直す。「マージ…」はその場で「マージする／やめる」に変わる（確認）
  */
-export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
+export function TurnRow({ item, wait, fresh, onLeave, onHold, queue, home = false, onSkip }: Props) {
   const { owner, repo, issue, status, buttons, merge } = item;
   const key = `${owner}/${repo}#${issue.number}`;
   const kind = turnKind(status);
@@ -436,6 +440,7 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
       data-group={kind.group}
       data-answer={asking || talking ? "" : undefined}
       data-fresh={fresh ? "" : undefined}
+      data-home={home ? "" : undefined}
       data-leaving={leaving ? "" : undefined}
       data-fading={fading}
       inert={leaving}
@@ -585,6 +590,11 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue }: Props) {
             <span className={styles.keysHint} aria-hidden="true">
               <span className="num">S</span> で飛ばす · <span className="num">J</span> / <span className="num">K</span> で選ぶ
             </span>
+            {onSkip && (
+              <button type="button" className={styles.skip} onClick={onSkip}>
+                飛ばす
+              </button>
+            )}
           </div>
         </>
       )}
