@@ -255,6 +255,17 @@
     display: none;
   }
 
+  /* ホームの右の列（Your turn）：スマホは真ん中の1件の下に、同じ幅と余白で続ける */
+  .side {
+    width: min(var(--col), calc(100% - 2 * var(--gutter)));
+    margin: 0 auto;
+  }
+
+  /* 右の列があるときは、真ん中を画面の高さにしない（下に空白ができ、列が最初の1画面に入らない） */
+  .panes:has(> .side) > .center {
+    min-height: 0;
+  }
+
   .turn {
     padding: 24px 0 40px;
   }
