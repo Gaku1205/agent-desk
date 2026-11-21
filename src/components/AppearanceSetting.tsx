@@ -65,10 +65,10 @@ export function AppearanceSetting() {
 
   return (
     <SettingsPanel>
-      <SettingsRow name="Theme" description="このブラウザの色">
+      <SettingsRow name="Theme" description="色の見た目を選びます（このブラウザだけに保存）">
         <Segmented options={THEME_CHOICES} value={theme} onChange={chooseTheme} label="テーマ" />
       </SettingsRow>
-      <SettingsRow name="Motion" description="このブラウザの動き">
+      <SettingsRow name="Motion" description="画面の動きを選びます（このブラウザだけに保存）">
         <Segmented options={MOTION_CHOICES} value={motion} onChange={chooseMotion} label="アニメーション" />
       </SettingsRow>
     </SettingsPanel>

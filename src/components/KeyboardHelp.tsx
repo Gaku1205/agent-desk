@@ -8,8 +8,8 @@ import styles from "./KeyboardHelp.module.css";
 /** 一覧に載せるのは、いま実際にある操作だけ（docs/spec.md の「キーボード操作の一覧」） */
 const ROWS: { keys: string[]; text: string }[] = [
   { keys: ["?"], text: "この一覧を開く・閉じる" },
-  { keys: ["Tab"], text: "最初の Tab で「本文へ移る」。押すと、Your turn の最初のボタンへ移る" },
-  { keys: ["↑", "↓", "←", "→", "Home", "End"], text: "Your turn の列で、行を移る" },
+  { keys: ["Tab"], text: "最初に押すと「本文へ移る」が出ます。もう一度押すと、Your turn（あなたの番）の最初のボタンへ移ります" },
+  { keys: ["↑", "↓", "←", "→", "Home", "End"], text: "Your turn（あなたの番）の列で、行を移ります" },
   { keys: ["1", "…", "9"], text: "その番の選択肢を選ぶ" },
   { keys: ["Enter"], text: "答えて次へ（主役のボタンを押す）" },
   { keys: ["S"], text: "何もせず、次の1件へ飛ばす" },
