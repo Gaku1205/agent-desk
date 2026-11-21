@@ -49,6 +49,8 @@ type Props = {
   notices: ConversationNotice[];
   /** 読めなかったリポジトリがある（動いている行が無いとき、「無い」と言い切らない） */
   unreadable?: boolean;
+  /** まだ届いていないリポジトリがある（同じく「無い」と言い切らない） */
+  pending?: boolean;
   /** 自動で監視に足したリポジトリ。公開済みと同じ過去の欄に、日ごとに混ぜる */
   added?: AddedNotice[];
   /** PCの進捗図に描くため選んでいる行（`owner/repo#番号`）。選んでいなければ null */
@@ -161,6 +163,7 @@ export function Conversation({
   repo,
   notices,
   unreadable = false,
+  pending = false,
   added = [],
   selected = null,
   onSelect,
@@ -561,7 +564,11 @@ export function Conversation({
       )}
       {active.length === 0 ? (
         <p className={styles.empty}>
-          {unreadable ? "読めなかったリポジトリの作業は、ここに出ていません" : "動いている作業はありません"}
+          {pending
+            ? "まだ届いていないリポジトリの作業は、ここに出ていません"
+            : unreadable
+              ? "読めなかったリポジトリの作業は、ここに出ていません"
+              : "動いている作業はありません"}
         </p>
       ) : (
         <>

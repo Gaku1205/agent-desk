@@ -28,7 +28,9 @@ export type LoadState = {
   staleBecause: "loading" | "unreadable" | null;
   /** 読めなかったリポジトリと理由（覚えている結果を出していても入る） */
   errors: LoadError[];
-  /** 「何も無い」と言ってよいか（読めなかったリポジトリが1つでもあれば言わない） */
+  /** まだ届いていないリポジトリの数（新しい結果も、出せる覚えている結果も、読めなかったという結果も無い所） */
+  pendingRepos: number;
+  /** 「何も無い」と言ってよいか（読めなかった・まだ届いていないリポジトリが1つでもあれば言わない） */
   canSayEmpty: boolean;
   sync: SyncReadState;
 };
@@ -62,6 +64,7 @@ export function resolveLoadState(loads: RepoLoad[], now: Date = new Date()): Loa
       from.push("none");
     }
   }
+  const pendingRepos = shown.filter((result) => result === null).length;
   const staleShown = shown.filter((_, index) => from[index] === "stale");
   const failed = loads.flatMap(({ fresh }) => (fresh && !fresh.ok ? [fresh] : []));
   const arrived = loads.filter(({ fresh }) => fresh !== null).length;
@@ -84,7 +87,8 @@ export function resolveLoadState(loads: RepoLoad[], now: Date = new Date()): Loa
     staleAt: oldestReadAt(staleShown.flatMap((result) => okData(result) ?? [])),
     staleBecause: staleShown.length === 0 ? null : unreadableStale ? "unreadable" : "loading",
     errors: [...loadErrorsOf(failed), ...unreadableWork],
-    canSayEmpty: failed.length === 0 && unreadableWork.length === 0,
+    pendingRepos,
+    canSayEmpty: failed.length === 0 && unreadableWork.length === 0 && pendingRepos === 0,
     sync,
   };
 }

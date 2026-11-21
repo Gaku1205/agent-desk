@@ -26,7 +26,7 @@ const NO_COUNTS = { byRepo: {} };
  */
 export default async function Home() {
   const login = (await getSignedInLogin()) ?? undefined;
-  const first = await loadTurnSteps(({ results, items, now, repos, addedNotices, complete, errors }) => {
+  const first = await loadTurnSteps(({ results, items, now, repos, addedNotices, complete, errors, pendingRepos }) => {
     const trail = buildTrailEvents(results, now);
     return {
     complete,
@@ -39,6 +39,8 @@ export default async function Home() {
       scope: { kind: "all" as const, repoCount: repos.length },
       // 読めなかったリポジトリ（覚えている結果を出していても入る）
       errors,
+      // まだ届いていないリポジトリの数（あれば「ありません」「待ちが0件」と言わない）
+      pendingRepos: pendingRepos ?? 0,
       notices: buildWatchdogNotices(results, now),
       addedNotices,
       nav: complete

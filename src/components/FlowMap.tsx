@@ -300,11 +300,14 @@ export function FlowMap({
   target,
   inline = false,
   unreadable = false,
+  pending = false,
 }: {
   target: FlowTarget | null;
   inline?: boolean;
   /** 読めなかったリポジトリがある（出す1件が無いとき、「無い」と言い切らない） */
   unreadable?: boolean;
+  /** まだ届いていないリポジトリがある（同じく「無い」と言い切らない） */
+  pending?: boolean;
 }) {
   if (inline && target) {
     // スマホ：「いまの様子」の行の下に開く。見出しは行にあるので付けない。図だけが横にスクロールする
@@ -331,7 +334,11 @@ export function FlowMap({
     return (
       <section className={styles.flow} aria-label="進捗図">
         <p className={styles.empty}>
-          {unreadable ? "読めなかったリポジトリの作業は、ここに出せません" : "いま動いている作業はありません"}
+          {pending
+            ? "まだ届いていないリポジトリの作業は、ここに出せません"
+            : unreadable
+              ? "読めなかったリポジトリの作業は、ここに出せません"
+              : "いま動いている作業はありません"}
         </p>
       </section>
     );
