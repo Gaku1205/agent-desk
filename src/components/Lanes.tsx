@@ -41,6 +41,7 @@ import styles from "./Lanes.module.css";
 import { PausedList } from "./LanesPaused";
 import { LanesTurn } from "./LanesTurn";
 import { LanesUsage } from "./LanesUsage";
+import { MarqueeText } from "./MarqueeText";
 import { useParallelView } from "./ParallelContext";
 import { QueueIcon } from "./QueueIcon";
 import { ParallelSwitch } from "./ParallelSwitch";
@@ -249,7 +250,7 @@ function SlotRow({ slot }: { slot: RunningSlot }) {
   const { work } = slot;
   return (
       <li className={styles.seat}>
-      <div className={styles.row} data-tone="running" data-kind="slot">
+      <div className={styles.row} data-tone="running" data-kind="slot" data-marquee-row="">
         <div className={styles.left}>
           <span className={styles.slotName} data-tone="running">
             <PlayIcon size={12} />
@@ -260,7 +261,7 @@ function SlotRow({ slot }: { slot: RunningSlot }) {
           </span>
         </div>
         <a className={styles.title} href={work.url} target="_blank" rel="noreferrer" title={work.title}>
-          {work.title}
+          <MarqueeText text={work.title} />
         </a>
         <div className={styles.right}>
           <span className={styles.stepRow}>
@@ -317,7 +318,7 @@ function RunRow({ run }: { run: RunEntry }) {
   const ref = run.issueNumber !== null ? `${run.repo}#${run.issueNumber}` : run.repo;
   const pull = run.pullNumber !== null ? `${run.issueNumber !== null ? "（" : " "}PR #${run.pullNumber}${run.issueNumber !== null ? "）" : ""}` : "";
   return (
-    <li className={styles.row} data-tone="running" data-kind="run">
+    <li className={styles.row} data-tone="running" data-kind="run" data-marquee-row="">
       <div className={styles.left}>
         <span className={styles.kind}>
           <span className={styles.spin} aria-hidden="true">
@@ -332,7 +333,7 @@ function RunRow({ run }: { run: RunEntry }) {
       </div>
       <div className={styles.middle}>
         <span className={styles.activity} title={run.activity ?? undefined}>
-          {run.activity ?? "—"}
+          <MarqueeText text={run.activity ?? "—"} />
         </span>
         {run.detail && <span className={styles.detail}>{run.detail}</span>}
       </div>
@@ -535,7 +536,7 @@ function GroupHead({ group, basePath }: { group: QueueGroup; basePath: string })
   const middle =
     group.kind === "multi" ? multiWaitText(group.targets.length) : group.work?.title ?? group.targets[0].title;
   return (
-    <div className={styles.groupHead} data-kind={group.kind} data-tone={group.tone}>
+    <div className={styles.groupHead} data-kind={group.kind} data-tone={group.tone} data-marquee-row="">
       <span className={styles.groupLeft}>
         {group.tone === "running" ? <PlayIcon size={12} /> : group.kind === "multi" ? <CircleIcon size={12} /> : null}
         <span className={`${styles.groupRefs} num`}>
@@ -552,7 +553,7 @@ function GroupHead({ group, basePath }: { group: QueueGroup; basePath: string })
         data-muted={group.kind === "work" ? undefined : ""}
         title={group.kind === "multi" ? undefined : middle}
       >
-        {middle}
+        <MarqueeText text={middle} />
       </span>
       {group.work && <span className={styles.groupStep}>{workStepText(group.work)}</span>}
     </div>
@@ -563,13 +564,13 @@ function GroupHead({ group, basePath }: { group: QueueGroup; basePath: string })
 function QueueChildRow({ row }: { row: QueueGroupRow }) {
   const { entry } = row;
   return (
-    <li className={styles.qRow} data-depth={row.depth} title={queueRowTitle(entry)}>
+    <li className={styles.qRow} data-depth={row.depth} title={queueRowTitle(entry)} data-marquee-row="">
       <span className={styles.qRank}>
         <QueueIcon size={12} />
         <span className="num">{row.order}</span>
       </span>
       <a className={styles.qTitle} href={entry.url} target="_blank" rel="noreferrer" title={entry.title}>
-        {entry.title}
+        <MarqueeText text={entry.title} />
       </a>
       <span className={`${styles.qMeta} num`}>{queueRowMeta(row)}</span>
       <span className={`${styles.qTime} num`}>{entry.waitingMs !== null ? formatSpan(entry.waitingMs) : ""}</span>

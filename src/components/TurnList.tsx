@@ -4,6 +4,7 @@ import { useRef, useState, type KeyboardEvent } from "react";
 import { rovingNext } from "@/lib/roving";
 import { formatWait, turnItemKey, type TurnItem } from "@/lib/turn";
 import { groupLabel, turnHint, turnKind } from "@/lib/turnKind";
+import { MarqueeText } from "./MarqueeText";
 import styles from "./TurnList.module.css";
 
 type Props = {
@@ -63,6 +64,7 @@ export function TurnList({ items, currentKey, now, count, onPick, label = "Your 
                   className={styles.row}
                   data-group={kind.group}
                   data-list-key={key}
+                  data-marquee-row=""
                   data-here={here ? "" : undefined}
                   aria-current={here ? "true" : undefined}
                   tabIndex={index === activeIndex ? 0 : -1}
@@ -74,7 +76,9 @@ export function TurnList({ items, currentKey, now, count, onPick, label = "Your 
                     <span className={styles.group}>{groupLabel(kind.group)}</span>
                     {hint && <span className={styles.hint}> · {hint}</span>}
                   </span>
-                  <span className={styles.title}>{item.issue.title}</span>
+                  <span className={styles.title}>
+                    <MarqueeText text={item.issue.title} lines={2} />
+                  </span>
                   <span className={`${styles.meta} num`}>
                     {ref} · {wait}
                   </span>
