@@ -211,6 +211,43 @@ describe("buildLanesSource：順番待ちの理由と相手", () => {
     expect(source.queue[0]).toMatchObject({ cause: "blocked", waitFor: { label: "#7" } });
   });
 
+  it("blocked-by の印だけで止めた Issue は、印の相手（複数・別のリポジトリ・開いている物だけ）を相手にする", () => {
+    const mark = (body: string): CommentData => ({ id: 1, issueNumber: 9, author: "claude[bot]", body, createdAt: "2026-11-18T01:00:00Z" });
+    const single = buildLanesSource(
+      [result(data({ issues: [issue(715, ["ai:implement"]), issue(9, ["ai:blocked"])], comments: [mark("<!-- blocked-by: o/r#715 -->")] }))],
+      NOW,
+    );
+    expect(single.queue[0]).toMatchObject({ cause: "blocked", waitFor: { label: "#715" } });
+    expect(single.queue[0].waitFors).toMatchObject([{ number: 715, running: true }]);
+
+    const many = buildLanesSource(
+      [
+        result(
+          data({
+            issues: [issue(1, ["ai:plan"]), { ...issue(2), state: "closed" }, issue(9, ["ai:blocked"])],
+            comments: [mark("<!-- blocked-by: o/r#1 -->\n<!-- blocked-by: o/r#2 -->\n<!-- blocked-by: o/other#3 -->")],
+          }),
+        ),
+      ],
+      NOW,
+    );
+    expect(many.queue[0].waitFors.map((t) => [t.number, t.otherRepo?.repo ?? null])).toEqual([
+      [1, null],
+      [3, "other"],
+    ]);
+  });
+
+  it("印と理由の文の両方があれば印を先に使い、印が無ければ理由の文から", () => {
+    const comments: CommentData[] = [
+      { id: 1, issueNumber: 9, author: "claude[bot]", body: "#7 が終わってから", createdAt: "2026-11-18T01:00:00Z" },
+      { id: 2, issueNumber: 9, author: "bot", body: "<!-- blocked-by: o/r#8 -->", createdAt: "2026-11-18T01:00:00Z" },
+    ];
+    const both = buildLanesSource([result(data({ issues: [issue(9, ["ai:blocked"])], comments }))], NOW);
+    expect(both.queue[0].waitFor?.label).toBe("#8");
+    const reasonOnly = buildLanesSource([result(data({ issues: [issue(9, ["ai:blocked"])], comments: [comments[0]] }))], NOW);
+    expect(reasonOnly.queue[0].waitFor?.label).toBe("#7");
+  });
+
   it("マージ待ちの PR の止めている印にあれば hold、相手はその PR", () => {
     const mark: CommentData = { id: 1, issueNumber: 20, author: "github-actions[bot]", body: "<!-- hold-blocking: #9 -->", createdAt: "2026-11-18T01:00:00Z" };
     const source = buildLanesSource(

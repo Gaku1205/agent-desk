@@ -5,6 +5,7 @@ import type { AddedNotice } from "@/lib/autoAdd";
 import type { AiActivity } from "@/lib/aiActivity";
 import { messageFlow, queueAfterNumber, type ChatMessage } from "@/lib/conversation";
 import { splitQueue } from "@/lib/queueGroup";
+import { queueHeadText } from "@/lib/queueReason";
 import { applyStepLog, hideUnknownModels } from "@/lib/flow";
 import type { StepInfo } from "@/lib/stepLog";
 import { formatWait } from "@/lib/turn";
@@ -378,8 +379,7 @@ export function Conversation({
 
   /** 順番待ちのまとまり：最初は畳んで1行、押すと始まる順に1行ずつ（docs/design.md の「順番待ちのまとまり」） */
   function renderQueue() {
-    const next = queue[0];
-    const nextLabel = showRepo ? `${next.repo}#${next.number}` : `#${next.number}`;
+    const head = queueHeadText(queue, showRepo);
     return (
       <div className={styles.queue}>
         <button
@@ -392,7 +392,7 @@ export function Conversation({
           <span className={styles.queueIcon}>
             <QueueIcon size={12} />
             <span>
-              順番待ち <span className="num">{queue.length}</span>件（次：<span className="num">{nextLabel}</span>）
+              順番待ち <span className="num">{queue.length}</span>件（<span className="num">{head}</span>）
             </span>
           </span>
           <span aria-hidden="true"> {queueOpen ? "▴" : "▾"}</span>
