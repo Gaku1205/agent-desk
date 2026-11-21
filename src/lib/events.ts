@@ -1,3 +1,4 @@
+import type { AwayEvent } from "./awaySummary";
 import { isFailedState, latestCountedPerContext } from "./deployStatus";
 import type { CommitStatusData, IssueData, PullData, RepoData, RepoResult } from "./github/types";
 import {
@@ -380,6 +381,20 @@ export function buildTrailEvents(
     .filter((event) => inWindow(event.at, now))
     .sort((a, b) => b.at.localeCompare(a.at) || a.id.localeCompare(b.id))
     .slice(0, EVENT_LIMIT);
+}
+
+/**
+ * 「いない間のまとめ」の元：出来事のうち、公開（`:deployed`）と止まり（`:stuck-…`）だけ。
+ * 本物のホームとデモのホームの両方が同じ条件で使う
+ */
+export function awayEventsOf(trail: TrailEvent[]): AwayEvent[] {
+  return trail
+    .filter((event) => /:deployed$/.test(event.id) || /:stuck-[^:]*$/.test(event.id))
+    .map(({ id, at, issue }) => ({
+      id,
+      at,
+      issue: { owner: issue.owner, repo: issue.repo, number: issue.number, title: issue.title },
+    }));
 }
 
 /**

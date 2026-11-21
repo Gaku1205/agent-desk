@@ -6,7 +6,7 @@ import { demoStepLog } from "@/lib/demo/stepLog";
 import { findWatchedRepo, type WatchedRepo } from "@/lib/config";
 import { DEMO_BASE_PATH, DEMO_PARALLEL_SETTINGS, DEMO_REPO_OPTIONS, DEMO_TEMPLATE_REPO } from "@/lib/demo/data";
 import { buildConversation } from "@/lib/conversation";
-import { buildTrailEvents } from "@/lib/events";
+import { awayEventsOf, buildTrailEvents } from "@/lib/events";
 import { parseNotifyEvents } from "@/lib/notifyEvents";
 import { countRunningPipelineRows } from "@/lib/runningPipeline";
 import { countTurnItems, filterTurnItems } from "@/lib/turn";
@@ -59,10 +59,12 @@ export function DemoHome() {
   const nav = useDemoNav();
   const loadStepLog = useDemoStepLog();
 
+  const trail = buildTrailEvents(results, now);
   return (
     <Desk
       items={items}
-      messages={buildConversation(results, buildTrailEvents(results, now), now)}
+      messages={buildConversation(results, trail, now)}
+      awayEvents={awayEventsOf(trail)}
       now={now.toISOString()}
       scope={{ kind: "all", repoCount: repos.length }}
       errors={[]}

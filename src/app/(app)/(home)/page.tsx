@@ -2,7 +2,7 @@ import { loadStepLog } from "@/app/actions";
 import { DeskLive } from "@/components/LivePages";
 import { getSignedInLogin } from "@/lib/auth";
 import { buildConversation } from "@/lib/conversation";
-import { buildTrailEvents } from "@/lib/events";
+import { awayEventsOf, buildTrailEvents } from "@/lib/events";
 import { loadTurnSteps } from "@/lib/loadTurnSteps";
 import { unreadableMapOf } from "@/lib/navCounts";
 import { newIssueRepos } from "@/lib/newIssue";
@@ -34,13 +34,7 @@ export default async function Home() {
       items,
       messages: buildConversation(results, trail, now),
       // 「いない間のまとめ」の元：取得済みの出来事のうち、公開と止まりだけ（呼び出しは増やさない）
-      awayEvents: trail
-        .filter((event) => /:deployed$/.test(event.id) || /:stuck-[^:]*$/.test(event.id))
-        .map(({ id, at, issue }) => ({
-          id,
-          at,
-          issue: { owner: issue.owner, repo: issue.repo, number: issue.number, title: issue.title },
-        })),
+      awayEvents: awayEventsOf(trail),
       now: now.toISOString(),
       scope: { kind: "all" as const, repoCount: repos.length },
       // 読めなかったリポジトリ（覚えている結果を出していても入る）

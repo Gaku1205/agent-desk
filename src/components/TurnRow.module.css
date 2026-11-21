@@ -55,6 +55,13 @@
   margin-left: auto;
 }
 
+/* 札の行の ` · `（間の gap 12px を半分に詰める） */
+.dot {
+  margin: 0 -6px;
+  color: var(--mute);
+  white-space: nowrap;
+}
+
 /* 決める画面（docs/design.md の「ホーム（決める画面）」）：誰から・Fix の Issue の題名（札の行に小さく） */
 .source {
   color: var(--mute);
@@ -476,6 +483,10 @@
   .row[data-home] .acts .link {
     justify-content: center;
     width: 100%;
+  }
+
+  .row[data-home] .acts .recAll {
+    justify-content: center;
   }
 
   .row[data-home] .keysHint,

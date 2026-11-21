@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  awayEventsOf,
+  type TrailEvent,
   buildRecentEvents,
   dayHeading,
   EVENT_LIMIT,
@@ -537,5 +539,37 @@ describe("日の見出し（日本時間）", () => {
 
   it("0件なら空", () => {
     expect(groupEventsByDay([], NOW)).toEqual([]);
+  });
+});
+
+describe("awayEventsOf", () => {
+  function trail(key: string, number = 1): TrailEvent {
+    return {
+      id: `o/r#${number}:${key}`,
+      at: "2026-10-25T01:00:00Z",
+      tone: "ai",
+      icon: "check",
+      text: key,
+      short: key,
+      ref: `r#${number}`,
+      issue: { owner: "o", repo: "r", number, title: `Issue ${number}`, url: "https://example.com", stage: "reviewing" },
+    };
+  }
+
+  it("公開（deployed）と止まり（stuck-…）だけ残し、それ以外は除く", () => {
+    const result = awayEventsOf([
+      trail("deployed", 1),
+      trail("stuck-123", 2),
+      trail("merged", 3),
+      trail("pull", 4),
+      trail("deploy-failed", 5),
+      trail("ci-passed", 6),
+    ]);
+    expect(result.map((event) => event.id)).toEqual(["o/r#1:deployed", "o/r#2:stuck-123"]);
+    expect(result[0]).toEqual({
+      id: "o/r#1:deployed",
+      at: "2026-10-25T01:00:00Z",
+      issue: { owner: "o", repo: "r", number: 1, title: "Issue 1" },
+    });
   });
 });
