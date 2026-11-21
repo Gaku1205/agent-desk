@@ -197,7 +197,7 @@ function SectionHead({
   return (
     <h2 className={styles.sectionHead} id={id}>
       {icon}
-      <span>
+      <span className={styles.sectionName}>
         {title}
         {count !== undefined && <span className="num"> {count}</span>}
       </span>
