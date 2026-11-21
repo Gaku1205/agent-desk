@@ -83,16 +83,12 @@
 }
 
 .title {
-  display: -webkit-box;
-  overflow: hidden;
+  display: block;
+  min-width: 0;
   color: var(--bone);
   font-size: 13.5px;
   font-weight: 500;
   line-height: 1.5;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
 }
 
 .meta {

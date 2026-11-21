@@ -16,6 +16,7 @@ import { DoneResult } from "./DoneResult";
 import flowStyles from "./FlowMap.module.css";
 import { SpinnerIcon } from "./icons";
 import styles from "./Lanes.module.css";
+import { MarqueeText } from "./MarqueeText";
 import { SmartLink } from "./SmartLink";
 import { TurnKindIcon } from "./TurnKindIcon";
 
@@ -198,6 +199,7 @@ export function LanesTurn({ item, wait, mergeOrder, basePath, onHold, onGone }: 
       }}
       className={styles.row}
       data-kind="turn"
+      data-marquee-row=""
       data-group={kind.group}
       data-key={key}
       data-fading={phase === "fading" ? "" : undefined}
@@ -214,7 +216,7 @@ export function LanesTurn({ item, wait, mergeOrder, basePath, onHold, onGone }: 
       </div>
       <div className={styles.middle}>
         <a className={styles.turnTitle} href={issue.url} target="_blank" rel="noreferrer" title={issue.title}>
-          {issue.title}
+          <MarqueeText text={issue.title} />
         </a>
         {done ? (
           <DoneResult summary={done} compact noClose />
