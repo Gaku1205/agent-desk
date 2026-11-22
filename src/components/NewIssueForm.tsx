@@ -29,6 +29,7 @@ import {
   memoLength,
   NEW_ISSUE_COUNTER_FROM,
   NEW_ISSUE_MESSAGES,
+  NEW_SERVICE_MESSAGES,
   omakaseHint,
   SERVICE_EXAMPLES,
 } from "@/lib/newIssue";
@@ -244,7 +245,7 @@ export function NewIssueForm({
   function submit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
-    const checked = checkNewIssueMemo(title);
+    const checked = checkNewIssueMemo(title, service);
     if (!checked.ok) {
       setStatus({ kind: "error", message: checked.message });
       inputRef.current?.focus();
@@ -442,7 +443,7 @@ export function NewIssueForm({
                 )}
                 {overLimit && (
                   <p className={`${settingsStyles.error} ${styles.imageMessage}`} role="alert">
-                    {NEW_ISSUE_MESSAGES.tooLong}
+                    {service ? NEW_SERVICE_MESSAGES.tooLong : NEW_ISSUE_MESSAGES.tooLong}
                   </p>
                 )}
                 {imageMessage && (

@@ -102,6 +102,10 @@
   flex-wrap: wrap;
   gap: 4px 12px;
   align-items: center;
+}
+
+/* 札の字・ランプは列の外へ8px出して置く。補足は折り返すと列の左端に来るので、札だけを左へずらす */
+.omakase > label {
   margin-left: -8px;
 }
 
