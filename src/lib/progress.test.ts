@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calmRgba, getProgress, toneRgba } from "./progress";
+import { calmRgba, getProgress, hasNoStageName, PROGRESS_STAGE_NAMES, toneRgba } from "./progress";
 import type { IssueStatus, Stage } from "./status";
 
 function status(overrides: Partial<IssueStatus>): IssueStatus {
@@ -24,6 +24,26 @@ function status(overrides: Partial<IssueStatus>): IssueStatus {
     ...overrides,
   };
 }
+
+describe("hasNoStageName：まだ工程に入っていない物は段階名を出さない", () => {
+  it("Notice・Not started・On hold は出さない", () => {
+    expect(hasNoStageName(status({ stage: "notice" }))).toBe(true);
+    expect(hasNoStageName(status({ stage: "notStarted" }))).toBe(true);
+    expect(hasNoStageName(status({ stage: "skipped" }))).toBe(true);
+  });
+
+  it("企画の工程の物・ほかの段階・止まった物は出す", () => {
+    for (const stage of ["question", "planning", "fixing", "prWaiting", "deployFailed", "deployed"] as const) {
+      expect(hasNoStageName(status({ stage }))).toBe(false);
+    }
+    expect(hasNoStageName(status({ stage: "stuck", stageBeforeStuck: "fixing" }))).toBe(false);
+  });
+
+  it("工程名は企画（Question の右端と進捗図の最初の棒が同じ）", () => {
+    expect(PROGRESS_STAGE_NAMES[0]).toBe("企画");
+    expect(getProgress(status({ stage: "question" })).currentName).toBe("企画");
+  });
+});
 
 describe("getProgress の位置と色", () => {
   const cases: [Stage, Partial<IssueStatus>, number, string][] = [
