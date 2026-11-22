@@ -225,7 +225,6 @@ export function LanesTurn({ item, wait, mergeOrder, basePath, onHold, onGone }: 
             className={styles.turnDesc}
             data-error={error ? "" : undefined}
             role={error ? "alert" : undefined}
-            title={text}
           >
             {lines && !error
               ? lines.map((l, i) => (

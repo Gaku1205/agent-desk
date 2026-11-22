@@ -1050,15 +1050,9 @@ button[aria-expanded="true"] .chevron svg {
 .row[data-kind="turn"] {
   --line: var(--kind-line);
   grid-template-columns: minmax(0, 200px) minmax(280px, 1fr) auto;
-  height: 56px;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-/* 動きを減らす設定で題名が折り返している間は、行を伸ばす */
-.row[data-kind="turn"]:has([data-mode="wrap"]) {
-  height: auto;
   min-height: 56px;
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 .row[data-fading] {
@@ -1090,11 +1084,11 @@ button[aria-expanded="true"] .chevron svg {
 }
 
 .turnDesc {
-  overflow: hidden;
   color: var(--bone-2);
   font-size: 12.5px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .turnDesc[data-error] {
