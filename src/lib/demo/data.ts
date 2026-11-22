@@ -291,18 +291,23 @@ function addStepLogs(ctx: Ctx) {
     const flow = getFlow(getIssueStatus(issue, ctx.data, now));
     const logged = flow.steps.filter((step) => step.state !== "waiting" && Object.hasOwn(DEMO_STEP_MODEL, step.key));
     if (logged.length === 0) continue;
-    // 今動いている作業は「今」の近く。それ以外は、24時間の中に重ならないよう間をあけて置く
-    // （全部が「今」に重なると、Last 24h の最後だけ跳ね上がる）
-    const placed = !logged.some((step) => step.state === "running");
+    // 今動いている作業は、その Issue の実行の始まり（demoRunStartedMs）に合わせる。席の経過時間が実行の時間より短く見えないように。
+    // それ以外は、24時間の中に重ならないよう間をあけて置く（全部が「今」に重なると、Last 24h の最後だけ跳ね上がる）
+    const runningIndex = logged.findIndex((step) => step.state === "running");
+    const placed = runningIndex < 0;
     const offset = placed ? USAGE_PLACE_FIRST_MIN + (ctx.placer.next++ % USAGE_PLACE_COUNT) * USAGE_PLACE_STEP_MIN : 0;
+    const runningMin = placed ? 0 : (ctx.base - demoRunStartedMs(ctx.data, issue.number, now)) / MINUTE_MS;
+    // 工程の開始が「今」から何分前か。動いている工程より前の工程は、4分ずつ前に並べる
+    const startedMin = (index: number) =>
+      placed ? offset + (logged.length - index) * 4 : runningMin + (runningIndex - index) * 4;
     const lines = logged.map((step, index) => {
-      const started = ago(ctx, offset + (logged.length - index) * 4);
+      const started = ago(ctx, startedMin(index));
       const running = step.state === "running";
       return `<!-- ai-step ${JSON.stringify({
         step: step.key,
         model: DEMO_STEP_MODEL[step.key],
         started,
-        finished: running ? null : ago(ctx, offset + (logged.length - index) * 4 - 1 - (index % 3)),
+        finished: running ? null : ago(ctx, startedMin(index) - 1 - (index % 3)),
         result: running ? "running" : step.state === "failed" ? "failure" : "success",
       })} -->`;
     });

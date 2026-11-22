@@ -85,16 +85,26 @@ export const NEW_ISSUE_MESSAGES = {
   tooLong: `メモは${MAX_NEW_ISSUE_MEMO.toLocaleString("en-US")}文字以内にしてください`,
 } as const;
 
+/** `/new/service`（`mode="service"`）の欄の名前に合わせた文。欄は「どんなサービスを作りたいか」 */
+export const NEW_SERVICE_MESSAGES = {
+  empty: "どんなサービスを作りたいかを書いてください",
+  tooLong: `どんなサービスを作りたいかは${MAX_NEW_ISSUE_MEMO.toLocaleString("en-US")}文字以内にしてください`,
+} as const;
+
 /** 文字数（コードポイント） */
 export function memoLength(value: string): number {
   return [...value].length;
 }
 
-/** メモを確かめる：空（空白だけ）と、4000文字を超えるものは受け付けない。通ったら前後の空白を外す */
-export function checkNewIssueMemo(value: unknown): MemoCheck {
-  if (typeof value !== "string") return { ok: false, message: NEW_ISSUE_MESSAGES.empty };
-  if (value.trim() === "") return { ok: false, message: NEW_ISSUE_MESSAGES.empty };
-  if (memoLength(value) > MAX_NEW_ISSUE_MEMO) return { ok: false, message: NEW_ISSUE_MESSAGES.tooLong };
+/**
+ * メモを確かめる：空（空白だけ）と、4000文字を超えるものは受け付けない。通ったら前後の空白を外す。
+ * `service` は `/new/service` のとき（文だけが変わる。確かめの中身は同じ）
+ */
+export function checkNewIssueMemo(value: unknown, service = false): MemoCheck {
+  const messages = service ? NEW_SERVICE_MESSAGES : NEW_ISSUE_MESSAGES;
+  if (typeof value !== "string") return { ok: false, message: messages.empty };
+  if (value.trim() === "") return { ok: false, message: messages.empty };
+  if (memoLength(value) > MAX_NEW_ISSUE_MEMO) return { ok: false, message: messages.tooLong };
   return { ok: true, memo: value.trim() };
 }
 

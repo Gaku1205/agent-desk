@@ -10,6 +10,7 @@ import {
   memoLength,
   memoTitle,
   NEW_ISSUE_MESSAGES,
+  NEW_SERVICE_MESSAGES,
   OMAKASE_BODY,
   omakaseHint,
   parseNewIssueInput,
@@ -67,6 +68,26 @@ describe("checkNewIssueMemo", () => {
       message: NEW_ISSUE_MESSAGES.tooLong,
     });
     expect(NEW_ISSUE_MESSAGES.tooLong).toBe("メモは4,000文字以内にしてください");
+  });
+  it("/new/service（service）：空と4,000文字超は、欄の名前に合う文。ほかは今のまま", () => {
+    for (const value of ["", "   ", null]) {
+      expect(checkNewIssueMemo(value, true)).toEqual({
+        ok: false,
+        message: "どんなサービスを作りたいかを書いてください",
+      });
+    }
+    expect(checkNewIssueMemo("あ".repeat(MAX_NEW_ISSUE_MEMO + 1), true)).toEqual({
+      ok: false,
+      message: "どんなサービスを作りたいかは4,000文字以内にしてください",
+    });
+    expect(checkNewIssueMemo("  一人暮らしの人の天気ページ \n", true)).toEqual({
+      ok: true,
+      memo: "一人暮らしの人の天気ページ",
+    });
+    // 既定（service を渡さない）は今のまま「メモ」の文
+    expect(checkNewIssueMemo("")).toEqual({ ok: false, message: "メモを書いてください" });
+    expect(checkNewIssueMemo("あ".repeat(MAX_NEW_ISSUE_MEMO + 1), false).ok).toBe(false);
+    expect(NEW_SERVICE_MESSAGES.empty).toBe("どんなサービスを作りたいかを書いてください");
   });
   it("文字数はコードポイントで数える（絵文字は1文字）", () => {
     expect(memoLength("😀a")).toBe(2);

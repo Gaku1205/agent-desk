@@ -268,6 +268,32 @@ describe("デモのサンプル", () => {
   });
 });
 
+describe("デモの席の経過時間", () => {
+  it("動いている工程の開始は、ぶら下がる実行の始まり以前（席の経過時間が実行の時間より短く見えない）", () => {
+    const results = buildDemoResults(NOW, startPlayback(NOW));
+    let checked = 0;
+    for (const result of results) {
+      if (!result.ok) continue;
+      for (const run of result.data.runs ?? []) {
+        const match = /^claude\/issue-(\d+)-demo$/.exec(run.headBranch ?? "");
+        if (!match || !run.startedAt) continue;
+        const issueNumber = Number(match[1]);
+        const runStarted = Date.parse(run.startedAt);
+        for (const comment of result.data.comments) {
+          if (comment.issueNumber !== issueNumber) continue;
+          for (const found of comment.body.matchAll(/<!-- ai-step (\{.*?\}) -->/g)) {
+            const row = JSON.parse(found[1]) as { result: string; started: string };
+            if (row.result !== "running") continue;
+            expect(Date.parse(row.started)).toBeLessThanOrEqual(runStarted);
+            checked += 1;
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+});
+
 describe("デモの自動追加", () => {
   /** 工場の相談で「作る」を押して、「新サービス：」の Issue が閉じた形 */
   function closedFactory(): ReturnType<typeof buildDemoResults> {
