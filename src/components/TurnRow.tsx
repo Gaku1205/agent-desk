@@ -9,7 +9,7 @@ import { nextRowIndex } from "@/lib/focusAfterLeave";
 import { isMergeWeak, mergeResultLines } from "@/lib/mergeLines";
 import { DEMO_OP_DELAY_MS } from "@/lib/demo/ops";
 import { doneSummary, OPERATION_COPY, RESULT_FADE_MS, RESULT_SHOW_MS } from "@/lib/operationResult";
-import { getProgress } from "@/lib/progress";
+import { getProgress, hasNoStageName } from "@/lib/progress";
 import { turnHeadCells, turnHeadId } from "@/lib/turnHead";
 import { composeAnswer, type AnswerInput } from "@/lib/question";
 import { groupLabel, splitPhrases, titlesWhatHappened, turnKind, turnSource } from "@/lib/turnKind";
@@ -103,10 +103,11 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue, home = fals
   const kind = turnKind(status);
   const progress = getProgress(status);
   // 工場の相談は、工場の今の段の名前（相談待ち → 動いている段 → 通常の段階名）
+  // まだ工程に入っていない物（Notice・Not started・On hold）は出さない（null）
   const stageName =
     item.factoryFlow?.steps.find((step) => step.state === "waiting")?.name ??
     item.factoryFlow?.steps.find((step) => step.state === "running")?.name ??
-    progress.currentName;
+    (hasNoStageName(status) ? null : progress.currentName);
   const router = useRouter();
   const [pending, startAction] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -493,7 +494,7 @@ export function TurnRow({ item, wait, fresh, onLeave, onHold, queue, home = fals
             </Fragment>
           );
         })}
-        <span className={styles.stage}>{stageName}</span>
+        {stageName !== null && <span className={styles.stage}>{stageName}</span>}
       </div>
       <h2 className={styles.title}>
         {whatHappened ? item.description : <SmartLink href={issue.url}>{issue.title}</SmartLink>}

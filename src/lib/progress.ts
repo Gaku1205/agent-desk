@@ -2,7 +2,7 @@ import type { BaseStage, IssueStatus } from "./status";
 
 /** 棒の名前（i = 0〜7） */
 export const PROGRESS_STAGE_NAMES = [
-  "清書",
+  "企画",
   "実装",
   "PR",
   "CI",
@@ -110,6 +110,14 @@ const MERGE_INDEX = 6;
 export function barOpacity(index: number, at: number): number {
   if (at === 0) return 1;
   return Math.round((0.3 + (0.7 * index) / at) * 100) / 100;
+}
+
+/** まだ工程に入っていない段階（Notice・Not started・On hold）：右端に段階名を出さない */
+const NOT_ENTERED_STAGES: readonly BaseStage[] = ["notice", "notStarted", "skipped"];
+
+/** まだ工程に入っていない（今の段階の名前を出さない）か。止まった・やり直しは対象にしない */
+export function hasNoStageName(status: IssueStatus): boolean {
+  return status.stage !== "stuck" && status.stage !== "retrying" && NOT_ENTERED_STAGES.includes(status.stage);
 }
 
 /** 段階から、8本の棒の色・不透明度・枠線だけかを決める（docs/design.md の「進み具合のバー」） */
