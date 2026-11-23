@@ -532,8 +532,7 @@ export function Desk({
                 onLeave={leave}
                 onHold={hold}
                 queue={queueIndex >= 0 ? { num: queueIndex + 1 } : undefined}
-                home={home}
-                onSkip={home && waiting.length > 1 ? skip : undefined}
+                onSkip={waiting.length > 1 ? skip : undefined}
               />
             );
           })}
