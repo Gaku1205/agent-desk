@@ -297,6 +297,11 @@
     transform 0.08s var(--ease);
 }
 
+/* アイコンはスマホ（幅899px以下）だけ出す。PCは文字の `再生 ▶` だけ（docs/design.md の「上端の帯」） */
+.playIcon {
+  display: none;
+}
+
 .play:hover {
   background: var(--chip-hover);
 }
@@ -654,6 +659,10 @@
   }
 
   /* アイコンだけにする（文字は隠す。aria-label に文言が入っている） */
+  .playIcon {
+    display: inline-flex;
+  }
+
   .playLabel {
     position: absolute;
     width: 1px;

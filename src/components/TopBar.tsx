@@ -421,7 +421,9 @@ function DemoControls() {
         aria-live="polite"
         aria-label={PLAY_BUTTON_LABEL[demo.playState]}
       >
-        <PlayIcon />
+        <span className={styles.playIcon} aria-hidden="true">
+          <PlayIcon />
+        </span>
         <span className={styles.playLabel}>{PLAY_BUTTON_LABEL[demo.playState]}</span>
       </button>
     </>
