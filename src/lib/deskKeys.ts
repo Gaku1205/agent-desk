@@ -44,6 +44,16 @@ export function stepKey(keys: readonly string[], current: string | null, delta: 
   return keys[next];
 }
 
+/** マージ待ちの一覧（outside に入っていないキーだけが一覧の外）を飛ばす先：今の物の次の、一覧の外の1件（最後なら先頭へ回る）。無ければ null */
+export function skipOutKey(keys: readonly string[], inQueue: ReadonlySet<string>, current: string | null): string | null {
+  const at = current === null ? -1 : keys.indexOf(current);
+  for (let i = 1; i <= keys.length; i++) {
+    const key = keys[(at + i) % keys.length];
+    if (!inQueue.has(key)) return key;
+  }
+  return null;
+}
+
 /** 飛ばした先：今の物の次（最後なら先頭へ回る）。1件だけなら null（替わる先が無い） */
 export function skipKey(keys: readonly string[], current: string | null): string | null {
   if (keys.length < 2) return null;
