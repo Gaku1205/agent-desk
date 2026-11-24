@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deskKeyAction, skipKey, stepKey, type DeskKeyInput } from "./deskKeys";
+import { deskKeyAction, skipKey, skipOutKey, stepKey, type DeskKeyInput } from "./deskKeys";
 
 const base: DeskKeyInput = {
   key: "",
@@ -50,6 +50,19 @@ describe("stepKey", () => {
     expect(stepKey(keys, "a", -1)).toBe("a");
     expect(stepKey(keys, null, 1)).toBe("a");
     expect(stepKey([], "a", 1)).toBeNull();
+  });
+});
+
+describe("skipOutKey", () => {
+  const inQueue = new Set(["q1", "q2"]);
+  it("一覧の外の次の1件へ進む（一覧の行は飛ばす・最後なら先頭へ回る）", () => {
+    expect(skipOutKey(["q1", "q2", "a", "b"], inQueue, "q1")).toBe("a");
+    expect(skipOutKey(["a", "q1", "q2", "b"], inQueue, "q1")).toBe("b");
+    expect(skipOutKey(["q1", "a", "q2"], inQueue, "q2")).toBe("a");
+  });
+  it("一覧の外が無ければ null", () => {
+    expect(skipOutKey(["q1", "q2"], inQueue, "q1")).toBeNull();
+    expect(skipOutKey([], inQueue, null)).toBeNull();
   });
 });
 

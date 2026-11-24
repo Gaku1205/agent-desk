@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { deskKeyAction, skipKey, stepKey } from "@/lib/deskKeys";
+import { deskKeyAction, skipKey, skipOutKey, stepKey } from "@/lib/deskKeys";
 import type { AddedNotice } from "@/lib/autoAdd";
 import type { ChatMessage } from "@/lib/conversation";
 import { applyStepLog, hideUnknownModels } from "@/lib/flow";
@@ -192,13 +192,15 @@ export function Desk({
   const queue = mergeQueueOf(shown, current);
   const queueKeys = new Set(queue.map(turnItemKey));
   // スマホの `飛ばす`（一覧の下に1つ）：一覧の外に次の1件があるときだけ（一覧だけのときは出さない）
-  const queueSkip = queue.length > 0 && waiting.some((item) => !queueKeys.has(turnItemKey(item)));
   const home = scope.kind === "all";
   // 右の Your turn の列のキーの並び（J / K・S で動かす）。最新の物をキー操作から読む
   const waitingKeys = waiting.map(turnItemKey);
+  const queueSkip = queue.length > 0 && skipOutKey(waitingKeys, queueKeys, currentKey) !== null;
   const keysRef = useRef({ current: currentKey, keys: waitingKeys });
+  const queueKeysRef = useRef(queueKeys);
   useLayoutEffect(() => {
     keysRef.current = { current: currentKey, keys: waitingKeys };
+    queueKeysRef.current = queueKeys;
   });
   // 開いたときの1件はフェードしない。替わった1件だけ短くフェードする
   const [firstKey] = useState(currentKey);
@@ -269,10 +271,10 @@ export function Desk({
     setPicked(key);
   }, []);
 
-  // スマホの `飛ばす`：右の列の次の1件を真ん中に出す（S キーと同じ）
+  // スマホの `飛ばす`（マージ待ちの一覧の下）：一覧の外の次の1件を真ん中に出す
   const skip = useCallback(() => {
     const { current: key, keys } = keysRef.current;
-    const to = skipKey(keys, key);
+    const to = skipOutKey(keys, queueKeysRef.current, key);
     if (to !== null && to !== key) setPicked(to);
   }, []);
 
