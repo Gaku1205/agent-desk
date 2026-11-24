@@ -89,6 +89,23 @@ function scrollToBottom(): void {
   window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
 }
 
+/** 幅1179px以下では、リポジトリのページの Your turn の列が真ん中の下に回る（docs/design.md の「リポジトリのページ」） */
+function stackedNow(): boolean {
+  return window.matchMedia("(max-width: 1179px)").matches;
+}
+
+/**
+ * 真ん中の1件の上端に置く要素（答える欄の1件・マージ待ちの一覧の見出し・それ以外の今の1件）。無ければ null。
+ * 上端の帯のすぐ下（scroll-padding-top）に置くときに使う（Issue #786）
+ */
+function centerOf(rows: HTMLElement | null): HTMLElement | null {
+  const answer = rows?.querySelector<HTMLElement>("[data-answer]");
+  if (answer) return answer;
+  const heading = document.getElementById("merge-queue-title");
+  if (heading) return heading;
+  return rows?.querySelector<HTMLElement>("article[data-main]:not([data-leaving])") ?? null;
+}
+
 /** マージ待ちが2件以上で、大きい1件がマージ待ちの番なら、その1件の代わりに出す「すすめる順」の一覧（強い色の物が先にある間は出さない） */
 function mergeQueueOf(waiting: TurnItem[], current: TurnItem | null): TurnItem[] {
   const mergeWaiting = waiting.filter(isMergeQueueItem);
@@ -271,12 +288,17 @@ export function Desk({
     setPicked(key);
   }, []);
 
-  // スマホの `飛ばす`（マージ待ちの一覧の下）：一覧の外の次の1件を真ん中に出す
+  // スマホの `飛ばす`（マージ待ちの一覧の下）：一覧の外の次の1件を真ん中に出す。
+  // リポジトリのページで右の列が下に回っている幅（1179px以下）では、新しい1件の上端（一覧なら見出し）を帯のすぐ下に出す（Issue #786）
+  const skipScroll = useRef(false);
   const skip = useCallback(() => {
     const { current: key, keys } = keysRef.current;
     const to = skipOutKey(keys, queueKeysRef.current, key);
-    if (to !== null && to !== key) setPicked(to);
-  }, []);
+    if (to !== null && to !== key) {
+      skipScroll.current = !home && stackedNow();
+      setPicked(to);
+    }
+  }, [home]);
 
   // スマホの `このあと` の行：その1件を真ん中に出して、上へ戻る
   // （上へ戻すのではなく、フォーカスを移す副作用が、その1件を上端の帯の下まで見せる）
@@ -354,6 +376,13 @@ export function Desk({
     row?.scrollIntoView({ block: "start", behavior: "instant" });
   }, [currentKey]);
 
+  // 幅1179px以下のリポジトリのページで「飛ばす」を押したあと、新しい1件（一覧なら見出し）の上端を帯のすぐ下に置く（Issue #786）
+  useEffect(() => {
+    if (!skipScroll.current) return;
+    skipScroll.current = false;
+    centerOf(rowsRef.current)?.scrollIntoView({ block: "start", behavior: "instant" });
+  }, [currentKey]);
+
   // 中央は上が古く下が新しい。開いたとき・リポジトリを切り替えたときはいちばん下で始め、
   // 取り直しでは、いちばん下にいる間だけ追従する（さかのぼり中は動かさない）
   const scopeKey = scope.kind === "all" ? "all" : `${scope.owner}/${scope.repo}`;
@@ -371,15 +400,21 @@ export function Desk({
     const place = () => {
       const root = document.documentElement;
       const answer = rowsRef.current?.querySelector<HTMLElement>("[data-answer]") ?? null;
+      // 真ん中の1件（一覧なら見出し）。右の列が下に回る幅では、答える欄が無くてもここから始める（Issue #786）
+      const center = centerOf(rowsRef.current);
+      const stacked = !home && center !== null && stackedNow();
       // ホームには会話が無いので、いちばん下では始めない（答える欄があればその1件の上端、無ければ上から）
       const position = home
         ? answer
           ? "answer"
           : "top"
-        : openPosition(root.scrollHeight, window.innerHeight, answer !== null);
+        : openPosition(root.scrollHeight, window.innerHeight, answer !== null, stacked);
       if (position === "answer" && answer) {
         // 上端の帯の下（scroll-padding-top）に、その1件の上端（種類の札と題名）を置く
         answer.scrollIntoView({ block: "start", behavior: "instant" });
+      } else if (position === "current" && center) {
+        // 答える欄の無い1件（一覧なら見出し）も、上端の帯の下に置く
+        center.scrollIntoView({ block: "start", behavior: "instant" });
       } else if (position === "bottom") {
         scrollToBottom();
       } else {
