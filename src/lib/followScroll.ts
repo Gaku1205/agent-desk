@@ -6,17 +6,24 @@
 /** いちばん下から、これ以内（px）ならいちばん下にいるとみなす */
 export const FOLLOW_THRESHOLD = 80;
 
-/** 開いたとき・切り替えたときに始める位置 */
-export type OpenPosition = "top" | "answer" | "bottom";
+/** 開いたとき・切り替えたときに始める位置。current は真ん中の1件（一覧なら見出し）の上端 */
+export type OpenPosition = "top" | "answer" | "current" | "bottom";
 
 /**
  * 開いたとき・切り替えたときの位置。
  * 中身が画面に収まるなら上から（下に余白を残す）、答える欄のある1件があればその1件の上端、
- * それ以外で中身が多いときだけ最新（いちばん下）。
+ * 真ん中の1件が右の列より上に回っている（stacked：幅1179px以下のリポジトリのページ。Issue #786）なら
+ * その1件の上端（答える欄が無くても）、それ以外で中身が多いときだけ最新（いちばん下）。
  */
-export function openPosition(scrollHeight: number, clientHeight: number, hasAnswer: boolean): OpenPosition {
+export function openPosition(
+  scrollHeight: number,
+  clientHeight: number,
+  hasAnswer: boolean,
+  stacked: boolean = false,
+): OpenPosition {
   if (scrollHeight <= clientHeight) return "top";
-  return hasAnswer ? "answer" : "bottom";
+  if (hasAnswer) return "answer";
+  return stacked ? "current" : "bottom";
 }
 
 /** 追従するか：いちばん下の近くにいて、答える欄を読んでいる・書いている途中ではないとき */
