@@ -191,6 +191,8 @@ export function Desk({
   const currentKey = current ? turnItemKey(current) : null;
   const queue = mergeQueueOf(shown, current);
   const queueKeys = new Set(queue.map(turnItemKey));
+  // スマホの `飛ばす`（一覧の下に1つ）：一覧の外に次の1件があるときだけ（一覧だけのときは出さない）
+  const queueSkip = queue.length > 0 && waiting.some((item) => !queueKeys.has(turnItemKey(item)));
   const home = scope.kind === "all";
   // 右の Your turn の列のキーの並び（J / K・S で動かす）。最新の物をキー操作から読む
   const waitingKeys = waiting.map(turnItemKey);
@@ -537,6 +539,11 @@ export function Desk({
             );
           })}
         </div>
+        {queueSkip && (
+          <button type="button" className={styles.queueSkip} onClick={skip}>
+            飛ばす
+          </button>
+        )}
       </section>
   );
 
